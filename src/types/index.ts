@@ -174,15 +174,18 @@ export interface ActiveLeagueSession {
 
 export interface UserAccount {
   id: string;
-  provider: 'poe' | 'google' | 'direct';
-  displayName: string; // Root Web App Profile / Tag
+  provider: 'google' | 'app';
+  displayName: string; // Exile SSF App Username / Profile Tag
   preferredContact: ContactPlatform;
-  poeAccountName: string;
+  poeAccountName: string; // Linked PoE Account Tag (e.g. Account#1234)
+  poeProfileUrl?: string; // Linked PoE Profile from pathofexile.com
   characterName: string;
   discordName?: string;
   steamName?: string;
   customTag?: string;
   email?: string;
+  linkedGoogleEmail?: string;
+  passwordHash?: string;
   className: string;
   ascendancy: string;
   leagueMode: 'Private' | 'Softcore' | 'SSF';
@@ -201,9 +204,10 @@ export interface LeagueRosterMember {
   id: string;
   slotNumber: number;
   leagueMode: 'Private' | 'Softcore' | 'SSF';
-  displayName: string; // Root Web App Username or primary tag
+  displayName: string; // Exile SSF App Username or primary tag
   preferredContact: ContactPlatform;
   poeAccountName: string;
+  poeProfileUrl?: string;
   characterName: string;
   discordName?: string;
   steamName?: string;

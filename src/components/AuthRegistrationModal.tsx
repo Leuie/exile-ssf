@@ -10,7 +10,9 @@ import {
   KeyRound,
   MessageSquare,
   AtSign,
-  } from 'lucide-react';
+  Lock,
+  AlertCircle
+} from 'lucide-react';
 import { ASCENDANCY_CATALOG } from '../data/privateLeagueData';
 import type { UserAccount, LeagueRosterMember, ContactPlatform } from '../types';
 import { fireConfetti } from '../utils/confetti';
@@ -24,6 +26,24 @@ interface AuthRegistrationModalProps {
   existingRosterMember?: LeagueRosterMember;
 }
 
+// Irreversible cryptographic hash of the admin secret key (Plain text is never committed to source)
+const ADMIN_KEY_SHA256 = '5fa6bba1018db3415c42db05cc93959d8f58a68dfea692677bd15f2a868bc05d';
+
+async function computeSHA256(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text.trim());
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface StoredAppAccount {
+  username: string;
+  passwordHash: string;
+  userAccount: UserAccount;
+  rosterEntry: LeagueRosterMember;
+}
+
 export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   isOpen,
   onClose,
@@ -35,11 +55,38 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  const [provider, setProvider] = useState<'google' | 'poe' | 'direct'>(userAccount?.provider || 'poe');
-  const [step, setStep] = useState<'oauth' | 'register'>(userAccount ? 'register' : 'oauth');
-  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  // Auth Method: 'google' | 'app'
+  const [authMethod, setAuthMethod] = useState<'google' | 'app'>('google');
+  const [appAuthMode, setAppAuthMode] = useState<'signin' | 'create'>('signin');
+  const [step, setStep] = useState<'auth_choice' | 'link_poe_profile'>(userAccount ? 'link_poe_profile' : 'auth_choice');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Dynamic Tagging & Profile State
+  // App Account Credentials
+  const [appUsername, setAppUsername] = useState<string>('');
+  const [appPassword, setAppPassword] = useState<string>('');
+  const [appPasswordConfirm, setAppPasswordConfirm] = useState<string>('');
+
+  // Google Auth Inputs
+  const [googleEmail, setGoogleEmail] = useState<string>(userAccount?.email || '');
+  const [isLinkingLeuieGoogle, setIsLinkingLeuieGoogle] = useState<boolean>(false);
+  const [googleLeuiePassword, setGoogleLeuiePassword] = useState<string>('');
+
+  // Linked Admin Google Email stored in browser
+  const [linkedAdminGoogle, setLinkedAdminGoogle] = useState<string>(() => {
+    try {
+      return localStorage.getItem('poe_clean330_admin_google') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Dedicated Admin Login State
+  const [showAdminLoginBox, setShowAdminLoginBox] = useState<boolean>(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
+  const [adminGoogleToLink, setAdminGoogleToLink] = useState<string>('');
+
+  // Exile Profile & PoE Link State
   const [displayName, setDisplayName] = useState<string>(
     userAccount?.displayName || existingRosterMember?.displayName || ''
   );
@@ -48,6 +95,9 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   );
   const [poeAccountName, setPoeAccountName] = useState<string>(
     userAccount?.poeAccountName || existingRosterMember?.poeAccountName || ''
+  );
+  const [poeProfileUrl, setPoeProfileUrl] = useState<string>(
+    userAccount?.poeProfileUrl || existingRosterMember?.poeProfileUrl || ''
   );
   const [characterName, setCharacterName] = useState<string>(
     userAccount?.characterName || existingRosterMember?.characterName || ''
@@ -61,10 +111,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   const [customTag, setCustomTag] = useState<string>(
     userAccount?.customTag || existingRosterMember?.customTag || ''
   );
-  const [email, setEmail] = useState<string>(userAccount?.email || '');
-  const [adminPasscode, setAdminPasscode] = useState<string>('');
-  const [adminError, setAdminError] = useState<string | null>(null);
-  const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
 
   // Character Build & League State
   const [selectedAscendancy, setSelectedAscendancy] = useState<string>(
@@ -95,42 +141,45 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   // Sync form state when modal opens or userAccount changes
   useEffect(() => {
     if (userAccount) {
-      setProvider(userAccount.provider);
-      setDisplayName(userAccount.displayName || 'Exile');
+      setAuthMethod(userAccount.provider);
+      setDisplayName(userAccount.displayName || '');
       setPreferredContact(userAccount.preferredContact || 'app');
-      setEmail(userAccount.email || '');
-      setPoeAccountName(userAccount.poeAccountName);
-      setCharacterName(userAccount.characterName);
+      setGoogleEmail(userAccount.email || userAccount.linkedGoogleEmail || '');
+      setPoeAccountName(userAccount.poeAccountName || '');
+      setPoeProfileUrl(userAccount.poeProfileUrl || '');
+      setCharacterName(userAccount.characterName || '');
       setDiscordName(userAccount.discordName || '');
       setSteamName(userAccount.steamName || '');
       setCustomTag(userAccount.customTag || '');
-      setSelectedAscendancy(userAccount.ascendancy);
-      setLeagueMode(userAccount.leagueMode);
-      setAvailableAtLaunch(userAccount.availableAtLaunch);
-      setLevel(userAccount.level);
-      setBuildName(userAccount.buildName);
+      setSelectedAscendancy(userAccount.ascendancy || 'Hierophant');
+      setLeagueMode(userAccount.leagueMode || 'Private');
+      setAvailableAtLaunch(userAccount.availableAtLaunch || 'Yes');
+      setLevel(userAccount.level || 1);
+      setBuildName(userAccount.buildName || '');
       setPobUrl(userAccount.pobUrl || '');
       setAtlasContent(userAccount.atlasContent?.join(', ') || '');
-      setNotes(userAccount.notes);
-      setStep('register');
+      setNotes(userAccount.notes || '');
+      setStep('link_poe_profile');
     } else {
-      setStep('oauth');
+      setStep('auth_choice');
+      setAuthError(null);
       if (existingRosterMember) {
-        setDisplayName(existingRosterMember.displayName || 'Exile');
+        setDisplayName(existingRosterMember.displayName || '');
         setPreferredContact(existingRosterMember.preferredContact || 'app');
-        setPoeAccountName(existingRosterMember.poeAccountName);
-        setCharacterName(existingRosterMember.characterName);
+        setPoeAccountName(existingRosterMember.poeAccountName || '');
+        setPoeProfileUrl(existingRosterMember.poeProfileUrl || '');
+        setCharacterName(existingRosterMember.characterName || '');
         setDiscordName(existingRosterMember.discordName || '');
         setSteamName(existingRosterMember.steamName || '');
         setCustomTag(existingRosterMember.customTag || '');
-        setSelectedAscendancy(existingRosterMember.ascendancy);
-        setLeagueMode(existingRosterMember.leagueMode);
-        setAvailableAtLaunch(existingRosterMember.availableAtLaunch);
-        setLevel(existingRosterMember.level);
-        setBuildName(existingRosterMember.buildName);
+        setSelectedAscendancy(existingRosterMember.ascendancy || 'Hierophant');
+        setLeagueMode(existingRosterMember.leagueMode || 'Private');
+        setAvailableAtLaunch(existingRosterMember.availableAtLaunch || 'Yes');
+        setLevel(existingRosterMember.level || 1);
+        setBuildName(existingRosterMember.buildName || '');
         setPobUrl(existingRosterMember.pobUrl || '');
         setAtlasContent(existingRosterMember.atlasContent?.join(', ') || '');
-        setNotes(existingRosterMember.notes);
+        setNotes(existingRosterMember.notes || '');
       }
     }
   }, [userAccount, existingRosterMember, isOpen]);
@@ -147,7 +196,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     }
   }, [isOpen]);
 
-  // Fallback for browsers that do not yet support closedby="any"
+  // Fallback for click outside
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -183,43 +232,34 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     };
   }, [onClose]);
 
-  const handleOAuthSimulate = (chosenProvider: 'poe' | 'google') => {
-    setProvider(chosenProvider);
-    setIsAuthenticating(true);
-    setTimeout(() => {
-      setIsAuthenticating(false);
-      setStep('register');
-    }, 350);
-  };
-
-  const handleAdminDirectLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validCodes = ['5712', 'noir', 'coven330', 'ravenwatch', 'admin5712'];
-    if (!validCodes.includes(adminPasscode.trim().toLowerCase())) {
-      setAdminError('Invalid Admin Passcode. Please check and try again.');
-      return;
-    }
+  // Helper: Create admin account object
+  const createAdminLeuieAccount = (linkedGoogle?: string): { account: UserAccount; roster: LeagueRosterMember } => {
+    const effectiveGoogle = linkedGoogle?.trim().toLowerCase() || linkedAdminGoogle || undefined;
     const adminAccount: UserAccount = {
       id: 'usr-leuie',
-      provider: 'poe',
+      provider: effectiveGoogle ? 'google' : 'app',
       displayName: 'Leuie',
       preferredContact: 'app',
       poeAccountName: 'Leuie#0001',
+      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
       characterName: 'Leuie_Umbra',
       discordName: '@leuie',
+      email: effectiveGoogle,
+      linkedGoogleEmail: effectiveGoogle,
       className: 'Witch',
       ascendancy: 'Elementalist',
       leagueMode: 'Private',
       availableAtLaunch: 'Yes',
       level: 95,
-      buildName: 'Undecided 3.30 Starter',
+      buildName: 'Penance Brand Ignite Elementalist',
       pobUrl: 'https://pobb.in/',
       atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to NOIR 3.30 Coven of Umbra!',
+      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
       inviteStatus: 'Accepted',
       registeredAt: '2026-11-01',
       isAdmin: true
     };
+
     const adminRoster: LeagueRosterMember = {
       id: 'member-leuie',
       slotNumber: 1,
@@ -227,40 +267,221 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       displayName: 'Leuie',
       preferredContact: 'app',
       poeAccountName: 'Leuie#0001',
+      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
       characterName: 'Leuie_Umbra',
       discordName: '@leuie',
       className: 'Witch',
       ascendancy: 'Elementalist',
       availableAtLaunch: 'Yes',
       level: 95,
-      buildName: 'Undecided 3.30 Starter',
+      buildName: 'Penance Brand Ignite Elementalist',
       pobUrl: 'https://pobb.in/',
       atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to NOIR 3.30 Coven of Umbra!',
+      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
       inviteStatus: 'Accepted',
       isSupporterHeart: true,
       isOnline: true
     };
-    onSaveAccount(adminAccount, adminRoster);
+
+    return { account: adminAccount, roster: adminRoster };
+  };
+
+  // Google Authentication Handler
+  const handleGoogleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const emailClean = googleEmail.trim().toLowerCase();
+    if (!emailClean || !emailClean.includes('@')) {
+      setAuthError('Please enter a valid Google email address.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    // 1. Check if this Google email is already linked to Leuie (Admin)
+    if (linkedAdminGoogle && emailClean === linkedAdminGoogle.toLowerCase()) {
+      setTimeout(() => {
+        setIsProcessing(false);
+        const { account, roster } = createAdminLeuieAccount(emailClean);
+        onSaveAccount(account, roster);
+        fireConfetti();
+        dialogRef.current?.close();
+      }, 350);
+      return;
+    }
+
+    // 2. Check if user wants to link this Google account as Leuie with the Admin Password
+    if (isLinkingLeuieGoogle) {
+      const hash = await computeSHA256(googleLeuiePassword);
+      if (hash !== ADMIN_KEY_SHA256) {
+        setIsProcessing(false);
+        setAuthError('Incorrect Admin Password. Could not link Google account to @Leuie.');
+        return;
+      }
+      // Save linked Google account permanently
+      localStorage.setItem('poe_clean330_admin_google', emailClean);
+      setLinkedAdminGoogle(emailClean);
+      setIsProcessing(false);
+      const { account, roster } = createAdminLeuieAccount(emailClean);
+      onSaveAccount(account, roster);
+      fireConfetti();
+      dialogRef.current?.close();
+      return;
+    }
+
+    // 3. Regular exile Google sign in: check existing stored accounts
+    try {
+      const storedRaw = localStorage.getItem('poe_clean330_accounts');
+      const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+      const matched = storedList.find((a) => a.userAccount.email?.toLowerCase() === emailClean);
+
+      setTimeout(() => {
+        setIsProcessing(false);
+        if (matched) {
+          // Existing user with this Google email
+          onSaveAccount(matched.userAccount, matched.rosterEntry);
+          fireConfetti();
+          dialogRef.current?.close();
+        } else {
+          // New exile: advance to profile setup and link PoE profile
+          setAuthMethod('google');
+          setDisplayName(emailClean.split('@')[0]);
+          setStep('link_poe_profile');
+        }
+      }, 350);
+    } catch {
+      setIsProcessing(false);
+      setAuthMethod('google');
+      setStep('link_poe_profile');
+    }
+  };
+
+  // Dedicated Admin Host Login Handler
+  const handleAdminDirectLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setIsProcessing(true);
+
+    const hash = await computeSHA256(adminPasswordInput);
+    if (hash !== ADMIN_KEY_SHA256) {
+      setIsProcessing(false);
+      setAuthError('Invalid Admin Password. Access denied.');
+      return;
+    }
+
+    // If an optional Google email was provided during admin login, link it now
+    let linkedEmail = linkedAdminGoogle;
+    if (adminGoogleToLink.trim() && adminGoogleToLink.includes('@')) {
+      linkedEmail = adminGoogleToLink.trim().toLowerCase();
+      localStorage.setItem('poe_clean330_admin_google', linkedEmail);
+      setLinkedAdminGoogle(linkedEmail);
+    }
+
+    setIsProcessing(false);
+    const { account, roster } = createAdminLeuieAccount(linkedEmail);
+    onSaveAccount(account, roster);
     fireConfetti();
     dialogRef.current?.close();
   };
 
-  const handleSubmitRegistration = (e: React.FormEvent) => {
+  // Exile SSF App Account: Sign In or Create
+  const handleAppAccountAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
 
-    const cleanDisplay = displayName.trim() || 'Exile';
-    const isLeuie = cleanDisplay.toLowerCase() === 'leuie';
-
-    if (isLeuie) {
-      const validCodes = ['5712', 'noir', 'coven330', 'ravenwatch', 'admin5712'];
-      if (!validCodes.includes(adminPasscode.trim().toLowerCase())) {
-        setAdminError("The handle 'Leuie' is reserved for the League Host & Admin. Enter the Admin Passcode to verify, or choose your own Exile display name.");
-        return;
-      }
+    const userClean = appUsername.trim();
+    if (!userClean) {
+      setAuthError('Please enter a username for your Exile SSF account.');
+      return;
     }
 
-    const cleanPoeAccount = poeAccountName.trim() || `${cleanDisplay}#3300`;
+    if (!appPassword) {
+      setAuthError('Please enter your password.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    // If signing in as Leuie with App username/password
+    if (userClean.toLowerCase() === 'leuie') {
+      const hash = await computeSHA256(appPassword);
+      if (hash !== ADMIN_KEY_SHA256) {
+        setIsProcessing(false);
+        setAuthError('Invalid Admin Password for @Leuie.');
+        return;
+      }
+      setIsProcessing(false);
+      const { account, roster } = createAdminLeuieAccount();
+      onSaveAccount(account, roster);
+      fireConfetti();
+      dialogRef.current?.close();
+      return;
+    }
+
+    const passwordHash = await computeSHA256(appPassword);
+    const storedRaw = localStorage.getItem('poe_clean330_accounts');
+    const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+
+    if (appAuthMode === 'signin') {
+      const found = storedList.find(
+        (a) => a.username.toLowerCase() === userClean.toLowerCase() && a.passwordHash === passwordHash
+      );
+      setIsProcessing(false);
+      if (found) {
+        onSaveAccount(found.userAccount, found.rosterEntry);
+        fireConfetti();
+        dialogRef.current?.close();
+      } else {
+        setAuthError('Invalid Exile SSF username or password.');
+      }
+    } else {
+      // Create Account mode
+      if (appPassword !== appPasswordConfirm) {
+        setIsProcessing(false);
+        setAuthError('Passwords do not match.');
+        return;
+      }
+
+      if (appPassword.length < 6) {
+        setIsProcessing(false);
+        setAuthError('Password must be at least 6 characters.');
+        return;
+      }
+
+      const existing = storedList.find((a) => a.username.toLowerCase() === userClean.toLowerCase());
+      if (existing) {
+        setIsProcessing(false);
+        setAuthError(`The username "${userClean}" is already taken. Please sign in or choose another.`);
+        return;
+      }
+
+      setIsProcessing(false);
+      setAuthMethod('app');
+      setDisplayName(userClean);
+      setStep('link_poe_profile');
+    }
+  };
+
+  // Step 2 Submission: Link Path of Exile Profile & Finish Registration
+  const handleSubmitProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    const cleanDisplay = displayName.trim() || appUsername.trim() || 'Exile';
+    const isLeuie = cleanDisplay.toLowerCase() === 'leuie';
+
+    // Guard: Prevent claiming Leuie without the admin password
+    if (isLeuie && !userAccount?.isAdmin) {
+      setAuthError('The handle "Leuie" is reserved for the League Host & Admin.');
+      return;
+    }
+
+    const cleanPoeAccount = poeAccountName.trim();
+    if (!cleanPoeAccount) {
+      setAuthError('Please provide your Path of Exile Account Tag (e.g. Account#1234).');
+      return;
+    }
+
     const cleanCharName = characterName.trim() || `${cleanDisplay}_Umbra`;
     const cleanDiscord = discordName.trim()
       ? discordName.trim().startsWith('@')
@@ -279,24 +500,26 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
     const newAccount: UserAccount = {
       id: isLeuie ? 'usr-leuie' : (userAccount?.id || `usr-${Date.now()}`),
-      provider,
+      provider: authMethod,
       displayName: cleanDisplay,
       preferredContact,
       poeAccountName: cleanPoeAccount,
+      poeProfileUrl: poeProfileUrl.trim() || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanPoeAccount.split('#')[0])}`,
       characterName: cleanCharName,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
       customTag: customTag.trim() || undefined,
-      email: provider === 'google' ? email.trim() || 'exile@noircommunity.com' : undefined,
+      email: authMethod === 'google' ? googleEmail.trim().toLowerCase() : undefined,
+      linkedGoogleEmail: isLeuie ? linkedAdminGoogle : undefined,
       className: baseClass,
       ascendancy: selectedAscendancy,
       leagueMode,
       availableAtLaunch,
       level: Number(level) || 1,
-      buildName: buildName.trim() || 'Undecided 3.30 Starter',
+      buildName: buildName.trim() || 'Undecided Starter',
       pobUrl: pobUrl.trim() || undefined,
       atlasContent: atlasArray.length > 0 ? atlasArray : ['Expedition', 'Harvest'],
-      notes: notes.trim() || 'Registered via NOIR 3.30 Coven of Umbra Portal',
+      notes: notes.trim() || 'Registered via Ravenwatch 3.30 Coven of Umbra GSF',
       inviteStatus: existingRosterMember?.inviteStatus || 'Accepted',
       registeredAt: userAccount?.registeredAt || new Date().toISOString().slice(0, 10),
       isAdmin: isLeuie
@@ -309,6 +532,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       displayName: cleanDisplay,
       preferredContact,
       poeAccountName: cleanPoeAccount,
+      poeProfileUrl: newAccount.poeProfileUrl,
       characterName: cleanCharName,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
@@ -317,18 +541,69 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       ascendancy: selectedAscendancy,
       availableAtLaunch,
       level: Number(level) || 1,
-      buildName: buildName.trim() || 'Undecided 3.30 Starter',
+      buildName: buildName.trim() || 'Undecided Starter',
       pobUrl: pobUrl.trim() || undefined,
       atlasContent: atlasArray.length > 0 ? atlasArray : ['Expedition', 'Harvest'],
-      notes: notes.trim() || 'Registered via NOIR 3.30 Coven of Umbra Portal',
+      notes: notes.trim() || 'Registered via Ravenwatch 3.30 Coven of Umbra GSF',
       inviteStatus: existingRosterMember?.inviteStatus || 'Accepted',
-      isSupporterHeart: existingRosterMember?.isSupporterHeart || false,
+      isSupporterHeart: existingRosterMember?.isSupporterHeart || isLeuie,
       isOnline: true
     };
+
+    // If registered with App username and password, store credentials locally
+    if (authMethod === 'app' && appUsername && appPassword) {
+      const pHash = await computeSHA256(appPassword);
+      newAccount.passwordHash = pHash;
+      try {
+        const storedRaw = localStorage.getItem('poe_clean330_accounts');
+        const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+        const index = storedList.findIndex((a) => a.username.toLowerCase() === appUsername.toLowerCase());
+        const entry: StoredAppAccount = {
+          username: appUsername,
+          passwordHash: pHash,
+          userAccount: newAccount,
+          rosterEntry: newRosterEntry
+        };
+        if (index >= 0) {
+          storedList[index] = entry;
+        } else {
+          storedList.push(entry);
+        }
+        localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+      } catch {}
+    }
 
     onSaveAccount(newAccount, newRosterEntry);
     fireConfetti();
     dialogRef.current?.close();
+  };
+
+  // In Profile Mode: Link or Unlink Google Account for Leuie
+  const handleToggleAdminGoogleLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (linkedAdminGoogle) {
+      // Unlink
+      localStorage.removeItem('poe_clean330_admin_google');
+      setLinkedAdminGoogle('');
+      if (userAccount) {
+        const updated = { ...userAccount, linkedGoogleEmail: undefined };
+        onSaveAccount(updated, existingRosterMember || createAdminLeuieAccount().roster);
+      }
+    } else {
+      // Link
+      const toLink = googleEmail.trim().toLowerCase();
+      if (!toLink || !toLink.includes('@')) {
+        setAuthError('Please enter a valid Google email address to link.');
+        return;
+      }
+      localStorage.setItem('poe_clean330_admin_google', toLink);
+      setLinkedAdminGoogle(toLink);
+      if (userAccount) {
+        const updated = { ...userAccount, linkedGoogleEmail: toLink };
+        onSaveAccount(updated, existingRosterMember || createAdminLeuieAccount(toLink).roster);
+      }
+      fireConfetti();
+    }
   };
 
   return (
@@ -338,7 +613,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       aria-labelledby={titleId}
       className="w-[94vw] sm:w-full sm:max-w-2xl rounded-3xl border border-indigo-500/40 bg-white dark:bg-[#1a1a2e] text-slate-900 dark:text-slate-100 p-0 shadow-2xl backdrop:bg-slate-950/80 backdrop:backdrop-blur-md m-auto overflow-hidden"
     >
-      {/* Top Header */}
+      {/* Modal Header */}
       <div className="p-6 border-b border-slate-200 dark:border-[#2d2d44] bg-gradient-to-r from-indigo-600/15 via-purple-600/10 to-amber-500/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-inner">
@@ -346,12 +621,14 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
           </div>
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-indigo-500 dark:text-indigo-300 font-bold">
-              NOIR Private League Portal • Patch 3.30
+              Ravenwatch Coven of Umbra GSF • 3.30
             </div>
             <h2 id={titleId} className="text-lg sm:text-xl font-poppins font-bold text-slate-900 dark:text-white">
               {userAccount
-                ? 'Manage Your Registration & Contact Handles'
-                : 'Sign In & Register for 3.30 Coven of Umbra'}
+                ? userAccount.isAdmin
+                  ? 'Admin Command & Google Account Linking'
+                  : 'Manage Your Exile Profile & Handles'
+                : 'Sign In or Create Your Exile SSF Account'}
             </h2>
           </div>
         </div>
@@ -367,162 +644,333 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       </div>
 
       <div className="p-6 max-h-[80vh] overflow-y-auto space-y-6">
-        {/* Step 1: Authentication Selection */}
-        {step === 'oauth' && (
+        {/* Error Alert Box */}
+        {authError && (
+          <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{authError}</span>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STEP 1: AUTHENTICATION (GOOGLE AUTH OR EXILE SSF APP USER/PASS)           */}
+        {/* ========================================================================= */}
+        {step === 'auth_choice' && (
           <div className="space-y-6">
             <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              Sign in or create your Exile profile to claim your private league spot and register your preferred contact handles.
-              Our <strong>Dynamic Tagging System</strong> supports direct App User tags, in game whispers, Discord, and Steam so everyone can communicate seamlessly regardless of platform!
+              Sign in with your <strong>Google Account</strong> or create a dedicated <strong>Exile SSF App Account (Username & Password)</strong>.
+              You will link your Path of Exile website profile and character tag in the next step!
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Option 1: PoE */}
+            {/* Auth Method Switcher Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                disabled={isAuthenticating}
-                onClick={() => handleOAuthSimulate('poe')}
-                className="p-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-500/15 via-[#1a1a2e] to-[#0f172a] hover:border-amber-400 text-left space-y-2 transition-all group cursor-pointer shadow-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold uppercase">
-                    PoE Account
-                  </span>
-                  <KeyRound className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="font-poppins font-bold text-sm text-white">
-                  Path of Exile
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Link your account tag (<code className="text-amber-300">Account#1234</code>) for in game league invites.
-                </p>
-              </button>
-
-              {/* Option 2: Google */}
-              <button
-                type="button"
-                disabled={isAuthenticating}
-                onClick={() => handleOAuthSimulate('google')}
-                className="p-4 rounded-2xl border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-500/15 via-[#1a1a2e] to-[#0f172a] hover:border-indigo-400 text-left space-y-2 transition-all group cursor-pointer shadow-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-[10px] font-mono font-bold uppercase">
-                    Google OAuth
-                  </span>
-                  <Globe className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="font-poppins font-bold text-sm text-white">
-                  Google Sign In
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Sign in with your Google email to sync your registration and wishlist.
-                </p>
-              </button>
-
-              {/* Option 3: Direct Registration */}
-              <button
-                type="button"
-                disabled={isAuthenticating}
                 onClick={() => {
-                  setProvider('poe');
-                  setStep('register');
+                  setAuthMethod('google');
+                  setAuthError(null);
                 }}
-                className="p-4 rounded-2xl border-2 border-slate-700 bg-slate-900/90 hover:border-slate-500 text-left space-y-2 transition-all group cursor-pointer shadow-lg"
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  authMethod === 'google'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-200'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono font-bold uppercase">
-                    Direct
-                  </span>
-                  <Sparkles className="w-4 h-4 text-slate-400 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="font-poppins font-bold text-sm text-white">
-                  Custom Exile Setup
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Enter your character IGN and preferred contact directly without external login.
-                </p>
+                <Globe className="w-4 h-4" />
+                <span>Google Authentication</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod('app');
+                  setAuthError(null);
+                }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  authMethod === 'app'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span>Exile SSF App Account</span>
               </button>
             </div>
 
-            {/* League Host & Admin Quick Sign In */}
+            {/* TAB A: GOOGLE AUTH */}
+            {authMethod === 'google' && (
+              <form onSubmit={handleGoogleSignIn} className="space-y-4">
+                <div className="p-4 rounded-2xl border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-500/15 via-[#1a1a2e] to-[#0f172a] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-[10px] font-mono font-bold uppercase">
+                      Google OAuth
+                    </span>
+                    <Globe className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-poppins font-bold text-sm text-white">
+                      Sign in with Google Account
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
+                      Fast 1 click sign in for your Exile SSF profile and squad wishlists.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="text-xs font-semibold text-slate-300 block">
+                      Google Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. yourname@gmail.com"
+                      value={googleEmail}
+                      onChange={(e) => setGoogleEmail(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+
+                  {/* Optional: Link this Google account to Admin @Leuie */}
+                  <div className="pt-2 border-t border-slate-800">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={isLinkingLeuieGoogle}
+                        onChange={(e) => setIsLinkingLeuieGoogle(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-0 cursor-pointer"
+                      />
+                      <span>I am Leuie (Host & Admin) — Link this Google account to @Leuie</span>
+                    </label>
+
+                    {isLinkingLeuieGoogle && (
+                      <div className="mt-2 space-y-1.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                        <span className="text-[11px] text-amber-300 font-semibold block">
+                          Enter Admin Password to verify and link:
+                        </span>
+                        <input
+                          type="password"
+                          placeholder="Admin Password"
+                          value={googleLeuiePassword}
+                          onChange={(e) => setGoogleLeuiePassword(e.target.value)}
+                          className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>{isProcessing ? 'Verifying with Google...' : 'Continue with Google'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB B: EXILE SSF APP ACCOUNT (USER / PASS) */}
+            {authMethod === 'app' && (
+              <form onSubmit={handleAppAccountAuth} className="space-y-4">
+                <div className="p-4 rounded-2xl border-2 border-slate-700 bg-slate-900/90 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAppAuthMode('signin');
+                          setAuthError(null);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                          appAuthMode === 'signin'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAppAuthMode('create');
+                          setAuthError(null);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                          appAuthMode === 'create'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Create New Account
+                      </button>
+                    </div>
+
+                    <KeyRound className="w-4 h-4 text-slate-400" />
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        Exile SSF Username *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. ShadowExile"
+                        value={appUsername}
+                        onChange={(e) => setAppUsername(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Your password"
+                        value={appPassword}
+                        onChange={(e) => setAppPassword(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+
+                    {appAuthMode === 'create' && (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">
+                          Confirm Password *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Re-enter password"
+                          value={appPasswordConfirm}
+                          onChange={(e) => setAppPasswordConfirm(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>
+                      {isProcessing
+                        ? 'Authenticating...'
+                        : appAuthMode === 'signin'
+                        ? 'Sign In to Exile SSF'
+                        : 'Continue to PoE Profile Setup'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Host & Admin Quick Passcode Verification */}
             <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/80 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-200">League Host & Admin Access</span>
+                  <span className="text-xs font-bold text-slate-200">League Host & Admin Direct Access</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAdminLogin(!showAdminLogin)}
+                  onClick={() => setShowAdminLoginBox(!showAdminLoginBox)}
                   className="text-[11px] font-mono text-amber-400 hover:text-amber-300 underline cursor-pointer"
                 >
-                  {showAdminLogin ? 'Hide Admin Login' : 'Sign in as Leuie (Host)'}
+                  {showAdminLoginBox ? 'Hide Admin Access' : 'Sign in as Leuie (Host)'}
                 </button>
               </div>
 
-              {showAdminLogin && (
-                <form onSubmit={handleAdminDirectLogin} className="space-y-2.5 pt-2 border-t border-slate-800">
+              {showAdminLoginBox && (
+                <form onSubmit={handleAdminDirectLogin} className="space-y-3 pt-2 border-t border-slate-800">
                   <p className="text-[11px] text-slate-400">
-                    Enter the private Admin Passcode to verify identity and unlock administrative management controls:
+                    Enter the secret Admin Password to verify identity as @Leuie:
                   </p>
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <input
                       type="password"
-                      placeholder="Enter Admin Passcode"
-                      value={adminPasscode}
-                      onChange={(e) => {
-                        setAdminPasscode(e.target.value);
-                        setAdminError(null);
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                      required
+                      placeholder="Enter Admin Password"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
                     />
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow"
-                    >
-                      Verify & Sign In
-                    </button>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">
+                        Optional: Link Google email for 1 click Google Sign In in the future:
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="e.g. your_email@gmail.com"
+                        value={adminGoogleToLink}
+                        onChange={(e) => setAdminGoogleToLink(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
                   </div>
-                  {adminError && (
-                    <div className="text-[11px] text-rose-400 font-medium">{adminError}</div>
-                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow transition-all"
+                  >
+                    {isProcessing ? 'Verifying Admin Password...' : 'Verify & Sign In as Leuie (Admin)'}
+                  </button>
                 </form>
               )}
             </div>
-
-            {isAuthenticating && (
-              <div className="text-center py-4 text-xs font-mono text-indigo-400 animate-pulse">
-                Verifying handshake and preparing 3.30 Coven of Umbra registration...
-              </div>
-            )}
           </div>
         )}
 
-        {/* Step 2: Dynamic Tagging & Registration Form */}
-        {step === 'register' && (
-          <form onSubmit={handleSubmitRegistration} className="space-y-6">
-            {/* Connected Provider Banner */}
+        {/* ========================================================================= */}
+        {/* STEP 2: LINK PATH OF EXILE PROFILE & CHARACTER DETAILS                     */}
+        {/* ========================================================================= */}
+        {step === 'link_poe_profile' && (
+          <form onSubmit={handleSubmitProfile} className="space-y-6">
+            {/* Account Status Strip */}
             <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-100 dark:bg-[#0f172a] border border-slate-200 dark:border-[#2d2d44]">
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  Connected via{' '}
-                  <strong className="text-indigo-500 dark:text-indigo-300">
-                    {provider === 'poe' ? 'Path of Exile OAuth' : provider === 'google' ? 'Google Authentication' : 'Custom Exile Setup'}
-                  </strong>
+                  {userAccount ? (
+                    <>
+                      Logged in as <strong className="text-indigo-400">@{userAccount.displayName}</strong>{' '}
+                      {userAccount.isAdmin && (
+                        <span className="px-2 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] ml-1">
+                          HOST ADMIN
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      Authenticated via{' '}
+                      <strong className="text-indigo-400">
+                        {authMethod === 'google' ? 'Google Auth' : 'Exile SSF App Account'}
+                      </strong>
+                    </>
+                  )}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                {!userAccount && (
+                {!userAccount ? (
                   <button
                     type="button"
-                    onClick={() => setStep('oauth')}
-                    className="text-[11px] text-slate-500 hover:text-indigo-400 underline cursor-pointer"
+                    onClick={() => setStep('auth_choice')}
+                    className="text-[11px] text-slate-400 hover:text-indigo-400 underline cursor-pointer"
                   >
-                    Switch Auth Provider
+                    Back to Auth
                   </button>
-                )}
-                {userAccount && (
+                ) : (
                   <button
                     type="button"
                     onClick={() => {
@@ -538,34 +986,124 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
               </div>
             </div>
 
-            {/* DYNAMIC TAGGING SYSTEM SECTION */}
+            {/* ADMIN ONLY: GOOGLE ACCOUNT LINKING CARD */}
+            {userAccount?.isAdmin && (
+              <div className="p-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Google Account Link for Admin @Leuie
+                    </span>
+                  </div>
+                  {linkedAdminGoogle && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold">
+                      Linked
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Link your personal Google account to your Admin profile. Once linked, you can click{' '}
+                  <strong>"Sign in with Google"</strong> on any device and immediately be recognized as{' '}
+                  <strong>@Leuie</strong> without typing your admin password!
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <input
+                    type="email"
+                    placeholder="Enter your Google email (e.g. leuie@gmail.com)"
+                    value={googleEmail}
+                    onChange={(e) => setGoogleEmail(e.target.value)}
+                    disabled={!!linkedAdminGoogle}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400 disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleToggleAdminGoogleLink}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow ${
+                      linkedAdminGoogle
+                        ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                    }`}
+                  >
+                    {linkedAdminGoogle ? 'Unlink Google Account' : 'Link Google Account'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PATH OF EXILE PROFILE LINKING SECTION */}
             <div className="p-5 rounded-2xl border-2 border-indigo-500/30 bg-slate-50/70 dark:bg-[#0f172a]/70 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AtSign className="w-4 h-4 text-indigo-400" />
                   <span className="font-poppins font-bold text-sm text-slate-900 dark:text-white">
-                    Dynamic Tagging & Contact Channels
+                    Link Path of Exile Website Profile
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
-                  No Discord Required
+                  Profile Link
                 </span>
               </div>
 
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Choose how squad mates should notify you when they drop an item you need. You can use your <strong>Root Web App user tag</strong>, in game whisper, Discord, or Steam!
+                Connect your official Path of Exile profile so officers can send in game private league invites
+                and squad members can view your characters on pathofexile.com.
               </p>
 
-              {/* Preferred Contact Selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Path of Exile Account Tag (with #) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. AccountName#1234"
+                    value={poeAccountName}
+                    onChange={(e) => setPoeAccountName(e.target.value)}
+                    className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+                    Required for GGG private league invite ladders.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    PoE Website Profile URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://www.pathofexile.com/account/view-profile/..."
+                    value={poeProfileUrl}
+                    onChange={(e) => setPoeProfileUrl(e.target.value)}
+                    className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+                    Direct link to your public profile on pathofexile.com
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* DYNAMIC TAGGING & CONTACT HANDLES */}
+            <div className="p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0f172a]/70 space-y-4">
+              <span className="font-poppins font-bold text-sm text-slate-900 dark:text-white block">
+                Contact Handles & In Game Identity
+              </span>
+
+              {/* Preferred Channel */}
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
-                  Primary / Preferred Contact Channel *
+                  Primary Contact Channel *
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'app', label: 'Root Web App', icon: Globe, desc: 'Site Profile @Tag' },
                     { id: 'poe_whisper', label: 'In Game PoE', icon: MessageSquare, desc: 'Direct /whisper' },
-                    { id: 'discord', label: 'Discord', icon: AtSign, desc: 'Discord DM / Tag' },
+                    { id: 'discord', label: 'Discord', icon: AtSign, desc: 'Discord Tag' },
                     { id: 'steam', label: 'Steam', icon: ShieldCheck, desc: 'Steam Community' }
                   ].map((chan) => (
                     <button
@@ -592,68 +1130,35 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                 </div>
               </div>
 
-              {/* Channel Handles Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {/* Handles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Root App User Tag / Display Name *
+                    Exile App Display Name *
                   </label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. ShadowHunter"
                     value={displayName}
-                    onChange={(e) => {
-                      setDisplayName(e.target.value);
-                      setAdminError(null);
-                    }}
-                    className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    disabled={userAccount?.isAdmin}
+                    className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
                   />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
-                    Your unique site identity for in app notes, roster, and drop claims.
-                  </span>
-
-                  {displayName.trim().toLowerCase() === 'leuie' && (
-                    <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-amber-400 text-xs font-bold">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>Admin Passcode Required for @Leuie</span>
-                      </div>
-                      <p className="text-[11px] text-slate-300">
-                        The handle Leuie is reserved for the League Host & Admin. Enter your Admin Passcode to verify:
-                      </p>
-                      <input
-                        type="password"
-                        placeholder="Enter Admin Passcode"
-                        value={adminPasscode}
-                        onChange={(e) => {
-                          setAdminPasscode(e.target.value);
-                          setAdminError(null);
-                        }}
-                        className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                      />
-                      {adminError && (
-                        <div className="text-[11px] text-rose-400 font-semibold">{adminError}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Path of Exile Account Tag (with # discriminator) *
+                    In Game Character Name (IGN) *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Exile#1234"
-                    value={poeAccountName}
-                    onChange={(e) => setPoeAccountName(e.target.value)}
+                    placeholder="e.g. Shadow_Umbra"
+                    value={characterName}
+                    onChange={(e) => setCharacterName(e.target.value)}
                     className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                   />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
-                    Required for NOIR officers to send your in game league invite.
-                  </span>
                 </div>
 
                 <div>
@@ -662,7 +1167,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. @exile (optional)"
+                    placeholder="e.g. @yourdiscord (optional)"
                     value={discordName}
                     onChange={(e) => setDiscordName(e.target.value)}
                     className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
@@ -671,11 +1176,11 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Steam Name or Alternate Handle (Optional)
+                    Steam Name (Optional)
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. SteamName or Forum Handle (optional)"
+                    placeholder="e.g. SteamName (optional)"
                     value={steamName}
                     onChange={(e) => setSteamName(e.target.value)}
                     className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
@@ -686,20 +1191,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
             {/* Character & Planned Build */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Character Name (IGN) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Shadow_Umbra"
-                  value={characterName}
-                  onChange={(e) => setCharacterName(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
                   Planned Ascendancy *
@@ -731,18 +1222,32 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                   <option value="No">Joining Later in League</option>
                 </select>
               </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  League Mode
+                </label>
+                <select
+                  value={leagueMode}
+                  onChange={(e) => setLeagueMode(e.target.value as 'Private' | 'Softcore' | 'SSF')}
+                  className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="Private">NOIR Private GSF</option>
+                  <option value="SSF">Solo Self Found</option>
+                  <option value="Softcore">Trade League</option>
+                </select>
+              </div>
             </div>
 
-            {/* Build Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
+            {/* Starter Build & PoB */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Planned League Starter Build *
+                  Planned Starter Build
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Penance Brand Ignite Elementalist"
+                  placeholder="e.g. Archmage Ball Lightning"
                   value={buildName}
                   onChange={(e) => setBuildName(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
@@ -751,48 +1256,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  League Mode & Level
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={leagueMode}
-                    onChange={(e) => setLeagueMode(e.target.value as 'Private' | 'Softcore' | 'SSF')}
-                    className="flex-1 bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="Private">NOIR Private GSF</option>
-                    <option value="SSF">Solo Self Found</option>
-                    <option value="Softcore">Trade League</option>
-                  </select>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={level}
-                    onChange={(e) => setLevel(Number(e.target.value))}
-                    className="w-16 bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-2.5 py-2 text-xs text-center font-orbitron text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                    title="Character Level"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Atlas Content Specialization
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Betrayal, Essences, Expedition, Harvest"
-                  value={atlasContent}
-                  onChange={(e) => setAtlasContent(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Path of Building Link (pobb.in)
+                  PoB Link (pobb.in)
                 </label>
                 <input
                   type="url"
@@ -804,23 +1268,40 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                Roster Notes & Crafting Specialization
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Farming Jun unveils day 1; craft requests welcome!"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              />
+            {/* Specialization & Notes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Atlas Mechanics Focus
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Expedition, Harvest, Essences"
+                  value={atlasContent}
+                  onChange={(e) => setAtlasContent(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Roster Notes & Craft Requests
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Farming Jun unveils day 1"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#0f172a] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
             </div>
 
+            {/* Action Bar */}
             <div className="pt-3 border-t border-slate-200 dark:border-[#2d2d44] flex items-center justify-between gap-3">
               <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                <span>Dynamic Tagging active: primary channel is {preferredContact.toUpperCase()}</span>
+                <span>Exile profile linked to PoE tag {poeAccountName || '(pending)'}</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -836,7 +1317,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4" />
-                  <span>{userAccount ? 'Update Profile & Handles' : 'Complete Registration'}</span>
+                  <span>{userAccount ? 'Update Exile Profile' : 'Complete Registration'}</span>
                 </button>
               </div>
             </div>

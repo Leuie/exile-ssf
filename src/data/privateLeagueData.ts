@@ -229,7 +229,7 @@ export const NOIR_LEAGUE_FAQ = [
   },
   {
     q: 'How do I join the 3.30 Coven of Umbra Private League?',
-    a: '1. Sign in on this portal using Path of Exile OAuth or Google Auth and register your PoE Account Name and Root or Discord handle.\n2. Click "Register for Coven of Umbra" so our admins see you on the Roster.\n3. Once invites are sent, open the official Private League link and click "Accept Invite".\n4. Everyone who registers before launch is invited before the countdown hits zero so you can create your character right on the twilight beach!'
+    a: '1. Sign in on this portal using Google Auth or create a dedicated Exile SSF account, and link your Path of Exile account tag and character.\n2. Click "Register for Coven of Umbra" so our admins see you on the Roster.\n3. Once invites are sent, open the official Private League link and click "Accept Invite".\n4. Everyone who registers before launch is invited before the countdown hits zero so you can create your character right on the twilight beach!'
   },
   {
     q: 'Where is the in game global chat and Guild?',
