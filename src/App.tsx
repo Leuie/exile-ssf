@@ -89,16 +89,15 @@ export const App: React.FC = () => {
     } catch {}
   };
 
-  // Light / Dark mode management
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  // Permanent Dark Mode Default
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('dark');
+    root.classList.remove('light');
     try {
-      const saved = localStorage.getItem('poe_ssf_theme');
-      if (saved) return saved === 'dark';
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    } catch {
-      return true;
-    }
-  });
+      localStorage.setItem('poe_ssf_theme', 'dark');
+    } catch {}
+  }, []);
 
   // Calculate live tracker stats for the sidebar badge
   const [trackerItems, setTrackerItems] = useState<TrackerItem[]>(() => {
@@ -128,19 +127,6 @@ export const App: React.FC = () => {
     total: trackerItems.length
   };
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDarkMode) {
-      root.classList.add('dark');
-      root.classList.remove('light');
-      localStorage.setItem('poe_ssf_theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      localStorage.setItem('poe_ssf_theme', 'light');
-    }
-  }, [isDarkMode]);
-
   // Global Ctrl+K keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -162,8 +148,6 @@ export const App: React.FC = () => {
         setActiveTab={setActiveTab}
         selectedGame={selectedGame}
         setSelectedGame={setSelectedGame}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
         openSearch={() => setIsSearchOpen(true)}
         trackerStats={trackerStats}
         userAccount={userAccount}

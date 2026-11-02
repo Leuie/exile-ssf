@@ -5,10 +5,7 @@ import {
   BookOpen, 
   Compass, 
   CheckSquare, 
-  Users, 
-  Sun, 
-  Moon, 
-  Search, 
+  Users, Search, 
   Sparkles, 
   ChevronLeft, 
   ChevronRight, 
@@ -33,9 +30,7 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   selectedGame: 'poe1' | 'poe2';
   setSelectedGame: (game: 'poe1' | 'poe2') => void;
-  isDarkMode: boolean;
-  setIsDarkMode: (val: boolean) => void;
-  openSearch: () => void;
+openSearch: () => void;
   trackerStats: { completed: number; total: number };
   userAccount?: import('../types').UserAccount | null;
   onOpenAuthModal?: () => void;
@@ -73,9 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   selectedGame,
   setSelectedGame,
-  isDarkMode,
-  setIsDarkMode,
-  openSearch,
+openSearch,
   trackerStats,
   userAccount,
   onOpenAuthModal
@@ -253,13 +246,7 @@ interface NavGroup {
             <Search className="w-4 h-4 text-indigo-400" />
           </button>
 
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-            title={isDarkMode ? "Light mode" : "Dark mode"}
-          >
-            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
-          </button>
+          
 
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
@@ -380,13 +367,7 @@ interface NavGroup {
                 <span>About</span>
               </button>
 
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5"
-              >
-                {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
-                <span>{isDarkMode ? "Light mode" : "Dark mode"}</span>
-              </button>
+              
             </div>
           </div>
         </div>
@@ -642,26 +623,7 @@ interface NavGroup {
               <Heart className={`w-3.5 h-3.5 ${activeTab === 'about' ? 'fill-white text-white' : 'fill-rose-500/40 text-rose-500'}`} />
             </button>
 
-            {/* Light/Dark Mode Button */}
-            {!isCollapsed && (
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 hover:border-indigo-500/40 transition-all"
-                title={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
-              >
-                {isDarkMode ? (
-                  <>
-                    <Sun className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                    <span className="text-[11px]">Light mode</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
-                    <span className="text-[11px]">Dark mode</span>
-                  </>
-                )}
-              </button>
-            )}
+            
           </div>
         </div>
       </aside>

@@ -228,15 +228,15 @@ export const NOIR_LEAGUE_FAQ = [
   },
   {
     q: 'How do I join the 3.30 Coven of Umbra Private League?',
-    a: '1. Sign in on this portal using Path of Exile OAuth or Google Auth and register your PoE Account Name & Discord handle.\n2. Click "Register for Coven of Umbra" so our admins see you on the Roster.\n3. Once invites are sent, open the official Private League link and click "Accept Invite".\n4. Everyone who registers before launch is invited before the countdown hits zero so you can create your character right on the twilight beach!'
+    a: '1. Sign in on this portal using Path of Exile OAuth or Google Auth and register your PoE Account Name and Root or Discord handle.\n2. Click "Register for Coven of Umbra" so our admins see you on the Roster.\n3. Once invites are sent, open the official Private League link and click "Accept Invite".\n4. Everyone who registers before launch is invited before the countdown hits zero so you can create your character right on the twilight beach!'
   },
   {
     q: 'Where is the in game global chat and Guild?',
-    a: 'Join "/global 5712" in game! To join the in game NOIR Guild for shared stash tabs, post your character name in #poe-chat on Discord or ask an admin directly in /global 5712.'
+    a: 'Join "/global 5712" in game! To join the in game NOIR Guild for shared stash tabs, post your character name in the Ravenwatch Root Community or ask an admin directly in /global 5712.'
   },
   {
     q: 'What if the person I want to trade with is offline or plays different hours?',
-    a: 'Look up their Discord username in the Player Directory tab and send them a DM! For asynchronous trades across time zones, place the item in the Guild Trade Tab and ping them, or ask any admin to hold valuable items in an admin hold tab.'
+    a: 'Look up their Root or Discord handle in the Player Directory tab and whisper them! For asynchronous trades across time zones, place the item in the Guild Trade Tab and ping them, or ask any admin to hold valuable items in an admin hold tab.'
   },
   {
     q: 'What happens when the private league ends or if I want to leave early?',

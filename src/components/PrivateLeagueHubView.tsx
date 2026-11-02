@@ -56,9 +56,12 @@ import type {
   FoundUniqueVaultItem,
   CommunityGuide,
   ItemNeedStatus,
-  UserAccount
+  UserAccount,
+  PastPrivateLeague
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
+import { LeagueHeroBanner } from './LeagueHeroBanner';
+import { LeagueContentManagerModal, type ManagerSectionType } from './LeagueContentManagerModal';
 
 interface PrivateLeagueHubViewProps {
   userAccount?: UserAccount | null;
@@ -151,6 +154,101 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const isPoE2Session = activeSessionId === 'poe2-ea-ancients' || selectedGame === 'poe2';
   const currentInfo = isPoE2Session ? POE2_ANCIENTS_INFO : COVEN_OF_UMBRA_INFO;
   const currentAscendancyCatalog = isPoE2Session ? POE2_ASCENDANCY_CATALOG : ASCENDANCY_CATALOG;
+
+  // Hero Banner and Collapsible Category State
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('poe_league_collapsed_sections');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleSection = (id: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { localStorage.setItem('poe_league_collapsed_sections', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const setAllSectionsCollapsed = (collapsed: boolean) => {
+    const allIds = ['hero', 'countdown', 'crowdfund', 'onboarding', 'community', 'links', 'archives', 'faq'];
+    const next: Record<string, boolean> = {};
+    for (const id of allIds) next[id] = collapsed;
+    setCollapsedSections(next);
+    try { localStorage.setItem('poe_league_collapsed_sections', JSON.stringify(next)); } catch {}
+  };
+
+  // Editable Resources, FAQs, and Archives State
+  const [quickLinks, setQuickLinks] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('poe_league_quick_links');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return COVEN_OF_UMBRA_INFO.quickLinks;
+  });
+
+  const [archivesList, setArchivesList] = useState<PastPrivateLeague[]>(() => {
+    try {
+      const saved = localStorage.getItem('poe_league_archives');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return PAST_NOIR_LEAGUES;
+  });
+
+  const [faqList, setFaqList] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('poe_league_faqs');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return NOIR_LEAGUE_FAQ;
+  });
+
+  const [isManagerModalOpen, setIsManagerModalOpen] = useState<boolean>(false);
+  const [managerInitialSection, setManagerInitialSection] = useState<ManagerSectionType>('links');
+
+  const openManagerModal = (sec: ManagerSectionType) => {
+    setManagerInitialSection(sec);
+    setIsManagerModalOpen(true);
+  };
+
+  const handleSaveQuickLinks = (links: any[]) => {
+    setQuickLinks(links);
+    try { localStorage.setItem('poe_league_quick_links', JSON.stringify(links)); } catch {}
+    setCopyNotice('Resource links updated!');
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const handleSaveFaqList = (faqs: any[]) => {
+    setFaqList(faqs);
+    try { localStorage.setItem('poe_league_faqs', JSON.stringify(faqs)); } catch {}
+    setCopyNotice('F.A.Q. list updated!');
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const handleSaveArchivesList = (archives: any[]) => {
+    setArchivesList(archives);
+    try { localStorage.setItem('poe_league_archives', JSON.stringify(archives)); } catch {}
+    setCopyNotice('Archives list updated!');
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const handleResetSection = (sec: ManagerSectionType) => {
+    if (sec === 'links') {
+      setQuickLinks(COVEN_OF_UMBRA_INFO.quickLinks);
+      try { localStorage.removeItem('poe_league_quick_links'); } catch {}
+    } else if (sec === 'faq') {
+      setFaqList(NOIR_LEAGUE_FAQ);
+      try { localStorage.removeItem('poe_league_faqs'); } catch {}
+    } else if (sec === 'archives') {
+      setArchivesList(PAST_NOIR_LEAGUES);
+      try { localStorage.removeItem('poe_league_archives'); } catch {}
+    }
+    setCopyNotice('Restored defaults for ' + sec);
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
 
   // Dynamic Private League Ingestion & Crowdfund Sync State
   const [showIngestLeagueModal, setShowIngestLeagueModal] = useState<boolean>(false);
@@ -798,29 +896,42 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <Copy className="w-2.5 h-2.5 text-slate-500" />
             </button>
 
-            {/* Discord */}
+            {/* Ravenwatch Root */}
             <a
-              href={activeLeagueInfo.discordUrl}
+              href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
+              className="hidden sm:flex px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/80 text-[11px] text-emerald-300 items-center gap-1.5 transition-colors"
+              title="Official GSF Gathering Place on Root"
             >
-              <Users className="w-3 h-3 text-slate-400" />
-              <span>#poe-chat</span>
-              <ExternalLink className="w-2.5 h-2.5 text-slate-500" />
+              <Users className="w-3 h-3 text-emerald-400" />
+              <span>Ravenwatch Root</span>
+              <ExternalLink className="w-2.5 h-2.5 text-emerald-500" />
             </a>
 
             {/* Official League */}
-            <a
-              href={activeLeagueInfo.officialLeagueUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
-            >
-              <ShieldCheck className="w-3 h-3 text-amber-400" />
-              <span>Official Ladder</span>
-              <ExternalLink className="w-2.5 h-2.5 text-slate-500" />
-            </a>
+            {activeLeagueInfo.officialLeagueUrl ? (
+              <a
+                href={activeLeagueInfo.officialLeagueUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
+              >
+                <ShieldCheck className="w-3 h-3 text-amber-400" />
+                <span>Official Ladder</span>
+                <ExternalLink className="w-2.5 h-2.5 text-slate-500" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpenIngestModal}
+                className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-400 items-center gap-1.5 transition-colors cursor-pointer"
+                title="League link pending official creation by GGG. Click to ingest once live."
+              >
+                <ShieldCheck className="w-3 h-3 text-slate-500" />
+                <span>Ladder (Pending 3.30 Creation)</span>
+              </button>
+            )}
 
             {/* User Account / Profile action */}
             <button
@@ -883,165 +994,391 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {activeTab === 'overview' && (
           <div className="space-y-6">
             
+            {/* Hero Launch Banner with Artwork and Game Avatar */}
+            <LeagueHeroBanner
+              activeSessionId={activeSessionId}
+              isPoE2Session={isPoE2Session}
+              activeLeagueInfo={activeLeagueInfo}
+              userAccount={userAccount}
+              onOpenAuthModal={onOpenAuthModal}
+              triggerCopy={triggerCopy}
+              isCollapsed={collapsedSections['hero']}
+              onToggleCollapse={() => toggleSection('hero')}
+            />
+
+            {/* Category Collapsible Master Controls */}
+            <div className="px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2 text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                <span>Command Center Categories (8 Sections)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAllSectionsCollapsed(false)}
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllSectionsCollapsed(true)}
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  Collapse All
+                </button>
+              </div>
+            </div>
+
             {/* Live Crowdfunding Banner & Ingest Action */}
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/90 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden shadow-lg">
+              <div className="p-3 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-300 font-bold">
                     Official Crowdfund & Ladder Link
                   </span>
                   <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-bold">
                     {activeLeagueInfo.crowdfundStatus || 'Crowdfunding Active'}
                   </span>
                 </div>
-                <div className="text-xs text-slate-300">
-                  Funded: <strong>{activeLeagueInfo.fundedDays} / {activeLeagueInfo.targetDays} Days</strong> • Points: <strong>{activeLeagueInfo.crowdfundPointsCurrent || 1850} / {activeLeagueInfo.crowdfundPointsGoal || 3000}</strong> • Slots: <strong>{roster.length} / {activeLeagueInfo.currentSlots} Exiles</strong>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <a
-                  href={activeLeagueInfo.officialLeagueUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Contribute Points on PathOfExile.com</span>
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-
                 <button
                   type="button"
-                  onClick={handleOpenIngestModal}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Update or paste official crowdfund parameters from pathofexile.com"
+                  onClick={() => toggleSection('crowdfund')}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
-                  <DownloadCloud className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Ingest League Page</span>
+                  {collapsedSections['crowdfund'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                 </button>
               </div>
+
+              {!collapsedSections['crowdfund'] && (
+                <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="text-xs text-slate-300">
+                      Funded: <strong>{activeLeagueInfo.fundedDays} / {activeLeagueInfo.targetDays} Days</strong> • Points: <strong>{activeLeagueInfo.crowdfundPointsCurrent || 1850} / {activeLeagueInfo.crowdfundPointsGoal || 3000}</strong> • Slots: <strong>{roster.length} / {activeLeagueInfo.currentSlots} Exiles</strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {activeLeagueInfo.officialLeagueUrl ? (
+                      <a
+                        href={activeLeagueInfo.officialLeagueUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Contribute Points on PathOfExile.com</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleOpenIngestModal}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Crowdfund link will unlock when 3.30 league page is created by GGG. Click to ingest once live."
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Points Crowdfund (Pending 3.30 Creation)</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleOpenIngestModal}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Update or paste official crowdfund parameters from pathofexile.com"
+                    >
+                      <DownloadCloud className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Ingest League Page</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
 
             {/* Live Countdowns Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
-                <div>
-                  <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" /> ExileCon Reveal Livestream
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-lg">
+              <div className="p-3 border-b border-slate-800 bg-slate-800/40 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    Official Reveal & Launch Countdown Tracker
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSection('countdown')}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {collapsedSections['countdown'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {!collapsedSections['countdown'] && (
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" /> ExileCon Reveal Livestream
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">November 6, 2026</div>
+                      </div>
+                      <div className="flex items-center gap-2 font-orbitron text-lg font-bold text-slate-100">
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.d}d</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.h}h</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.m}m</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60 text-slate-400">{timeToReveal.s}s</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Flame className="w-3.5 h-3.5" /> 3.30 Official League Launch
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">November 13, 2026</div>
+                      </div>
+                      <div className="flex items-center gap-2 font-orbitron text-lg font-bold text-amber-300">
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.d}d</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.h}h</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.m}m</span>
+                        <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60 text-amber-500">{timeToLaunch.s}s</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">November 6, 2026</div>
-                </div>
-                <div className="flex items-center gap-2 font-orbitron text-lg font-bold text-slate-100">
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.d}d</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.h}h</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToReveal.m}m</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60 text-slate-400">{timeToReveal.s}s</span>
-                </div>
-              </div>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
-                <div>
-                  <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Flame className="w-3.5 h-3.5" /> 3.30 Official League Launch
+                  {/* Overview Quick Stats Strip */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase">League Duration Funded</div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xl font-orbitron font-bold text-white">{activeLeagueInfo.fundedDays} Days</span>
+                        <span className="text-xs text-slate-500 font-mono">Target: {activeLeagueInfo.targetDays}d</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+                        <div
+                          className="h-full bg-indigo-500"
+                          style={{ width: `${(activeLeagueInfo.fundedDays / activeLeagueInfo.targetDays) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase">Exiles Registered</div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xl font-orbitron font-bold text-white">{roster.length} Exiles</span>
+                        <span className="text-xs text-slate-500 font-mono">Limit: {activeLeagueInfo.currentSlots}</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+                        <div
+                          className="h-full bg-indigo-500"
+                          style={{ width: `${(roster.length / activeLeagueInfo.currentSlots) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase">Crowdfund Points</div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xl font-orbitron font-bold text-white">{COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent} pts</span>
+                        <span className="text-xs text-slate-500 font-mono">Goal: {COVEN_OF_UMBRA_INFO.crowdfundPointsGoal} pts</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+                        <div
+                          className="h-full bg-emerald-500"
+                          style={{ width: `${(COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent / COVEN_OF_UMBRA_INFO.crowdfundPointsGoal) * 100}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">November 13, 2026</div>
                 </div>
-                <div className="flex items-center gap-2 font-orbitron text-lg font-bold text-amber-300">
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.d}d</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.h}h</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60">{timeToLaunch.m}m</span>
-                  <span className="p-1.5 rounded bg-slate-800 border border-slate-700/60 text-amber-500">{timeToLaunch.s}s</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Overview Quick Stats Strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
-                <div className="text-[11px] font-mono text-slate-400 uppercase">League Duration Funded</div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xl font-orbitron font-bold text-white">{activeLeagueInfo.fundedDays} Days</span>
-                  <span className="text-xs text-slate-500 font-mono">Target: {activeLeagueInfo.targetDays}d</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
-                  <div
-                    className="h-full bg-indigo-500"
-                    style={{ width: `${(activeLeagueInfo.fundedDays / activeLeagueInfo.targetDays) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
-                <div className="text-[11px] font-mono text-slate-400 uppercase">Exiles Registered</div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xl font-orbitron font-bold text-white">{roster.length} Exiles</span>
-                  <span className="text-xs text-slate-500 font-mono">Limit: {activeLeagueInfo.currentSlots}</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
-                  <div
-                    className="h-full bg-indigo-500"
-                    style={{ width: `${(roster.length / activeLeagueInfo.currentSlots) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
-                <div className="text-[11px] font-mono text-slate-400 uppercase">Crowdfund Points</div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xl font-orbitron font-bold text-white">{COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent} pts</span>
-                  <span className="text-xs text-slate-500 font-mono">Goal: {COVEN_OF_UMBRA_INFO.crowdfundPointsGoal} pts</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
-                  <div
-                    className="h-full bg-emerald-500"
-                    style={{ width: `${(COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent / COVEN_OF_UMBRA_INFO.crowdfundPointsGoal) * 100}%` }}
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* 4 Step Onboarding Guide */}
-            <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                How to Join & Participate
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden shadow-lg">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-indigo-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    How to Join & Participate (4 Step Onboarding Guide)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSection('onboarding')}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {collapsedSections['onboarding'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
-                  <div className="font-mono text-indigo-400 font-bold">01. Register Profile</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Set your preferred contact tag (App tag, In Game whisper, or Discord) and PoE account name.
-                  </p>
+
+              {!collapsedSections['onboarding'] && (
+                <div className="p-5 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
+                      <div className="font-mono text-indigo-400 font-bold">01. Register Profile</div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Set your preferred contact tag (Root handle, Discord, or In Game whisper) and PoE account name.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
+                      <div className="font-mono text-indigo-400 font-bold">02. Accept Invite</div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Once invited on pathofexile.com, click Accept so your character starts directly in the private league.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
+                      <div className="font-mono text-indigo-400 font-bold">03. Post Wanted Items</div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Add build enabling uniques and bases to your Looking For list so mapping squad mates stash them.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
+                      <div className="font-mono text-indigo-400 font-bold">04. Join In Game Chat</div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Type /global 5712 on launch day to coordinate mapping, lab carries, and crafts.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
-                  <div className="font-mono text-indigo-400 font-bold">02. Accept Invite</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Once invited on pathofexile.com, click Accept so your character starts directly in the private league.
-                  </p>
+              )}
+            </div>
+
+            {/* Ravenwatch & NOIR Guild Community Hub */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-lg">
+              <div className="p-4 border-b border-slate-800/80 bg-slate-900/80 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
+                    Ravenwatch & NOIR Guild Community Hub
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                    Official Gather Place
+                  </span>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
-                  <div className="font-mono text-indigo-400 font-bold">03. Post Wanted Items</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Add build enabling uniques and bases to your Looking For list so mapping squad mates stash them.
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
-                  <div className="font-mono text-indigo-400 font-bold">04. Join In Game Chat</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Type /global 5712 on launch day to coordinate mapping, lab carries, and crafts.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSection('community')}
+                  className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {collapsedSections['community'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
               </div>
+
+              {!collapsedSections['community'] && (
+                <div className="p-5 space-y-4">
+                  <div className="p-4 rounded-xl border border-emerald-950/80 bg-emerald-950/20 text-xs text-slate-300 leading-relaxed space-y-2">
+                    <p className="font-medium text-slate-200">
+                      Ravenwatch is the chill community of ARPG and MMO gamers run by the NOIR guild, which was founded and created by Leuie in January of 2018. Ravenwatch server was created February 2026 during the "Discord Exit".
+                    </p>
+                    <p className="text-slate-300">
+                      It welcomes gamers from all over the world. We are more than just gamers and the community is a place where we can show that. We are here to help you connect, laugh, and grow your circle in a positive, meaningful way. NOIR runs the guild community & Ravenwatch our ARPG/MMO centric gaming server.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <a
+                      href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-xl border border-emerald-800/60 bg-emerald-950/40 hover:bg-emerald-900/50 transition-all flex flex-col justify-between space-y-2 group"
+                    >
+                      <div>
+                        <div className="text-[10px] font-mono text-emerald-400 uppercase font-bold">Official GSF Community</div>
+                        <div className="font-bold text-sm text-white mt-0.5 flex items-center gap-1.5">
+                          <span>Ravenwatch on Root</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-1">
+                          Primary gathering place for GSF coordination, trade requests, voice hangouts, and starter builds.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-emerald-300 font-mono">
+                        <span>Join Ravenwatch</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </div>
+                    </a>
+
+                    <a
+                      href="https://rootapp.gg/AC01VYpHiAq1rM0An8FDzw"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-slate-800/80 transition-all flex flex-col justify-between space-y-2 group"
+                    >
+                      <div>
+                        <div className="text-[10px] font-mono text-indigo-400 uppercase font-bold">Guild Headquarters</div>
+                        <div className="font-bold text-sm text-white mt-0.5">
+                          <span>NOIR Guild HQ</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          The home of NOIR Guild. Connect with guild runners, officers, and community veterans on Root.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-indigo-300 font-mono">
+                        <span>Open NOIR HQ</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </div>
+                    </a>
+
+                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 flex flex-col justify-between space-y-2">
+                      <div>
+                        <div className="text-[10px] font-mono text-amber-400 uppercase font-bold">In Game Global Chat</div>
+                        <div className="font-bold text-sm text-white mt-0.5 font-mono">
+                          <span>/global 5712</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Click below to copy the chat channel command to paste directly in Path of Exile on launch.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => triggerCopy('/global 5712', 'In Game Channel')}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy Channel Command</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Essential Official Quick Links */}
-            <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                Official 3.30 Resources & Links
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden space-y-0">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-indigo-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    Official 3.30 Resources & Links
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono text-[10px]">
+                    {quickLinks.length} Links
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openManagerModal('links')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Manage Links</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('links')}
+                    className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    {collapsedSections['links'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {COVEN_OF_UMBRA_INFO.quickLinks.map((link, idx) => (
+              {!collapsedSections['links'] && (
+                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {quickLinks.map((link, idx) => (
                   <a
                     key={idx}
                     href={link.url}
@@ -1062,19 +1399,42 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </div>
                   </a>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Past NOIR Leagues Archive */}
-            <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <History className="w-3.5 h-3.5" /> NOIR Private League Archives
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden space-y-0">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    NOIR Private League Archives
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono text-[10px]">
+                    {archivesList.length} Previous Leagues
+                  </span>
                 </div>
-                <span className="text-[11px] text-slate-500 font-mono">5 Previous Leagues</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openManagerModal('archives')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Manage Archives</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('archives')}
+                    className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    {collapsedSections['archives'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                {PAST_NOIR_LEAGUES.map((league) => (
+              {!collapsedSections['archives'] && (
+                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {archivesList.map((league) => (
                   <a
                     key={league.id}
                     href={league.url}
@@ -1097,16 +1457,42 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </div>
                   </a>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Collapsible FAQ */}
-            <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" /> F.A.Q. & League Guidelines
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden space-y-0">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    F.A.Q. & League Guidelines
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono text-[10px]">
+                    {faqList.length} Questions
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openManagerModal('faq')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Manage F.A.Q.</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('faq')}
+                    className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    {collapsedSections['faq'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="space-y-2">
-                {NOIR_LEAGUE_FAQ.map((faq, idx) => {
+              {!collapsedSections['faq'] && (
+                <div className="p-5 space-y-2">
+                  {faqList.map((faq, idx) => {
                   const isOpen = openFaqIndices.includes(idx);
                   return (
                     <div key={idx} className="rounded-lg border border-slate-800 bg-slate-800/30 overflow-hidden">
@@ -1125,7 +1511,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1332,34 +1719,40 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                         )}
 
                         <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/60">
+                          {/* Root Whisper */}
                           <button
                             type="button"
-                            onClick={() => triggerCopy(`@${dispTag}`, 'App User Tag')}
-                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                            onClick={() => triggerCopy(`@${dispTag} Hey! I found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`, 'Root Whisper')}
+                            className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                            title="Whisper on Root Community"
                           >
-                            <Globe className="w-3 h-3" />
-                            <span>Copy App Tag</span>
+                            <Users className="w-3 h-3 text-emerald-400" />
+                            <span>Root Whisper</span>
                           </button>
 
+                          {/* Discord Whisper */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dTag = req.discordName || matchedMember?.discordName || dispTag;
+                              triggerCopy(`@${dTag} Hey! I found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`, 'Discord Whisper');
+                            }}
+                            className="px-2 py-1 rounded bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/80 text-indigo-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                            title="Whisper on Discord"
+                          >
+                            <MessageSquare className="w-3 h-3 text-indigo-400" />
+                            <span>Discord Whisper</span>
+                          </button>
+
+                          {/* In Game Whisper */}
                           <button
                             type="button"
                             onClick={() => triggerCopy(whisperCommand, 'PoE Whisper')}
                             className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
                           >
                             <Copy className="w-3 h-3" />
-                            <span>Copy In Game Whisper</span>
+                            <span>In Game Whisper</span>
                           </button>
-
-                          {(req.discordName || matchedMember?.discordName) && (
-                            <button
-                              type="button"
-                              onClick={() => triggerCopy(req.discordName || matchedMember!.discordName!, 'Discord Tag')}
-                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
-                            >
-                              <AtSign className="w-3 h-3" />
-                              <span>Discord</span>
-                            </button>
-                          )}
 
                           <button
                             type="button"
@@ -1559,31 +1952,60 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   </div>
                 </div>
 
-                {/* Contact buttons */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => triggerCopy(`@${selectedPlayerModal.displayName}`, 'App Tag')}
-                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] cursor-pointer"
-                  >
-                    Copy App Tag
-                  </button>
+                {/* Contact & Whisper buttons */}
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">
+                    Contact & Whisper Actions:
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Root Whisper */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = selectedPlayerModal.displayName || selectedPlayerModal.characterName;
+                        triggerCopy(`@${target} Hey! Saw your wanted item on Exile SSF: `, 'Root Whisper');
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 font-mono text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Copy message format for Root Community"
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Copy Root Whisper</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => triggerCopy(`@${selectedPlayerModal.characterName} `, 'Whisper')}
-                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] cursor-pointer"
-                  >
-                    Copy In Game Whisper
-                  </button>
+                    {/* Discord Whisper */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = selectedPlayerModal.discordName || selectedPlayerModal.displayName;
+                        triggerCopy(`@${target} Hey! Saw your wanted item on Exile SSF: `, 'Discord Whisper');
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/80 text-indigo-300 font-mono text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Copy message format for Discord DM"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Copy Discord Whisper</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => triggerCopy(selectedPlayerModal.poeAccountName, 'PoE Account')}
-                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] cursor-pointer"
-                  >
-                    Copy Account Tag
-                  </button>
+                    {/* In Game Whisper */}
+                    <button
+                      type="button"
+                      onClick={() => triggerCopy(`@${selectedPlayerModal.characterName} `, 'In Game Whisper')}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Copy In Game Whisper</span>
+                    </button>
+
+                    {/* Account Tag */}
+                    <button
+                      type="button"
+                      onClick={() => triggerCopy(selectedPlayerModal.poeAccountName, 'PoE Account Name')}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Copy Account Tag</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2642,6 +3064,21 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             </form>
           )}
         </dialog>
+
+        {/* ============================================================================ */}
+        {/* CONTENT MANAGER MODAL FOR LINKS, FAQS, AND ARCHIVES */}
+        <LeagueContentManagerModal
+          isOpen={isManagerModalOpen}
+          onClose={() => setIsManagerModalOpen(false)}
+          initialSection={managerInitialSection}
+          quickLinks={quickLinks}
+          onSaveQuickLinks={handleSaveQuickLinks}
+          faqList={faqList}
+          onSaveFaqList={handleSaveFaqList}
+          archivesList={archivesList}
+          onSaveArchivesList={handleSaveArchivesList}
+          onResetSection={handleResetSection}
+        />
 
         {/* ============================================================================ */}
         {/* START FRESH LEAGUE / RESET SEASON CONFIRMATION MODAL */}
