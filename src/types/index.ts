@@ -174,7 +174,7 @@ export interface ActiveLeagueSession {
 
 export interface UserAccount {
   id: string;
-  provider: 'poe' | 'google';
+  provider: 'poe' | 'google' | 'direct';
   displayName: string; // Root Web App Profile / Tag
   preferredContact: ContactPlatform;
   poeAccountName: string;
@@ -194,6 +194,7 @@ export interface UserAccount {
   notes: string;
   inviteStatus: 'Accepted' | 'Invited' | 'Pending Invite';
   registeredAt: string;
+  isAdmin?: boolean;
 }
 
 export interface LeagueRosterMember {

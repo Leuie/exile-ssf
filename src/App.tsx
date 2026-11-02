@@ -35,27 +35,7 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('poe_umbraleague_user');
       if (saved) return JSON.parse(saved);
-      // Default to Leuie (the Host/Admin) on the root app
-      return {
-        id: 'usr-leuie',
-        provider: 'poe',
-        displayName: 'Leuie',
-        preferredContact: 'app',
-        poeAccountName: 'Leuie#0001',
-        characterName: 'Leuie_UmbraIgnite',
-        discordName: '@leuie',
-        className: 'Witch',
-        ascendancy: 'Elementalist',
-        leagueMode: 'Private',
-        availableAtLaunch: 'Yes',
-        level: 95,
-        buildName: 'Penance Brand Ignite 4 Golem & Triple Herald Autobomber',
-        pobUrl: 'https://pobb.in/',
-        atlasContent: ['Betrayal', 'Essences', 'Expedition', 'Searing Exarch'],
-        notes: 'League Host & Admin! Farming Essence of Horror, Elder helmets, and Betrayal unveils.',
-        inviteStatus: 'Accepted',
-        registeredAt: '2026-11-01'
-      };
+      return null;
     } catch {
       return null;
     }
@@ -65,20 +45,21 @@ export const App: React.FC = () => {
     setUserAccount(account);
     try {
       localStorage.setItem('poe_umbraleague_user', JSON.stringify(account));
-      // Also sync into poe_umbraleague_roster
-      const savedRoster = localStorage.getItem('poe_umbraleague_roster');
+      // Sync into clean 3.30 roster
+      const savedRoster = localStorage.getItem('poe_clean330_roster');
       const rosterList: LeagueRosterMember[] = savedRoster ? JSON.parse(savedRoster) : [];
       const index = rosterList.findIndex(
         (m) =>
-          m.poeAccountName.toLowerCase() === account.poeAccountName.toLowerCase() ||
+          (m.poeAccountName && account.poeAccountName && m.poeAccountName.toLowerCase() === account.poeAccountName.toLowerCase()) ||
           m.displayName.toLowerCase() === account.displayName.toLowerCase()
       );
       if (index >= 0) {
-        rosterList[index] = rosterEntry;
+        rosterList[index] = { ...rosterList[index], ...rosterEntry };
       } else {
-        rosterList.unshift(rosterEntry);
+        const nextSlot = rosterList.length + 1;
+        rosterList.push({ ...rosterEntry, slotNumber: nextSlot });
       }
-      localStorage.setItem('poe_umbraleague_roster', JSON.stringify(rosterList));
+      localStorage.setItem('poe_clean330_roster', JSON.stringify(rosterList));
     } catch {}
   };
 
@@ -115,7 +96,7 @@ export const App: React.FC = () => {
         const saved = localStorage.getItem('poe_ssf_tracker_items');
         if (saved) setTrackerItems(JSON.parse(saved));
         const savedUser = localStorage.getItem('poe_umbraleague_user');
-        if (savedUser) setUserAccount(JSON.parse(savedUser));
+        setUserAccount(savedUser ? JSON.parse(savedUser) : null);
       } catch {}
     };
     window.addEventListener('storage', handleStorage);

@@ -173,8 +173,8 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
           {/* Foreground Content */}
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
             
-            {/* Left Glass Shielded Card: Ensures legibility while leaving artwork glowing */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800/90 shadow-2xl max-w-xl space-y-3">
+            {/* Left Content Area: Unobscured hero details resting naturally on artwork */}
+            <div className="max-w-xl space-y-3">
               <div className="flex items-start sm:items-center gap-3.5">
                 {/* Game Avatar / Crest */}
                 <div className="relative flex-shrink-0">
@@ -217,8 +217,8 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
                 "{heroConfig.tagline}"
               </p>
 
-              {/* Quick Action Links inside the glass shield */}
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
+              {/* Quick Action Links */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <a
                   href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
                   target="_blank"

@@ -75,7 +75,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   selectedGame = 'poe1'
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'who_needs' | 'roster' | 'looking_for' | 'vault' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'looking_for' | 'roster' | 'vault' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
   const [activeTab, setActiveTab] = useState<HubTab>('overview');
 
   // Roster State
@@ -558,9 +558,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Drop Matcher State
-  const [dropSearch, setDropSearch] = useState<string>('');
-  const [dropCategoryFilter, setDropCategoryFilter] = useState<string>('All');
+  // Wishlists & Needs State (Unified with Drop Matcher)
+  const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table'>('item');
+  const [lookingForSearch, setLookingForSearch] = useState<string>('');
+  const [lookingForCategoryFilter, setLookingForCategoryFilter] = useState<string>('All');
+  const [lookingForStatusFilter, setLookingForStatusFilter] = useState<string>('All');
   const [selectedInspectItemName, setSelectedInspectItemName] = useState<string | null>(null);
 
   const itemInspectDialogRef = useRef<HTMLDialogElement>(null);
@@ -603,11 +605,45 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const filteredAggregatedItems = React.useMemo(() => {
     return aggregatedItemsMap.filter((entry) => {
-      const matchText = !dropSearch || entry.itemName.toLowerCase().includes(dropSearch.toLowerCase());
-      const matchCat = dropCategoryFilter === 'All' || entry.category === dropCategoryFilter;
-      return matchText && matchCat;
+      const searchLow = lookingForSearch.toLowerCase();
+      const matchText =
+        !lookingForSearch ||
+        entry.itemName.toLowerCase().includes(searchLow) ||
+        entry.entries.some(
+          (e) =>
+            (e.displayName && e.displayName.toLowerCase().includes(searchLow)) ||
+            e.characterName.toLowerCase().includes(searchLow) ||
+            (e.discordName && e.discordName.toLowerCase().includes(searchLow)) ||
+            (e.notes && e.notes.toLowerCase().includes(searchLow))
+        );
+      const matchCat = lookingForCategoryFilter === 'All' || entry.category === lookingForCategoryFilter;
+      const matchStatus =
+        lookingForStatusFilter === 'All' ||
+        entry.entries.some((e) => e.status === lookingForStatusFilter);
+      return matchText && matchCat && matchStatus;
     });
-  }, [aggregatedItemsMap, dropSearch, dropCategoryFilter]);
+  }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
+
+  const filteredLookingForItems = React.useMemo(() => {
+    return lookingForItems.filter((item) => {
+      const searchLow = lookingForSearch.toLowerCase();
+      const matchSearch =
+        !lookingForSearch ||
+        item.itemName.toLowerCase().includes(searchLow) ||
+        item.characterName.toLowerCase().includes(searchLow) ||
+        (item.displayName && item.displayName.toLowerCase().includes(searchLow)) ||
+        (item.discordName && item.discordName.toLowerCase().includes(searchLow)) ||
+        (item.notes && item.notes.toLowerCase().includes(searchLow));
+
+      const matchCat =
+        lookingForCategoryFilter === 'All' || item.category === lookingForCategoryFilter;
+
+      const matchStatus =
+        lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
+
+      return matchSearch && matchCat && matchStatus;
+    });
+  }, [lookingForItems, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
 
   const inspectedItemData = React.useMemo(() => {
     if (!selectedInspectItemName) return null;
@@ -708,14 +744,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }, 10);
   };
 
-  // Looking For Lists State
-  const [lookingForViewMode, setLookingForViewMode] = useState<'cards' | 'table'>('cards');
-  const [lookingForSearch, setLookingForSearch] = useState<string>('');
-  const [lookingForStatusFilter, setLookingForStatusFilter] = useState<string>('All');
+  // Add Wanted Item Form State
   const [showAddLookingForModal, setShowAddLookingForModal] = useState<boolean>(false);
-
   const [newLfChar, setNewLfChar] = useState<string>(userAccount?.characterName || '');
-  const [newLfDisplay, setNewLfDisplay] = useState<string>(userAccount?.displayName || 'Leuie');
+  const [newLfDisplay, setNewLfDisplay] = useState<string>(userAccount?.displayName || '');
   const [newLfItem, setNewLfItem] = useState<string>('');
   const [newLfCat, setNewLfCat] = useState<'Unique' | 'Gem' | 'Div Card' | 'Cluster Jewel' | 'Base / Crafting' | 'Oil / Enchant'>('Unique');
   const [newLfStatus, setNewLfStatus] = useState<ItemNeedStatus>('NEED');
@@ -751,27 +783,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const lookingForGrouped = React.useMemo(() => {
     const map = new Map<string, LookingForItem[]>();
-    for (const item of lookingForItems) {
+    for (const item of filteredLookingForItems) {
       const groupKey = item.displayName || item.characterName;
-      const matchSearch =
-        !lookingForSearch ||
-        item.itemName.toLowerCase().includes(lookingForSearch.toLowerCase()) ||
-        item.characterName.toLowerCase().includes(lookingForSearch.toLowerCase()) ||
-        (item.displayName && item.displayName.toLowerCase().includes(lookingForSearch.toLowerCase())) ||
-        (item.discordName && item.discordName.toLowerCase().includes(lookingForSearch.toLowerCase()));
-
-      const matchStatus =
-        lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
-
-      if (!matchSearch || !matchStatus) continue;
-
       if (!map.has(groupKey)) {
         map.set(groupKey, []);
       }
       map.get(groupKey)!.push(item);
     }
     return map;
-  }, [lookingForItems, lookingForSearch, lookingForStatusFilter]);
+  }, [filteredLookingForItems]);
 
   // Vault State
   const [showAddVaultModal, setShowAddVaultModal] = useState<boolean>(false);
@@ -948,9 +968,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         <div className="px-2 sm:px-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 touch-pan-x flex-nowrap">
           {[
             { id: 'overview', label: 'Command Center', icon: Flame, badge: null },
-            { id: 'who_needs', label: 'Who Needs This Item?', icon: Search, badge: `${aggregatedItemsMap.length}` },
-            { id: 'roster', label: 'Roster Directory', icon: Users, badge: `${roster.length}` },
             { id: 'looking_for', label: 'Wishlists & Needs', icon: Sparkles, badge: `${lookingForItems.length}` },
+            { id: 'roster', label: 'Roster Directory', icon: Users, badge: `${roster.length}` },
             { id: 'vault', label: 'Guild Stash Vault', icon: FolderLock, badge: `${vaultItems.length}` },
             { id: 'guides', label: 'Build Guides', icon: BookOpen, badge: `${guides.length}` },
             { id: 'cheatsheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: null },
@@ -1495,111 +1514,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
         )}
 
-        {/* ============================================================================ */}
-        {/* TAB 2: QUEUERAY'S FEATURE: "WHO NEEDS THIS ITEM?" (DROP MATCHER) */}
-        {/* ============================================================================ */}
-        {activeTab === 'who_needs' && (
-          <div className="space-y-4">
-            {/* Subdued Search & Filter Header Strip */}
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Search any dropped item: Cloak of Flame, The Porcupine, Kitava's Thirst, Bone Helmet..."
-                  value={dropSearch}
-                  onChange={(e) => setDropSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-slate-700"
-                />
-              </div>
 
-              <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                {['All', 'Unique', 'Gem', 'Div Card', 'Base / Crafting', 'Cluster Jewel'].map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setDropCategoryFilter(cat)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                      dropCategoryFilter === cat
-                        ? 'bg-slate-800 text-white border border-slate-700'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Aggregated Items Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filteredAggregatedItems.map((itemGroup, idx) => {
-                const activeCount = itemGroup.activeNeeds;
-                const hasCriticalNeed = itemGroup.entries.some((e) => e.status === 'NEED');
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => handleOpenItemInspector(itemGroup.itemName)}
-                    className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-2 group"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
-                          {itemGroup.category}
-                        </span>
-
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                            hasCriticalNeed
-                              ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700'
-                          }`}
-                        >
-                          {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
-                        </span>
-                      </div>
-
-                      <div className="font-semibold text-xs text-slate-200 group-hover:text-white">
-                        {itemGroup.itemName}
-                      </div>
-
-                      {/* Requesting player tags */}
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {itemGroup.entries.slice(0, 3).map((entry, eIdx) => {
-                          const tagLabel = entry.displayName ? `@${entry.displayName}` : (entry.discordName || entry.characterName);
-                          return (
-                            <span
-                              key={eIdx}
-                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/50"
-                            >
-                              {tagLabel}
-                            </span>
-                          );
-                        })}
-                        {itemGroup.entries.length > 3 && (
-                          <span className="text-[10px] font-mono text-slate-500 self-center">
-                            +{itemGroup.entries.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Click to inspect</span>
-                      <span className="text-slate-500 group-hover:text-slate-300 transition-colors">→</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {filteredAggregatedItems.length === 0 && (
-              <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
-                No squad members currently have this item requested on their Looking For list.
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ============================================================================ */}
         {/* ITEM INSPECTION MODAL */}
@@ -1991,27 +1906,45 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         </dialog>
 
         {/* ============================================================================ */}
-        {/* TAB 4: LOOKING FOR LISTS */}
+        {/* UNIFIED RESOURCE: WISHLISTS & NEEDS (WITH DROP MATCHER) */}
         {/* ============================================================================ */}
         {activeTab === 'looking_for' && (
           <div className="space-y-4">
+            {/* Unified Search, Filters & View Toggle Bar */}
             <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Search Bar */}
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
                 <input
                   type="text"
-                  placeholder="Filter wanted items or players..."
+                  placeholder="Filter wanted items, dropped loot, exiles, or notes..."
                   value={lookingForSearch}
                   onChange={(e) => setLookingForSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-slate-700"
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Filters & View Switches */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Category Filter */}
+                <select
+                  value={lookingForCategoryFilter}
+                  onChange={(e) => setLookingForCategoryFilter(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700 cursor-pointer"
+                >
+                  <option value="All">All Categories</option>
+                  <option value="Unique">Unique</option>
+                  <option value="Gem">Gem</option>
+                  <option value="Div Card">Div Card</option>
+                  <option value="Base / Crafting">Base / Crafting</option>
+                  <option value="Cluster Jewel">Cluster Jewel</option>
+                </select>
+
+                {/* Status Filter */}
                 <select
                   value={lookingForStatusFilter}
                   onChange={(e) => setLookingForStatusFilter(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700"
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700 cursor-pointer"
                 >
                   <option value="All">All Statuses</option>
                   <option value="NEED">NEED</option>
@@ -2020,29 +1953,42 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <option value="HAVE">HAVE</option>
                 </select>
 
+                {/* 3-way View Switcher */}
                 <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
                   <button
-                    onClick={() => setLookingForViewMode('cards')}
-                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                      lookingForViewMode === 'cards' ? 'bg-slate-800 text-white' : 'text-slate-400'
+                    type="button"
+                    onClick={() => setLookingForViewMode('item')}
+                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                      lookingForViewMode === 'item' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    By Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLookingForViewMode('player')}
+                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                      lookingForViewMode === 'player' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     By Player
                   </button>
                   <button
+                    type="button"
                     onClick={() => setLookingForViewMode('table')}
-                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                      lookingForViewMode === 'table' ? 'bg-slate-800 text-white' : 'text-slate-400'
+                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                      lookingForViewMode === 'table' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     Table
                   </button>
                 </div>
 
+                {/* Add Wanted Item Button */}
                 <button
                   type="button"
                   onClick={() => setShowAddLookingForModal(true)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white font-semibold flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Wanted Item</span>
@@ -2057,7 +2003,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 className="p-4 rounded-xl border border-slate-700 bg-slate-900/95 space-y-3"
               >
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="font-semibold text-xs text-white">Post Wanted Item</span>
+                  <span className="font-semibold text-xs text-white">Post Wanted Item to Squad Wishlist</span>
                   <button
                     type="button"
                     onClick={() => setShowAddLookingForModal(false)}
@@ -2071,7 +2017,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="Your App Tag (e.g. Leuie)"
+                    placeholder="Your App Tag (e.g. ShadowHunter)"
                     value={newLfDisplay}
                     onChange={(e) => setNewLfDisplay(e.target.value)}
                     className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
@@ -2079,7 +2025,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="In Game IGN (e.g. Leuie_Umbra)"
+                    placeholder="In Game IGN (e.g. Shadow_Umbra)"
                     value={newLfChar}
                     onChange={(e) => setNewLfChar(e.target.value)}
                     className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
@@ -2118,10 +2064,20 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   </select>
                 </div>
 
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Notes: e.g. Any roll or corruption acceptable"
+                    value={newLfNotes}
+                    onChange={(e) => setNewLfNotes(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                  />
+                </div>
+
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="submit"
-                    className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer"
+                    className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer shadow"
                   >
                     Save Request
                   </button>
@@ -2129,94 +2085,183 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               </form>
             )}
 
-            {/* Cards View */}
-            {lookingForViewMode === 'cards' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {Array.from(lookingForGrouped.entries()).map(([playerKey, items]) => (
-                  <div
-                    key={playerKey}
-                    className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
-                      <div className="font-semibold text-xs text-slate-200 font-mono">@{playerKey}</div>
-                      <span className="text-[10px] font-mono text-slate-500">{items.length} items</span>
-                    </div>
+            {/* View Mode 1: By Item (Drop Matcher) */}
+            {lookingForViewMode === 'item' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredAggregatedItems.map((itemGroup, idx) => {
+                    const activeCount = itemGroup.activeNeeds;
+                    const hasCriticalNeed = itemGroup.entries.some((e) => e.status === 'NEED');
 
-                    <div className="space-y-1.5">
-                      {items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-2 rounded-lg border border-slate-800/80 bg-slate-950/60 flex items-center justify-between gap-2 text-xs"
-                        >
-                          <div className="truncate">
-                            <div className="text-slate-200 truncate">{item.itemName}</div>
-                            <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => handleOpenItemInspector(itemGroup.itemName)}
+                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-2 group shadow-sm"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                              {itemGroup.category}
+                            </span>
+
+                            <span
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                                hasCriticalNeed
+                                  ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
+                              }`}
+                            >
+                              {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
+                            </span>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCycleStatus(item.id)}
-                            className={`flex-shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                              item.status === 'NEED'
-                                ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                                : item.status === 'HAVE'
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                                : 'bg-slate-800 text-slate-400 border-slate-700'
-                            }`}
-                          >
-                            {item.status}
-                          </button>
+                          <div className="font-semibold text-xs text-slate-200 group-hover:text-white">
+                            {itemGroup.itemName}
+                          </div>
+
+                          {/* Requesting player tags */}
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {itemGroup.entries.slice(0, 3).map((entry, eIdx) => {
+                              const tagLabel = entry.displayName ? `@${entry.displayName}` : (entry.discordName || entry.characterName);
+                              return (
+                                <span
+                                  key={eIdx}
+                                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/50"
+                                >
+                                  {tagLabel}
+                                </span>
+                              );
+                            })}
+                            {itemGroup.entries.length > 3 && (
+                              <span className="text-[10px] font-mono text-slate-500 self-center">
+                                +{itemGroup.entries.length - 3}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                    </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Click to inspect</span>
+                          <span className="text-slate-500 group-hover:text-slate-300 transition-colors">→</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {filteredAggregatedItems.length === 0 && (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+                    No squad members currently have items requested matching this search or filter.
                   </div>
-                ))}
+                )}
               </div>
             )}
 
-            {/* Table View */}
+            {/* View Mode 2: By Player */}
+            {lookingForViewMode === 'player' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {Array.from(lookingForGrouped.entries()).map(([playerKey, items]) => (
+                    <div
+                      key={playerKey}
+                      className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2.5 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                        <div className="font-semibold text-xs text-slate-200 font-mono">@{playerKey}</div>
+                        <span className="text-[10px] font-mono text-slate-500">{items.length} items</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-2 rounded-lg border border-slate-800/80 bg-slate-950/60 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="truncate">
+                              <div className="text-slate-200 truncate font-medium">{item.itemName}</div>
+                              <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCycleStatus(item.id)}
+                              className={`flex-shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                                item.status === 'NEED'
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : item.status === 'HAVE'
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {item.status}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {lookingForGrouped.size === 0 && (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+                    No squad members currently have items matching this filter.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* View Mode 3: Table View */}
             {lookingForViewMode === 'table' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-500 font-mono text-[10px] uppercase border-b border-slate-800">
-                    <tr>
-                      <th className="p-2.5">Item Name</th>
-                      <th className="p-2.5">Category</th>
-                      <th className="p-2.5">Requester</th>
-                      <th className="p-2.5">Status</th>
-                      <th className="p-2.5">Notes</th>
-                      <th className="p-2.5 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {lookingForItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-800/30">
-                        <td className="p-2.5 font-medium text-slate-200">{item.itemName}</td>
-                        <td className="p-2.5 text-slate-400 font-mono text-[11px]">{item.category}</td>
-                        <td className="p-2.5 font-mono text-slate-300">@{item.displayName || item.characterName}</td>
-                        <td className="p-2.5">
-                          <button
-                            type="button"
-                            onClick={() => handleCycleStatus(item.id)}
-                            className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 cursor-pointer"
-                          >
-                            {item.status}
-                          </button>
-                        </td>
-                        <td className="p-2.5 text-slate-400">{item.notes}</td>
-                        <td className="p-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'Whisper')}
-                            className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
-                          >
-                            Whisper
-                          </button>
-                        </td>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-500 font-mono text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="p-2.5">Item Name</th>
+                        <th className="p-2.5">Category</th>
+                        <th className="p-2.5">Requester</th>
+                        <th className="p-2.5">Status</th>
+                        <th className="p-2.5">Notes</th>
+                        <th className="p-2.5 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {filteredLookingForItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-800/30">
+                          <td className="p-2.5 font-medium text-slate-200">{item.itemName}</td>
+                          <td className="p-2.5 text-slate-400 font-mono text-[11px]">{item.category}</td>
+                          <td className="p-2.5 font-mono text-slate-300">@{item.displayName || item.characterName}</td>
+                          <td className="p-2.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCycleStatus(item.id)}
+                              className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 cursor-pointer"
+                            >
+                              {item.status}
+                            </button>
+                          </td>
+                          <td className="p-2.5 text-slate-400">{item.notes}</td>
+                          <td className="p-2.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
+                              className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                            >
+                              Whisper
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {filteredLookingForItems.length === 0 && (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+                    No wanted items found matching your search.
+                  </div>
+                )}
               </div>
             )}
           </div>
