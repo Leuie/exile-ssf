@@ -69,8 +69,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
   // Google Auth Inputs
   const [googleEmail, setGoogleEmail] = useState<string>(userAccount?.email || '');
-  const [isLinkingLeuieGoogle, setIsLinkingLeuieGoogle] = useState<boolean>(false);
-  const [googleLeuiePassword, setGoogleLeuiePassword] = useState<string>('');
 
   // Linked Admin Google Email stored in browser
   const [linkedAdminGoogle, setLinkedAdminGoogle] = useState<string>(() => {
@@ -80,11 +78,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       return '';
     }
   });
-
-  // Dedicated Admin Login State
-  const [showAdminLoginBox, setShowAdminLoginBox] = useState<boolean>(false);
-  const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
-  const [adminGoogleToLink, setAdminGoogleToLink] = useState<string>('');
 
   // Exile Profile & PoE Link State
   const [displayName, setDisplayName] = useState<string>(
@@ -310,26 +303,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       return;
     }
 
-    // 2. Check if user wants to link this Google account as Leuie with the Admin Password
-    if (isLinkingLeuieGoogle) {
-      const hash = await computeSHA256(googleLeuiePassword);
-      if (hash !== ADMIN_KEY_SHA256) {
-        setIsProcessing(false);
-        setAuthError('Incorrect Admin Password. Could not link Google account to @Leuie.');
-        return;
-      }
-      // Save linked Google account permanently
-      localStorage.setItem('poe_clean330_admin_google', emailClean);
-      setLinkedAdminGoogle(emailClean);
-      setIsProcessing(false);
-      const { account, roster } = createAdminLeuieAccount(emailClean);
-      onSaveAccount(account, roster);
-      fireConfetti();
-      dialogRef.current?.close();
-      return;
-    }
-
-    // 3. Regular exile Google sign in: check existing stored accounts
+    // 2. Regular exile Google sign in: check existing stored accounts
     try {
       const storedRaw = localStorage.getItem('poe_clean330_accounts');
       const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
@@ -354,34 +328,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       setAuthMethod('google');
       setStep('link_poe_profile');
     }
-  };
-
-  // Dedicated Admin Host Login Handler
-  const handleAdminDirectLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setIsProcessing(true);
-
-    const hash = await computeSHA256(adminPasswordInput);
-    if (hash !== ADMIN_KEY_SHA256) {
-      setIsProcessing(false);
-      setAuthError('Invalid Admin Password. Access denied.');
-      return;
-    }
-
-    // If an optional Google email was provided during admin login, link it now
-    let linkedEmail = linkedAdminGoogle;
-    if (adminGoogleToLink.trim() && adminGoogleToLink.includes('@')) {
-      linkedEmail = adminGoogleToLink.trim().toLowerCase();
-      localStorage.setItem('poe_clean330_admin_google', linkedEmail);
-      setLinkedAdminGoogle(linkedEmail);
-    }
-
-    setIsProcessing(false);
-    const { account, roster } = createAdminLeuieAccount(linkedEmail);
-    onSaveAccount(account, roster);
-    fireConfetti();
-    dialogRef.current?.close();
   };
 
   // Exile SSF App Account: Sign In or Create
@@ -730,38 +676,10 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                     />
                   </div>
 
-                  {/* Optional: Link this Google account to Admin @Leuie */}
-                  <div className="pt-2 border-t border-slate-800">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={isLinkingLeuieGoogle}
-                        onChange={(e) => setIsLinkingLeuieGoogle(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-0 cursor-pointer"
-                      />
-                      <span>I am Leuie (Host & Admin) — Link this Google account to @Leuie</span>
-                    </label>
-
-                    {isLinkingLeuieGoogle && (
-                      <div className="mt-2 space-y-1.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                        <span className="text-[11px] text-amber-300 font-semibold block">
-                          Enter Admin Password to verify and link:
-                        </span>
-                        <input
-                          type="password"
-                          placeholder="Admin Password"
-                          value={googleLeuiePassword}
-                          onChange={(e) => setGoogleLeuiePassword(e.target.value)}
-                          className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
-                        />
-                      </div>
-                    )}
-                  </div>
-
                   <button
                     type="submit"
                     disabled={isProcessing}
-                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all mt-2"
                   >
                     <Globe className="w-4 h-4" />
                     <span>{isProcessing ? 'Verifying with Google...' : 'Continue with Google'}</span>
@@ -872,62 +790,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                 </div>
               </form>
             )}
-
-            {/* Host & Admin Quick Passcode Verification */}
-            <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-200">League Host & Admin Direct Access</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAdminLoginBox(!showAdminLoginBox)}
-                  className="text-[11px] font-mono text-amber-400 hover:text-amber-300 underline cursor-pointer"
-                >
-                  {showAdminLoginBox ? 'Hide Admin Access' : 'Sign in as Leuie (Host)'}
-                </button>
-              </div>
-
-              {showAdminLoginBox && (
-                <form onSubmit={handleAdminDirectLogin} className="space-y-3 pt-2 border-t border-slate-800">
-                  <p className="text-[11px] text-slate-400">
-                    Enter the secret Admin Password to verify identity as @Leuie:
-                  </p>
-                  <div className="space-y-2">
-                    <input
-                      type="password"
-                      required
-                      placeholder="Enter Admin Password"
-                      value={adminPasswordInput}
-                      onChange={(e) => setAdminPasswordInput(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
-                    />
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">
-                        Optional: Link Google email for 1 click Google Sign In in the future:
-                      </label>
-                      <input
-                        type="email"
-                        placeholder="e.g. your_email@gmail.com"
-                        value={adminGoogleToLink}
-                        onChange={(e) => setAdminGoogleToLink(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isProcessing}
-                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow transition-all"
-                  >
-                    {isProcessing ? 'Verifying Admin Password...' : 'Verify & Sign In as Leuie (Admin)'}
-                  </button>
-                </form>
-              )}
-            </div>
           </div>
         )}
 

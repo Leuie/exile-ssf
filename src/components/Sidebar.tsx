@@ -587,11 +587,11 @@ interface NavGroup {
               <button
                 onClick={onOpenAuthModal}
                 className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors cursor-pointer"
-                title="Manage League Registration & Contact Handles"
+                title={userAccount ? `@${userAccount.displayName} (${userAccount.poeAccountName})` : 'Login'}
               >
                 <div className="flex items-center gap-2 truncate">
                   <UserCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span className="truncate">{userAccount ? `@${userAccount.displayName}` : 'Register for 3.30'}</span>
+                  <span className="truncate">{userAccount ? `@${userAccount.displayName}` : 'Login'}</span>
                 </div>
                 <span className="text-[10px] font-mono text-purple-400">
                   {userAccount ? userAccount.preferredContact.toUpperCase() : 'GSF'}
@@ -601,7 +601,7 @@ interface NavGroup {
               <button
                 onClick={onOpenAuthModal}
                 className="w-full p-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 transition-colors cursor-pointer"
-                title={userAccount ? `@${userAccount.displayName} (${userAccount.poeAccountName})` : 'Register for 3.30'}
+                title={userAccount ? `@${userAccount.displayName} (${userAccount.poeAccountName})` : 'Login'}
               >
                 <UserCheck className="w-4 h-4 text-emerald-400" />
               </button>

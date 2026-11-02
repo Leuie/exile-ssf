@@ -21,6 +21,9 @@ import { FeedbackView } from './components/FeedbackView';
 import { BuildIngestionView } from './components/BuildIngestionView';
 import { DualLinkModal } from './components/DualLinkModal';
 import { AuthRegistrationModal } from './components/AuthRegistrationModal';
+import { LoginPage } from './components/LoginPage';
+import { RegisterPage } from './components/RegisterPage';
+import { AdminPortalPage } from './components/AdminPortalPage';
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
 import type { TrackerItem, UserAccount, LeagueRosterMember } from './types';
 
@@ -29,6 +32,39 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  // Dedicated Route Detection (/login, /register, /admin)
+  const getInitialRoute = (): 'login' | 'register' | 'admin' | '' => {
+    if (typeof window === 'undefined') return '';
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+    if (path === '/admin' || hash === 'admin') return 'admin';
+    if (path === '/login' || hash === 'login') return 'login';
+    if (path === '/register' || hash === 'register') return 'register';
+    return '';
+  };
+
+  const [currentRoute, setCurrentRoute] = useState<'login' | 'register' | 'admin' | ''>(getInitialRoute);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentRoute(getInitialRoute());
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  const navigateToRoute = (route: 'login' | 'register' | 'admin' | '') => {
+    setCurrentRoute(route);
+    const targetUrl = route ? `/${route}` : '/';
+    try {
+      window.history.pushState({}, '', targetUrl);
+    } catch {}
+  };
 
   // User Account & League Registration state with Dynamic Tagging
   const [userAccount, setUserAccount] = useState<UserAccount | null>(() => {
@@ -68,6 +104,14 @@ export const App: React.FC = () => {
     try {
       localStorage.removeItem('poe_umbraleague_user');
     } catch {}
+  };
+
+  const handleOpenAuth = () => {
+    if (userAccount) {
+      setIsAuthModalOpen(true);
+    } else {
+      navigateToRoute('login');
+    }
   };
 
   // Permanent Dark Mode Default
@@ -120,6 +164,49 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  if (currentRoute === 'login') {
+    return (
+      <LoginPage
+        onLoginSuccess={(account, roster) => {
+          handleSaveAccount(account, roster);
+          navigateToRoute('');
+        }}
+        onNavigateRegister={() => navigateToRoute('register')}
+        onNavigateHome={() => navigateToRoute('')}
+      />
+    );
+  }
+
+  if (currentRoute === 'register') {
+    return (
+      <RegisterPage
+        onRegisterSuccess={(account, roster) => {
+          handleSaveAccount(account, roster);
+          navigateToRoute('');
+        }}
+        onNavigateLogin={() => navigateToRoute('login')}
+        onNavigateHome={() => navigateToRoute('')}
+      />
+    );
+  }
+
+  if (currentRoute === 'admin') {
+    return (
+      <AdminPortalPage
+        userAccount={userAccount}
+        onAdminLoginSuccess={(account, roster) => {
+          handleSaveAccount(account, roster);
+        }}
+        onAdminSignOut={handleSignOut}
+        onNavigateLeagueHub={() => {
+          setActiveTab('private_league');
+          navigateToRoute('');
+        }}
+        onNavigateHome={() => navigateToRoute('')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col lg:flex-row relative overflow-x-hidden">
       
@@ -132,7 +219,7 @@ export const App: React.FC = () => {
         openSearch={() => setIsSearchOpen(true)}
         trackerStats={trackerStats}
         userAccount={userAccount}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={handleOpenAuth}
       />
 
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
@@ -162,7 +249,7 @@ export const App: React.FC = () => {
         {activeTab === 'feedback' && (
           <FeedbackView
             userAccount={userAccount}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            onOpenAuthModal={handleOpenAuth}
           />
         )}
         {activeTab === 'build_ingest' && (
@@ -175,7 +262,7 @@ export const App: React.FC = () => {
           <PrivateLeagueHubView
             selectedGame={selectedGame}
             userAccount={userAccount}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            onOpenAuthModal={handleOpenAuth}
           />
         )}
       </main>

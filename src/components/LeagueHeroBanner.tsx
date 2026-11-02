@@ -247,7 +247,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
                     onClick={onOpenAuthModal}
                     className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all shadow cursor-pointer"
                   >
-                    <span>{userAccount ? `@${userAccount.displayName}` : 'Register for 3.30'}</span>
+                    <span>{userAccount ? `@${userAccount.displayName}` : 'Login'}</span>
                   </button>
                 )}
               </div>
