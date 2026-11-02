@@ -174,7 +174,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   };
 
   const setAllSectionsCollapsed = (collapsed: boolean) => {
-    const allIds = ['hero', 'countdown', 'crowdfund', 'onboarding', 'community', 'links', 'archives', 'faq'];
+    const allIds = ['onboarding', 'community', 'links', 'archives', 'faq'];
     const next: Record<string, boolean> = {};
     for (const id of allIds) next[id] = collapsed;
     setCollapsedSections(next);
@@ -394,8 +394,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           (a: LeagueParticipantAlumnus) => a.poeAccountName.toLowerCase() === member.poeAccountName.toLowerCase()
         );
         if (existingIdx >= 0) {
-          if (!updatedAlumni[existingIdx].pastLeagues.includes('NOIR 3.30 Coven of Umbra')) {
-            updatedAlumni[existingIdx].pastLeagues.unshift('NOIR 3.30 Coven of Umbra');
+          if (!updatedAlumni[existingIdx].pastLeagues.includes('Ravenwatch Coven of Umbra GSF | Winter 2026')) {
+            updatedAlumni[existingIdx].pastLeagues.unshift('Ravenwatch Coven of Umbra GSF | Winter 2026');
             updatedAlumni[existingIdx].totalLeaguesCount += 1;
           }
         } else {
@@ -405,7 +405,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             poeAccountName: member.poeAccountName,
             discordName: member.discordName,
             preferredContact: member.preferredContact,
-            pastLeagues: ['NOIR 3.30 Coven of Umbra'],
+            pastLeagues: ['Ravenwatch Coven of Umbra GSF | Winter 2026'],
             totalLeaguesCount: 1,
             lastPlayedExpansion: 'Coven of Umbra',
             lastKnownBuild: member.buildName,
@@ -855,7 +855,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="font-poppins font-bold text-sm tracking-wide text-white">
+              <span className="font-poppins font-bold text-xs sm:text-sm tracking-wide text-white truncate max-w-[180px] sm:max-w-none">
                 {currentSession.name}
               </span>
 
@@ -863,7 +863,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             <select
               value={activeSessionId}
               onChange={(e) => setActiveSessionId(e.target.value)}
-              className="bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-slate-600"
+              className="bg-slate-800/90 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-slate-600 max-w-[150px] sm:max-w-none truncate"
             >
               {ACTIVE_LEAGUE_SESSIONS.map((sess) => (
                 <option key={sess.id} value={sess.id}>
@@ -945,7 +945,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         </div>
 
         {/* Lower Row: Full Width Horizontal Navigation Tabs */}
-        <div className="px-3 sm:px-6 flex items-center gap-1 overflow-x-auto no-scrollbar py-1.5">
+        <div className="px-2 sm:px-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 touch-pan-x flex-nowrap">
           {[
             { id: 'overview', label: 'Command Center', icon: Flame, badge: null },
             { id: 'who_needs', label: 'Who Needs This Item?', icon: Search, badge: `${aggregatedItemsMap.length}` },
@@ -963,7 +963,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as HubTab)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer flex-shrink-0 min-h-[38px] ${
                   isActive
                     ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -1002,15 +1002,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               userAccount={userAccount}
               onOpenAuthModal={onOpenAuthModal}
               triggerCopy={triggerCopy}
-              isCollapsed={collapsedSections['hero']}
-              onToggleCollapse={() => toggleSection('hero')}
             />
 
             {/* Category Collapsible Master Controls */}
             <div className="px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between text-xs font-mono">
               <div className="flex items-center gap-2 text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                <span>Command Center Categories (8 Sections)</span>
+                <span>Command Center Guides & Resources (5 Collapsible Sections)</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1042,16 +1040,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     {activeLeagueInfo.crowdfundStatus || 'Crowdfunding Active'}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSection('crowdfund')}
-                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  {collapsedSections['crowdfund'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                </button>
               </div>
-
-              {!collapsedSections['crowdfund'] && (
                 <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="text-xs text-slate-300">
@@ -1094,7 +1083,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </button>
                   </div>
                 </div>
-              )}
             </div>
 
 
@@ -1107,16 +1095,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     Official Reveal & Launch Countdown Tracker
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSection('countdown')}
-                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  {collapsedSections['countdown'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                </button>
               </div>
-
-              {!collapsedSections['countdown'] && (
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
@@ -1195,7 +1174,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
             </div>
 
             {/* 4 Step Onboarding Guide */}
@@ -1273,10 +1251,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <div className="p-5 space-y-4">
                   <div className="p-4 rounded-xl border border-emerald-950/80 bg-emerald-950/20 text-xs text-slate-300 leading-relaxed space-y-2">
                     <p className="font-medium text-slate-200">
-                      Ravenwatch is the chill community of ARPG and MMO gamers run by the NOIR guild, which was founded and created by Leuie in January of 2018. Ravenwatch server was created February 2026 during the "Discord Exit".
+                      Ravenwatch is the chill community of ARPG and MMO gamers run by the NOIR guild, founded and created by Leuie in January 2018. The Ravenwatch server was established in February 2026 during the "Discord Exit".
                     </p>
                     <p className="text-slate-300">
-                      It welcomes gamers from all over the world. We are more than just gamers and the community is a place where we can show that. We are here to help you connect, laugh, and grow your circle in a positive, meaningful way. NOIR runs the guild community & Ravenwatch our ARPG/MMO centric gaming server.
+                      It welcomes gamers from all over the world. We are more than just gamers, and our community is a place where we can show that. We are here to help you connect, laugh, and grow your circle in a positive, meaningful way. NOIR manages the guild community, and Ravenwatch serves as our dedicated ARPG and MMO gaming server.
                     </p>
                   </div>
 
@@ -1630,7 +1608,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           ref={itemInspectDialogRef}
           {...({ closedby: 'any' } as any)}
           aria-labelledby={inspectTitleId}
-          className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
+          className="w-[94vw] sm:w-full sm:max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
         >
           {inspectedItemData && (
             <div className="flex flex-col max-h-[85vh]">
@@ -1882,7 +1860,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           ref={playerProfileDialogRef}
           {...({ closedby: 'any' } as any)}
           aria-labelledby={playerProfileTitleId}
-          className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
+          className="w-[94vw] sm:w-full sm:max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
         >
           {selectedPlayerModal && (
             <div className="flex flex-col max-h-[85vh]">
@@ -2709,7 +2687,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const template = "Hey Exiles! NOIR 3.30 Coven of Umbra Group Self Found league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: https://poe-ssf.noir/ Accept invite: " + activeLeagueInfo.officialLeagueUrl;
+                    const template = "Hey Exiles! Ravenwatch Coven of Umbra GSF | Winter 2026 league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: https://poe-ssf.noir/ Accept invite: " + activeLeagueInfo.officialLeagueUrl;
                     triggerCopy(template, '3.30 Announcement Message');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -2787,7 +2765,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   return matchSearch && matchFilter;
                 })
                 .map((alumnus: LeagueParticipantAlumnus) => {
-                  const whisperCommand = `@${alumnus.displayName} Hey exile! NOIR 3.30 Coven of Umbra private league is launching soon. Register here: https://poe-ssf.noir/`;
+                  const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Coven of Umbra GSF | Winter 2026 private league is launching soon. Register here: https://poe-ssf.noir/`;
 
                   return (
                     <div
@@ -2907,7 +2885,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           ref={ingestLeagueDialogRef}
           {...({ closedby: 'any' } as any)}
           aria-labelledby={ingestLeagueTitleId}
-          className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+          className="w-[94vw] sm:w-full sm:max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
         >
           {showIngestLeagueModal && (
             <form onSubmit={handleSaveSyncedLeague} className="flex flex-col">
@@ -3087,7 +3065,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           ref={resetDialogRef}
           {...({ closedby: 'any' } as any)}
           aria-labelledby={resetTitleId}
-          className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+          className="w-[94vw] sm:w-full sm:max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
         >
           {showResetModal && (
             <div className="flex flex-col">

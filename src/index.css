@@ -190,3 +190,14 @@ dialog::backdrop {
 }
 
 
+
+
+/* Mobile & Tablet Smooth Momentum Scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}

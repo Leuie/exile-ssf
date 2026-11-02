@@ -276,7 +276,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       ref={dialogRef}
       {...({ closedby: 'any' } as any)}
       aria-labelledby={titleId}
-      className="w-full max-w-2xl rounded-3xl border border-indigo-500/40 bg-white dark:bg-[#1a1a2e] text-slate-900 dark:text-slate-100 p-0 shadow-2xl backdrop:bg-slate-950/80 backdrop:backdrop-blur-md m-auto overflow-hidden"
+      className="w-[94vw] sm:w-full sm:max-w-2xl rounded-3xl border border-indigo-500/40 bg-white dark:bg-[#1a1a2e] text-slate-900 dark:text-slate-100 p-0 shadow-2xl backdrop:bg-slate-950/80 backdrop:backdrop-blur-md m-auto overflow-hidden"
     >
       {/* Top Header */}
       <div className="p-6 border-b border-slate-200 dark:border-[#2d2d44] bg-gradient-to-r from-indigo-600/15 via-purple-600/10 to-amber-500/10 flex items-center justify-between">

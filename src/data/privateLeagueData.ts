@@ -20,7 +20,7 @@ export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
   {
     id: 'poe1-330-umbra',
     game: 'poe1',
-    name: 'NOIR Coven of Umbra GSF',
+    name: 'Ravenwatch Coven of Umbra GSF | Winter 2026',
     expansion: 'Coven of Umbra',
     version: '3.30',
     isActive: true,
@@ -49,14 +49,16 @@ export const COVEN_OF_UMBRA_INFO = {
   version: '3.30',
   expansionName: 'Coven of Umbra',
   tagline: 'She comes for your realm.',
-  leagueName: 'NOIR Coven of Umbra GSF League',
+  leagueName: 'Ravenwatch Coven of Umbra GSF | Winter 2026',
   revealDateIso: '2026-11-06T19:00:00Z',
   launchDateIso: '2026-11-13T19:00:00Z',
   globalChannel: '/global 5712',
-  discordUrl: 'https://www.noircommunity.com/',
-  discordChannel: '#poe-chat',
-  officialLeagueUrl: 'https://www.pathofexile.com/private-leagues/league/Small+Group+Allflame+SSF',
+  discordUrl: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
+  discordChannel: '#gsf-coordination',
+  officialLeagueUrl: '',
   expansionPageUrl: 'https://www.pathofexile.com/umbra',
+  heroArtworkUrl: '/images/covens_of_umbra_hero.png',
+  gameAvatarUrl: '/logo.png',
   fundedDays: 20,
   targetDays: 40,
   currentSlots: 30,
@@ -65,16 +67,22 @@ export const COVEN_OF_UMBRA_INFO = {
   maintainedBy: 'Leuie',
   quickLinks: [
     {
+      label: 'Ravenwatch Root Community (Official GSF)',
+      category: 'Community',
+      url: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
+      description: 'Official gathering place for GSF participants, build discussions, and guild communications on Root.'
+    },
+    {
+      label: 'NOIR Guild HQ on Root',
+      category: 'Guild HQ',
+      url: 'https://rootapp.gg/AC01VYpHiAq1rM0An8FDzw',
+      description: 'Official NOIR guild home on Root. Founded and created by Leuie in January 2018.'
+    },
+    {
       label: '3.30 Coven of Umbra Official Hub',
       category: 'Official',
       url: 'https://www.pathofexile.com/umbra',
       description: 'Official expansion teaser, ritual coven lore, and ExileCon reveal countdown.'
-    },
-    {
-      label: 'NOIR Private League Invite & Ladder',
-      category: 'League',
-      url: 'https://www.pathofexile.com/private-leagues/league/Small+Group+Allflame+SSF',
-      description: 'Accept your Private League invite, view the live character ladder, or crowdfund extra slots.'
     },
     {
       label: '3.30 Patch Notes & Balance Manifesto',
@@ -105,16 +113,9 @@ export const COVEN_OF_UMBRA_INFO = {
       category: 'Economy',
       url: 'https://www.pathofexile.com/forum/view-thread/3532348',
       description: 'How asynchronous currency trading and gold costs work alongside our Guild Barter tabs.'
-    },
-    {
-      label: 'NOIR Community Discord',
-      category: 'Community',
-      url: 'https://www.noircommunity.com/',
-      description: 'Permanent invite link. Coordinate trades in #poe-chat, request guild invites, and voice chat.'
     }
   ]
 };
-
 
 export const POE2_ANCIENTS_INFO = {
   version: '0.5',

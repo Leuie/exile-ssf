@@ -8,9 +8,7 @@ import {
   Edit3, 
   RotateCcw, 
   Image as ImageIcon,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp
+  CheckCircle2
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -21,8 +19,6 @@ interface LeagueHeroBannerProps {
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
   triggerCopy: (text: string, label: string) => void;
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
@@ -31,9 +27,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
   activeLeagueInfo,
   userAccount,
   onOpenAuthModal,
-  triggerCopy,
-  isCollapsed = false,
-  onToggleCollapse
+  triggerCopy
 }) => {
   void activeLeagueInfo;
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -44,6 +38,9 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
     : '/images/covens_of_umbra_hero.png';
 
   const defaultAvatar = '/logo.png';
+  const defaultLeagueTitle = isPoE2Session 
+    ? 'NOIR Return of the Ancients GSF' 
+    : 'Ravenwatch Coven of Umbra GSF | Winter 2026';
 
   const [heroConfig, setHeroConfig] = useState<{
     artworkUrl: string;
@@ -59,7 +56,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
       artworkUrl: defaultArtwork,
       avatarUrl: defaultAvatar,
       tagline: isPoE2Session ? 'Return to the ancient gods.' : 'She comes for your realm.',
-      leagueTitle: isPoE2Session ? 'NOIR Return of the Ancients GSF' : 'NOIR Coven of Umbra GSF'
+      leagueTitle: defaultLeagueTitle
     };
   });
 
@@ -74,11 +71,11 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
           artworkUrl: defaultArtwork,
           avatarUrl: defaultAvatar,
           tagline: isPoE2Session ? 'Return to the ancient gods.' : 'She comes for your realm.',
-          leagueTitle: isPoE2Session ? 'NOIR Return of the Ancients GSF' : 'NOIR Coven of Umbra GSF'
+          leagueTitle: defaultLeagueTitle
         });
       }
     } catch {}
-  }, [activeSessionId, isPoE2Session, defaultArtwork, defaultAvatar]);
+  }, [activeSessionId, isPoE2Session, defaultArtwork, defaultAvatar, defaultLeagueTitle]);
 
   // Modal editing form state
   const [formArtwork, setFormArtwork] = useState<string>(heroConfig.artworkUrl);
@@ -104,7 +101,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
       artworkUrl: formArtwork.trim() || defaultArtwork,
       avatarUrl: formAvatar.trim() || defaultAvatar,
       tagline: formTagline.trim() || 'She comes for your realm.',
-      leagueTitle: formTitle.trim() || 'NOIR Coven of Umbra GSF'
+      leagueTitle: formTitle.trim() || defaultLeagueTitle
     };
     setHeroConfig(updated);
     try {
@@ -120,7 +117,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
       artworkUrl: defaultArtwork,
       avatarUrl: defaultAvatar,
       tagline: isPoE2Session ? 'Return to the ancient gods.' : 'She comes for your realm.',
-      leagueTitle: isPoE2Session ? 'NOIR Return of the Ancients GSF' : 'NOIR Coven of Umbra GSF'
+      leagueTitle: defaultLeagueTitle
     };
     setHeroConfig(updated);
     try {
@@ -134,8 +131,8 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
   return (
     <>
       <div className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl relative transition-all">
-        {/* Banner Top Control Bar */}
-        <div className="px-4 py-2 border-b border-slate-800/80 bg-slate-900/80 flex items-center justify-between text-xs font-mono">
+        {/* Banner Top Bar */}
+        <div className="px-4 py-2 border-b border-slate-800/80 bg-slate-900/90 flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2 text-slate-300">
             <Flame className="w-3.5 h-3.5 text-amber-400" />
             <span className="font-bold uppercase tracking-wider text-white">
@@ -146,129 +143,124 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenEdit}
-              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Change banner artwork URL or game avatar"
-            >
-              <Edit3 className="w-3 h-3 text-indigo-400" />
-              <span>Customize Artwork & Avatar</span>
-            </button>
-
-            {onToggleCollapse && (
-              <button
-                type="button"
-                onClick={onToggleCollapse}
-                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                title={isCollapsed ? 'Expand Hero Banner' : 'Collapse Hero Banner'}
-              >
-                {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={handleOpenEdit}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Change banner artwork URL or game avatar"
+          >
+            <Edit3 className="w-3 h-3 text-indigo-400" />
+            <span>Customize Artwork & Avatar</span>
+          </button>
         </div>
 
-        {/* Collapsible Main Hero Banner Body */}
-        {!isCollapsed && (
-          <div className="relative min-h-[220px] sm:min-h-[260px] lg:min-h-[300px] flex flex-col justify-end p-5 sm:p-7 overflow-hidden">
-            {/* Background Artwork Layer */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center transition-all duration-700 transform scale-100"
-              style={{ backgroundImage: `url("${heroConfig.artworkUrl}")` }}
-            />
-            {/* Dark Cinematic Vignette & Gradient Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/40" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent" />
+        {/* Permanent Non-Collapsible Main Hero Showcase */}
+        <div className="relative min-h-[300px] sm:min-h-[340px] lg:min-h-[380px] flex flex-col justify-end p-5 sm:p-7 overflow-hidden">
+          
+          {/* Crystal Clear Artwork Layer - High Contrast & Unobscured */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center sm:bg-right bg-no-repeat transition-all duration-700"
+            style={{ 
+              backgroundImage: `url("${heroConfig.artworkUrl}")`,
+              filter: 'brightness(1.15) contrast(1.1)'
+            }}
+          />
 
-            {/* Foreground Content */}
-            <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-              
-              {/* Left Column: Avatar + League Identifiers */}
-              <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+          {/* Targeted Left Gradient Only: keeps the center & right artwork 100% visible and bright */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/65 to-transparent w-full md:w-3/5" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent" />
+
+          {/* Foreground Content */}
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            
+            {/* Left Glass Shielded Card: Ensures legibility while leaving artwork glowing */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800/90 shadow-2xl max-w-xl space-y-3">
+              <div className="flex items-start sm:items-center gap-3.5">
                 {/* Game Avatar / Crest */}
-                <div className="relative flex-shrink-0 group">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-amber-500/60 bg-slate-900/90 shadow-2xl p-1.5 overflow-hidden flex items-center justify-center">
+                <div className="relative flex-shrink-0">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-amber-500/70 bg-slate-900 shadow-xl p-1 overflow-hidden flex items-center justify-center">
                     <img 
                       src={heroConfig.avatarUrl} 
                       alt="Game Avatar" 
-                      className="w-full h-full object-contain rounded-xl"
+                      className="w-full h-full object-contain rounded-lg"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/logo.png';
                       }}
                     />
                   </div>
-                  <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-mono font-black text-[9px] uppercase tracking-wider shadow">
+                  <div className="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-mono font-black text-[9px] uppercase tracking-wider shadow">
                     {isPoE2Session ? 'PoE 2' : '3.30'}
                   </div>
                 </div>
 
-                {/* Badges & Titles */}
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[11px] font-bold uppercase tracking-wider">
+                {/* Badges */}
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[10px] font-bold uppercase tracking-wider">
                       {isPoE2Session ? 'PoE 2 Early Access' : '3.30 Coven of Umbra'}
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono text-[11px] font-semibold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-semibold uppercase tracking-wider">
                       Group Self Found
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold uppercase flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[9px] font-bold uppercase flex items-center gap-1">
                       <Sparkles className="w-2.5 h-2.5" /> New
                     </span>
                   </div>
 
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black font-cinzel text-white tracking-tight drop-shadow-md">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-black font-cinzel text-white tracking-tight drop-shadow-lg">
                     {heroConfig.leagueTitle}
                   </h1>
-
-                  <p className="text-xs sm:text-sm text-slate-300 italic font-medium max-w-xl drop-shadow">
-                    "{heroConfig.tagline}"
-                  </p>
                 </div>
               </div>
 
-              {/* Right Column: Quick Portal Action Links */}
-              <div className="flex flex-wrap items-center gap-2.5 self-start md:self-end">
-                {/* Ravenwatch Root */}
+              <p className="text-xs text-slate-300 italic font-medium drop-shadow">
+                "{heroConfig.tagline}"
+              </p>
+
+              {/* Quick Action Links inside the glass shield */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
                 <a
                   href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer"
                 >
                   <Users className="w-3.5 h-3.5" />
                   <span>Ravenwatch Root</span>
-                  <ExternalLink className="w-3 h-3 text-emerald-200" />
+                  <ExternalLink className="w-2.5 h-2.5 text-emerald-200" />
                 </a>
 
-                {/* NOIR HQ */}
                 <a
                   href="https://rootapp.gg/AC01VYpHiAq1rM0An8FDzw"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
                   <span>NOIR HQ</span>
-                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                  <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
                 </a>
 
-                {/* Profile / Register */}
                 {onOpenAuthModal && (
                   <button
                     type="button"
                     onClick={onOpenAuthModal}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all shadow cursor-pointer"
                   >
                     <span>{userAccount ? `@${userAccount.displayName}` : 'Register for 3.30'}</span>
                   </button>
                 )}
               </div>
-
             </div>
+
+            {/* Right side: Artwork callout pill on larger screens */}
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/60 backdrop-blur-md border border-slate-800/80 text-[11px] font-mono text-slate-300 shadow-xl self-end">
+              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+              <span>Official 3.30 Coven of Umbra Key Art</span>
+            </div>
+
           </div>
-        )}
+        </div>
       </div>
 
       {/* ============================================================================ */}
@@ -278,7 +270,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
         <dialog
           ref={dialogRef}
           aria-labelledby={modalTitleId}
-          className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/80 m-auto overflow-hidden"
+          className="w-[94vw] sm:w-full sm:max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/80 m-auto overflow-hidden"
         >
           <div className="flex flex-col max-h-[85vh]">
             <div className="p-4 border-b border-slate-800 bg-slate-800/70 flex items-center justify-between">

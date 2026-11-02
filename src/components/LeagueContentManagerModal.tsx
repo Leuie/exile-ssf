@@ -203,7 +203,7 @@ export const LeagueContentManagerModal: React.FC<LeagueContentManagerModalProps>
     <dialog
       ref={dialogRef}
       aria-labelledby={modalTitleId}
-      className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/80 m-auto overflow-hidden"
+      className="w-[94vw] sm:w-full sm:max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/80 m-auto overflow-hidden"
     >
       <div className="flex flex-col max-h-[88vh]">
         {/* Modal Header */}
