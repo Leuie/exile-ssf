@@ -46,8 +46,9 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
   // Form Fields
   const [title, setTitle] = useState<string>('');
   const [pobUrl, setPobUrl] = useState<string>('');
-  const [creatorName, setCreatorName] = useState<string>('Subtractem');
-  const [creatorChannelUrl, setCreatorChannelUrl] = useState<string>('https://youtube.com/@Subtractem');
+  const [creatorName, setCreatorName] = useState<string>('');
+  const [creatorChannelUrl, setCreatorChannelUrl] = useState<string>('');
+  const [creatorWebsiteUrl, setCreatorWebsiteUrl] = useState<string>('');
   const [creatorPlatform, setCreatorPlatform] = useState<'YouTube' | 'Maxroll' | 'Twitch' | 'Forum' | 'Community'>('YouTube');
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [externalGuideUrl, setExternalGuideUrl] = useState<string>('');
@@ -65,23 +66,7 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
   // Auto detect Ascendancies based on game
   const currentCatalog = targetGame === 'poe1' ? ASCENDANCY_CATALOG : POE2_ASCENDANCY_CATALOG;
 
-  // Quick autofill preset creator channels
-  const CREATOR_PRESETS = [
-    { name: 'Subtractem', platform: 'YouTube', channel: 'https://youtube.com/@Subtractem' },
-    { name: 'Zizaran', platform: 'YouTube', channel: 'https://youtube.com/@Zizaran' },
-    { name: 'GhazzyTV', platform: 'YouTube', channel: 'https://youtube.com/@GhazzyTV' },
-    { name: 'Palsteron', platform: 'YouTube', channel: 'https://youtube.com/@Palsteron' },
-    { name: 'Pohx', platform: 'YouTube', channel: 'https://youtube.com/@PohxKappa' },
-    { name: 'Ruetoo', platform: 'Twitch', channel: 'https://twitch.tv/ruetoo' },
-    { name: 'Maxroll Team', platform: 'Maxroll', channel: 'https://maxroll.gg/poe' }
-  ];
-
-  const handleSelectPreset = (p: typeof CREATOR_PRESETS[0]) => {
-    setCreatorName(p.name);
-    setCreatorChannelUrl(p.channel);
-    setCreatorPlatform(p.platform as any);
-  };
-
+  
   const handleIngestGuide = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -251,32 +236,19 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
                 <span className="text-[10px] text-slate-500">Auto backlinked in card</span>
               </div>
 
-              {/* Creator Presets */}
-              <div className="flex flex-wrap gap-1">
-                {CREATOR_PRESETS.map((p) => (
-                  <button
-                    type="button"
-                    key={p.name}
-                    onClick={() => handleSelectPreset(p)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-colors cursor-pointer ${
-                      creatorName === p.name
-                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Add any creator, streamer, or squad mate name along with their channel, website, or social profile. The site remains neutral and automatically credits them with backlink pills.
+              </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                 <div>
                   <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
-                    Creator Name *
+                    Creator / Author Name *
                   </label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Zizaran, Pohx, or Exile"
                     value={creatorName}
                     onChange={(e) => setCreatorName(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-slate-700"
@@ -285,7 +257,7 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
 
                 <div>
                   <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
-                    Platform *
+                    Primary Platform *
                   </label>
                   <select
                     value={creatorPlatform}
@@ -293,21 +265,37 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-slate-700"
                   >
                     <option value="YouTube">YouTube</option>
-                    <option value="Maxroll">Maxroll</option>
                     <option value="Twitch">Twitch</option>
-                    <option value="Forum">PoE Forum</option>
-                    <option value="Community">Community</option>
+                    <option value="Maxroll">Maxroll</option>
+                    <option value="Forum">Official PoE Forum</option>
+                    <option value="Community">Website / Blog</option>
+                    <option value="Community">Discord / Guild</option>
+                    <option value="Community">Community Exile</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
-                    Channel / Profile URL
+                    YouTube / Twitch Channel URL
                   </label>
                   <input
                     type="url"
+                    placeholder="https://youtube.com/@..."
                     value={creatorChannelUrl}
                     onChange={(e) => setCreatorChannelUrl(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                    Website / Written Guide Link
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://creator-site.com/..."
+                    value={creatorWebsiteUrl}
+                    onChange={(e) => setCreatorWebsiteUrl(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-slate-700"
                   />
                 </div>
@@ -510,17 +498,31 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
           <div className="p-4 rounded-2xl border border-slate-700 bg-slate-900/90 shadow-xl space-y-3">
             {/* Header: Platform & Creator Backlink */}
             <div className="flex items-center justify-between">
-              <a
-                href={creatorChannelUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800 text-slate-200 hover:text-white border border-slate-700 text-[11px] font-mono transition-colors"
-                title={`Visit ${creatorName}'s official channel`}
-              >
-                <UserCheck className="w-3 h-3 text-emerald-400" />
-                <span>By {creatorName || 'Creator'}</span>
-                <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-              </a>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <a
+                  href={creatorChannelUrl || creatorWebsiteUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800 text-slate-200 hover:text-white border border-slate-700 text-[11px] font-mono transition-colors"
+                  title={`Visit ${creatorName || 'Creator'}'s official page`}
+                >
+                  <UserCheck className="w-3 h-3 text-emerald-400" />
+                  <span>By {creatorName || 'Creator Name'}</span>
+                  <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                </a>
+
+                {creatorWebsiteUrl && (
+                  <a
+                    href={creatorWebsiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-950 text-slate-300 hover:text-white border border-slate-800 text-[10px] font-mono transition-colors"
+                  >
+                    <span>Website</span>
+                    <ExternalLink className="w-2 h-2 text-slate-400" />
+                  </a>
+                )}
+              </div>
 
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800">
                 {targetGame === 'poe1' ? 'PoE 1' : 'PoE 2'} • {creatorPlatform}

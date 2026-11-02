@@ -41,7 +41,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                 title="Current League: 3.30 Coven of Umbra (Click to view season page)"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>PoE 1: 3.30 Coven of Umbra</span>
+                <span>PoE 1: 3.30 Coven of Umbra</span><span className="text-[9px] font-mono px-1 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold uppercase">New</span>
                 <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
               </a>
 
@@ -53,7 +53,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                 title="Upcoming League: 0.5 Return of the Ancients"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                <span>PoE 2: 0.5 Ancients</span>
+                <span>PoE 2: 0.5 Ancients</span><span className="text-[9px] font-mono px-1 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold uppercase">New</span>
                 <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
               </a>
             </div>

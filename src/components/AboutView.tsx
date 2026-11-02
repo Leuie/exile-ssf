@@ -49,7 +49,7 @@ export const AboutView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Why I Created This Site */}
-        <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-4 shadow-sm">
+        <div className="p-6 sm:p-8 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
             <Gamepad2 className="w-6 h-6" />
           </div>
@@ -65,7 +65,7 @@ export const AboutView: React.FC = () => {
         </div>
 
         {/* The Future Vision */}
-        <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-4 shadow-sm">
+        <div className="p-6 sm:p-8 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
             <Rocket className="w-6 h-6" />
           </div>
@@ -116,7 +116,7 @@ export const AboutView: React.FC = () => {
           {/* Copy Link button */}
           <button
             onClick={handleCopyDonate}
-            className="px-5 py-3 rounded-2xl bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+            className="px-5 py-3 rounded-2xl bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
             <span>{copied ? 'Link Copied to Clipboard!' : 'Copy Support Link'}</span>

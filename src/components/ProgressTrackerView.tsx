@@ -122,7 +122,7 @@ export const ProgressTrackerView: React.FC = () => {
     <div className="space-y-8 max-w-5xl mx-auto pb-16">
       
       {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-6 space-y-2">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
           <CheckSquare className="w-4 h-4" />
           The Anti Distraction Engine
@@ -139,7 +139,7 @@ export const ProgressTrackerView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Overall Completion */}
-        <div className="p-5 rounded-2xl border border-amber-500/40 bg-white dark:bg-white dark:bg-[#1a1a2e]/80 space-y-2 shadow-sm">
+        <div className="p-5 rounded-2xl border border-amber-500/40 bg-slate-900/80/80 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
             <span>Total SSF Progress</span>
             <span className="text-amber-600 dark:text-amber-400 font-bold">{totalPercent}%</span>
@@ -153,7 +153,7 @@ export const ProgressTrackerView: React.FC = () => {
         </div>
 
         {/* Daily Routine */}
-        <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-2 shadow-sm">
+        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
             <span className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400">
               <Zap className="w-3.5 h-3.5" /> Daily Routine
@@ -169,7 +169,7 @@ export const ProgressTrackerView: React.FC = () => {
         </div>
 
         {/* Weekly Milestones */}
-        <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-2 shadow-sm">
+        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
             <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
               <Calendar className="w-3.5 h-3.5" /> Weekly Goals
@@ -185,7 +185,7 @@ export const ProgressTrackerView: React.FC = () => {
         </div>
 
         {/* Macro Goals */}
-        <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-2 shadow-sm">
+        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-2 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
             <span className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
               <Crown className="w-3.5 h-3.5" /> 4 Voidstone Macro
@@ -203,7 +203,7 @@ export const ProgressTrackerView: React.FC = () => {
       </div>
 
       {/* Category Tabs & Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-white dark:bg-[#1a1a2e]/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/80/60 p-4 rounded-2xl border border-slate-800 shadow-sm">
         
         <div className="flex flex-wrap gap-2">
           {[
@@ -218,7 +218,7 @@ export const ProgressTrackerView: React.FC = () => {
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 activeCategory === tab.id
                   ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                  : 'bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  : 'bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               {tab.label}
@@ -237,7 +237,7 @@ export const ProgressTrackerView: React.FC = () => {
 
           <button
             onClick={handleResetDefaults}
-            className="p-1.5 rounded-xl bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-500 dark:text-slate-400 hover:text-red-500 text-xs transition-colors"
+            className="p-1.5 rounded-xl bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-500 dark:text-slate-400 hover:text-red-500 text-xs transition-colors"
             title="Reset to League Defaults"
           >
             <RotateCcw className="w-4 h-4" />
@@ -269,7 +269,7 @@ export const ProgressTrackerView: React.FC = () => {
       {/* Add Custom Goal Modal / Drawer */}
       {showAddForm && (
         <form onSubmit={handleAddItem} className="p-5 rounded-2xl border border-emerald-500/40 bg-white dark:bg-poe-darkest space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
               <Plus className="w-4 h-4" /> Create Custom SSF Goal
             </h3>
@@ -291,7 +291,7 @@ export const ProgressTrackerView: React.FC = () => {
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 required
-                className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
@@ -300,7 +300,7 @@ export const ProgressTrackerView: React.FC = () => {
               <select
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value as any)}
-                className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
                 <option value="daily">⚡ Daily Routine</option>
                 <option value="weekly">📅 Weekly Milestone</option>
@@ -316,7 +316,7 @@ export const ProgressTrackerView: React.FC = () => {
               placeholder="e.g. Run Tier 6+ maps with Essence on map device"
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-slate-50 dark:bg-white dark:bg-[#1a1a2e] border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
             />
           </div>
 
@@ -343,7 +343,7 @@ export const ProgressTrackerView: React.FC = () => {
               className={`p-4 rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
                 isDone
                   ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/10 text-slate-500 dark:text-slate-400'
-                  : 'border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/70 hover:border-amber-500/40 hover:bg-slate-50 dark:hover:bg-[#0f172a]'
+                  : 'border-slate-800 bg-slate-900/80/70 hover:border-amber-500/40 hover:bg-slate-50 dark:hover:bg-[#0f172a]'
               }`}
             >
               <div className="flex items-start gap-3">

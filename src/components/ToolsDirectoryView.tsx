@@ -43,10 +43,10 @@ export const ToolsDirectoryView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-16">
+    <div className="space-y-8 w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-6 space-y-2">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-purple-600 dark:text-purple-400">
           <Link className="w-4 h-4" />
           The Curated Ecosystem
@@ -60,7 +60,7 @@ export const ToolsDirectoryView: React.FC = () => {
       </div>
 
       {/* Filter Category Pills */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-white dark:bg-[#1a1a2e]/60 p-4 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/80/60 p-4 rounded-xl border border-slate-800 shadow-sm">
         <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Filter Category:</div>
         <div className="flex flex-wrap gap-1.5 overflow-x-auto">
           {directoryCategories.map((cat) => (
@@ -70,7 +70,7 @@ export const ToolsDirectoryView: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 selectedDirectoryCat === cat
                   ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                  : 'bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  : 'bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               {cat === 'all' ? 'All Resources' : cat}
@@ -87,11 +87,11 @@ export const ToolsDirectoryView: React.FC = () => {
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-5 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-amber-500/50 dark:hover:border-amber-500/50 transition-all group flex flex-col justify-between space-y-4 shadow-sm"
+            className="p-5 rounded-xl border border-slate-800 bg-slate-900/80 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-amber-500/50 dark:hover:border-amber-500/50 transition-all group flex flex-col justify-between space-y-4 shadow-sm"
           >
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                <div className="p-2 rounded-lg bg-slate-100 dark:bg-[#0f172a] border border-slate-800">
                   {renderIcon(link.iconName)}
                 </div>
                 {link.isEssential && (
@@ -110,7 +110,7 @@ export const ToolsDirectoryView: React.FC = () => {
               </p>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]/40 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-300">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-300">
               <span className="text-[11px] uppercase tracking-wider font-mono">{link.category}</span>
               <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>

@@ -34,10 +34,10 @@ export const BuildsShowcaseView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-16">
+    <div className="space-y-8 w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-6 space-y-2">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-red-600 dark:text-red-400">
           <Flame className="w-4 h-4" />
           The SSF Hall of Fame
@@ -51,7 +51,7 @@ export const BuildsShowcaseView: React.FC = () => {
       </div>
 
       {/* Filter Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-white dark:bg-[#1a1a2e]/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/75 p-4 rounded-xl border border-slate-800 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Filter Playstyle:</div>
           <div className="flex flex-wrap gap-1.5">
@@ -62,7 +62,7 @@ export const BuildsShowcaseView: React.FC = () => {
                 className={`px-3 py-1 text-xs rounded-lg transition-colors font-medium ${
                   selectedPlaystyle === style
                     ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                    : 'bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    : 'bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 {style === 'all' ? 'All Playstyles' : style}
@@ -76,7 +76,7 @@ export const BuildsShowcaseView: React.FC = () => {
           <select
             value={selectedDependency}
             onChange={(e) => setSelectedDependency(e.target.value)}
-            className="bg-slate-50 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-amber-500 shadow-sm"
+            className="bg-slate-50 dark:bg-poe-dark border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-amber-500 shadow-sm"
           >
             <option value="all">All Dependencies</option>
             <option value="None (Pure Rare)">None (Pure Rare)</option>
@@ -96,8 +96,8 @@ export const BuildsShowcaseView: React.FC = () => {
               key={build.id}
               className={`rounded-2xl border transition-all duration-200 overflow-hidden shadow-sm ${
                 isExpanded 
-                  ? 'border-amber-500/60 bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-lg shadow-amber-500/5' 
-                  : 'border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 hover:border-slate-300 dark:hover:border-slate-200 dark:border-[#2d2d44]/80'
+                  ? 'border-amber-500/60 bg-slate-900/80 shadow-lg shadow-amber-500/5' 
+                  : 'border-slate-800 bg-slate-900/80/60 hover:border-slate-300 dark:hover:border-slate-800/80'
               }`}
             >
               {/* Build Header Row */}
@@ -137,7 +137,7 @@ export const BuildsShowcaseView: React.FC = () => {
                   <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold hidden md:block">
                     {isExpanded ? 'Click to collapse' : 'Click to view deep guide'}
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-600 dark:text-slate-300">
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-poe-dark border border-slate-800 text-slate-600 dark:text-slate-300">
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
                 </div>
@@ -145,10 +145,10 @@ export const BuildsShowcaseView: React.FC = () => {
 
               {/* Expanded Detailed Guide */}
               {isExpanded && (
-                <div className="px-5 sm:px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]/50 space-y-6 animate-fadeIn">
+                <div className="px-5 sm:px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-800/50 space-y-6 animate-fadeIn">
                   
                   {/* Summary */}
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-darkest/60 p-4 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]/40">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-darkest/60 p-4 rounded-xl border border-slate-800/40">
                     {build.summary}
                   </p>
 
@@ -190,7 +190,7 @@ export const BuildsShowcaseView: React.FC = () => {
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {build.levelingGems.map((gemStep, idx) => (
-                        <div key={idx} className="bg-slate-50 dark:bg-poe-darkest p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-xs text-slate-700 dark:text-slate-300">
+                        <div key={idx} className="bg-slate-50 dark:bg-poe-darkest p-3 rounded-xl border border-slate-800 text-xs text-slate-700 dark:text-slate-300">
                           <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold block mb-1">Stage {idx + 1}</span>
                           {gemStep}
                         </div>
@@ -205,7 +205,7 @@ export const BuildsShowcaseView: React.FC = () => {
                     </h4>
                     <div className="space-y-2">
                       {build.keyCraftingSteps.map((step, idx) => (
-                        <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-poe-darkest/90 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                        <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-poe-darkest/90 border border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
                           <span className="text-amber-600 dark:text-amber-400 font-bold font-mono">#{idx + 1}</span>
                           <span>{step}</span>
                         </div>
@@ -221,7 +221,7 @@ export const BuildsShowcaseView: React.FC = () => {
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {build.targetUniquesOrCards.map((item, idx) => (
-                          <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-poe-darkest border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] flex items-center justify-between">
+                          <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-poe-darkest border border-slate-800 flex items-center justify-between">
                             <div>
                               <div className="text-xs font-bold text-amber-700 dark:text-amber-300">{item.name}</div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400">📍 {item.farmLocation}</div>
@@ -251,7 +251,7 @@ export const BuildsShowcaseView: React.FC = () => {
                   )}
 
                   {/* Actions & Creator Links */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]/40">
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/40">
                     <div className="flex flex-wrap items-center gap-2">
                       {build.pobUrl && (
                         <button

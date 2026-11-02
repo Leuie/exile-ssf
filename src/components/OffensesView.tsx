@@ -36,7 +36,7 @@ export const OffensesView: React.FC = () => {
   };
 
   return (
-    <article className="space-y-12 max-w-5xl mx-auto pb-24 text-slate-800 dark:text-slate-200 font-sans">
+    <article className="space-y-12 w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* 1. Article Masthead */}
       <header className="relative rounded-3xl overflow-hidden border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-100 to-white dark:from-amber-950/20 dark:via-[#131622] dark:to-poe-darkest p-6 sm:p-10 shadow-2xl space-y-6">
@@ -75,29 +75,29 @@ export const OffensesView: React.FC = () => {
         </div>
 
         {/* Quick Navigation Anchor Bar */}
-        <nav className="relative z-10 pt-4 border-t border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] flex flex-wrap items-center gap-2 text-xs font-semibold">
+        <nav className="relative z-10 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs font-semibold">
           <span className="text-slate-400 uppercase font-mono text-[10px] mr-1">Jump to:</span>
           <button 
             onClick={() => scrollToSection('sec-pillars')}
-            className="px-3 py-1.5 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:border-amber-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-amber-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Layers className="w-3.5 h-3.5 text-amber-500" /> 1. The 4 Damage Pillars
           </button>
           <button 
             onClick={() => scrollToSection('sec-offense-milestones')}
-            className="px-3 py-1.5 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:border-sky-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-sky-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Award className="w-3.5 h-3.5 text-sky-500" /> 2. Progression Levers (Acts to T17)
           </button>
           <button 
             onClick={() => scrollToSection('sec-offense-mechanics')}
-            className="px-3 py-1.5 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:border-rose-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-rose-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Target className="w-3.5 h-3.5 text-rose-500" /> 3. Mechanics Deep Dive
           </button>
           <button 
             onClick={() => scrollToSection('sec-archetypes')}
-            className="px-3 py-1.5 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:border-purple-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-purple-500 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Wrench className="w-3.5 h-3.5 text-purple-500" /> 4. Archetype Scaling
           </button>
@@ -106,7 +106,7 @@ export const OffensesView: React.FC = () => {
 
       {/* SECTION 1: THE 4 DAMAGE PILLARS */}
       <section id="sec-pillars" className="space-y-6 pt-4">
-        <div className="space-y-2 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="space-y-2 border-b border-slate-800 pb-3">
           <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
             Part One • Foundational Damage Architecture
           </div>
@@ -123,7 +123,7 @@ export const OffensesView: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
           {OFFENSE_PILLARS.map((p) => (
-            <div key={p.id} className="p-5 rounded-2xl border border-amber-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-3 shadow-sm hover:border-amber-500/60 transition-all">
+            <div key={p.id} className="p-5 rounded-2xl border border-amber-500/30 bg-slate-900/80 space-y-3 shadow-sm hover:border-amber-500/60 transition-all">
               <div className="flex items-center justify-between">
                 <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs flex items-center justify-center">
                   P{p.pillarNumber}
@@ -138,7 +138,7 @@ export const OffensesView: React.FC = () => {
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {p.description}
               </p>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
                 <div className="font-mono font-bold text-amber-600 dark:text-amber-400 text-[10px] uppercase">Mathematical Rule:</div>
                 <div>{p.mathExample}</div>
               </div>
@@ -149,7 +149,7 @@ export const OffensesView: React.FC = () => {
 
       {/* SECTION 2: PROGRESSION LEVERS (ACTS TO T17 PINNACLES) */}
       <section id="sec-offense-milestones" className="space-y-6 pt-4">
-        <div className="space-y-2 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="space-y-2 border-b border-slate-800 pb-3">
           <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
             Part Two • Progression Levers
           </div>
@@ -169,8 +169,8 @@ export const OffensesView: React.FC = () => {
                 key={m.id}
                 className={`rounded-2xl border transition-all overflow-hidden ${
                   isOpen 
-                    ? 'border-amber-500/40 bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-lg' 
-                    : 'border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-slate-50/50 dark:bg-poe-dark/30 hover:border-slate-300 dark:hover:border-slate-700'
+                    ? 'border-amber-500/40 bg-slate-900/80 shadow-lg' 
+                    : 'border-slate-800 bg-slate-50/50 dark:bg-poe-dark/30 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
                 <button
@@ -203,25 +203,25 @@ export const OffensesView: React.FC = () => {
                 </button>
 
                 {isOpen && (
-                  <div className="px-4 sm:px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]/50 space-y-5 text-xs sm:text-sm">
+                  <div className="px-4 sm:px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-800/50 space-y-5 text-xs sm:text-sm">
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] space-y-1">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 space-y-1">
                         <div className="font-bold font-mono text-[11px] text-slate-400 uppercase">DPS Benchmark</div>
                         <div className="text-slate-800 dark:text-slate-200 font-semibold">{m.dpsBenchmark}</div>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] space-y-1">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 space-y-1">
                         <div className="font-bold font-mono text-[11px] text-slate-400 uppercase">Socket Links</div>
                         <div className="text-slate-800 dark:text-slate-200 font-semibold">{m.socketLinks}</div>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] space-y-1">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 space-y-1">
                         <div className="font-bold font-mono text-[11px] text-slate-400 uppercase">Core Scaling Engines</div>
                         <div className="text-slate-800 dark:text-slate-200">{m.coreScaling}</div>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] space-y-1">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 space-y-1">
                         <div className="font-bold font-mono text-[11px] text-slate-400 uppercase">Curses and Exposure</div>
                         <div className="text-slate-800 dark:text-slate-200">{m.cursesAndExposure}</div>
                       </div>
@@ -240,7 +240,7 @@ export const OffensesView: React.FC = () => {
                       <div className="font-bold font-mono text-[11px] uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" /> Action Checklist To Multiply Damage
                       </div>
-                      <ul className="space-y-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                      <ul className="space-y-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-xl border border-slate-800">
                         {m.actionChecklist.map((step, idx) => (
                           <li key={idx} className="flex items-start gap-2 leading-relaxed">
                             <span className="text-amber-500 font-bold">✓</span>
@@ -260,7 +260,7 @@ export const OffensesView: React.FC = () => {
 
       {/* SECTION 3: THE COMPLETE ENCYCLOPEDIA OF OFFENSIVE MECHANICS */}
       <section id="sec-offense-mechanics" className="space-y-8 pt-4">
-        <div className="space-y-2 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="space-y-2 border-b border-slate-800 pb-3">
           <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
             Part Three • Comprehensive Mechanics Reference
           </div>
@@ -276,9 +276,9 @@ export const OffensesView: React.FC = () => {
           {OFFENSIVE_MECHANICS.map((mech) => (
             <article 
               key={mech.id}
-              className="p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-sm space-y-5 hover:border-amber-500/40 transition-all"
+              className="p-6 sm:p-8 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-5 hover:border-amber-500/40 transition-all"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div>
                   <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
                     {mech.category}
@@ -292,11 +292,11 @@ export const OffensesView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2.5 self-start sm:self-center">
-                  <div className="px-3 py-1 rounded-xl bg-slate-50 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-right">
+                  <div className="px-3 py-1 rounded-xl bg-slate-50 dark:bg-poe-dark border border-slate-800 text-right">
                     <div className="text-[9px] text-slate-400 uppercase font-mono">Difficulty</div>
                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{mech.difficulty}</div>
                   </div>
-                  <div className="px-3 py-1 rounded-xl bg-slate-50 dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-right">
+                  <div className="px-3 py-1 rounded-xl bg-slate-50 dark:bg-poe-dark border border-slate-800 text-right">
                     <div className="text-[9px] text-slate-400 uppercase font-mono">Timing</div>
                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{mech.setupTime}</div>
                   </div>
@@ -310,7 +310,7 @@ export const OffensesView: React.FC = () => {
                       <BookOpen className="w-3.5 h-3.5 text-amber-500" />
                       Plain English Concept
                     </h4>
-                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-2xl border border-slate-800">
                       {mech.plainEnglish}
                     </p>
                   </div>
@@ -342,7 +342,7 @@ export const OffensesView: React.FC = () => {
                       <Crosshair className="w-3.5 h-3.5 text-sky-500" />
                       How to Scale in Solo Self Found
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                    <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-4 rounded-2xl border border-slate-800">
                       {mech.howToScale.map((step, idx) => (
                         <li key={idx} className="flex items-start gap-2 leading-relaxed">
                           <span className="text-amber-500 font-bold">•</span>
@@ -360,7 +360,7 @@ export const OffensesView: React.FC = () => {
 
       {/* SECTION 4: ARCHETYPE SCALING */}
       <section id="sec-archetypes" className="space-y-8 pt-4">
-        <div className="space-y-2 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="space-y-2 border-b border-slate-800 pb-3">
           <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
             Part Four • Archetype Scaling Guide
           </div>
@@ -376,9 +376,9 @@ export const OffensesView: React.FC = () => {
           {OFFENSIVE_ARCHETYPES.map((arch) => (
             <article 
               key={arch.id}
-              className="p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-sm space-y-5 hover:border-amber-500/40 transition-all"
+              className="p-6 sm:p-8 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-5 hover:border-amber-500/40 transition-all"
             >
-              <div className="border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44] pb-4 space-y-1">
+              <div className="border-b border-slate-100 dark:border-slate-800 pb-4 space-y-1">
                 <h3 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
                   {arch.name}
                 </h3>
@@ -388,7 +388,7 @@ export const OffensesView: React.FC = () => {
               </div>
 
               <div className="space-y-3 text-xs sm:text-sm">
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-dark/40 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-poe-dark/40 p-3.5 rounded-2xl border border-slate-800">
                   {arch.coreMechanic}
                 </p>
 
@@ -407,7 +407,7 @@ export const OffensesView: React.FC = () => {
                   <div className="font-bold font-mono text-[11px] uppercase text-slate-400">
                     SSF Gearing Priorities
                   </div>
-                  <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+                  <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-poe-dark/40 p-3.5 rounded-2xl border border-slate-800">
                     {arch.ssfGearPriorities.map((item, idx) => (
                       <li key={idx} className="flex items-start gap-2">
                         <span className="text-amber-500 font-bold">✓</span>

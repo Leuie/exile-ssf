@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useId, useRef } from 'react';
 import {
+  DownloadCloud,
   Users,
   Search,
   ExternalLink,
@@ -150,6 +151,107 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const isPoE2Session = activeSessionId === 'poe2-ea-ancients' || selectedGame === 'poe2';
   const currentInfo = isPoE2Session ? POE2_ANCIENTS_INFO : COVEN_OF_UMBRA_INFO;
   const currentAscendancyCatalog = isPoE2Session ? POE2_ASCENDANCY_CATALOG : ASCENDANCY_CATALOG;
+
+  // Dynamic Private League Ingestion & Crowdfund Sync State
+  const [showIngestLeagueModal, setShowIngestLeagueModal] = useState<boolean>(false);
+  const ingestLeagueDialogRef = useRef<HTMLDialogElement>(null);
+  const ingestLeagueTitleId = useId();
+
+  const [syncedLeagueData, setSyncedLeagueData] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem(`poe_league_sync_${activeSessionId}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`poe_league_sync_${activeSessionId}`);
+      setSyncedLeagueData(saved ? JSON.parse(saved) : null);
+    } catch {}
+  }, [activeSessionId]);
+
+  // Merge synced data with currentInfo
+  const activeLeagueInfo = {
+    ...currentInfo,
+    ...(syncedLeagueData || {})
+  };
+
+  // Ingest form inputs
+  const [formOfficialUrl, setFormOfficialUrl] = useState<string>(activeLeagueInfo.officialLeagueUrl || '');
+  const [formFundedDays, setFormFundedDays] = useState<number>(activeLeagueInfo.fundedDays || 20);
+  const [formTargetDays, setFormTargetDays] = useState<number>(activeLeagueInfo.targetDays || 40);
+  const [formPointsCurrent, setFormPointsCurrent] = useState<number>(activeLeagueInfo.crowdfundPointsCurrent || 1850);
+  const [formPointsGoal, setFormPointsGoal] = useState<number>(activeLeagueInfo.crowdfundPointsGoal || 3000);
+  const [formSlots, setFormSlots] = useState<number>(activeLeagueInfo.currentSlots || 30);
+  const [formCrowdfundStatus, setFormCrowdfundStatus] = useState<string>(syncedLeagueData?.crowdfundStatus || 'Crowdfunding Active');
+  const [rawSnippet, setRawSnippet] = useState<string>('');
+
+  const handleOpenIngestModal = () => {
+    setFormOfficialUrl(activeLeagueInfo.officialLeagueUrl);
+    setFormFundedDays(activeLeagueInfo.fundedDays);
+    setFormTargetDays(activeLeagueInfo.targetDays);
+    setFormPointsCurrent(activeLeagueInfo.crowdfundPointsCurrent || 1850);
+    setFormPointsGoal(activeLeagueInfo.crowdfundPointsGoal || 3000);
+    setFormSlots(activeLeagueInfo.currentSlots);
+    setShowIngestLeagueModal(true);
+    setTimeout(() => {
+      ingestLeagueDialogRef.current?.showModal();
+    }, 10);
+  };
+
+  const handleParseSnippet = () => {
+    if (!rawSnippet.trim()) return;
+    // Extract slots
+    const slotMatch = rawSnippet.match(/(\d+)\s*(?:player|slot)/i);
+    if (slotMatch) setFormSlots(parseInt(slotMatch[1], 10));
+
+    // Extract days
+    const dayMatch = rawSnippet.match(/(\d+)\s*days/i);
+    if (dayMatch) setFormFundedDays(parseInt(dayMatch[1], 10));
+
+    // Extract points
+    const pointsMatch = rawSnippet.match(/([\d,]+)\s*\/\s*([\d,]+)\s*points/i);
+    if (pointsMatch) {
+      setFormPointsCurrent(parseInt(pointsMatch[1].replace(/,/g, ''), 10));
+      setFormPointsGoal(parseInt(pointsMatch[2].replace(/,/g, ''), 10));
+    }
+
+    // Extract URL
+    const urlMatch = rawSnippet.match(/https:\/\/www\.pathofexile\.com\/private-leagues\/league\/[^\s"']+/i);
+    if (urlMatch) setFormOfficialUrl(urlMatch[0]);
+
+    setCopyNotice('Parsed snippet details into form!');
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const handleSaveSyncedLeague = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedData = {
+      officialLeagueUrl: formOfficialUrl.trim(),
+      fundedDays: formFundedDays,
+      targetDays: formTargetDays,
+      crowdfundPointsCurrent: formPointsCurrent,
+      crowdfundPointsGoal: formPointsGoal,
+      currentSlots: formSlots,
+      crowdfundStatus: formCrowdfundStatus,
+      lastSyncedIso: new Date().toISOString()
+    };
+
+    setSyncedLeagueData(updatedData);
+    try {
+      localStorage.setItem(`poe_league_sync_${activeSessionId}`, JSON.stringify(updatedData));
+    } catch {}
+
+    ingestLeagueDialogRef.current?.close();
+    setShowIngestLeagueModal(false);
+    fireConfetti();
+    setCopyNotice('League crowdfund details synchronized live!');
+    setTimeout(() => setCopyNotice(null), 3000);
+  };
+
 
 
   // Alumni & Veterans State
@@ -677,28 +779,28 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               Patch {currentSession.version}
             </span>
             <span className="hidden md:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
-              {currentInfo.fundedDays}/{currentInfo.targetDays} Days Funded
+              {activeLeagueInfo.fundedDays}/{activeLeagueInfo.targetDays} Days Funded
             </span>
             <span className="hidden lg:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
-              {roster.length}/{currentInfo.currentSlots} Slots Filled
+              {roster.length}/{activeLeagueInfo.currentSlots} Slots Filled
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Quick in game channel copy */}
             <button
-              onClick={() => triggerCopy(currentInfo.globalChannel, 'In Game Channel')}
+              onClick={() => triggerCopy(activeLeagueInfo.globalChannel, 'In Game Channel')}
               className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Click to copy in game chat command"
             >
               <MessageSquare className="w-3 h-3 text-slate-400" />
-              <span>{currentInfo.globalChannel}</span>
+              <span>{activeLeagueInfo.globalChannel}</span>
               <Copy className="w-2.5 h-2.5 text-slate-500" />
             </button>
 
             {/* Discord */}
             <a
-              href={currentInfo.discordUrl}
+              href={activeLeagueInfo.discordUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
@@ -710,7 +812,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
             {/* Official League */}
             <a
-              href={currentInfo.officialLeagueUrl}
+              href={activeLeagueInfo.officialLeagueUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
@@ -780,6 +882,48 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {/* ============================================================================ */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            
+            {/* Live Crowdfunding Banner & Ingest Action */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/90 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                    Official Crowdfund & Ladder Link
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-bold">
+                    {activeLeagueInfo.crowdfundStatus || 'Crowdfunding Active'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-300">
+                  Funded: <strong>{activeLeagueInfo.fundedDays} / {activeLeagueInfo.targetDays} Days</strong> • Points: <strong>{activeLeagueInfo.crowdfundPointsCurrent || 1850} / {activeLeagueInfo.crowdfundPointsGoal || 3000}</strong> • Slots: <strong>{roster.length} / {activeLeagueInfo.currentSlots} Exiles</strong>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <a
+                  href={activeLeagueInfo.officialLeagueUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Contribute Points on PathOfExile.com</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleOpenIngestModal}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Update or paste official crowdfund parameters from pathofexile.com"
+                >
+                  <DownloadCloud className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Ingest League Page</span>
+                </button>
+              </div>
+            </div>
+
             {/* Live Countdowns Bar */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
@@ -818,13 +962,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
                 <div className="text-[11px] font-mono text-slate-400 uppercase">League Duration Funded</div>
                 <div className="flex items-baseline justify-between">
-                  <span className="text-xl font-orbitron font-bold text-white">{currentInfo.fundedDays} Days</span>
-                  <span className="text-xs text-slate-500 font-mono">Target: {currentInfo.targetDays}d</span>
+                  <span className="text-xl font-orbitron font-bold text-white">{activeLeagueInfo.fundedDays} Days</span>
+                  <span className="text-xs text-slate-500 font-mono">Target: {activeLeagueInfo.targetDays}d</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
                   <div
                     className="h-full bg-indigo-500"
-                    style={{ width: `${(currentInfo.fundedDays / currentInfo.targetDays) * 100}%` }}
+                    style={{ width: `${(activeLeagueInfo.fundedDays / activeLeagueInfo.targetDays) * 100}%` }}
                   />
                 </div>
               </div>
@@ -833,12 +977,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <div className="text-[11px] font-mono text-slate-400 uppercase">Exiles Registered</div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-xl font-orbitron font-bold text-white">{roster.length} Exiles</span>
-                  <span className="text-xs text-slate-500 font-mono">Limit: {currentInfo.currentSlots}</span>
+                  <span className="text-xs text-slate-500 font-mono">Limit: {activeLeagueInfo.currentSlots}</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
                   <div
                     className="h-full bg-indigo-500"
-                    style={{ width: `${(roster.length / currentInfo.currentSlots) * 100}%` }}
+                    style={{ width: `${(roster.length / activeLeagueInfo.currentSlots) * 100}%` }}
                   />
                 </div>
               </div>
@@ -2143,7 +2287,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const template = "Hey Exiles! NOIR 3.30 Coven of Umbra Group Self Found league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: https://poe-ssf.noir/ Accept invite: " + currentInfo.officialLeagueUrl;
+                    const template = "Hey Exiles! NOIR 3.30 Coven of Umbra Group Self Found league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: https://poe-ssf.noir/ Accept invite: " + activeLeagueInfo.officialLeagueUrl;
                     triggerCopy(template, '3.30 Announcement Message');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -2332,6 +2476,172 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             </div>
           </div>
         )}
+
+        
+        {/* ============================================================================ */}
+        {/* INGEST PRIVATE LEAGUE & CROWDFUND MODAL */}
+        {/* ============================================================================ */}
+        <dialog
+          ref={ingestLeagueDialogRef}
+          {...({ closedby: 'any' } as any)}
+          aria-labelledby={ingestLeagueTitleId}
+          className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+        >
+          {showIngestLeagueModal && (
+            <form onSubmit={handleSaveSyncedLeague} className="flex flex-col">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/60 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                  <h2 id={ingestLeagueTitleId} className="text-sm font-bold text-white">
+                    Ingest & Sync Private League Page
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => ingestLeagueDialogRef.current?.close()}
+                  className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Official Path of Exile Private League URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://www.pathofexile.com/private-leagues/league/..."
+                    value={formOfficialUrl}
+                    onChange={(e) => setFormOfficialUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-slate-700"
+                  />
+                </div>
+
+                {/* Quick Paste Snippet Parser */}
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <span>Quick Paste from pathofexile.com:</span>
+                    <button
+                      type="button"
+                      onClick={handleParseSnippet}
+                      className="text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
+                    >
+                      Auto Parse Snippet
+                    </button>
+                  </div>
+                  <textarea
+                    rows={2}
+                    placeholder="Paste text or html from the PoE league crowdfund page here..."
+                    value={rawSnippet}
+                    onChange={(e) => setRawSnippet(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300 font-mono focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Funded Days
+                    </label>
+                    <input
+                      type="number"
+                      value={formFundedDays}
+                      onChange={(e) => setFormFundedDays(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Target Days
+                    </label>
+                    <input
+                      type="number"
+                      value={formTargetDays}
+                      onChange={(e) => setFormTargetDays(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Crowdfund Points Current
+                    </label>
+                    <input
+                      type="number"
+                      value={formPointsCurrent}
+                      onChange={(e) => setFormPointsCurrent(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Crowdfund Points Goal
+                    </label>
+                    <input
+                      type="number"
+                      value={formPointsGoal}
+                      onChange={(e) => setFormPointsGoal(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Current Player Slots
+                    </label>
+                    <input
+                      type="number"
+                      value={formSlots}
+                      onChange={(e) => setFormSlots(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] uppercase font-mono mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={formCrowdfundStatus}
+                      onChange={(e) => setFormCrowdfundStatus(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200"
+                    >
+                      <option value="Crowdfunding Active">Crowdfunding Active</option>
+                      <option value="Active & Recruiting">Active & Recruiting</option>
+                      <option value="Launched & Live">Launched & Live</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => ingestLeagueDialogRef.current?.close()}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Sync League Data</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </dialog>
 
         {/* ============================================================================ */}
         {/* START FRESH LEAGUE / RESET SEASON CONFIRMATION MODAL */}

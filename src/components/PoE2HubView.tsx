@@ -48,7 +48,7 @@ export const PoE2HubView: React.FC = () => {
   const upcomingMechanics = [
     {
       title: 'Uncut Skill Gems & Built In Sockets',
-      description: 'Skill gems now hold their own 5-6 support sockets! You will no longer need to spend thousands of Fusings on body armours in SSF.',
+      description: 'Skill gems now hold their own 5 to 6 support sockets! You will no longer need to spend thousands of Fusings on body armours in SSF.',
       icon: Gem,
       color: 'text-amber-500 bg-amber-500/10 border-amber-500/30'
     },
@@ -140,11 +140,11 @@ export const PoE2HubView: React.FC = () => {
                 href={res.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-cyan-500/50 transition-all group flex flex-col justify-between space-y-3 shadow-sm"
+                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-cyan-500/50 transition-all group flex flex-col justify-between space-y-3 shadow-sm"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-cyan-600 dark:text-cyan-400">
+                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-[#0f172a] border border-slate-800 text-cyan-600 dark:text-cyan-400">
                       <Icon className="w-5 h-5" />
                     </div>
                     <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 font-bold">
@@ -161,7 +161,7 @@ export const PoE2HubView: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]/40 flex items-center justify-between text-xs text-slate-500 group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between text-xs text-slate-500 group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
                   <span className="text-[11px] font-mono">Open Resource</span>
                   <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </div>
@@ -184,7 +184,7 @@ export const PoE2HubView: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="p-5 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 space-y-2.5 shadow-sm"
+                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-2.5 shadow-sm"
               >
                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${mech.color}`}>
                   <Icon className="w-5 h-5" />

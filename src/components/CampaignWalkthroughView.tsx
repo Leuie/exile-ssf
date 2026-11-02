@@ -51,10 +51,10 @@ export const CampaignWalkthroughView: React.FC = () => {
   const actProgressPercent = Math.round((completedInAct / totalInAct) * 100);
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-16">
+    <div className="space-y-8 w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-6 space-y-2">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-cyan-600 dark:text-cyan-400">
           <Compass className="w-4 h-4" />
           The Foolproof Campaign Guide
@@ -82,7 +82,7 @@ export const CampaignWalkthroughView: React.FC = () => {
                   ? `border-amber-500 bg-amber-500/20 shadow-md scale-105 font-bold`
                   : actDone
                   ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300'
-                  : 'border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e]/60 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/60 shadow-sm'
+                  : 'border-slate-800 bg-slate-900/80/60 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/60 shadow-sm'
               }`}
             >
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-sans">Act</span>
@@ -96,7 +96,7 @@ export const CampaignWalkthroughView: React.FC = () => {
       </div>
 
       {/* Current Act Spotlight Card */}
-      <div className={`rounded-2xl border p-6 sm:p-8 bg-white dark:bg-gradient-to-br ${currentActData.bgGradient} border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] shadow-xl space-y-6`}>
+      <div className={`rounded-2xl border p-6 sm:p-8 bg-white dark:bg-gradient-to-br ${currentActData.bgGradient} border-slate-800 shadow-xl space-y-6`}>
         
         {/* Act Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-white/10 pb-5">
@@ -156,7 +156,7 @@ export const CampaignWalkthroughView: React.FC = () => {
         </div>
 
         {/* Act Boss Strategy Card */}
-        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-poe-darkest/80 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] space-y-2 shadow-sm">
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-poe-darkest/80 border border-slate-800 space-y-2 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4" /> Act Finale Boss: {currentActData.bossName}
@@ -194,7 +194,7 @@ export const CampaignWalkthroughView: React.FC = () => {
                   className={`p-4 rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
                     isChecked
                       ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/15 text-slate-600 dark:text-slate-400'
-                      : 'border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-poe-darker/80 hover:border-amber-500/40 hover:bg-slate-50 dark:hover:bg-[#0f172a]'
+                      : 'border-slate-800 bg-white dark:bg-poe-darker/80 hover:border-amber-500/40 hover:bg-slate-50 dark:hover:bg-[#0f172a]'
                   }`}
                 >
                   <div className="flex items-start gap-3">

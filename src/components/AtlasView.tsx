@@ -44,7 +44,7 @@ export const AtlasView: React.FC = () => {
         'Searing Exarch / Eater of Worlds Altar Wheels for Eldritch Ichors and Embers',
         'Sulphite / Delve wheels if chasing delve specific fossils or resonators'
       ],
-      strategy: 'Use Rog to craft near Best-in-Slot armour and jewellery for red maps. Store duplicate guardian fragments for Harvest 1-to-1 swaps.'
+      strategy: 'Use Rog to craft near Best in Slot armour and jewellery for red maps. Store duplicate guardian fragments for Harvest 1 to 1 swaps.'
     },
     {
       stageNumber: 3,
@@ -58,15 +58,15 @@ export const AtlasView: React.FC = () => {
         'Scarab Drop Chance wheels to target farm specific league mechanics',
         'Unnatural Strength & Singular Focus (when running a single favoured map layout)'
       ],
-      strategy: 'Farm Shaper, Elder, and Conqueror guardian sets rapidly. Use Destructive Play to maintain endless 10-boss Maven invitations.'
+      strategy: 'Farm Shaper, Elder, and Conqueror guardian sets rapidly. Use Destructive Play to maintain endless 10 boss Maven invitations.'
     }
   ];
 
   return (
-    <div className="space-y-10 max-w-5xl mx-auto pb-24 text-slate-800 dark:text-slate-200 font-sans">
+    <div className="space-y-10 w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header Masthead */}
-      <header className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-6 space-y-3">
+      <header className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-600 dark:text-sky-400">
           <Compass className="w-4 h-4" />
           Endgame Mapping & Strategy
@@ -81,7 +81,7 @@ export const AtlasView: React.FC = () => {
 
       {/* Section 1: The 100% Map Sustain Playbook */}
       <section className="space-y-5">
-        <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-2.5">
+        <div className="border-b border-slate-800 pb-2.5">
           <span className="text-xs uppercase font-mono tracking-widest text-sky-600 dark:text-sky-400 font-bold">
             Core Foundation
           </span>
@@ -91,7 +91,7 @@ export const AtlasView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 rounded-3xl border border-sky-500/30 bg-sky-500/5 space-y-2.5">
+          <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 uppercase">Trick 1 • 3 to 1 Recipe</div>
             <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Deterministic Upgrades</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -99,7 +99,7 @@ export const AtlasView: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-5 rounded-3xl border border-amber-500/30 bg-amber-500/5 space-y-2.5">
+          <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">Trick 2 • Kirac Resets</div>
             <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Free Shop Refreshes</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -107,7 +107,7 @@ export const AtlasView: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-5 rounded-3xl border border-purple-500/30 bg-purple-500/5 space-y-2.5">
+          <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 uppercase">Trick 3 • Horizon Orbs</div>
             <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Same Tier Rerolls</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -119,7 +119,7 @@ export const AtlasView: React.FC = () => {
 
       {/* Section 2: Interactive PoE Atlas Tree Tool */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <span className="text-xs uppercase font-mono tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">
               Interactive Planner
@@ -132,14 +132,14 @@ export const AtlasView: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIframeKey(prev => prev + 1)}
-              className="p-2 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:text-amber-500 text-slate-600 dark:text-slate-300 transition-colors"
+              className="p-2 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-800 hover:text-amber-500 text-slate-600 dark:text-slate-300 transition-colors"
               title="Reload interactive Atlas"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
             <button
               onClick={() => setIsIframeFullscreen(!isIframeFullscreen)}
-              className="p-2 rounded-xl bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] hover:text-sky-500 text-slate-600 dark:text-slate-300 transition-colors"
+              className="p-2 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-800 hover:text-sky-500 text-slate-600 dark:text-slate-300 transition-colors"
               title="Toggle expanded view"
             >
               {isIframeFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -155,7 +155,7 @@ export const AtlasView: React.FC = () => {
           </div>
         </div>
 
-        <div className={`rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] overflow-hidden bg-slate-950 shadow-xl transition-all ${
+        <div className={`rounded-3xl border border-slate-800 overflow-hidden bg-slate-950 shadow-xl transition-all ${
           isIframeFullscreen ? 'fixed inset-4 z-50 rounded-2xl' : 'h-[650px] w-full'
         }`}>
           <iframe
@@ -171,7 +171,7 @@ export const AtlasView: React.FC = () => {
 
       {/* Section 3: Progressive Atlas Passive Tree Stages */}
       <section className="space-y-6 pt-4">
-        <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="border-b border-slate-800 pb-3">
           <span className="text-xs uppercase font-mono tracking-widest text-purple-600 dark:text-purple-400 font-bold">
             Progressive Strategy
           </span>
@@ -184,7 +184,7 @@ export const AtlasView: React.FC = () => {
         </div>
 
         {/* Stage Selector Tabs */}
-        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-2 overflow-x-auto">
+        <div className="flex gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
           {stages.map((stg) => (
             <button
               key={stg.stageNumber}
@@ -192,7 +192,7 @@ export const AtlasView: React.FC = () => {
               className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2 ${
                 activeStage === stg.stageNumber
                   ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'bg-white dark:bg-white dark:bg-[#1a1a2e] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-amber-500'
+                  : 'bg-white dark:bg-slate-900/80 border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500'
               }`}
             >
               <span>Stage {stg.stageNumber}:</span>
@@ -205,8 +205,8 @@ export const AtlasView: React.FC = () => {
         {(() => {
           const current = stages.find(s => s.stageNumber === activeStage) || stages[0];
           return (
-            <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+            <div className="p-6 sm:p-8 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div>
                   <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
                     Stage {current.stageNumber} • {current.points}
@@ -224,7 +224,7 @@ export const AtlasView: React.FC = () => {
                 <div className="text-xs font-bold uppercase font-mono text-slate-400">Key Nodes to Allocate:</div>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {current.nodes.map((node, nIdx) => (
-                    <li key={nIdx} className="p-3 rounded-2xl bg-slate-50 dark:bg-poe-dark/40 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] flex items-start gap-2 text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <li key={nIdx} className="p-3 rounded-2xl bg-slate-50 dark:bg-poe-dark/40 border border-slate-800 flex items-start gap-2 text-slate-700 dark:text-slate-300 leading-relaxed">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
                       <span>{node}</span>
                     </li>
@@ -242,7 +242,7 @@ export const AtlasView: React.FC = () => {
 
       {/* Section 4: Voidstones Priority & Harvest Fragment Swaps */}
       <section className="space-y-6 pt-4">
-        <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-3">
+        <div className="border-b border-slate-800 pb-3">
           <span className="text-xs uppercase font-mono tracking-widest text-rose-600 dark:text-rose-400 font-bold">
             Endgame Voidstones
           </span>
@@ -252,7 +252,7 @@ export const AtlasView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-sm space-y-4">
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-4">
             <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Crown className="w-5 h-5 text-amber-500" />
               The 4 Voidstone Progression
@@ -268,7 +268,7 @@ export const AtlasView: React.FC = () => {
               </div>
               <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/25 space-y-1">
                 <div className="font-bold text-purple-700 dark:text-purple-300">3. The Maven (Ceremonial Voidstone)</div>
-                <p className="text-slate-600 dark:text-slate-300">Run 10-boss invitations for 10 Splinters → Maven's Writ. Focus on memory game patterns and beam avoidance.</p>
+                <p className="text-slate-600 dark:text-slate-300">Run 10 boss invitations for 10 Splinters → Maven's Writ. Focus on memory game patterns and beam avoidance.</p>
               </div>
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-1">
                 <div className="font-bold text-emerald-700 dark:text-emerald-300">4. The Uber Elder (Decayed Voidstone)</div>
@@ -277,7 +277,7 @@ export const AtlasView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-6 rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-emerald-500" />
@@ -288,7 +288,7 @@ export const AtlasView: React.FC = () => {
               </p>
 
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-2">
-                <div className="font-bold text-emerald-800 dark:text-emerald-300">How to 1-to-1 Swap Duplicate Fragments:</div>
+                <div className="font-bold text-emerald-800 dark:text-emerald-300">How to 1 to 1 Swap Duplicate Fragments:</div>
                 <ol className="list-decimal list-inside space-y-1.5 text-slate-700 dark:text-slate-300">
                   <li>Enter your <strong>Horticrafting Station (Harvest)</strong>.</li>
                   <li>Scroll down to the <strong>Sacrifice / Swap</strong> crafting section.</li>
@@ -298,7 +298,7 @@ export const AtlasView: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-xs text-slate-600 dark:text-slate-400">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-poe-dark/50 border border-slate-800 text-xs text-slate-600 dark:text-slate-400">
               Works on: Shaper Fragments, Elder Fragments, Conqueror Fragments, and Sirus Crests.
             </div>
           </div>

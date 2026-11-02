@@ -106,7 +106,7 @@ interface NavGroup {
       title: 'Command & League',
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
-        { id: 'private_league', label: '3.30 GSF League', icon: Users, badge: 'GSF' },
+        { id: 'private_league', label: '3.30 GSF League', icon: Users, badge: 'NEW' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
@@ -355,7 +355,11 @@ interface NavGroup {
                             <span>{item.label}</span>
                           </div>
                           {item.badge && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                              item.badge === 'NEW'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}>
                               {item.badge}
                             </span>
                           )}
@@ -560,8 +564,10 @@ interface NavGroup {
                     </div>
 
                     {!isCollapsed && item.badge && (
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono flex-shrink-0 ${
-                        isActive 
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold flex-shrink-0 ${
+                        item.badge === 'NEW'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : isActive 
                           ? 'bg-slate-700 text-slate-200' 
                           : 'bg-slate-800 text-slate-500 border border-slate-700/50'
                       }`}>

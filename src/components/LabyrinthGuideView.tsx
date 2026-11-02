@@ -142,7 +142,7 @@ export const LabyrinthGuideView: React.FC = () => {
                 href="https://www.poewiki.net/wiki/The_Lord%27s_Labyrinth"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-xl bg-white dark:bg-poe-dark border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 font-semibold text-xs flex items-center gap-2 shadow-sm transition-all"
+                className="px-4 py-2 rounded-xl bg-white dark:bg-poe-dark border border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 font-semibold text-xs flex items-center gap-2 shadow-sm transition-all"
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>PoE Wiki Reference</span>
@@ -168,7 +168,7 @@ export const LabyrinthGuideView: React.FC = () => {
       </div>
 
       {/* Navigation Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44]">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-800">
         {[
           { id: 'variations', label: 'Lab Variations Table' },
           { id: 'traps', label: 'Trap Survival and Defense' },
@@ -262,7 +262,7 @@ export const LabyrinthGuideView: React.FC = () => {
       {/* TAB 2: TRAP SURVIVAL AND DEFENSE */}
       {activeTab === 'traps' && (
         <div className="space-y-6">
-          <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+          <div className="border-b border-slate-800 pb-4">
             <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
               Trap Mechanics and Survival Best Practices
             </h2>
@@ -274,7 +274,7 @@ export const LabyrinthGuideView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Essential Aurastack and Regen Combo */}
-            <div className="p-6 rounded-2xl border border-amber-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-amber-500/30 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   <Heart className="w-5 h-5" />
@@ -310,7 +310,7 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Movement Skills and Corridor Navigation */}
-            <div className="p-6 rounded-2xl border border-sky-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-sky-500/30 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
                   <Zap className="w-5 h-5" />
@@ -346,7 +346,7 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Pantheon and Flask Configuration */}
-            <div className="p-6 rounded-2xl border border-emerald-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-emerald-500/30 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                   <ShieldAlert className="w-5 h-5" />
@@ -367,7 +367,7 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Bleeding and Corrupted Blood Mitigation */}
-            <div className="p-6 rounded-2xl border border-rose-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-rose-500/30 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
                   <Flame className="w-5 h-5" />
@@ -394,7 +394,7 @@ export const LabyrinthGuideView: React.FC = () => {
       {/* TAB 3: TRIAL LOCATIONS CHECKLIST */}
       {activeTab === 'trials' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
                 Campaign Trials Interactive Checklist
@@ -406,7 +406,7 @@ export const LabyrinthGuideView: React.FC = () => {
 
             <button
               onClick={resetTrials}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-600 dark:text-slate-400 hover:text-red-500 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#0f172a] border border-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-500 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset Checklist</span>
@@ -416,8 +416,8 @@ export const LabyrinthGuideView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Normal Lab Trials */}
-            <div className="rounded-2xl border border-amber-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]">
+            <div className="rounded-2xl border border-amber-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
                     Normal Labyrinth (6 Trials)
@@ -436,7 +436,7 @@ export const LabyrinthGuideView: React.FC = () => {
                     className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                       completedTrials[t.id]
                         ? 'bg-amber-500/10 border-amber-500/40 text-slate-900 dark:text-slate-100'
-                        : 'bg-slate-50 dark:bg-poe-dark border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-600 dark:text-slate-400 hover:border-amber-500/30'
+                        : 'bg-slate-50 dark:bg-poe-dark border-slate-800 text-slate-600 dark:text-slate-400 hover:border-amber-500/30'
                     }`}
                   >
                     <div className="space-y-0.5">
@@ -454,8 +454,8 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Cruel Lab Trials */}
-            <div className="rounded-2xl border border-sky-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]">
+            <div className="rounded-2xl border border-sky-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
                     Cruel Labyrinth (3 Trials)
@@ -474,7 +474,7 @@ export const LabyrinthGuideView: React.FC = () => {
                     className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                       completedTrials[t.id]
                         ? 'bg-sky-500/10 border-sky-500/40 text-slate-900 dark:text-slate-100'
-                        : 'bg-slate-50 dark:bg-poe-dark border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-600 dark:text-slate-400 hover:border-sky-500/30'
+                        : 'bg-slate-50 dark:bg-poe-dark border-slate-800 text-slate-600 dark:text-slate-400 hover:border-sky-500/30'
                     }`}
                   >
                     <div className="space-y-0.5">
@@ -492,8 +492,8 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Merciless Lab Trials */}
-            <div className="rounded-2xl border border-emerald-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-200 dark:border-[#2d2d44]">
+            <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
                     Merciless Labyrinth (3 Trials)
@@ -512,7 +512,7 @@ export const LabyrinthGuideView: React.FC = () => {
                     className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                       completedTrials[t.id]
                         ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-900 dark:text-slate-100'
-                        : 'bg-slate-50 dark:bg-poe-dark border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] text-slate-600 dark:text-slate-400 hover:border-emerald-500/30'
+                        : 'bg-slate-50 dark:bg-poe-dark border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-500/30'
                     }`}
                   >
                     <div className="space-y-0.5">
@@ -535,7 +535,7 @@ export const LabyrinthGuideView: React.FC = () => {
       {/* TAB 4: IZARO PHASES AND DARKSHRINES */}
       {activeTab === 'izaro' && (
         <div className="space-y-6">
-          <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+          <div className="border-b border-slate-800 pb-4">
             <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
               Izaro Fight Tactics and Darkshrine Secrets
             </h2>
@@ -547,7 +547,7 @@ export const LabyrinthGuideView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Izaro Mechanics and Extra Key Optimization */}
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   <Crown className="w-5 h-5" />
@@ -568,7 +568,7 @@ export const LabyrinthGuideView: React.FC = () => {
             </div>
 
             {/* Darkshrines: Finding Secret Buffs */}
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-4 shadow-sm">
+            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
                   <Sparkles className="w-5 h-5" />
@@ -609,7 +609,7 @@ export const LabyrinthGuideView: React.FC = () => {
       {/* TAB 5: DIVINE FONT CRAFTING */}
       {activeTab === 'font' && (
         <div className="space-y-6">
-          <div className="border-b border-slate-200 dark:border-slate-200 dark:border-[#2d2d44] pb-4">
+          <div className="border-b border-slate-800 pb-4">
             <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
               Divine Font Gem Crafting and Transfigured Conversions
             </h2>
@@ -620,7 +620,7 @@ export const LabyrinthGuideView: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div className="p-6 rounded-2xl border border-amber-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-3 shadow-sm">
+            <div className="p-6 rounded-2xl border border-amber-500/30 bg-slate-900/80 space-y-3 shadow-sm">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold">
                 <Gem className="w-5 h-5" />
               </div>
@@ -632,7 +632,7 @@ export const LabyrinthGuideView: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-sky-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-3 shadow-sm">
+            <div className="p-6 rounded-2xl border border-sky-500/30 bg-slate-900/80 space-y-3 shadow-sm">
               <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400 font-bold">
                 <Sparkles className="w-5 h-5" />
               </div>
@@ -644,7 +644,7 @@ export const LabyrinthGuideView: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-emerald-500/30 bg-white dark:bg-white dark:bg-[#1a1a2e] space-y-3 shadow-sm">
+            <div className="p-6 rounded-2xl border border-emerald-500/30 bg-slate-900/80 space-y-3 shadow-sm">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
                 <Zap className="w-5 h-5" />
               </div>
