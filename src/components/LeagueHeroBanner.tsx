@@ -8,7 +8,9 @@ import {
   Edit3, 
   RotateCcw, 
   Image as ImageIcon,
-  CheckCircle2
+  CheckCircle2,
+  UserPlus,
+  Send
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -19,6 +21,9 @@ interface LeagueHeroBannerProps {
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
   triggerCopy: (text: string, label: string) => void;
+  onOpenInviteModal?: () => void;
+  onOpenJoinModal?: () => void;
+  isUserOnRoster?: boolean;
 }
 
 export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
@@ -27,7 +32,10 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
   activeLeagueInfo,
   userAccount,
   onOpenAuthModal,
-  triggerCopy
+  triggerCopy,
+  onOpenInviteModal,
+  onOpenJoinModal,
+  isUserOnRoster
 }) => {
   void activeLeagueInfo;
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -219,15 +227,37 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
 
               {/* Quick Action Links */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
+                {!isUserOnRoster && onOpenJoinModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenJoinModal}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Join This League</span>
+                  </button>
+                )}
+
+                {onOpenInviteModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenInviteModal}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Invite Exiles</span>
+                  </button>
+                )}
+
                 <a
                   href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer"
                 >
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Ravenwatch Root</span>
-                  <ExternalLink className="w-2.5 h-2.5 text-emerald-200" />
+                  <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
                 </a>
 
                 <a

@@ -33,6 +33,7 @@ import {
   Share2,
   ArrowUpDown,
   Trash2,
+  UserPlus,
   X
 } from 'lucide-react';
 import {
@@ -752,6 +753,218 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         m.characterName.toLowerCase() === charName.toLowerCase() ||
         (dispName && m.displayName.toLowerCase() === dispName.toLowerCase())
     );
+  };
+
+  // Direct Invite & Direct Join Modal State
+  const directInviteDialogRef = useRef<HTMLDialogElement>(null);
+  const directJoinDialogRef = useRef<HTMLDialogElement>(null);
+  const [hasJoinedSuccess, setHasJoinedSuccess] = useState<boolean>(false);
+
+  // Direct Join Form Fields
+  const [joinPoeAccount, setJoinPoeAccount] = useState<string>(userAccount?.poeAccountName || '');
+  const [joinCharName, setJoinCharName] = useState<string>(userAccount?.characterName || '');
+  const [joinAscendancy, setJoinAscendancy] = useState<string>(
+    userAccount?.ascendancy || (selectedGame === 'poe2' ? 'Warrior' : 'Slayer')
+  );
+  const [joinBuildName, setJoinBuildName] = useState<string>(userAccount?.buildName || '');
+  const [joinDisplayTag, setJoinDisplayTag] = useState<string>(userAccount?.displayName || '');
+  const [joinDiscord, setJoinDiscord] = useState<string>(userAccount?.discordName || '');
+  const [joinPreferredContact, setJoinPreferredContact] = useState<'app' | 'poe_whisper' | 'discord'>('app');
+
+  // Host Fast Add Form Fields
+  const [fastAddPoeAccount, setFastAddPoeAccount] = useState<string>('');
+  const [fastAddCharName, setFastAddCharName] = useState<string>('');
+  const [fastAddAscendancy, setFastAddAscendancy] = useState<string>(
+    selectedGame === 'poe2' ? 'Warrior' : 'Slayer'
+  );
+  const [fastAddBuildName, setFastAddBuildName] = useState<string>('');
+  const [fastAddDisplayTag, setFastAddDisplayTag] = useState<string>('');
+
+  const isCurrentUserOnRoster = Boolean(
+    userAccount &&
+      roster.some(
+        (m) =>
+          (m.id && userAccount.id === m.id) ||
+          (m.poeAccountName &&
+            userAccount.poeAccountName &&
+            m.poeAccountName.toLowerCase() === userAccount.poeAccountName.toLowerCase()) ||
+          (m.characterName &&
+            userAccount.characterName &&
+            m.characterName.toLowerCase() === userAccount.characterName.toLowerCase())
+      )
+  );
+
+  const handleOpenInviteModal = () => {
+    directInviteDialogRef.current?.showModal();
+  };
+
+  const handleOpenJoinModal = () => {
+    setHasJoinedSuccess(false);
+    directJoinDialogRef.current?.showModal();
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('join') === 'true' || window.location.hash === '#join') {
+        setTimeout(() => {
+          handleOpenJoinModal();
+        }, 150);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const inviteDialog = directInviteDialogRef.current;
+    if (!inviteDialog) return;
+    let handleInviteBackdrop: ((e: MouseEvent) => void) | undefined;
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      handleInviteBackdrop = (e: MouseEvent) => {
+        if (e.target === inviteDialog) {
+          const rect = inviteDialog.getBoundingClientRect();
+          const inDialog =
+            rect.top <= e.clientY &&
+            e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX &&
+            e.clientX <= rect.left + rect.width;
+          if (!inDialog) inviteDialog.close();
+        }
+      };
+      inviteDialog.addEventListener('click', handleInviteBackdrop);
+    }
+
+    const joinDialog = directJoinDialogRef.current;
+    let handleJoinBackdrop: ((e: MouseEvent) => void) | undefined;
+    if (joinDialog && !('closedBy' in HTMLDialogElement.prototype)) {
+      handleJoinBackdrop = (e: MouseEvent) => {
+        if (e.target === joinDialog) {
+          const rect = joinDialog.getBoundingClientRect();
+          const inDialog =
+            rect.top <= e.clientY &&
+            e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX &&
+            e.clientX <= rect.left + rect.width;
+          if (!inDialog) joinDialog.close();
+        }
+      };
+      joinDialog.addEventListener('click', handleJoinBackdrop);
+    }
+
+    return () => {
+      if (handleInviteBackdrop) inviteDialog.removeEventListener('click', handleInviteBackdrop);
+      if (handleJoinBackdrop && joinDialog) joinDialog.removeEventListener('click', handleJoinBackdrop);
+    };
+  }, []);
+
+  const handleDirectJoinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanAccount = joinPoeAccount.trim();
+    if (!cleanAccount) return;
+
+    const cleanChar = joinCharName.trim() || cleanAccount.split('#')[0] || 'Exile';
+    const matchedAsc = currentAscendancyCatalog.find(
+      (a) => a.name.toLowerCase() === joinAscendancy.toLowerCase()
+    );
+    const resolvedClass = matchedAsc?.baseClass || (isPoE2Session ? 'Warrior' : 'Duelist');
+    const dispName = joinDisplayTag.trim() || cleanChar;
+
+    const newMember: LeagueRosterMember = {
+      id: `member-${Date.now()}`,
+      displayName: dispName,
+      preferredContact: joinPreferredContact,
+      slotNumber: roster.length + 1,
+      leagueMode: 'Private',
+      poeAccountName: cleanAccount,
+      discordName: joinDiscord.trim() || undefined,
+      characterName: cleanChar,
+      className: resolvedClass,
+      ascendancy: joinAscendancy,
+      atlasContent: ['Expedition', 'Harvest'],
+      availableAtLaunch: 'Yes',
+      level: 1,
+      buildName: joinBuildName.trim() || 'Undecided Starter',
+      notes: 'Joined via direct league invite',
+      inviteStatus: 'Accepted',
+      isOnline: true
+    };
+
+    const updatedRoster = [...roster, newMember];
+    setRoster(updatedRoster);
+    try {
+      localStorage.setItem('poe_clean330_roster', JSON.stringify(updatedRoster));
+    } catch {}
+
+    saveCloudRosterMember(activeSessionId, newMember);
+
+    if (userAccount) {
+      const updatedAccount: UserAccount = {
+        ...userAccount,
+        poeAccountName: cleanAccount,
+        characterName: cleanChar,
+        ascendancy: joinAscendancy,
+        className: resolvedClass,
+        buildName: joinBuildName.trim() || userAccount.buildName
+      };
+      try {
+        localStorage.setItem('poe_umbraleague_user', JSON.stringify(updatedAccount));
+      } catch {}
+      if (onUpdateUserAccount) {
+        onUpdateUserAccount(updatedAccount, newMember);
+      }
+    }
+
+    fireConfetti();
+    setHasJoinedSuccess(true);
+    triggerCopy('', `Successfully joined ${activeLeagueInfo.name}!`);
+  };
+
+  const handleFastTrackHostAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanAccount = fastAddPoeAccount.trim();
+    if (!cleanAccount) return;
+
+    const cleanChar = fastAddCharName.trim() || cleanAccount.split('#')[0] || 'Exile';
+    const matchedAsc = currentAscendancyCatalog.find(
+      (a) => a.name.toLowerCase() === fastAddAscendancy.toLowerCase()
+    );
+    const resolvedClass = matchedAsc?.baseClass || (isPoE2Session ? 'Warrior' : 'Duelist');
+    const dispName = fastAddDisplayTag.trim() || cleanChar;
+
+    const newMember: LeagueRosterMember = {
+      id: `member-${Date.now()}`,
+      displayName: dispName,
+      preferredContact: 'app',
+      slotNumber: roster.length + 1,
+      leagueMode: 'Private',
+      poeAccountName: cleanAccount,
+      characterName: cleanChar,
+      className: resolvedClass,
+      ascendancy: fastAddAscendancy,
+      atlasContent: ['Expedition', 'Harvest'],
+      availableAtLaunch: 'Yes',
+      level: 1,
+      buildName: fastAddBuildName.trim() || 'Undecided Starter',
+      notes: 'Added by league host',
+      inviteStatus: 'Invited',
+      isOnline: false
+    };
+
+    const updatedRoster = [...roster, newMember];
+    setRoster(updatedRoster);
+    try {
+      localStorage.setItem('poe_clean330_roster', JSON.stringify(updatedRoster));
+    } catch {}
+
+    saveCloudRosterMember(activeSessionId, newMember);
+
+    navigator.clipboard?.writeText(cleanAccount);
+    triggerCopy(cleanAccount, `Added ${cleanAccount} to roster (Copied to clipboard for GGG invite)`);
+
+    setFastAddPoeAccount('');
+    setFastAddCharName('');
+    setFastAddBuildName('');
+    setFastAddDisplayTag('');
+    fireConfetti();
   };
 
   // Countdowns
@@ -1517,6 +1730,28 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <Globe className="w-3.5 h-3.5 text-indigo-400" />
               <span>{userAccount ? `@${userAccount.displayName}` : 'Login'}</span>
             </button>
+
+            <button
+              type="button"
+              onClick={handleOpenInviteModal}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+              title="Direct invite link and share templates"
+            >
+              <Send className="w-3 h-3" />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+
+            {!isCurrentUserOnRoster && (
+              <button
+                type="button"
+                onClick={handleOpenJoinModal}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+                title="Join this private league roster"
+              >
+                <UserPlus className="w-3 h-3" />
+                <span className="hidden sm:inline">Join</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1598,6 +1833,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               userAccount={userAccount}
               onOpenAuthModal={onOpenAuthModal}
               triggerCopy={triggerCopy}
+              onOpenInviteModal={handleOpenInviteModal}
+              onOpenJoinModal={handleOpenJoinModal}
+              isUserOnRoster={isCurrentUserOnRoster}
             />
 
             {/* Category Collapsible Master Controls */}
@@ -2419,6 +2657,420 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           )}
         </dialog>
 
+        {/* Direct League Invite Modal */}
+        <dialog
+          ref={directInviteDialogRef}
+          {...({ closedby: 'any' } as any)}
+          aria-labelledby="direct-invite-modal-title"
+          className="w-[94vw] sm:w-full sm:max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+        >
+          <div className="flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 border-b border-slate-800 bg-gradient-to-r from-indigo-950/80 via-slate-900 to-slate-900 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold uppercase tracking-wider">
+                      League Invite
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">Patch {currentSession.version}</span>
+                  </div>
+                  <h2 id="direct-invite-modal-title" className="text-base sm:text-lg font-bold text-white mt-0.5">
+                    Invite Exiles to {activeLeagueInfo.name}
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => directInviteDialogRef.current?.close()}
+                className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+              <div className="space-y-2 p-3.5 rounded-xl border border-slate-800 bg-slate-950/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Direct Share & Join Link</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">Auto prompts registration</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`https://exilessf.app/league/${activeSessionId}?join=true`}
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-indigo-300 selection:bg-indigo-900 select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `https://exilessf.app/league/${activeSessionId}?join=true`;
+                      triggerCopy(url, 'Direct Join Link');
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all flex-shrink-0"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Link</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Send this link to anyone. When they open it, the league hub will automatically present the join form to onboard their exile.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-xs font-semibold text-slate-200 font-mono uppercase tracking-wider">
+                  Ready Made Invite Templates
+                </span>
+
+                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Discord / Guild Announcement</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const template = `Join our Private League: ${activeLeagueInfo.name}\n` +
+                          `• Ladder & Roster: https://exilessf.app/league/${activeSessionId}?join=true\n` +
+                          `• Root Community: https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A\n` +
+                          `• League Host: @${activeLeagueInfo.organizerAccount}\n` +
+                          `Click the link to register your starter build and drop your PoE account name so we can send your in-game invite!`;
+                        triggerCopy(template, 'Discord Invite Template');
+                      }}
+                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1 cursor-pointer transition-colors border border-slate-700"
+                    >
+                      <Copy className="w-3 h-3 text-slate-400" />
+                      <span>Copy Template</span>
+                    </button>
+                  </div>
+                  <pre className="text-[11px] font-mono text-slate-400 bg-slate-900/90 p-2.5 rounded-lg whitespace-pre-wrap border border-slate-800/80">
+{`Join our Private League: ${activeLeagueInfo.name}
+• Ladder & Roster: https://exilessf.app/league/${activeSessionId}?join=true
+• Root Community: https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A
+• League Host: @${activeLeagueInfo.organizerAccount}`}
+                  </pre>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                      <AtSign className="w-3.5 h-3.5" />
+                      <span>In Game Whisper / Global Message</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const template = `@Exile Hey! Join our private league ${activeLeagueInfo.name}. Register starter & join roster at: https://exilessf.app/league/${activeSessionId}?join=true`;
+                        triggerCopy(template, 'Whisper Invite Template');
+                      }}
+                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1 cursor-pointer transition-colors border border-slate-700"
+                    >
+                      <Copy className="w-3 h-3 text-slate-400" />
+                      <span>Copy Whisper</span>
+                    </button>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-400 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800/80">
+                    {`@Exile Hey! Join our private league ${activeLeagueInfo.name}. Register starter & join roster at: https://exilessf.app/league/${activeSessionId}?join=true`}
+                  </div>
+                </div>
+              </div>
+
+              {isCurrentUserAdmin && (
+                <form
+                  onSubmit={handleFastTrackHostAdd}
+                  className="space-y-3 p-4 rounded-xl border border-indigo-900/40 bg-indigo-950/20"
+                >
+                  <div className="flex items-center justify-between border-b border-indigo-900/40 pb-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                      <span className="text-xs font-bold text-white">Host Fast Add to Roster</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-indigo-300">Auto copies PoE tag for GGG invite</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300">PoE Account Tag (Required)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Havoc#1234 or Chris_Wilson"
+                        value={fastAddPoeAccount}
+                        onChange={(e) => setFastAddPoeAccount(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300">In Game Character IGN</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Havoc_Umbra"
+                        value={fastAddCharName}
+                        onChange={(e) => setFastAddCharName(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300">Ascendancy</label>
+                      <select
+                        value={fastAddAscendancy}
+                        onChange={(e) => setFastAddAscendancy(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                      >
+                        {currentAscendancyCatalog.map((a) => (
+                          <option key={a.name} value={a.name}>
+                            {a.name} ({a.baseClass})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300">Starter Build Plan</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Molten Strike of the Zenith"
+                        value={fastAddBuildName}
+                        onChange={(e) => setFastAddBuildName(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300">Display Tag (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Havoc"
+                        value={fastAddDisplayTag}
+                        onChange={(e) => setFastAddDisplayTag(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-[11px] text-slate-400">
+                      Syncs immediately to Cloudflare KV and copies account name for paste into GGG private league page.
+                    </p>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all flex-shrink-0"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Add & Copy Tag</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
+              <span className="text-[11px] font-mono text-slate-500">
+                Active League ID: {activeSessionId}
+              </span>
+              <button
+                type="button"
+                onClick={() => directInviteDialogRef.current?.close()}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </dialog>
+
+        {/* Direct League Join Modal */}
+        <dialog
+          ref={directJoinDialogRef}
+          {...({ closedby: 'any' } as any)}
+          aria-labelledby="direct-join-modal-title"
+          className="w-[94vw] sm:w-full sm:max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+        >
+          <div className="flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 border-b border-slate-800 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold uppercase tracking-wider">
+                      League Registration
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">Patch {currentSession.version}</span>
+                  </div>
+                  <h2 id="direct-join-modal-title" className="text-base sm:text-lg font-bold text-white mt-0.5">
+                    Join {activeLeagueInfo.name}
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => directJoinDialogRef.current?.close()}
+                className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {hasJoinedSuccess ? (
+              <div className="p-8 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-white">Welcome to the Squad!</h3>
+                  <p className="text-xs text-slate-300">
+                    You are now registered on the live roster for <strong className="text-white">{activeLeagueInfo.name}</strong>. Your character and build details have been synced to Cloudflare KV.
+                  </p>
+                </div>
+                <div className="pt-2 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      directJoinDialogRef.current?.close();
+                      setActiveTab('roster');
+                    }}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow transition-all"
+                  >
+                    View Squad Roster
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleDirectJoinSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4">
+                <p className="text-xs text-slate-300">
+                  Register your exile credentials to secure your spot in the squad roster. Once registered, your build plan and wanted items will be visible to all league members.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">PoE Account Tag (Required)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. ShadowExile#1234"
+                      value={joinPoeAccount}
+                      onChange={(e) => setJoinPoeAccount(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    <span className="text-[10px] text-slate-500">Needed for official GGG league invite</span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Character Name (IGN)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Shadow_Umbra"
+                      value={joinCharName}
+                      onChange={(e) => setJoinCharName(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    <span className="text-[10px] text-slate-500">Your in game character name</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Starter Ascendancy</label>
+                    <select
+                      value={joinAscendancy}
+                      onChange={(e) => setJoinAscendancy(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      {currentAscendancyCatalog.map((a) => (
+                        <option key={a.name} value={a.name}>
+                          {a.name} ({a.baseClass})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Planned Starter Build</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Lightning Strike Warden"
+                      value={joinBuildName}
+                      onChange={(e) => setJoinBuildName(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Display Tag (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ShadowExile"
+                      value={joinDisplayTag}
+                      onChange={(e) => setJoinDisplayTag(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Preferred Contact</label>
+                    <select
+                      value={joinPreferredContact}
+                      onChange={(e) => setJoinPreferredContact(e.target.value as any)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      <option value="app">Exile SSF / Root App</option>
+                      <option value="poe_whisper">In Game PoE Whisper</option>
+                      <option value="discord">Discord Direct Message</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Discord (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. exile_warrior"
+                      value={joinDiscord}
+                      onChange={(e) => setJoinDiscord(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-800 bg-slate-950/80 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => directJoinDialogRef.current?.close()}
+                    className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg transition-all"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Join League Roster</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </dialog>
+
         {/* ============================================================================ */}
         {/* TAB 3: ROSTER DIRECTORY */}
         {/* ============================================================================ */}
@@ -2471,6 +3123,28 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <Copy className="w-3 h-3" />
                   <span>Copy All Tags</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenInviteModal}
+                  className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow"
+                  title="Invite exiles to league"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Invite Exiles</span>
+                </button>
+
+                {!isCurrentUserOnRoster && (
+                  <button
+                    type="button"
+                    onClick={handleOpenJoinModal}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow"
+                    title="Join this private league roster"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Join Roster</span>
+                  </button>
+                )}
               </div>
             </div>
 
