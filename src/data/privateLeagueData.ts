@@ -650,7 +650,78 @@ export function makeDbUrl(itemName: string): string {
 }
 
 // Pre populated from Sheet 2 (Items) of the NOIR Google Spreadsheet
-export const INITIAL_LOOKING_FOR_ITEMS: LookingForItem[] = [];
+export const INITIAL_LOOKING_FOR_ITEMS: LookingForItem[] = [
+  {
+    id: 'lf-leuie-aegis',
+    characterName: '• Evil •',
+    displayName: 'Leuie',
+    preferredContact: 'app',
+    discordName: '@leuie',
+    poeAccountName: 'Leuie#0001',
+    itemName: 'Aegis Aurora',
+    category: 'Unique',
+    status: 'NEED',
+    notes: 'Slayer recovery and maximum block keystone synergy',
+    poeWikiUrl: makeWikiUrl('Aegis Aurora'),
+    poeDbUrl: makeDbUrl('Aegis Aurora')
+  },
+  {
+    id: 'lf-leuie-ephemeral',
+    characterName: '• Evil •',
+    displayName: 'Leuie',
+    preferredContact: 'app',
+    discordName: '@leuie',
+    poeAccountName: 'Leuie#0001',
+    itemName: 'Ephemeral Edge',
+    category: 'Unique',
+    status: 'NEED',
+    notes: 'High roll energy shield scaling base',
+    poeWikiUrl: makeWikiUrl('Ephemeral Edge'),
+    poeDbUrl: makeDbUrl('Ephemeral Edge')
+  },
+  {
+    id: 'lf-venulum-stampede-gem',
+    characterName: 'DuelistLeagueStart',
+    displayName: 'Venulum',
+    preferredContact: 'app',
+    discordName: '@venulum',
+    poeAccountName: 'cgbulloc#4500',
+    itemName: 'Stampede',
+    category: 'Gem',
+    status: 'NEED',
+    notes: 'Cyclone mobility and gem link progression',
+    poeWikiUrl: makeWikiUrl('Stampede'),
+    poeDbUrl: makeDbUrl('Stampede')
+  },
+  {
+    id: 'lf-venulum-the-stampede',
+    characterName: 'DuelistLeagueStart',
+    displayName: 'Venulum',
+    preferredContact: 'app',
+    discordName: '@venulum',
+    poeAccountName: 'cgbulloc#4500',
+    itemName: 'The Stampede',
+    category: 'Unique',
+    status: 'NEED',
+    notes: 'Movement speed cannot be modified below base value while spinning',
+    poeWikiUrl: makeWikiUrl('The Stampede'),
+    poeDbUrl: makeDbUrl('The Stampede')
+  },
+  {
+    id: 'lf-leuie-vls',
+    characterName: '• Evil •',
+    displayName: 'Leuie',
+    preferredContact: 'app',
+    discordName: '@leuie',
+    poeAccountName: 'Leuie#0001',
+    itemName: 'Vaal Lightning Strike',
+    category: 'Vaal Gem',
+    status: 'NEED',
+    notes: 'Core endgame burst skill for bossing and expedition clears',
+    poeWikiUrl: makeWikiUrl('Vaal Lightning Strike'),
+    poeDbUrl: makeDbUrl('Vaal Lightning Strike')
+  }
+];
 
 export const INITIAL_FOUND_VAULT_ITEMS: FoundUniqueVaultItem[] = [];
 

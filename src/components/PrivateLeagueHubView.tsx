@@ -122,7 +122,30 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [lookingForItems, setLookingForItems] = useState<LookingForItem[]>(() => {
     try {
       const saved = localStorage.getItem('poe_clean330_looking_for');
-      return saved ? JSON.parse(saved) : INITIAL_LOOKING_FOR_ITEMS;
+      let deletedIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem('poe_clean330_looking_for_deleted');
+        if (delRaw) deletedIds = JSON.parse(delRaw);
+      } catch {}
+
+      if (saved) {
+        const parsed: LookingForItem[] = JSON.parse(saved);
+        for (const item of INITIAL_LOOKING_FOR_ITEMS) {
+          if (deletedIds.includes(item.id)) continue;
+          if (
+            !parsed.some(
+              (p) =>
+                p.id === item.id ||
+                (p.itemName.toLowerCase() === item.itemName.toLowerCase() &&
+                  p.displayName?.toLowerCase() === item.displayName?.toLowerCase())
+            )
+          ) {
+            parsed.push(item);
+          }
+        }
+        return parsed;
+      }
+      return INITIAL_LOOKING_FOR_ITEMS.filter((it) => !deletedIds.includes(it.id));
     } catch {
       return INITIAL_LOOKING_FOR_ITEMS;
     }
@@ -1007,6 +1030,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     setLookingForItems(updated);
     try {
       localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      const delRaw = localStorage.getItem('poe_clean330_looking_for_deleted');
+      const delList: string[] = delRaw ? JSON.parse(delRaw) : [];
+      if (!delList.includes(itemId)) {
+        delList.push(itemId);
+        localStorage.setItem('poe_clean330_looking_for_deleted', JSON.stringify(delList));
+      }
     } catch {}
 
     triggerCopy('', `Removed ${target.itemName} from wishlist`);
@@ -2805,6 +2834,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     Table
                   </button>
                 </div>
+
+                {/* Copy Squad Wishlist Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const summaryLines = lookingForItems.map(
+                      (it) => `@${it.displayName || it.characterName}: ${it.itemName} (${it.category}, ${it.status})`
+                    );
+                    triggerCopy(summaryLines.join('\n'), 'Squad Wishlist Summary');
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold flex items-center gap-1 cursor-pointer transition-colors border border-slate-700"
+                  title="Copy formatted wishlist summary for Discord or whispers"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Copy Squad Wishlist</span>
+                </button>
 
                 {/* Add Wanted Item Button */}
                 <button
