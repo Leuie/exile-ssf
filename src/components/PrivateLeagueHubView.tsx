@@ -72,6 +72,14 @@ import { fireConfetti } from '../utils/confetti';
 import { LeagueHeroBanner } from './LeagueHeroBanner';
 import { LeagueContentManagerModal, type ManagerSectionType } from './LeagueContentManagerModal';
 import { FullGuideReaderView } from './FullGuideReaderView';
+import {
+  fetchCloudLeagueData,
+  saveCloudWishlistItem,
+  deleteCloudWishlistItem,
+  saveCloudRosterMember,
+  saveCloudVaultItem,
+  saveCloudGuide
+} from '../services/cloudSync';
 
 interface PrivateLeagueHubViewProps {
   userAccount?: UserAccount | null;
@@ -292,6 +300,43 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const currentSession = allLeagueSessions.find((s: ActiveLeagueSession) => s.id === activeSessionId) || allLeagueSessions[0] || ACTIVE_LEAGUE_SESSIONS[0];
   const isReadOnlyLeague = Boolean(currentSession.isReadOnlyArchive);
+
+  // Cloudflare KV Cloud Sync State & Periodic Listener
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'syncing' | 'idle' | 'offline'>('idle');
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const syncFromCloud = async () => {
+      const data = await fetchCloudLeagueData(activeSessionId);
+      if (isCancelled || !data) {
+        return;
+      }
+
+      if (data.status === 'connected') {
+        setCloudSyncStatus('connected');
+        if (data.wishlist && Array.isArray(data.wishlist) && data.wishlist.length > 0) {
+          setLookingForItems(data.wishlist);
+        }
+        if (data.roster && Array.isArray(data.roster) && data.roster.length > 0) {
+          setRoster(data.roster);
+        }
+        if (data.vault && Array.isArray(data.vault)) {
+          setVaultItems(data.vault);
+        }
+        if (data.guides && Array.isArray(data.guides) && data.guides.length > 0) {
+          setGuides(data.guides);
+        }
+      }
+    };
+
+    syncFromCloud();
+    const timer = setInterval(syncFromCloud, 20000);
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeSessionId]);
 
   // Synchronize userAccount character updates directly into roster state
   useEffect(() => {
@@ -1009,6 +1054,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
     } catch {}
 
+    const updatedTarget = updated.find((it) => it.id === editingLookingForItem.id);
+    if (updatedTarget) {
+      saveCloudWishlistItem(activeSessionId, updatedTarget);
+    }
+
     editLookingForDialogRef.current?.close();
     setEditingLookingForItem(null);
     triggerCopy('', `Updated wishlist item: ${cleanItemName}`);
@@ -1038,6 +1088,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       }
     } catch {}
 
+    deleteCloudWishlistItem(activeSessionId, itemId);
     triggerCopy('', `Removed ${target.itemName} from wishlist`);
 
     if (selectedInspectItemName && selectedInspectItemName.toLowerCase() === target.itemName.toLowerCase()) {
@@ -1128,6 +1179,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
     // Update selectedPlayerModal immediately so modal shows new info!
     setSelectedPlayerModal(updatedMember);
+    saveCloudRosterMember(activeSessionId, updatedMember);
 
     // Update roster state & localStorage
     setRoster((prev) => {
@@ -1213,6 +1265,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     };
 
     setLookingForItems([newItem, ...lookingForItems]);
+    saveCloudWishlistItem(activeSessionId, newItem);
     setNewLfItem('');
     setNewLfNotes('');
     setShowAddLookingForModal(false);
@@ -1258,6 +1311,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     };
 
     setVaultItems([newItem, ...vaultItems]);
+    saveCloudVaultItem(activeSessionId, newItem);
     setVItemName('');
     setVSockets('');
     setVNotes('');
@@ -1303,6 +1357,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         onUpdateGuide={(updated) => {
           setActiveReadingGuide(updated);
           setGuides((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+          saveCloudGuide(activeSessionId, updated);
         }}
         onAddUniquesToLookingFor={(uniques) => {
           const newItems: LookingForItem[] = uniques.map((u) => ({
@@ -1318,6 +1373,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(u)}`
           }));
           setLookingForItems((prev) => [...newItems, ...prev]);
+          newItems.forEach((it) => saveCloudWishlistItem(activeSessionId, it));
           setCopyNotice(`Added ${uniques.length} items to your Looking For list!`);
           setTimeout(() => setCopyNotice(null), 2500);
         }}
@@ -1396,6 +1452,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             <span className="hidden lg:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
               {roster.length}/{activeLeagueInfo.currentSlots} Slots Filled
             </span>
+            {cloudSyncStatus === 'connected' && (
+              <span className="hidden xl:inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80" title="Connected to Cloudflare KV Database">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Cloud Live</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
