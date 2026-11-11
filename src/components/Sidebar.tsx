@@ -100,8 +100,8 @@ interface NavGroup {
       title: 'Command & League',
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
-        { id: 'private_league', label: '3.30 GSF League', icon: Users, badge: 'NEW' },
-        { id: 'private_leagues', label: 'Private Leagues Hub', icon: Globe, badge: 'Hub' },
+        { id: 'private_league', label: 'Private League Hub', icon: Users, badge: '3.30' },
+        { id: 'private_leagues', label: 'All Leagues Directory', icon: Globe, badge: 'All' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
@@ -146,8 +146,8 @@ interface NavGroup {
       title: 'Command & League',
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
-        { id: 'private_league', label: 'PoE 2 GSF League', icon: Users, badge: '0.5' },
-        { id: 'private_leagues', label: 'Private Leagues Hub', icon: Globe, badge: 'Hub' },
+        { id: 'private_league', label: 'Private League Hub', icon: Users, badge: '0.5' },
+        { id: 'private_leagues', label: 'All Leagues Directory', icon: Globe, badge: 'All' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]

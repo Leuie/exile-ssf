@@ -293,7 +293,7 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
                   </label>
                   <input
                     type="url"
-                    placeholder="https://creator-site.com/..."
+                    placeholder="https://maxroll.gg/poe/build-guides/..."
                     value={creatorWebsiteUrl}
                     onChange={(e) => setCreatorWebsiteUrl(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-slate-700"

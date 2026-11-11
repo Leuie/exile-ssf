@@ -3104,7 +3104,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const portalUrl = typeof window !== 'undefined' ? window.location.origin : 'https://exilessf.app';
+                    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/privateleaguehub` : 'https://exilessf.app/privateleaguehub';
                     const template = `Hey Exiles! Ravenwatch Coven of Umbra GSF | Winter 2026 league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: ${portalUrl} Accept invite: ${activeLeagueInfo.officialLeagueUrl || 'https://www.pathofexile.com/private-leagues'}`;
                     triggerCopy(template, '3.30 Announcement Message');
                   }}
@@ -3183,7 +3183,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   return matchSearch && matchFilter;
                 })
                 .map((alumnus: LeagueParticipantAlumnus) => {
-                  const portalUrl = typeof window !== 'undefined' ? window.location.origin : 'https://exilessf.app';
+                  const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/privateleaguehub` : 'https://exilessf.app/privateleaguehub';
                   const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Coven of Umbra GSF | Winter 2026 private league is launching soon. Register here: ${portalUrl}`;
 
                   return (

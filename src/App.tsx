@@ -30,8 +30,21 @@ import { getInitialLeagueRoster } from './data/privateLeagueData';
 import type { TrackerItem, UserAccount, LeagueRosterMember } from './types';
 
 export const App: React.FC = () => {
+  const getInitialActiveTab = (): string => {
+    if (typeof window === 'undefined') return 'home';
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+    if (path === '/privateleaguehub' || hash === 'privateleaguehub' || path === '/private-league-hub' || hash === 'private-league-hub') {
+      return 'private_league';
+    }
+    if (path === '/leagues' || hash === 'leagues') {
+      return 'private_leagues';
+    }
+    return 'home';
+  };
+
   const [selectedGame, setSelectedGame] = useState<'poe1' | 'poe2'>('poe1');
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
@@ -52,7 +65,12 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const handleLocationChange = () => {
-      setCurrentRoute(getInitialRoute());
+      const route = getInitialRoute();
+      setCurrentRoute(route);
+      const tab = getInitialActiveTab();
+      if (tab === 'private_league' || tab === 'private_leagues' || tab === 'home') {
+        setActiveTab(tab);
+      }
     };
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('hashchange', handleLocationChange);
@@ -68,6 +86,24 @@ export const App: React.FC = () => {
     try {
       window.history.pushState({}, '', targetUrl);
     } catch {}
+  };
+
+  const handleSelectTab = (tab: string) => {
+    setActiveTab(tab);
+    if (currentRoute) {
+      setCurrentRoute('');
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        if (tab === 'private_league') {
+          window.history.pushState({}, '', '/privateleaguehub');
+        } else if (tab === 'private_leagues') {
+          window.history.pushState({}, '', '/leagues');
+        } else if (tab === 'home') {
+          window.history.pushState({}, '', '/');
+        }
+      } catch {}
+    }
   };
 
   // User Account & League Registration state with Dynamic Tagging
@@ -272,7 +308,7 @@ export const App: React.FC = () => {
       {/* Left Collapsible Navigation Sidebar */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSelectTab}
         selectedGame={selectedGame}
         setSelectedGame={setSelectedGame}
         openSearch={() => setIsSearchOpen(true)}
@@ -287,7 +323,7 @@ export const App: React.FC = () => {
             ? 'p-0 max-w-none' 
             : 'p-3 sm:p-5 lg:p-6 max-w-[1700px] w-full mx-auto'
         }`}>
-        {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={setActiveTab} />}
+        {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'vendor_recipes' && <VendorRecipesView />}
         {activeTab === 'atlas' && <AtlasView />}
         {activeTab === 'defenses' && <DefenseMechanicsView />}
@@ -314,7 +350,7 @@ export const App: React.FC = () => {
         {activeTab === 'build_ingest' && (
           <BuildIngestionView
             userAccount={userAccount}
-            onNavigateToGuides={() => setActiveTab('builds')}
+            onNavigateToGuides={() => handleSelectTab('builds')}
           />
         )}
         {activeTab === 'private_leagues' && (
@@ -322,7 +358,7 @@ export const App: React.FC = () => {
             userAccount={userAccount}
             onSelectLeague={(sessionId) => {
               setSelectedLeagueSessionId(sessionId);
-              setActiveTab('private_league');
+              handleSelectTab('private_league');
             }}
             onOpenAuthModal={handleOpenAuth}
           />
@@ -334,7 +370,7 @@ export const App: React.FC = () => {
             onOpenAuthModal={handleOpenAuth}
             initialSessionId={selectedLeagueSessionId}
             onUpdateUserAccount={handleSaveAccount}
-            onNavigateLeagues={() => setActiveTab('private_leagues')}
+            onNavigateLeagues={() => handleSelectTab('private_leagues')}
           />
         )}
       </main>
