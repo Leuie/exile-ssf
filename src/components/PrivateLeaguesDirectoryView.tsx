@@ -6,7 +6,9 @@ import {
   Archive,
   ArrowRight,
   Lock,
-  MessageSquare
+  MessageSquare,
+  Share2,
+  Check
 } from 'lucide-react';
 import type { ActiveLeagueSession, UserAccount } from '../types';
 import { ACTIVE_LEAGUE_SESSIONS, getStoredCustomLeagues } from '../data/privateLeagueData';
@@ -24,6 +26,7 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
   onOpenAuthModal
 }) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'upcoming' | 'archive'>('all');
+  const [copiedLeagueId, setCopiedLeagueId] = useState<string | null>(null);
   const [leagues, setLeagues] = useState<ActiveLeagueSession[]>(() => {
     const custom = getStoredCustomLeagues();
     return [...ACTIVE_LEAGUE_SESSIONS, ...custom];
@@ -129,16 +132,16 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono font-bold">
             <Globe className="w-3.5 h-3.5" />
-            <span>Exile SSF League Directory</span>
+            <span>Community Private Leagues and Guild Hub</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black font-cinzel text-white tracking-tight">
-            Private Leagues Portal
+            Private League Hub
           </h1>
 
           <p className="text-sm text-slate-300 leading-relaxed">
             Coordinate cooperative Group Self Found leagues across Path of Exile 1 and Path of Exile 2.
-            Browse community rosters, track group wishlists, inspect past archives, or host your own league.
+            Browse community rosters, track group wishlists, inspect past read only archives, or launch your own league.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -330,11 +333,11 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
               </div>
 
               {/* Card Footer Action */}
-              <div className="p-4 border-t border-slate-800/80 bg-slate-950/30">
+              <div className="p-4 border-t border-slate-800/80 bg-slate-950/30 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => onSelectLeague(league.id)}
-                  className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                  className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
                     isReadOnly
                       ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                       : isFeaturedLeuie
@@ -344,6 +347,25 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
                 >
                   <span>{isReadOnly ? 'Inspect Archive (Read Only)' : 'Enter League Portal'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const url = typeof window !== 'undefined' ? `${window.location.origin}/league/${league.id}` : `https://exilessf.app/league/${league.id}`;
+                    navigator.clipboard.writeText(url);
+                    setCopiedLeagueId(league.id);
+                    setTimeout(() => setCopiedLeagueId(null), 2000);
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  title="Copy shareable direct link for this private league"
+                >
+                  {copiedLeagueId === league.id ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Share2 className="w-4 h-4 text-slate-400" />
+                  )}
                 </button>
               </div>
             </div>

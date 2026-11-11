@@ -31,20 +31,70 @@ import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/private
 import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem } from './types';
 
 export const App: React.FC = () => {
+  const getInitialLeagueId = (): string => {
+    if (typeof window === 'undefined') return 'poe1-330-umbra';
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+
+    if (path.startsWith('/league/')) {
+      return path.replace('/league/', '');
+    }
+    if (path.startsWith('/privateleaguehub/') && path !== '/privateleaguehub') {
+      return path.replace('/privateleaguehub/', '');
+    }
+    if (hash.startsWith('league/')) {
+      return hash.replace('league/', '');
+    }
+    if (hash.startsWith('privateleaguehub/') && hash !== 'privateleaguehub') {
+      return hash.replace('privateleaguehub/', '');
+    }
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryId = searchParams.get('league') || searchParams.get('id');
+      if (queryId) return queryId;
+    } catch {}
+    return 'poe1-330-umbra';
+  };
+
   const getInitialActiveTab = (): string => {
     if (typeof window === 'undefined') return 'home';
     const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
     const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
-    if (path === '/privateleaguehub' || hash === 'privateleaguehub' || path === '/private-league-hub' || hash === 'private-league-hub') {
-      return 'private_league';
+
+    // Direct route to a specific league
+    if (
+      path.startsWith('/league/') ||
+      hash.startsWith('league/') ||
+      (path.startsWith('/privateleaguehub/') && path !== '/privateleaguehub') ||
+      (hash.startsWith('privateleaguehub/') && hash !== 'privateleaguehub')
+    ) {
+      return 'single_league';
     }
-    if (path === '/leagues' || hash === 'leagues') {
-      return 'private_leagues';
+
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('league') || searchParams.get('id')) {
+        return 'single_league';
+      }
+    } catch {}
+
+    // Direct route to the Private League Hub directory
+    if (
+      path === '/privateleaguehub' ||
+      hash === 'privateleaguehub' ||
+      path === '/private-league-hub' ||
+      hash === 'private-league-hub' ||
+      path === '/leagues' ||
+      hash === 'leagues'
+    ) {
+      return 'private_league_hub';
     }
+
     return 'home';
   };
 
   const [selectedGame, setSelectedGame] = useState<'poe1' | 'poe2'>('poe1');
+  const [selectedLeagueSessionId, setSelectedLeagueSessionId] = useState<string>(getInitialLeagueId);
   const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -64,20 +114,18 @@ export const App: React.FC = () => {
 
   const [currentGuideSlug, setCurrentGuideSlug] = useState<string>(getInitialGuideSlug);
 
-  // Dedicated Route Detection (/login, /register, /admin, /leagues)
-  const getInitialRoute = (): 'login' | 'register' | 'admin' | 'leagues' | '' => {
+  // Dedicated Route Detection (/login, /register, /admin)
+  const getInitialRoute = (): 'login' | 'register' | 'admin' | '' => {
     if (typeof window === 'undefined') return '';
     const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
     const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
     if (path === '/admin' || hash === 'admin') return 'admin';
     if (path === '/login' || hash === 'login') return 'login';
     if (path === '/register' || hash === 'register') return 'register';
-    if (path === '/leagues' || hash === 'leagues') return 'leagues';
     return '';
   };
 
-  const [currentRoute, setCurrentRoute] = useState<'login' | 'register' | 'admin' | 'leagues' | ''>(getInitialRoute);
-  const [selectedLeagueSessionId, setSelectedLeagueSessionId] = useState<string>('poe1-330-umbra');
+  const [currentRoute, setCurrentRoute] = useState<'login' | 'register' | 'admin' | ''>(getInitialRoute);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -85,8 +133,10 @@ export const App: React.FC = () => {
       setCurrentRoute(route);
       const slug = getInitialGuideSlug();
       setCurrentGuideSlug(slug);
+      const leagueId = getInitialLeagueId();
+      setSelectedLeagueSessionId(leagueId);
       const tab = getInitialActiveTab();
-      if (tab === 'private_league' || tab === 'private_leagues' || tab === 'home') {
+      if (tab === 'private_league_hub' || tab === 'single_league' || tab === 'home') {
         setActiveTab(tab);
       }
     };
@@ -98,7 +148,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const navigateToRoute = (route: 'login' | 'register' | 'admin' | 'leagues' | '') => {
+  const navigateToRoute = (route: 'login' | 'register' | 'admin' | '') => {
     setCurrentRoute(route);
     const targetUrl = route ? `/${route}` : '/';
     try {
@@ -113,10 +163,10 @@ export const App: React.FC = () => {
     }
     if (typeof window !== 'undefined') {
       try {
-        if (tab === 'private_league') {
+        if (tab === 'private_league_hub' || tab === 'private_leagues') {
           window.history.pushState({}, '', '/privateleaguehub');
-        } else if (tab === 'private_leagues') {
-          window.history.pushState({}, '', '/leagues');
+        } else if (tab === 'single_league' || tab === 'private_league') {
+          window.history.pushState({}, '', `/league/${selectedLeagueSessionId}`);
         } else if (tab === 'home') {
           window.history.pushState({}, '', '/');
         }
@@ -287,36 +337,11 @@ export const App: React.FC = () => {
         }}
         onAdminSignOut={handleSignOut}
         onNavigateLeagueHub={() => {
-          setActiveTab('private_league');
+          setActiveTab('private_league_hub');
           navigateToRoute('');
         }}
         onNavigateHome={() => navigateToRoute('')}
       />
-    );
-  }
-
-  if (currentRoute === 'leagues') {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 p-4 sm:p-8 max-w-[1700px] mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigateToRoute('')}
-            className="text-xs font-mono text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Back to Exile SSF</span>
-          </button>
-        </div>
-        <PrivateLeaguesDirectoryView
-          userAccount={userAccount}
-          onSelectLeague={(sessionId) => {
-            setSelectedLeagueSessionId(sessionId);
-            setActiveTab('private_league');
-            navigateToRoute('');
-          }}
-          onOpenAuthModal={handleOpenAuth}
-        />
-      </div>
     );
   }
 
@@ -335,7 +360,7 @@ export const App: React.FC = () => {
           try {
             window.history.pushState({}, '', '/privateleaguehub');
           } catch {}
-          handleSelectTab('private_league');
+          handleSelectTab('private_league_hub');
         }}
         onAddUniquesToLookingFor={(uniques) => {
           try {
@@ -377,7 +402,7 @@ export const App: React.FC = () => {
 
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
       <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out w-full ${
-          activeTab === 'private_league' 
+          activeTab === 'single_league' || activeTab === 'private_league' 
             ? 'p-0 max-w-none' 
             : 'p-3 sm:p-5 lg:p-6 max-w-[1700px] w-full mx-auto'
         }`}>
@@ -411,24 +436,32 @@ export const App: React.FC = () => {
             onNavigateToGuides={() => handleSelectTab('builds')}
           />
         )}
-        {activeTab === 'private_leagues' && (
+        {(activeTab === 'private_league_hub' || activeTab === 'private_leagues') && (
           <PrivateLeaguesDirectoryView
             userAccount={userAccount}
             onSelectLeague={(sessionId) => {
               setSelectedLeagueSessionId(sessionId);
-              handleSelectTab('private_league');
+              setActiveTab('single_league');
+              try {
+                window.history.pushState({}, '', `/league/${sessionId}`);
+              } catch {}
             }}
             onOpenAuthModal={handleOpenAuth}
           />
         )}
-        {activeTab === 'private_league' && (
+        {(activeTab === 'single_league' || activeTab === 'private_league') && (
           <PrivateLeagueHubView
             selectedGame={selectedGame}
             userAccount={userAccount}
             onOpenAuthModal={handleOpenAuth}
             initialSessionId={selectedLeagueSessionId}
             onUpdateUserAccount={handleSaveAccount}
-            onNavigateLeagues={() => handleSelectTab('private_leagues')}
+            onNavigateLeagues={() => {
+              setActiveTab('private_league_hub');
+              try {
+                window.history.pushState({}, '', '/privateleaguehub');
+              } catch {}
+            }}
           />
         )}
       </main>

@@ -28,7 +28,9 @@ import {
   AlertTriangle,
   Edit3,
   Archive,
-  Save
+  Save,
+  ArrowLeft,
+  Share2
 } from 'lucide-react';
 import {
   ACTIVE_LEAGUE_SESSIONS,
@@ -1116,13 +1118,27 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <button
                 type="button"
                 onClick={onNavigateLeagues}
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
-                title="Browse all private leagues"
+                className="px-2.5 py-1 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-700/60 text-[11px] font-mono text-indigo-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Return to Private League Hub directory"
               >
-                <Globe className="w-3 h-3 text-indigo-400" />
-                <span>All Leagues</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Private League Hub</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const url = typeof window !== 'undefined' ? `${window.location.origin}/league/${activeSessionId}` : `https://exilessf.app/league/${activeSessionId}`;
+                navigator.clipboard.writeText(url);
+                triggerCopy(url, 'Shareable League Link');
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-slate-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Copy shareable link for this private league"
+            >
+              <Share2 className="w-3 h-3 text-indigo-400" />
+              <span>Share League</span>
+            </button>
 
             </div>
             <span className="hidden sm:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
