@@ -15,7 +15,13 @@ import type {
   AtlasMapRating,
   UserAccount
 } from '../types';
-import { LIGHTNING_STRIKE_FULL_GUIDE, LIGHTNING_ARROW_FULL_GUIDE } from './fullGuideContents';
+import { 
+  LIGHTNING_STRIKE_FULL_GUIDE, 
+  LIGHTNING_ARROW_FULL_GUIDE,
+  PENANCE_BRAND_FULL_GUIDE,
+  HOLY_RELIC_FULL_GUIDE,
+  ARCHMAGE_ICE_NOVA_FULL_GUIDE
+} from './fullGuideContents';
 
 
 export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
@@ -664,7 +670,9 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     requiredUniques: ['Essence of Horror', 'Lost Unity', 'Aegis Aurora / Shaper Recovery Shield'],
     atlasFocus: ['Essences', 'Searing Exarch', 'Betrayal', 'Harvest'],
     upvotes: 28,
-    createdAt: 'Pinned League Starter'
+    createdAt: 'Pinned League Starter',
+    slug: 'penance-brand-elementalist',
+    fullGuideMarkdown: PENANCE_BRAND_FULL_GUIDE
   },
   {
     id: 'guide-2',
@@ -681,7 +689,9 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     requiredUniques: ["Geofri's Crest", "Dialla's Malefaction", 'The Fourth Vow', 'Glorious Vanity'],
     atlasFocus: ['Labyrinth', 'Legion', 'Delirium', 'Heist'],
     upvotes: 19,
-    createdAt: 'Verified NOIR Starter'
+    createdAt: 'Verified NOIR Starter',
+    slug: 'holy-relic-necromancer',
+    fullGuideMarkdown: HOLY_RELIC_FULL_GUIDE
   },
   {
     id: 'guide-3',
@@ -698,7 +708,9 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     requiredUniques: ["Kitava's Thirst", 'Atziri Foible'],
     atlasFocus: ['Expedition (Rog)', 'Harvest', 'Sanctum'],
     upvotes: 16,
-    createdAt: 'Verified NOIR Starter'
+    createdAt: 'Verified NOIR Starter',
+    slug: 'archmage-ice-nova-hierophant',
+    fullGuideMarkdown: ARCHMAGE_ICE_NOVA_FULL_GUIDE
   },
   {
     id: 'guide-4',

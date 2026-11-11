@@ -28,7 +28,7 @@ import { PrivateLeaguesDirectoryView } from './components/PrivateLeaguesDirector
 import { FullGuideReaderView } from './components/FullGuideReaderView';
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
 import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/privateLeagueData';
-import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem } from './types';
+import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem, CommunityGuide } from './types';
 
 export const App: React.FC = () => {
   const getInitialLeagueId = (): string => {
@@ -345,8 +345,26 @@ export const App: React.FC = () => {
     );
   }
 
+  const [communityGuides, setCommunityGuides] = useState<CommunityGuide[]>(() => {
+    try {
+      const saved = localStorage.getItem('poe_umbraleague_guides');
+      if (saved) {
+        const parsed: CommunityGuide[] = JSON.parse(saved);
+        for (const g of INITIAL_COMMUNITY_GUIDES) {
+          if (!parsed.some((p) => p.id === g.id)) {
+            parsed.push(g);
+          }
+        }
+        return parsed;
+      }
+      return INITIAL_COMMUNITY_GUIDES;
+    } catch {
+      return INITIAL_COMMUNITY_GUIDES;
+    }
+  });
+
   const activeFullGuide = currentGuideSlug
-    ? INITIAL_COMMUNITY_GUIDES.find(
+    ? communityGuides.find(
         (g) => (g.slug && g.slug.toLowerCase() === currentGuideSlug) || g.id === currentGuideSlug
       )
     : null;
@@ -355,6 +373,9 @@ export const App: React.FC = () => {
     return (
       <FullGuideReaderView
         guide={activeFullGuide}
+        onUpdateGuide={(updated) => {
+          setCommunityGuides((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+        }}
         onBack={() => {
           setCurrentGuideSlug('');
           try {

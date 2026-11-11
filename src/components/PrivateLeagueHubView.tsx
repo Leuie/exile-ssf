@@ -1118,6 +1118,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       <FullGuideReaderView
         guide={activeReadingGuide}
         onBack={() => setActiveReadingGuide(null)}
+        onUpdateGuide={(updated) => {
+          setActiveReadingGuide(updated);
+          setGuides((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+        }}
         onAddUniquesToLookingFor={(uniques) => {
           const newItems: LookingForItem[] = uniques.map((u) => ({
             id: `lf-auto-${Date.now()}-${Math.random()}`,
