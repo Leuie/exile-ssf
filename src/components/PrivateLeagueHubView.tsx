@@ -26,9 +26,13 @@ import {
   RotateCcw,
   Send,
   AlertTriangle,
+  Edit3,
+  Archive,
+  Save
 } from 'lucide-react';
 import {
   ACTIVE_LEAGUE_SESSIONS,
+  getAllActiveLeagueSessions,
   NOIR_ALUMNI_PARTICIPANTS,
   COVEN_OF_UMBRA_INFO,
   POE2_ANCIENTS_INFO,
@@ -67,12 +71,18 @@ interface PrivateLeagueHubViewProps {
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
   selectedGame?: 'poe1' | 'poe2';
+  initialSessionId?: string;
+  onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
+  onNavigateLeagues?: () => void;
 }
 
 export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   userAccount,
   onOpenAuthModal,
-  selectedGame = 'poe1'
+  selectedGame = 'poe1',
+  initialSessionId,
+  onUpdateUserAccount,
+  onNavigateLeagues
 }) => {
   // Horizontal Nav Tabs
   type HubTab = 'overview' | 'looking_for' | 'roster' | 'vault' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
@@ -144,12 +154,76 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   }, [guides]);
 
   // Active League Session & Concurrent Leagues
-  const [activeSessionId, setActiveSessionId] = useState<string>(() => selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
+  const [allLeagueSessions, setAllLeagueSessions] = useState<ActiveLeagueSession[]>(getAllActiveLeagueSessions);
 
   useEffect(() => {
-    setActiveSessionId(selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
-  }, [selectedGame]);
-  const currentSession = ACTIVE_LEAGUE_SESSIONS.find((s: ActiveLeagueSession) => s.id === activeSessionId) || ACTIVE_LEAGUE_SESSIONS[0];
+    const handleStorage = () => {
+      setAllLeagueSessions(getAllActiveLeagueSessions());
+      try {
+        const saved = localStorage.getItem('poe_clean330_roster');
+        if (saved) setRoster(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const [activeSessionId, setActiveSessionId] = useState<string>(() =>
+    initialSessionId || (selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra')
+  );
+
+  useEffect(() => {
+    if (initialSessionId) {
+      setActiveSessionId(initialSessionId);
+    } else {
+      setActiveSessionId(selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
+    }
+  }, [selectedGame, initialSessionId]);
+
+  const currentSession = allLeagueSessions.find((s: ActiveLeagueSession) => s.id === activeSessionId) || allLeagueSessions[0] || ACTIVE_LEAGUE_SESSIONS[0];
+  const isReadOnlyLeague = Boolean(currentSession.isReadOnlyArchive);
+
+  // Synchronize userAccount character updates directly into roster state
+  useEffect(() => {
+    if (!userAccount) return;
+    setRoster((prev) => {
+      const idx = prev.findIndex(
+        (m) =>
+          (userAccount.id && m.id === userAccount.id) ||
+          m.displayName.toLowerCase() === userAccount.displayName.toLowerCase()
+      );
+      if (idx >= 0) {
+        const current = prev[idx];
+        if (
+          current.poeAccountName !== userAccount.poeAccountName ||
+          current.characterName !== userAccount.characterName ||
+          current.buildName !== userAccount.buildName ||
+          current.ascendancy !== userAccount.ascendancy ||
+          current.level !== userAccount.level
+        ) {
+          const next = [...prev];
+          next[idx] = {
+            ...current,
+            poeAccountName: userAccount.poeAccountName || current.poeAccountName,
+            characterName: userAccount.characterName || current.characterName,
+            buildName: userAccount.buildName || current.buildName,
+            ascendancy: userAccount.ascendancy || current.ascendancy,
+            className: userAccount.className || current.className,
+            level: Number(userAccount.level) || current.level,
+            pobUrl: userAccount.pobUrl || current.pobUrl,
+            notes: userAccount.notes || current.notes,
+            atlasContent: userAccount.atlasContent || current.atlasContent,
+            preferredContact: userAccount.preferredContact || current.preferredContact
+          };
+          try {
+            localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
+          } catch {}
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, [userAccount]);
 
   const isPoE2Session = activeSessionId === 'poe2-ea-ancients' || selectedGame === 'poe2';
   const currentInfo = isPoE2Session ? POE2_ANCIENTS_INFO : COVEN_OF_UMBRA_INFO;
@@ -737,11 +811,107 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     return matchSearch && matchAsc && matchLaunch;
   });
 
+  // Inline Character Modal Editor State
+  const [isEditingProfileModal, setIsEditingProfileModal] = useState<boolean>(false);
+  const [modalEditPoeAccount, setModalEditPoeAccount] = useState<string>('');
+  const [modalEditCharName, setModalEditCharName] = useState<string>('');
+  const [modalEditAsc, setModalEditAsc] = useState<string>('Elementalist');
+  const [modalEditLevel, setModalEditLevel] = useState<number>(95);
+  const [modalEditBuild, setModalEditBuild] = useState<string>('');
+  const [modalEditPob, setModalEditPob] = useState<string>('');
+  const [modalEditNotes, setModalEditNotes] = useState<string>('');
+
   const handleOpenPlayerModal = (member: LeagueRosterMember) => {
     setSelectedPlayerModal(member);
+    setIsEditingProfileModal(false);
+    setModalEditPoeAccount(member.poeAccountName || '');
+    setModalEditCharName(member.characterName || '');
+    setModalEditAsc(member.ascendancy || 'Elementalist');
+    setModalEditLevel(member.level || 1);
+    setModalEditBuild(member.buildName || '');
+    setModalEditPob(member.pobUrl || '');
+    setModalEditNotes(member.notes || '');
     setTimeout(() => {
       playerProfileDialogRef.current?.showModal();
     }, 10);
+  };
+
+  const handleSaveModalCharacterDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlayerModal) return;
+
+    const matchedAsc = currentAscendancyCatalog.find((a) => a.name === modalEditAsc);
+    const resolvedClass = matchedAsc ? matchedAsc.baseClass : selectedPlayerModal.className;
+    const cleanAccountName = modalEditPoeAccount.trim() || selectedPlayerModal.poeAccountName;
+    const cleanCharName = modalEditCharName.trim() || selectedPlayerModal.characterName;
+
+    const updatedMember: LeagueRosterMember = {
+      ...selectedPlayerModal,
+      poeAccountName: cleanAccountName,
+      poeProfileUrl: `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanAccountName.split('#')[0])}`,
+      characterName: cleanCharName,
+      ascendancy: modalEditAsc,
+      className: resolvedClass,
+      level: Number(modalEditLevel) || 1,
+      buildName: modalEditBuild.trim() || 'Undecided Starter',
+      pobUrl: modalEditPob.trim() || undefined,
+      notes: modalEditNotes.trim()
+    };
+
+    // Update selectedPlayerModal immediately so modal shows new info!
+    setSelectedPlayerModal(updatedMember);
+
+    // Update roster state & localStorage
+    setRoster((prev) => {
+      const next = prev.map((m) =>
+        (m.id === updatedMember.id || m.displayName.toLowerCase() === updatedMember.displayName.toLowerCase())
+          ? updatedMember
+          : m
+      );
+      try {
+        localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Update userAccount in parent & localStorage
+    if (userAccount) {
+      const updatedAccount: UserAccount = {
+        ...userAccount,
+        poeAccountName: updatedMember.poeAccountName,
+        poeProfileUrl: updatedMember.poeProfileUrl,
+        characterName: updatedMember.characterName,
+        ascendancy: updatedMember.ascendancy,
+        className: updatedMember.className,
+        level: updatedMember.level,
+        buildName: updatedMember.buildName,
+        pobUrl: updatedMember.pobUrl,
+        notes: updatedMember.notes
+      };
+
+      try {
+        localStorage.setItem('poe_umbraleague_user', JSON.stringify(updatedAccount));
+
+        const accountsRaw = localStorage.getItem('poe_clean330_accounts');
+        const accountsList = accountsRaw ? JSON.parse(accountsRaw) : [];
+        const aIdx = accountsList.findIndex((a: any) =>
+          a.username.toLowerCase() === updatedAccount.displayName.toLowerCase() ||
+          (updatedAccount.email && a.userAccount?.email?.toLowerCase() === updatedAccount.email.toLowerCase())
+        );
+        if (aIdx >= 0) {
+          accountsList[aIdx].userAccount = updatedAccount;
+          accountsList[aIdx].rosterEntry = updatedMember;
+          localStorage.setItem('poe_clean330_accounts', JSON.stringify(accountsList));
+        }
+      } catch {}
+
+      if (onUpdateUserAccount) {
+        onUpdateUserAccount(updatedAccount, updatedMember);
+      }
+    }
+
+    setIsEditingProfileModal(false);
+    fireConfetti();
   };
 
   // Add Wanted Item Form State
@@ -885,12 +1055,24 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               onChange={(e) => setActiveSessionId(e.target.value)}
               className="bg-slate-800/90 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-slate-600 max-w-[150px] sm:max-w-none truncate"
             >
-              {ACTIVE_LEAGUE_SESSIONS.map((sess) => (
+              {allLeagueSessions.map((sess) => (
                 <option key={sess.id} value={sess.id}>
-                  {sess.name} ({sess.version}) {sess.isActive ? '• Active' : '• Upcoming'}
+                  {sess.name} ({sess.version}) {sess.isReadOnlyArchive ? '• Archived' : sess.isActive ? '• Active' : '• Upcoming'}
                 </option>
               ))}
             </select>
+
+            {onNavigateLeagues && (
+              <button
+                type="button"
+                onClick={onNavigateLeagues}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
+                title="Browse all private leagues"
+              >
+                <Globe className="w-3 h-3 text-indigo-400" />
+                <span>All Leagues</span>
+              </button>
+            )}
 
             </div>
             <span className="hidden sm:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
@@ -963,6 +1145,27 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Read Only Archive Banner if league is expired */}
+        {isReadOnlyLeague && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 sm:px-6 py-2 flex items-center justify-between text-xs font-mono text-amber-300">
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span>
+                <strong>Read Only Archive:</strong> This historical season ({currentSession.version}) has concluded. Roster and build data are preserved for reference.
+              </span>
+            </div>
+            {onNavigateLeagues && (
+              <button
+                type="button"
+                onClick={onNavigateLeagues}
+                className="underline hover:text-amber-200 cursor-pointer"
+              >
+                Browse Active Leagues →
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Lower Row: Full Width Horizontal Navigation Tabs */}
         <div className="px-2 sm:px-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 touch-pan-x flex-nowrap">
@@ -1722,48 +1925,69 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
             {/* Roster Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filteredRoster.map((member) => (
-                <div
-                  key={member.id}
-                  onClick={() => handleOpenPlayerModal(member)}
-                  className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-2 group"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-xs text-slate-200 group-hover:text-white">
-                        @{member.displayName}
+              {filteredRoster.map((member) => {
+                const isMe = Boolean(
+                  userAccount && (
+                    (member.id && userAccount.id === member.id) ||
+                    userAccount.displayName.toLowerCase() === member.displayName.toLowerCase() ||
+                    (userAccount.isAdmin && member.displayName.toLowerCase() === 'leuie')
+                  )
+                );
+
+                return (
+                  <div
+                    key={member.id}
+                    onClick={() => handleOpenPlayerModal(member)}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2 group ${
+                      isMe
+                        ? 'border-indigo-500/70 bg-gradient-to-b from-slate-900 to-indigo-950/30 shadow-lg shadow-indigo-950/40 hover:border-indigo-400'
+                        : 'border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-200 group-hover:text-white">
+                          <span>@{member.displayName}</span>
+                          {isMe && (
+                            <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-mono">
+                              My Exile
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                          {member.availableAtLaunch === 'Yes' ? 'Launch Day 1' : 'Late Start'}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                        {member.availableAtLaunch === 'Yes' ? 'Launch Day 1' : 'Late Start'}
+
+                      <div className="text-[11px] font-mono text-slate-400">
+                        {member.ascendancy} • Lvl {member.level}
+                      </div>
+
+                      <div className="text-xs text-slate-300 truncate">
+                        {member.buildName}
+                      </div>
+
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {member.atlasContent.map((mech, mIdx) => (
+                          <span
+                            key={mIdx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-slate-950 text-slate-400 border border-slate-800"
+                          >
+                            {mech}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="font-mono">IGN: {member.characterName}</span>
+                      <span className="text-slate-400 group-hover:text-indigo-300 transition-colors font-mono">
+                        {isMe ? 'Edit Character →' : 'Profile →'}
                       </span>
                     </div>
-
-                    <div className="text-[11px] font-mono text-slate-400">
-                      {member.ascendancy} • Lvl {member.level}
-                    </div>
-
-                    <div className="text-xs text-slate-300 truncate">
-                      {member.buildName}
-                    </div>
-
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {member.atlasContent.map((mech, mIdx) => (
-                        <span
-                          key={mIdx}
-                          className="text-[10px] px-1.5 py-0.2 rounded bg-slate-950 text-slate-400 border border-slate-800"
-                        >
-                          {mech}
-                        </span>
-                      ))}
-                    </div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="font-mono">IGN: {member.characterName}</span>
-                    <span className="text-slate-400 group-hover:text-slate-200 transition-colors">Profile →</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1792,14 +2016,148 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => playerProfileDialogRef.current?.close()}
-                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  {userAccount && (
+                    (userAccount.id && selectedPlayerModal.id === userAccount.id) ||
+                    userAccount.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase() ||
+                    (userAccount.isAdmin && selectedPlayerModal.displayName.toLowerCase() === 'leuie')
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfileModal((prev) => !prev)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>{isEditingProfileModal ? 'Cancel Edit' : 'Edit My Character'}</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => playerProfileDialogRef.current?.close()}
+                    className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+
+              {isEditingProfileModal ? (
+                <form onSubmit={handleSaveModalCharacterDetails} className="p-4 space-y-3 overflow-y-auto max-h-[70vh] text-xs">
+                  <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 flex-shrink-0" />
+                    <span>Direct Character Editor: Update your Path of Exile account tag, IGN, ascendancy, and build live.</span>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">
+                      Path of Exile Account Tag (e.g. Account#1234) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Leuie#1234"
+                      value={modalEditPoeAccount}
+                      onChange={(e) => setModalEditPoeAccount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">
+                      Character Name (In Game IGN) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Leuie_Umbra"
+                      value={modalEditCharName}
+                      onChange={(e) => setModalEditCharName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-slate-300 block mb-1">Ascendancy *</label>
+                      <select
+                        value={modalEditAsc}
+                        onChange={(e) => setModalEditAsc(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      >
+                        {currentAscendancyCatalog.map((asc) => (
+                          <option key={asc.name} value={asc.name}>
+                            {asc.name} ({asc.baseClass})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-300 block mb-1">Character Level</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={modalEditLevel}
+                        onChange={(e) => setModalEditLevel(Number(e.target.value) || 1)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Planned Build Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Lightning Strike Slayer"
+                      value={modalEditBuild}
+                      onChange={(e) => setModalEditBuild(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">PoB URL (pobb.in)</label>
+                    <input
+                      type="url"
+                      placeholder="https://pobb.in/..."
+                      value={modalEditPob}
+                      onChange={(e) => setModalEditPob(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Status / Notes</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Profile notes or guild status..."
+                      value={modalEditNotes}
+                      onChange={(e) => setModalEditNotes(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Character Changes</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfileModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
 
               <div className="p-4 overflow-y-auto space-y-3 text-xs">
                 {/* Build info */}
@@ -1901,6 +2259,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   </div>
                 </div>
               </div>
+            )}
             </div>
           )}
         </dialog>
@@ -2710,7 +3069,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   We have run previous leagues with over 100 participants across 5 past leagues.
                 </h3>
                 <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                  Every past exile is cataloged below with their preferred contact channel (Root Web App, in game whisper, or Discord). Admins can nudge past participants with 1 click to onboard them for 3.30 Coven of Umbra!
+                  Every past exile is cataloged below with their preferred contact channel (Root Web App, in game whisper, or Discord). Admins can nudge past participants promptly to onboard them for 3.30 Coven of Umbra!
                 </p>
               </div>
 
@@ -2874,7 +3233,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                         </div>
                       </div>
 
-                      {/* 1-Click Outreach Buttons */}
+                      {/* Quick Outreach Buttons */}
                       <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5 text-[11px]">
                         <button
                           type="button"

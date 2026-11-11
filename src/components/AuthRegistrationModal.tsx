@@ -39,7 +39,7 @@ async function computeSHA256(text: string): Promise<string> {
 
 interface StoredAppAccount {
   username: string;
-  passwordHash: string;
+  passwordHash?: string;
   userAccount: UserAccount;
   rosterEntry: LeagueRosterMember;
 }
@@ -225,31 +225,57 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     };
   }, [onClose]);
 
-  // Helper: Create admin account object
+  // Helper: Create admin account object, preserving custom character details if saved
   const createAdminLeuieAccount = (linkedGoogle?: string): { account: UserAccount; roster: LeagueRosterMember } => {
     const effectiveGoogle = linkedGoogle?.trim().toLowerCase() || linkedAdminGoogle || undefined;
+
+    let savedAcc: Partial<UserAccount> = {};
+    try {
+      const savedUserRaw = localStorage.getItem('poe_umbraleague_user');
+      if (savedUserRaw) savedAcc = JSON.parse(savedUserRaw);
+    } catch {}
+
+    let savedRoster: Partial<LeagueRosterMember> = {};
+    try {
+      const rosterRaw = localStorage.getItem('poe_clean330_roster');
+      if (rosterRaw) {
+        const list = JSON.parse(rosterRaw);
+        const leuieEntry = list.find((m: any) => m.displayName.toLowerCase() === 'leuie');
+        if (leuieEntry) savedRoster = leuieEntry;
+      }
+    } catch {}
+
+    const resolvedAccountName = savedAcc.poeAccountName || savedRoster.poeAccountName || 'Leuie#0001';
+    const resolvedCharName = savedAcc.characterName || savedRoster.characterName || 'Leuie_Umbra';
+    const resolvedClass = savedAcc.className || savedRoster.className || 'Witch';
+    const resolvedAsc = savedAcc.ascendancy || savedRoster.ascendancy || 'Elementalist';
+    const resolvedLevel = Number(savedAcc.level || savedRoster.level) || 95;
+    const resolvedBuild = savedAcc.buildName || savedRoster.buildName || 'Penance Brand Ignite Elementalist';
+    const resolvedPob = savedAcc.pobUrl || savedRoster.pobUrl || 'https://pobb.in/';
+    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!';
+
     const adminAccount: UserAccount = {
       id: 'usr-leuie',
       provider: effectiveGoogle ? 'google' : 'app',
       displayName: 'Leuie',
-      preferredContact: 'app',
-      poeAccountName: 'Leuie#0001',
-      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-      characterName: 'Leuie_Umbra',
-      discordName: '@leuie',
-      email: effectiveGoogle,
-      linkedGoogleEmail: effectiveGoogle,
-      className: 'Witch',
-      ascendancy: 'Elementalist',
+      preferredContact: savedAcc.preferredContact || savedRoster.preferredContact || 'app',
+      poeAccountName: resolvedAccountName,
+      poeProfileUrl: savedAcc.poeProfileUrl || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(resolvedAccountName.split('#')[0])}`,
+      characterName: resolvedCharName,
+      discordName: savedAcc.discordName || '@leuie',
+      email: effectiveGoogle || savedAcc.email,
+      linkedGoogleEmail: effectiveGoogle || savedAcc.linkedGoogleEmail,
+      className: resolvedClass,
+      ascendancy: resolvedAsc,
       leagueMode: 'Private',
       availableAtLaunch: 'Yes',
-      level: 95,
-      buildName: 'Penance Brand Ignite Elementalist',
-      pobUrl: 'https://pobb.in/',
-      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+      level: resolvedLevel,
+      buildName: resolvedBuild,
+      pobUrl: resolvedPob,
+      atlasContent: savedAcc.atlasContent || savedRoster.atlasContent || ['Betrayal', 'Essences', 'Expedition'],
+      notes: resolvedNotes,
       inviteStatus: 'Accepted',
-      registeredAt: '2026-11-01',
+      registeredAt: savedAcc.registeredAt || '2026-11-01',
       isAdmin: true
     };
 
@@ -258,19 +284,19 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       slotNumber: 1,
       leagueMode: 'Private',
       displayName: 'Leuie',
-      preferredContact: 'app',
-      poeAccountName: 'Leuie#0001',
-      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-      characterName: 'Leuie_Umbra',
-      discordName: '@leuie',
-      className: 'Witch',
-      ascendancy: 'Elementalist',
+      preferredContact: adminAccount.preferredContact,
+      poeAccountName: resolvedAccountName,
+      poeProfileUrl: adminAccount.poeProfileUrl,
+      characterName: resolvedCharName,
+      discordName: adminAccount.discordName,
+      className: resolvedClass,
+      ascendancy: resolvedAsc,
       availableAtLaunch: 'Yes',
-      level: 95,
-      buildName: 'Penance Brand Ignite Elementalist',
-      pobUrl: 'https://pobb.in/',
-      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+      level: resolvedLevel,
+      buildName: resolvedBuild,
+      pobUrl: resolvedPob,
+      atlasContent: adminAccount.atlasContent,
+      notes: resolvedNotes,
       inviteStatus: 'Accepted',
       isSupporterHeart: true,
       isOnline: true
@@ -307,7 +333,50 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     try {
       const storedRaw = localStorage.getItem('poe_clean330_accounts');
       const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
-      const matched = storedList.find((a) => a.userAccount.email?.toLowerCase() === emailClean);
+      let matched = storedList.find((a) => a.userAccount.email?.toLowerCase() === emailClean);
+
+      // Fallback check: poe_umbraleague_user (active or saved user session)
+      if (!matched) {
+        try {
+          const currentRaw = localStorage.getItem('poe_umbraleague_user');
+          if (currentRaw) {
+            const currentAcc: UserAccount = JSON.parse(currentRaw);
+            if (
+              (currentAcc.email && currentAcc.email.toLowerCase() === emailClean) ||
+              (currentAcc.linkedGoogleEmail && currentAcc.linkedGoogleEmail.toLowerCase() === emailClean)
+            ) {
+              const rosterRaw = localStorage.getItem('poe_clean330_roster');
+              const rosterList: LeagueRosterMember[] = rosterRaw ? JSON.parse(rosterRaw) : [];
+              const foundRoster = rosterList.find((r) => r.displayName.toLowerCase() === currentAcc.displayName.toLowerCase()) || {
+                id: `roster-${currentAcc.id}`,
+                slotNumber: 18,
+                leagueMode: currentAcc.leagueMode,
+                displayName: currentAcc.displayName,
+                preferredContact: currentAcc.preferredContact,
+                poeAccountName: currentAcc.poeAccountName,
+                characterName: currentAcc.characterName,
+                className: currentAcc.className,
+                ascendancy: currentAcc.ascendancy,
+                availableAtLaunch: currentAcc.availableAtLaunch,
+                level: currentAcc.level,
+                buildName: currentAcc.buildName,
+                atlasContent: currentAcc.atlasContent,
+                notes: currentAcc.notes,
+                inviteStatus: currentAcc.inviteStatus,
+                isOnline: true
+              };
+              matched = {
+                username: currentAcc.displayName,
+                passwordHash: '',
+                userAccount: currentAcc,
+                rosterEntry: foundRoster
+              };
+              storedList.push(matched);
+              localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+            }
+          }
+        } catch {}
+      }
 
       setTimeout(() => {
         setIsProcessing(false);
@@ -496,28 +565,34 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       isOnline: true
     };
 
-    // If registered with App username and password, store credentials locally
-    if (authMethod === 'app' && appUsername && appPassword) {
-      const pHash = await computeSHA256(appPassword);
-      newAccount.passwordHash = pHash;
-      try {
-        const storedRaw = localStorage.getItem('poe_clean330_accounts');
-        const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
-        const index = storedList.findIndex((a) => a.username.toLowerCase() === appUsername.toLowerCase());
-        const entry: StoredAppAccount = {
-          username: appUsername,
-          passwordHash: pHash,
-          userAccount: newAccount,
-          rosterEntry: newRosterEntry
-        };
-        if (index >= 0) {
-          storedList[index] = entry;
-        } else {
-          storedList.push(entry);
-        }
-        localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
-      } catch {}
-    }
+    // Store account credentials locally for both App and Google accounts
+    try {
+      let pHash = '';
+      if (authMethod === 'app' && appPassword) {
+        pHash = await computeSHA256(appPassword);
+        newAccount.passwordHash = pHash;
+      }
+      const storedRaw = localStorage.getItem('poe_clean330_accounts');
+      const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+      const accountIdentifier = authMethod === 'app' ? appUsername.trim() : (cleanDisplay || googleEmail.trim().split('@')[0]);
+      const existingIdx = storedList.findIndex(
+        (a) =>
+          (authMethod === 'google' && a.userAccount.email && a.userAccount.email.toLowerCase() === googleEmail.trim().toLowerCase()) ||
+          (authMethod === 'app' && a.username && a.username.toLowerCase() === appUsername.trim().toLowerCase())
+      );
+      const entry: StoredAppAccount = {
+        username: accountIdentifier,
+        passwordHash: pHash,
+        userAccount: newAccount,
+        rosterEntry: newRosterEntry
+      };
+      if (existingIdx >= 0) {
+        storedList[existingIdx] = entry;
+      } else {
+        storedList.push(entry);
+      }
+      localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+    } catch {}
 
     onSaveAccount(newAccount, newRosterEntry);
     fireConfetti();
@@ -658,7 +733,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                       Sign in with Google Account
                     </h3>
                     <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
-                      Fast 1 click sign in for your Exile SSF profile and squad wishlists.
+                      Quick sign in for your Exile SSF profile and squad wishlists.
                     </p>
                   </div>
 

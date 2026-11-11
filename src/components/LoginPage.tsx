@@ -19,7 +19,7 @@ interface LoginPageProps {
 
 interface StoredAppAccount {
   username: string;
-  passwordHash: string;
+  passwordHash?: string;
   userAccount: UserAccount;
   rosterEntry: LeagueRosterMember;
 }
@@ -54,28 +54,54 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       if (savedAdminGoogle && emailClean === savedAdminGoogle.toLowerCase()) {
         setTimeout(() => {
           setIsProcessing(false);
+
+          let savedAcc: Partial<UserAccount> = {};
+          try {
+            const savedUserRaw = localStorage.getItem('poe_umbraleague_user');
+            if (savedUserRaw) savedAcc = JSON.parse(savedUserRaw);
+          } catch {}
+
+          let savedRoster: Partial<LeagueRosterMember> = {};
+          try {
+            const rosterRaw = localStorage.getItem('poe_clean330_roster');
+            if (rosterRaw) {
+              const list = JSON.parse(rosterRaw);
+              const leuieEntry = list.find((m: any) => m.displayName.toLowerCase() === 'leuie');
+              if (leuieEntry) savedRoster = leuieEntry;
+            }
+          } catch {}
+
+          const resolvedAccountName = savedAcc.poeAccountName || savedRoster.poeAccountName || 'Leuie#0001';
+          const resolvedCharName = savedAcc.characterName || savedRoster.characterName || 'Leuie_Umbra';
+          const resolvedClass = savedAcc.className || savedRoster.className || 'Witch';
+          const resolvedAsc = savedAcc.ascendancy || savedRoster.ascendancy || 'Elementalist';
+          const resolvedLevel = Number(savedAcc.level || savedRoster.level) || 95;
+          const resolvedBuild = savedAcc.buildName || savedRoster.buildName || 'Penance Brand Ignite Elementalist';
+          const resolvedPob = savedAcc.pobUrl || savedRoster.pobUrl || 'https://pobb.in/';
+          const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!';
+
           const adminAccount: UserAccount = {
             id: 'usr-leuie',
             provider: 'google',
             displayName: 'Leuie',
-            preferredContact: 'app',
-            poeAccountName: 'Leuie#0001',
-            poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-            characterName: 'Leuie_Umbra',
-            discordName: '@leuie',
+            preferredContact: savedAcc.preferredContact || savedRoster.preferredContact || 'app',
+            poeAccountName: resolvedAccountName,
+            poeProfileUrl: savedAcc.poeProfileUrl || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(resolvedAccountName.split('#')[0])}`,
+            characterName: resolvedCharName,
+            discordName: savedAcc.discordName || '@leuie',
             email: emailClean,
             linkedGoogleEmail: emailClean,
-            className: 'Witch',
-            ascendancy: 'Elementalist',
+            className: resolvedClass,
+            ascendancy: resolvedAsc,
             leagueMode: 'Private',
             availableAtLaunch: 'Yes',
-            level: 95,
-            buildName: 'Penance Brand Ignite Elementalist',
-            pobUrl: 'https://pobb.in/',
-            atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-            notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+            level: resolvedLevel,
+            buildName: resolvedBuild,
+            pobUrl: resolvedPob,
+            atlasContent: savedAcc.atlasContent || savedRoster.atlasContent || ['Betrayal', 'Essences', 'Expedition'],
+            notes: resolvedNotes,
             inviteStatus: 'Accepted',
-            registeredAt: '2026-11-01',
+            registeredAt: savedAcc.registeredAt || '2026-11-01',
             isAdmin: true
           };
           const adminRoster: LeagueRosterMember = {
@@ -83,19 +109,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             slotNumber: 1,
             leagueMode: 'Private',
             displayName: 'Leuie',
-            preferredContact: 'app',
-            poeAccountName: 'Leuie#0001',
-            poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-            characterName: 'Leuie_Umbra',
-            discordName: '@leuie',
-            className: 'Witch',
-            ascendancy: 'Elementalist',
+            preferredContact: adminAccount.preferredContact,
+            poeAccountName: resolvedAccountName,
+            poeProfileUrl: adminAccount.poeProfileUrl,
+            characterName: resolvedCharName,
+            discordName: adminAccount.discordName,
+            className: resolvedClass,
+            ascendancy: resolvedAsc,
             availableAtLaunch: 'Yes',
-            level: 95,
-            buildName: 'Penance Brand Ignite Elementalist',
-            pobUrl: 'https://pobb.in/',
-            atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-            notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+            level: resolvedLevel,
+            buildName: resolvedBuild,
+            pobUrl: resolvedPob,
+            atlasContent: adminAccount.atlasContent,
+            notes: resolvedNotes,
             inviteStatus: 'Accepted',
             isSupporterHeart: true,
             isOnline: true
@@ -109,7 +135,50 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       // Check stored accounts
       const storedRaw = localStorage.getItem('poe_clean330_accounts');
       const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
-      const matched = storedList.find((a) => a.userAccount.email?.toLowerCase() === emailClean);
+      let matched = storedList.find((a) => a.userAccount.email?.toLowerCase() === emailClean);
+
+      // Fallback check: poe_umbraleague_user (active or saved user session)
+      if (!matched) {
+        try {
+          const currentRaw = localStorage.getItem('poe_umbraleague_user');
+          if (currentRaw) {
+            const currentAcc: UserAccount = JSON.parse(currentRaw);
+            if (
+              (currentAcc.email && currentAcc.email.toLowerCase() === emailClean) ||
+              (currentAcc.linkedGoogleEmail && currentAcc.linkedGoogleEmail.toLowerCase() === emailClean)
+            ) {
+              const rosterRaw = localStorage.getItem('poe_clean330_roster');
+              const rosterList: LeagueRosterMember[] = rosterRaw ? JSON.parse(rosterRaw) : [];
+              const foundRoster = rosterList.find((r) => r.displayName.toLowerCase() === currentAcc.displayName.toLowerCase()) || {
+                id: `roster-${currentAcc.id}`,
+                slotNumber: 18,
+                leagueMode: currentAcc.leagueMode,
+                displayName: currentAcc.displayName,
+                preferredContact: currentAcc.preferredContact,
+                poeAccountName: currentAcc.poeAccountName,
+                characterName: currentAcc.characterName,
+                className: currentAcc.className,
+                ascendancy: currentAcc.ascendancy,
+                availableAtLaunch: currentAcc.availableAtLaunch,
+                level: currentAcc.level,
+                buildName: currentAcc.buildName,
+                atlasContent: currentAcc.atlasContent,
+                notes: currentAcc.notes,
+                inviteStatus: currentAcc.inviteStatus,
+                isOnline: true
+              };
+              matched = {
+                username: currentAcc.displayName,
+                passwordHash: '',
+                userAccount: currentAcc,
+                rosterEntry: foundRoster
+              };
+              storedList.push(matched);
+              localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+            }
+          }
+        } catch {}
+      }
 
       setTimeout(() => {
         setIsProcessing(false);
@@ -117,7 +186,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           onLoginSuccess(matched.userAccount, matched.rosterEntry);
           fireConfetti();
         } else {
-          // New Google account -> forward to registration
+          // New Google account: save pending email so register page prefills it
+          try {
+            sessionStorage.setItem('pending_auth_email', emailClean);
+          } catch {}
           onNavigateRegister();
         }
       }, 350);
@@ -256,7 +328,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
               />
               <span className="text-[11px] text-slate-500 mt-1 block">
-                Fast 1 click sign in for your squad profile.
+                Quick sign in for your squad profile.
               </span>
             </div>
 

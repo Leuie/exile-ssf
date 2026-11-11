@@ -164,7 +164,7 @@ export const PoEDBWrapperView: React.FC<PoEDBWrapperProps> = ({
       {/* Embedded Iframe Container & Fallback Header */}
       <div className="flex-1 w-full bg-white dark:bg-[#0c0e14] rounded-2xl border border-slate-200 dark:border-poe-border shadow-2xl overflow-hidden relative flex flex-col">
         
-        {/* Security Notice / 1 Click Launch Header */}
+        {/* Security Notice / Quick Launch Header */}
         <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-500/30 px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
             <ShieldAlert className="w-4 h-4 text-sky-600 dark:text-sky-400 flex-shrink-0" />

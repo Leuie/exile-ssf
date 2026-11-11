@@ -47,31 +47,57 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     }
   });
 
-  // Helper to build admin account & roster
+  // Helper to build admin account & roster, preserving custom character details if saved
   const buildLeuieAdminPayload = (googleMail?: string) => {
     const effectiveGoogle = googleMail?.trim().toLowerCase() || linkedAdminGoogle || undefined;
+
+    let savedAcc: Partial<UserAccount> = {};
+    try {
+      const savedUserRaw = localStorage.getItem('poe_umbraleague_user');
+      if (savedUserRaw) savedAcc = JSON.parse(savedUserRaw);
+    } catch {}
+
+    let savedRoster: Partial<LeagueRosterMember> = {};
+    try {
+      const rosterRaw = localStorage.getItem('poe_clean330_roster');
+      if (rosterRaw) {
+        const list = JSON.parse(rosterRaw);
+        const leuieEntry = list.find((m: any) => m.displayName.toLowerCase() === 'leuie');
+        if (leuieEntry) savedRoster = leuieEntry;
+      }
+    } catch {}
+
+    const resolvedAccountName = savedAcc.poeAccountName || savedRoster.poeAccountName || 'Leuie#0001';
+    const resolvedCharName = savedAcc.characterName || savedRoster.characterName || 'Leuie_Umbra';
+    const resolvedClass = savedAcc.className || savedRoster.className || 'Witch';
+    const resolvedAsc = savedAcc.ascendancy || savedRoster.ascendancy || 'Elementalist';
+    const resolvedLevel = Number(savedAcc.level || savedRoster.level) || 95;
+    const resolvedBuild = savedAcc.buildName || savedRoster.buildName || 'Penance Brand Ignite Elementalist';
+    const resolvedPob = savedAcc.pobUrl || savedRoster.pobUrl || 'https://pobb.in/';
+    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!';
+
     const adminAccount: UserAccount = {
       id: 'usr-leuie',
       provider: effectiveGoogle ? 'google' : 'app',
       displayName: 'Leuie',
-      preferredContact: 'app',
-      poeAccountName: 'Leuie#0001',
-      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-      characterName: 'Leuie_Umbra',
-      discordName: '@leuie',
-      email: effectiveGoogle,
-      linkedGoogleEmail: effectiveGoogle,
-      className: 'Witch',
-      ascendancy: 'Elementalist',
+      preferredContact: savedAcc.preferredContact || savedRoster.preferredContact || 'app',
+      poeAccountName: resolvedAccountName,
+      poeProfileUrl: savedAcc.poeProfileUrl || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(resolvedAccountName.split('#')[0])}`,
+      characterName: resolvedCharName,
+      discordName: savedAcc.discordName || '@leuie',
+      email: effectiveGoogle || savedAcc.email,
+      linkedGoogleEmail: effectiveGoogle || savedAcc.linkedGoogleEmail,
+      className: resolvedClass,
+      ascendancy: resolvedAsc,
       leagueMode: 'Private',
       availableAtLaunch: 'Yes',
-      level: 95,
-      buildName: 'Penance Brand Ignite Elementalist',
-      pobUrl: 'https://pobb.in/',
-      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+      level: resolvedLevel,
+      buildName: resolvedBuild,
+      pobUrl: resolvedPob,
+      atlasContent: savedAcc.atlasContent || savedRoster.atlasContent || ['Betrayal', 'Essences', 'Expedition'],
+      notes: resolvedNotes,
       inviteStatus: 'Accepted',
-      registeredAt: '2026-11-01',
+      registeredAt: savedAcc.registeredAt || '2026-11-01',
       isAdmin: true
     };
 
@@ -80,19 +106,19 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       slotNumber: 1,
       leagueMode: 'Private',
       displayName: 'Leuie',
-      preferredContact: 'app',
-      poeAccountName: 'Leuie#0001',
-      poeProfileUrl: 'https://www.pathofexile.com/account/view-profile/Leuie',
-      characterName: 'Leuie_Umbra',
-      discordName: '@leuie',
-      className: 'Witch',
-      ascendancy: 'Elementalist',
+      preferredContact: adminAccount.preferredContact,
+      poeAccountName: resolvedAccountName,
+      poeProfileUrl: adminAccount.poeProfileUrl,
+      characterName: resolvedCharName,
+      discordName: adminAccount.discordName,
+      className: resolvedClass,
+      ascendancy: resolvedAsc,
       availableAtLaunch: 'Yes',
-      level: 95,
-      buildName: 'Penance Brand Ignite Elementalist',
-      pobUrl: 'https://pobb.in/',
-      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+      level: resolvedLevel,
+      buildName: resolvedBuild,
+      pobUrl: resolvedPob,
+      atlasContent: adminAccount.atlasContent,
+      notes: resolvedNotes,
       inviteStatus: 'Accepted',
       isSupporterHeart: true,
       isOnline: true
@@ -134,7 +160,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     }
   };
 
-  // 1 Click Google Sign In (for linked Google accounts)
+  // Direct Google Sign In (for linked Google accounts)
   const handleGoogleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -274,11 +300,11 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 {linkedAdminGoogle ? (
                   <>
                     Your Google account (<strong className="text-white">{linkedAdminGoogle}</strong>) is linked.
-                    You can use 1 click Google Sign In on /admin from any device.
+                    You can use direct Google Sign In on /admin from any device.
                   </>
                 ) : (
                   <>
-                    Link your personal Google account to enable 1 click Google Sign In directly to the Admin Portal in the future.
+                    Link your personal Google account to enable direct Google Sign In to the Admin Portal in the future.
                   </>
                 )}
               </p>
@@ -345,14 +371,14 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
           /* VIEW 2: UN-AUTHENTICATED STATE (LOGIN PORTAL)                         */
           /* ===================================================================== */
           <div className="space-y-6">
-            {/* Option A: 1 Click Google Sign In (if linked) */}
+            {/* Option A: Direct Google Sign In (if linked) */}
             {linkedAdminGoogle && (
               <form onSubmit={handleGoogleAdminLogin} className="p-4 rounded-2xl border border-indigo-500/40 bg-indigo-500/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-indigo-400" />
                     <span className="text-xs font-bold text-white">
-                      Linked Google 1 Click Login
+                      Linked Google Direct Login
                     </span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono">
@@ -404,7 +430,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               {!linkedAdminGoogle && (
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">
-                    Optional: Link Google email for future 1 click logins:
+                    Optional: Link Google email for future direct logins:
                   </label>
                   <input
                     type="email"

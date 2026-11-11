@@ -170,6 +170,12 @@ export interface ActiveLeagueSession {
   targetDays: number;
   currentSlots: number;
   globalChannel: string;
+  hostName?: string;
+  hostAccountTag?: string;
+  officialLeagueUrl?: string;
+  discordUrl?: string;
+  description?: string;
+  isReadOnlyArchive?: boolean;
 }
 
 export interface UserAccount {

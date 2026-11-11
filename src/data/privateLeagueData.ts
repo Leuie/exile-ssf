@@ -12,7 +12,8 @@ import type {
   HeistRogueInfo,
   DelveFossilInfo,
   IncursionRoomInfo,
-  AtlasMapRating
+  AtlasMapRating,
+  UserAccount
 } from '../types';
 
 
@@ -28,7 +29,13 @@ export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
     fundedDays: 20,
     targetDays: 40,
     currentSlots: 30,
-    globalChannel: '/global 5712'
+    globalChannel: '/global 5712',
+    hostName: 'Leuie',
+    hostAccountTag: 'Leuie#0001',
+    officialLeagueUrl: 'https://www.pathofexile.com/private-leagues/league/Ravenwatch+Coven+of+Umbra',
+    discordUrl: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
+    description: 'Official Ravenwatch community Group Self Found private league for 3.30 Coven of Umbra.',
+    isReadOnlyArchive: false
   },
   {
     id: 'poe2-ea-ancients',
@@ -41,9 +48,79 @@ export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
     fundedDays: 30,
     targetDays: 30,
     currentSlots: 20,
-    globalChannel: '/global 5712'
+    globalChannel: '/global 5712',
+    hostName: 'Leuie',
+    hostAccountTag: 'Leuie#0001',
+    discordUrl: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
+    description: 'Early access scrimmage and cooperative group self found for Path of Exile 2.',
+    isReadOnlyArchive: false
+  },
+  {
+    id: 'poe1-324-allflame',
+    game: 'poe1',
+    name: 'Small Group Allflame SSF',
+    expansion: 'Necropolis',
+    version: '3.24',
+    isActive: false,
+    launchDateIso: '2024-03-29T19:00:00Z',
+    fundedDays: 40,
+    targetDays: 40,
+    currentSlots: 25,
+    globalChannel: '/global 5712',
+    hostName: 'Leuie',
+    hostAccountTag: 'Leuie#0001',
+    description: 'Historical private league for Necropolis 3.24. Preserved in read only archive mode.',
+    isReadOnlyArchive: true
+  },
+  {
+    id: 'poe1-323-mercenaries',
+    game: 'poe1',
+    name: 'NOIR Mercenaries League',
+    expansion: 'Affliction',
+    version: '3.23',
+    isActive: false,
+    launchDateIso: '2023-12-08T19:00:00Z',
+    fundedDays: 50,
+    targetDays: 50,
+    currentSlots: 30,
+    globalChannel: '/global 5712',
+    hostName: 'Leuie',
+    hostAccountTag: 'Leuie#0001',
+    description: 'Historical private league for Affliction 3.23. Preserved in read only archive mode.',
+    isReadOnlyArchive: true
+  },
+  {
+    id: 'poe1-322-spring',
+    game: 'poe1',
+    name: 'NOIR Spring Private League',
+    expansion: 'Trial of the Ancestors',
+    version: '3.22',
+    isActive: false,
+    launchDateIso: '2023-08-18T19:00:00Z',
+    fundedDays: 45,
+    targetDays: 45,
+    currentSlots: 25,
+    globalChannel: '/global 5712',
+    hostName: 'Leuie',
+    hostAccountTag: 'Leuie#0001',
+    description: 'Historical private league for Ancestors 3.22. Preserved in read only archive mode.',
+    isReadOnlyArchive: true
   }
 ];
+
+export function getStoredCustomLeagues(): ActiveLeagueSession[] {
+  try {
+    const raw = localStorage.getItem('poe_custom_private_leagues');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getAllActiveLeagueSessions(): ActiveLeagueSession[] {
+  const custom = getStoredCustomLeagues();
+  return [...ACTIVE_LEAGUE_SESSIONS, ...custom];
+}
 
 export const COVEN_OF_UMBRA_INFO = {
   version: '3.30',
@@ -490,29 +567,48 @@ export const NOIR_ALUMNI_PARTICIPANTS: LeagueParticipantAlumnus[] = [
 ];
 
 
-export const INITIAL_LEAGUE_ROSTER: LeagueRosterMember[] = [
-  {
-    id: 'member-leuie',
-    displayName: 'Leuie',
-    preferredContact: 'app',
-    slotNumber: 1,
-    leagueMode: 'Private',
-    poeAccountName: 'Leuie#0001',
-    discordName: '@leuie',
-    characterName: 'Leuie_Umbra',
-    className: 'Witch',
-    ascendancy: 'Elementalist',
-    availableAtLaunch: 'Yes',
-    level: 1,
-    buildName: 'Undecided 3.30 Starter',
-    pobUrl: 'https://pobb.in/',
-    atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-    notes: 'League Host & Admin. Welcome to NOIR 3.30 Coven of Umbra!',
-    inviteStatus: 'Accepted',
-    isSupporterHeart: true,
-    isOnline: true
-  }
-];
+export function getInitialLeagueRoster(): LeagueRosterMember[] {
+  let savedAcc: Partial<UserAccount> = {};
+  try {
+    const raw = localStorage.getItem('poe_umbraleague_user');
+    if (raw) savedAcc = JSON.parse(raw);
+  } catch {}
+
+  const resolvedAccount = savedAcc.poeAccountName || 'Leuie#0001';
+  const resolvedChar = savedAcc.characterName || 'Leuie_Umbra';
+  const resolvedAsc = savedAcc.ascendancy || 'Elementalist';
+  const resolvedClass = savedAcc.className || 'Witch';
+  const resolvedLevel = Number(savedAcc.level) || 1;
+  const resolvedBuild = savedAcc.buildName || 'Undecided 3.30 Starter';
+  const resolvedPob = savedAcc.pobUrl || 'https://pobb.in/';
+  const resolvedNotes = savedAcc.notes || 'League Host & Admin. Welcome to NOIR 3.30 Coven of Umbra!';
+
+  return [
+    {
+      id: 'member-leuie',
+      displayName: 'Leuie',
+      preferredContact: 'app',
+      slotNumber: 1,
+      leagueMode: 'Private',
+      poeAccountName: resolvedAccount,
+      discordName: '@leuie',
+      characterName: resolvedChar,
+      className: resolvedClass,
+      ascendancy: resolvedAsc,
+      availableAtLaunch: 'Yes',
+      level: resolvedLevel,
+      buildName: resolvedBuild,
+      pobUrl: resolvedPob,
+      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
+      notes: resolvedNotes,
+      inviteStatus: 'Accepted',
+      isSupporterHeart: true,
+      isOnline: true
+    }
+  ];
+}
+
+export const INITIAL_LEAGUE_ROSTER: LeagueRosterMember[] = getInitialLeagueRoster();
 
 export function makeWikiUrl(itemName: string): string {
   const clean = itemName
@@ -961,8 +1057,8 @@ export const STASH_TAB_BUYER_TIERS = [
     cost: '435 Points (65 Flex Points)',
     tabs: [
       'All tabs from the $40 Setup',
-      'Essence Stash Tab (30 pts) — One click 3 to 1 Essence tier upgrading',
-      'Unique Collection Tab (110 pts optional in SSF) — Stores 1 copy of every Unique in Path of Exile!'
+      'Essence Stash Tab (30 pts): Instant 3 to 1 Essence tier upgrading',
+      'Unique Collection Tab (110 pts optional in SSF): Stores 1 copy of every Unique in Path of Exile!'
     ]
   }
 ];
@@ -1097,7 +1193,7 @@ export const INITIAL_SITE_FEEDBACK: SiteFeedbackItem[] = [
   {
     id: 'fb-4',
     title: 'Batch export alumni account tags for GGG invite ladder',
-    description: 'Admins need a 1 click copy button that formats all alumni accounts into a comma separated list for Path of Exile private league invites.',
+    description: 'Admins need a direct copy button that formats all alumni accounts into a comma separated list for Path of Exile private league invites.',
     category: 'private_league_tool',
     status: 'implemented',
     upvotes: 25,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   Globe,
@@ -21,7 +21,7 @@ interface RegisterPageProps {
 
 interface StoredAppAccount {
   username: string;
-  passwordHash: string;
+  passwordHash?: string;
   userAccount: UserAccount;
   rosterEntry: LeagueRosterMember;
 }
@@ -61,6 +61,18 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   const atlasContent = 'Expedition, Harvest';
   const notes = '';
 
+  // Prefill pending Google email forwarded from Login if present
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem('pending_auth_email');
+      if (pending) {
+        setGoogleEmail(pending);
+        setAuthMethod('google');
+        sessionStorage.removeItem('pending_auth_email');
+      }
+    } catch {}
+  }, []);
+
   // Step 1 Validation & Proceed
   const handleProceedToProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +84,20 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
         setErrorMessage('Please enter a valid Google email address.');
         return;
       }
-      setDisplayName(emailClean.split('@')[0]);
+
+      // Check if Google email is already registered
+      try {
+        const storedRaw = localStorage.getItem('poe_clean330_accounts');
+        const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+        if (storedList.some((a) => a.userAccount.email?.toLowerCase() === emailClean)) {
+          setErrorMessage(`The Google email "${emailClean}" is already registered. Please log in instead.`);
+          return;
+        }
+      } catch {}
+
+      if (!displayName) {
+        setDisplayName(emailClean.split('@')[0]);
+      }
       setStep('profile_link');
     } else {
       const userClean = appUsername.trim();
@@ -197,22 +222,34 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       isOnline: true
     };
 
-    // If registered via App Account, save hashed credentials locally
-    if (authMethod === 'app' && appUsername && appPassword) {
-      try {
-        const pHash = await computeSHA256(appPassword);
+    // Store account credentials locally for both App and Google auth methods
+    try {
+      let pHash = '';
+      if (authMethod === 'app' && appPassword) {
+        pHash = await computeSHA256(appPassword);
         newAccount.passwordHash = pHash;
-        const storedRaw = localStorage.getItem('poe_clean330_accounts');
-        const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
-        storedList.push({
-          username: appUsername.trim(),
-          passwordHash: pHash,
-          userAccount: newAccount,
-          rosterEntry: newRosterEntry
-        });
-        localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
-      } catch {}
-    }
+      }
+      const storedRaw = localStorage.getItem('poe_clean330_accounts');
+      const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
+      const accountIdentifier = authMethod === 'app' ? appUsername.trim() : (cleanDisplay || googleEmail.trim().split('@')[0]);
+      const existingIdx = storedList.findIndex(
+        (a) =>
+          (authMethod === 'google' && a.userAccount.email && a.userAccount.email.toLowerCase() === googleEmail.trim().toLowerCase()) ||
+          (authMethod === 'app' && a.username && a.username.toLowerCase() === appUsername.trim().toLowerCase())
+      );
+      const entry: StoredAppAccount = {
+        username: accountIdentifier,
+        passwordHash: pHash,
+        userAccount: newAccount,
+        rosterEntry: newRosterEntry
+      };
+      if (existingIdx >= 0) {
+        storedList[existingIdx] = entry;
+      } else {
+        storedList.push(entry);
+      }
+      localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+    } catch {}
 
     setIsProcessing(false);
     onRegisterSuccess(newAccount, newRosterEntry);
@@ -315,7 +352,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
                 <span className="text-[11px] text-slate-500 block">
-                  Enables 1 click login to your private league roster and wishlist.
+                  Enables seamless login to your private league roster and wishlist.
                 </span>
               </div>
             )}

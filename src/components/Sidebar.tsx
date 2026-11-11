@@ -22,7 +22,8 @@ import {
   ExternalLink,
   Home as HomeIcon,
   Stethoscope,
-  UserCheck
+  UserCheck,
+  Globe
 } from "lucide-react";
 
 interface SidebarProps {
@@ -100,6 +101,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league', label: '3.30 GSF League', icon: Users, badge: 'NEW' },
+        { id: 'private_leagues', label: 'Private Leagues Hub', icon: Globe, badge: 'Hub' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
@@ -145,6 +147,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league', label: 'PoE 2 GSF League', icon: Users, badge: '0.5' },
+        { id: 'private_leagues', label: 'Private Leagues Hub', icon: Globe, badge: 'Hub' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
