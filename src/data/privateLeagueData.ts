@@ -164,8 +164,8 @@ export const COVEN_OF_UMBRA_INFO = {
     {
       label: '3.30 Patch Notes & Balance Manifesto',
       category: 'Patch Notes',
-      url: 'https://www.pathofexile.com/forum/view-thread/3531661',
-      description: 'Complete skill balance changes, endgame adjustments, and Coven mechanics.'
+      url: 'https://www.pathofexile.com/forum/view-thread/4013680',
+      description: 'Official Content Update 3.30.0 Patch Notes: Covens of Umbra, Wickerman and Viscera, Fates and Grim Fates boss empowerment, Threads of Creation replacing Scarabs, 150 Atlas passive points, Atziri replacing Vaal Omnitect, and Gold Scrolls of Wisdom.'
     },
     {
       label: 'New & Transfigured Gems (3.30)',
@@ -574,38 +574,54 @@ export function getInitialLeagueRoster(): LeagueRosterMember[] {
     if (raw) savedAcc = JSON.parse(raw);
   } catch {}
 
-  const resolvedAccount = savedAcc.poeAccountName || 'Leuie#0001';
-  const resolvedChar = savedAcc.characterName || 'Leuie_Umbra';
-  const resolvedAsc = savedAcc.ascendancy || 'Elementalist';
-  const resolvedClass = savedAcc.className || 'Witch';
-  const resolvedLevel = Number(savedAcc.level) || 1;
-  const resolvedBuild = savedAcc.buildName || 'Undecided 3.30 Starter';
-  const resolvedPob = savedAcc.pobUrl || 'https://pobb.in/';
-  const resolvedNotes = savedAcc.notes || 'League Host & Admin. Welcome to NOIR 3.30 Coven of Umbra!';
+  const isVenulum = Boolean(savedAcc.displayName && savedAcc.displayName.toLowerCase() === 'venulum');
+  const isLeuie = Boolean(!savedAcc.displayName || savedAcc.displayName.toLowerCase() === 'leuie');
 
-  return [
-    {
-      id: 'member-leuie',
-      displayName: 'Leuie',
-      preferredContact: 'app',
-      slotNumber: 1,
-      leagueMode: 'Private',
-      poeAccountName: resolvedAccount,
-      discordName: '@leuie',
-      characterName: resolvedChar,
-      className: resolvedClass,
-      ascendancy: resolvedAsc,
-      availableAtLaunch: 'Yes',
-      level: resolvedLevel,
-      buildName: resolvedBuild,
-      pobUrl: resolvedPob,
-      atlasContent: ['Betrayal', 'Essences', 'Expedition'],
-      notes: resolvedNotes,
-      inviteStatus: 'Accepted',
-      isSupporterHeart: true,
-      isOnline: true
-    }
-  ];
+  const leuieEntry: LeagueRosterMember = {
+    id: 'member-leuie',
+    displayName: 'Leuie',
+    preferredContact: 'app',
+    slotNumber: 1,
+    leagueMode: 'Private',
+    poeAccountName: isLeuie && savedAcc.poeAccountName ? savedAcc.poeAccountName : 'Leuie#0001',
+    discordName: '@leuie',
+    characterName: isLeuie && savedAcc.characterName ? savedAcc.characterName : '• Evil •',
+    className: isLeuie && savedAcc.className ? savedAcc.className : 'Duelist',
+    ascendancy: isLeuie && savedAcc.ascendancy ? savedAcc.ascendancy : 'Slayer',
+    availableAtLaunch: 'Yes',
+    level: isLeuie && savedAcc.level ? Number(savedAcc.level) : 95,
+    buildName: isLeuie && savedAcc.buildName ? savedAcc.buildName : 'Lightning Strike Slayer',
+    pobUrl: isLeuie && savedAcc.pobUrl ? savedAcc.pobUrl : 'https://pobb.in/',
+    atlasContent: ['Betrayal', 'Essences', 'Expedition'],
+    notes: isLeuie && savedAcc.notes ? savedAcc.notes : 'League Host and Admin. Welcome to Ravenwatch Coven of Umbra GSF!',
+    inviteStatus: 'Accepted',
+    isSupporterHeart: true,
+    isOnline: true
+  };
+
+  const venulumEntry: LeagueRosterMember = {
+    id: 'member-venulum',
+    displayName: 'Venulum',
+    preferredContact: 'app',
+    slotNumber: 2,
+    leagueMode: 'Private',
+    poeAccountName: isVenulum && savedAcc.poeAccountName ? savedAcc.poeAccountName : 'cgbulloc#4500',
+    discordName: '@venulum',
+    characterName: isVenulum && savedAcc.characterName ? savedAcc.characterName : 'DuelistLeagueStart',
+    className: isVenulum && savedAcc.className ? savedAcc.className : 'Duelist',
+    ascendancy: isVenulum && savedAcc.ascendancy ? savedAcc.ascendancy : 'Slayer',
+    availableAtLaunch: 'Yes',
+    level: isVenulum && savedAcc.level ? Number(savedAcc.level) : 1,
+    buildName: isVenulum && savedAcc.buildName ? savedAcc.buildName : 'Am I a Cyclone',
+    pobUrl: isVenulum && savedAcc.pobUrl ? savedAcc.pobUrl : 'https://pobb.in/',
+    atlasContent: ['Expedition', 'Harvest'],
+    notes: isVenulum && savedAcc.notes ? savedAcc.notes : 'Registered via Ravenwatch 3.30 Coven of Umbra GSF',
+    inviteStatus: 'Accepted',
+    isSupporterHeart: true,
+    isOnline: true
+  };
+
+  return [leuieEntry, venulumEntry];
 }
 
 export const INITIAL_LEAGUE_ROSTER: LeagueRosterMember[] = getInitialLeagueRoster();
@@ -692,16 +708,16 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Veiled Weapons & Jewellery',
     fortification: 'Veiled Armour & Jewellery',
     research: 'Veiled Chaos Orbs / Add Veiled Mod (Rank 4)',
-    intervention: 'Metamorph / Ultimatum Scarabs',
+    intervention: 'Metamorph / Ultimatum Threads',
     topPriorityDivision: 'Research',
-    priorityNote: ' S Tier Crafting: Rank 4 Research adds a veiled modifier to your crafted rare item!'
+    priorityNote: 'S Tier Crafting: Rank 4 Research adds a veiled modifier to your crafted rare item!'
   },
   {
     member: 'Vorici',
     transportation: 'Quality Skill Gems (21% to 23%)',
     fortification: 'Socket Modifying Currency',
     research: 'Reforge Sockets to White (1 to 6 White Sockets)',
-    intervention: 'Shaper Scarabs',
+    intervention: 'Shaper Threads of Creation',
     topPriorityDivision: 'Research',
     priorityNote: 'S Tier Utility: Easy off color solving with 1 to 6 White Sockets!'
   },
@@ -710,7 +726,7 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Full Stack of Random Divination Cards',
     fortification: 'Random Divination Cards',
     research: 'Swap Divination Cards',
-    intervention: 'Divination Scarabs',
+    intervention: 'Divination Threads of Creation',
     topPriorityDivision: 'Transportation',
     priorityNote: 'S Tier Jackpot: Full stacks of rare Divination Cards in Transportation!'
   },
@@ -719,7 +735,7 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Weapon Quality (up to 30%)',
     fortification: 'Armour Quality (up to 30%)',
     research: 'Flask Quality (up to 28%)',
-    intervention: 'Abyss Scarabs',
+    intervention: 'Abyss Threads of Creation',
     topPriorityDivision: 'Fortification',
     priorityNote: 'High Value: 30% quality on 6 link bases or 28% utility flasks in Research.'
   },
@@ -728,16 +744,16 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Normal Maps (Atlas Completion)',
     fortification: 'Rare Maps',
     research: 'Unique Maps (Pinnacle Completion)',
-    intervention: 'Cartography Scarabs',
+    intervention: 'Cartography Threads of Creation',
     topPriorityDivision: 'Research',
-    priorityNote: 'Great in SSF/GSF for unlocking missing Unique Maps in Research & Cartography Scarabs.'
+    priorityNote: 'Great in SSF/GSF for unlocking missing Unique Maps in Research & Cartography Threads.'
   },
   {
     member: 'Korell',
     transportation: 'Essences',
     fortification: 'Map Fragments',
     research: 'Delve Fossils',
-    intervention: 'Elder Scarabs',
+    intervention: 'Elder Threads of Creation',
     topPriorityDivision: 'Research',
     priorityNote: 'Drops bulk Fossils in Research and Essences in Transportation.'
   },
@@ -746,7 +762,7 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Timed Pick One Currency',
     fortification: 'Timed Pick One Unique Item',
     research: 'Timed Pick One League Item',
-    intervention: 'Blight Scarabs',
+    intervention: 'Blight Threads of Creation',
     topPriorityDivision: 'Transportation',
     priorityNote: 'Pick One Currency trial in Transportation or Unique trial in Fortification.'
   },
@@ -755,16 +771,16 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Unique Weapons',
     fortification: 'Unique Armour',
     research: 'Unique Jewellery',
-    intervention: 'Reliquary Scarabs',
+    intervention: 'Reliquary Threads of Creation',
     topPriorityDivision: 'Intervention',
-    priorityNote: 'Reliquary Scarabs in Intervention + Unique Jewellery in Research for Anathema/Astramentis.'
+    priorityNote: 'Reliquary Threads in Intervention + Unique Jewellery in Research for Anathema/Astramentis.'
   },
   {
     member: 'Cameria',
     transportation: 'Timeworn League Specific Uniques',
     fortification: 'Harbinger Orbs',
     research: 'Orbs of Unmaking',
-    intervention: 'Sulphite Scarabs',
+    intervention: 'Sulphite Threads of Creation',
     topPriorityDivision: 'Fortification',
     priorityNote: 'Harbinger Orbs for Beachhead / Map tier pushing and Orbs of Unmaking in Research.'
   },
@@ -773,16 +789,16 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Breach Splinters',
     fortification: 'Breach Enchanted Maps',
     research: 'Upgrade Breachstones (Chayula / Uul Netol)',
-    intervention: 'Breach Scarabs',
+    intervention: 'Breach Threads of Creation',
     topPriorityDivision: 'Research',
-    priorityNote: 'Upgrades Breachstones and supplies Breach Scarabs.'
+    priorityNote: 'Upgrades Breachstones and supplies Breach Threads of Creation.'
   },
   {
     member: 'Tora',
     transportation: 'Timed Pick One Item',
     fortification: 'Enchanted Gloves / Boots / Helmet',
     research: 'Add 20M to 200M XP to a Gem (Enlighten/Empower)',
-    intervention: 'Harbinger Scarabs',
+    intervention: 'Harbinger Threads of Creation',
     topPriorityDivision: 'Research',
     priorityNote: 'S Tier for leveling Empower, Enhance, and Enlighten gems by 200M XP in Research!'
   },
@@ -791,25 +807,25 @@ export const SYNDICATE_CHEAT_SHEET: SyndicateMemberReward[] = [
     transportation: 'Quality Currency',
     fortification: 'Currency Shards (Annul/Exalt/Mirror)',
     research: 'Expedition Artifacts & Logbooks / Cadiro Coins',
-    intervention: 'Expedition Scarabs',
+    intervention: 'Expedition Threads of Creation',
     topPriorityDivision: 'Intervention',
-    priorityNote: 'Expedition Scarabs in Intervention for Rog/Tujen farming.'
+    priorityNote: 'Expedition Threads in Intervention for Rog/Tujen farming.'
   },
   {
     member: 'Jorgin',
     transportation: 'Talismans',
     fortification: 'Bestiary Aspect Items',
     research: 'Transform Amulet into Talisman',
-    intervention: 'Bestiary Scarabs',
+    intervention: 'Bestiary Threads of Creation',
     topPriorityDivision: 'Intervention',
-    priorityNote: 'Bestiary Scarabs for imprint/split beasts.'
+    priorityNote: 'Bestiary Threads for imprint/split beasts.'
   },
   {
     member: 'Leo',
     transportation: 'Metamorph Catalysts',
     fortification: 'Currency Chests',
     research: 'Reforge Sockets/Links/Colors 50 Times',
-    intervention: 'Torment Scarabs',
+    intervention: 'Torment Threads of Creation',
     topPriorityDivision: 'Transportation',
     priorityNote: 'Catalysts in Transportation for attribute/resistance jewellery.'
   }
@@ -997,10 +1013,10 @@ export const INCURSION_CHEAT_SHEET: IncursionRoomInfo[] = [
     isHighValue: true
   },
   {
-    tier1: 'Omnitect Forge',
-    tier2: 'Golem Works',
-    tier3: 'Crucible of Flame (Tier 3 ★)',
-    effect: 'Drops Story of the Vaal or Puhuarte Gloves (% Fire Res + % Increased Damage against Chilled Enemies for temple conversion).',
+    tier1: 'Atziri Apex Forge',
+    tier2: 'Cradle Workshop',
+    tier3: 'Cradle of Creation (Tier 3 ★)',
+    effect: 'Atziri has claimed the apex of Atzoatl: drops Queen pinnacle items, Story of the Vaal, and Puhuarte fire resistance damage gloves.',
     isHighValue: true
   }
 ];
@@ -1048,7 +1064,7 @@ export const STASH_TAB_BUYER_TIERS = [
       'Currency Stash Tab (60 pts)',
       'Map Stash Tab (120 pts)',
       'Premium Quad Stash Tab (120 pts) — Rapid mapping dump tab',
-      'Fragment Stash Tab (55 pts) — Stores all Scarabs, Boss Fragments, and Breachstones',
+      'Fragment Stash Tab (55 pts): Stores all Threads of Creation, Boss Fragments, and Breachstones (Updated for 3.30)',
       'Divination Stash Tab (40 pts) — Tracks full card stacks and filters owned cards'
     ]
   },

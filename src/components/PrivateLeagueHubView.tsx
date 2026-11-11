@@ -40,7 +40,7 @@ import {
   PAST_NOIR_LEAGUES,
   NOIR_LEAGUE_FAQ,
   ASCENDANCY_CATALOG,
-  INITIAL_LEAGUE_ROSTER,
+  getInitialLeagueRoster,
   INITIAL_LOOKING_FOR_ITEMS,
   INITIAL_FOUND_VAULT_ITEMS,
   INITIAL_COMMUNITY_GUIDES,
@@ -92,9 +92,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [roster, setRoster] = useState<LeagueRosterMember[]>(() => {
     try {
       const saved = localStorage.getItem('poe_clean330_roster');
-      return saved ? JSON.parse(saved) : INITIAL_LEAGUE_ROSTER;
+      if (saved) {
+        const parsed: LeagueRosterMember[] = JSON.parse(saved);
+        const seedList = getInitialLeagueRoster();
+        for (const s of seedList) {
+          if (!parsed.some((m) => m.displayName.toLowerCase() === s.displayName.toLowerCase())) {
+            parsed.push(s);
+          }
+        }
+        parsed.forEach((m, idx) => {
+          m.slotNumber = idx + 1;
+        });
+        return parsed;
+      }
+      return getInitialLeagueRoster();
     } catch {
-      return INITIAL_LEAGUE_ROSTER;
+      return getInitialLeagueRoster();
     }
   });
 
@@ -491,7 +504,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     });
 
     // 2. Reset active roster to clean host only
-    setRoster(INITIAL_LEAGUE_ROSTER);
+    setRoster(getInitialLeagueRoster());
     setLookingForItems([]);
     setVaultItems([]);
 

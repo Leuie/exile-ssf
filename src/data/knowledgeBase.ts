@@ -368,10 +368,61 @@ Getting stuck in white or yellow maps is the #1 mistake new SSF players make. Av
 * Spec into **Harvest** (Horticrafting lifeforce for reforge crafting & resist swaps).
 * Take **Searing Exarch / Eater of Worlds** eldritch pack size for Ichors and Embers.
 
-#### Stage 3: The Boss Rush & Scarab Engine (90 to 132 Points)
-* Spec into **Destructive Play (Maven)** for massive guardian map drops and synthesizer bases.
-* Spec into **Scarab drops** to target farm league mechanics.
-* Unlock 12/12 **Favoured Map Slots** to run your preferred layout endlessly.
+#### Stage 3: The Boss Rush and Threads of Creation Engine (90 to 150 Points)
+* Spec into **Destructive Play (Maven)** and **Fates / Grim Fates** for massive guardian map drops and enhanced boss loot tables.
+* Spec into **Threads of Creation** (which officially replace Scarabs in 3.30) to weave league mechanics, pack density, and encounter rules directly into your Map Device.
+* Unlock all 12 **Favoured Map Slots** to run your preferred layout endlessly.
+`
+  },
+  {
+    id: 'covens-of-umbra-mechanics',
+    title: 'Path of Exile 3.30: Covens of Umbra Mechanics and Official Blueprint',
+    subtitle: 'The Wickerman, Viscera Harvesting, Fates and Grim Fates, Threads of Creation, and 150 Atlas Points',
+    category: 'league_mechanics',
+    readTime: '7 min read',
+    summary: 'Comprehensive breakdown of Content Update 3.30.0: how to harvest Viscera, feed the Wickerman altar, weave Threads of Creation instead of Scarabs, challenge empowered Fates bosses, and take advantage of 15 Gold town vendor Scrolls of Wisdom.',
+    tags: ['3.30', 'coven of umbra', 'wickerman', 'viscera', 'threads of creation', 'fates', 'grim fates', 'atziri', 'gold wisdom'],
+    content: `
+### 1. The Umbral Covens and Viscera Harvesting
+
+In Path of Exile 3.30 Covens of Umbra, players encounter ritualistic Covens across both campaign zones and endgame maps.
+
+* **Umbral Encounters:** Defeat coven witches channeling dark manifestations to harvest **Viscera**.
+* **The Wickerman Altar:** Channel harvested Viscera into the Wickerman construct located in the zone.
+* **Tiered Manifestations:** Offering higher quantities or purer grades of Viscera summons increasingly formidable eldritch horrors that drop exclusive coven modifiers, ritual currencies, and powerful socketable catalysts.
+
+### 2. Threads of Creation (Scarabs Officially Replaced)
+
+In 3.30, **Scarabs have been permanently retired and replaced by Threads of Creation**.
+
+* **Weaving the Map Device:** Threads of Creation slot directly into the Map Device alongside your map.
+* **Modifier Weaving:** Rather than simple pack additions, Threads of Creation weave custom modifier rules into the encounter: amplifying pack sizes, guaranteeing specific mechanic encounters, and tailoring rare monster affix frequencies.
+* **Deterministic Sourcing:** Sourced from Betrayal Intervention, natural boss drops, and dedicated Atlas Passive tree wheels.
+
+### 3. Fates and Grim Fates (Boss Empowerment)
+
+Boss encounters in 3.30 introduce high risk empowerment items known as **Fates**:
+
+* **Boss Imbument:** Apply Fates to Map Bosses and Pinnacle Bosses to drastically elevate their mechanics and danger level.
+* **Enhanced Loot Tables:** Empowered bosses drop elevated pinnacle loot, high tier synthesized bases, and exclusive unique items.
+* **Grim Fates:** The ultimate tier of boss challenge: applies to Uber Pinnacle encounters (Uber Eater, Uber Exarch, Uber Maven, and Uber Atziri) for supreme prestige and pinnacle rewards.
+
+### 4. Atlas Passive Tree Expansion (150 Points)
+
+The Atlas Passive Tree has undergone a massive expansion and overhaul:
+
+* **150 Total Points:** Point cap increased from 132 to 150, allowing exiles to fully specialize in multiple endgame mechanics simultaneously without sacrificing map sustain or eldritch altars.
+* **New Cluster Wheels:** Dedicated passive wheels for Threads of Creation effectiveness, Wickerman offering efficiency, and Coven density.
+
+### 5. Atziri Deposes the Vaal Omnitect (Temple of Atzoatl)
+
+* **The Apex Claimed:** Queen Atziri has officially claimed the apex of the Temple of Atzoatl, replacing the Vaal Omnitect with the **Cradle of Creation**.
+* **Tier 3 Room Synergies:** Upgraded Tier 3 temple rooms directly empower the final Atziri encounter, yielding guaranteed Queen pinnacle uniques, double corruption altars, and rare Vaal conversion gloves.
+
+### 6. Economy Quality of Life: Gold Scrolls of Wisdom
+
+* **15 Gold Wisdom Scrolls:** Town vendors across Wraeclast now sell Scrolls of Wisdom for **15 Gold each**.
+* **SSF Smooth Leveling:** Never worry about early game scroll starvation again during Acts 1 to 10.
 `
   },
   {

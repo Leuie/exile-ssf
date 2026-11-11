@@ -24,6 +24,7 @@ export const KnowledgeBaseView: React.FC = () => {
 
   const categories = [
     { id: 'survival_kit', label: '🎒 Survival Kit & Verified Recipes', icon: BookOpen },
+    { id: 'league_mechanics', label: '🕯️ 3.30 Covens of Umbra', icon: Sparkles },
     { id: 'progression_ehp', label: '🛡️ Defenses & Suffix Economics', icon: ShieldCheck },
     { id: 'crafting', label: '🔨 SSF Crafting & Vorici Bench', icon: Hammer },
     { id: 'atlas_mapping', label: '🗺️ Atlas & 100% Map Sustain', icon: Compass },

@@ -22,7 +22,7 @@ export interface KnowledgeArticle {
   id: string;
   title: string;
   subtitle: string;
-  category: 'survival_kit' | 'crafting' | 'progression_ehp' | 'atlas_mapping' | 'bossing_fragments' | 'loot_filters';
+  category: 'survival_kit' | 'crafting' | 'progression_ehp' | 'atlas_mapping' | 'bossing_fragments' | 'loot_filters' | 'league_mechanics';
   readTime: string;
   summary: string;
   content: string;

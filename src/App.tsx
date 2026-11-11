@@ -26,6 +26,7 @@ import { RegisterPage } from './components/RegisterPage';
 import { AdminPortalPage } from './components/AdminPortalPage';
 import { PrivateLeaguesDirectoryView } from './components/PrivateLeaguesDirectoryView';
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
+import { getInitialLeagueRoster } from './data/privateLeagueData';
 import type { TrackerItem, UserAccount, LeagueRosterMember } from './types';
 
 export const App: React.FC = () => {
@@ -86,7 +87,13 @@ export const App: React.FC = () => {
       localStorage.setItem('poe_umbraleague_user', JSON.stringify(account));
       // Sync into clean 3.30 roster
       const savedRoster = localStorage.getItem('poe_clean330_roster');
-      const rosterList: LeagueRosterMember[] = savedRoster ? JSON.parse(savedRoster) : [];
+      const rosterList: LeagueRosterMember[] = savedRoster ? JSON.parse(savedRoster) : [...getInitialLeagueRoster()];
+      const seedList = getInitialLeagueRoster();
+      for (const s of seedList) {
+        if (!rosterList.some((m) => m.displayName.toLowerCase() === s.displayName.toLowerCase())) {
+          rosterList.push(s);
+        }
+      }
       const index = rosterList.findIndex(
         (m) =>
           (m.poeAccountName && account.poeAccountName && m.poeAccountName.toLowerCase() === account.poeAccountName.toLowerCase()) ||
@@ -98,6 +105,9 @@ export const App: React.FC = () => {
         const nextSlot = rosterList.length + 1;
         rosterList.push({ ...rosterEntry, slotNumber: nextSlot });
       }
+      rosterList.forEach((m, i) => {
+        m.slotNumber = i + 1;
+      });
       localStorage.setItem('poe_clean330_roster', JSON.stringify(rosterList));
 
       // Sync into clean 3.30 accounts
