@@ -120,10 +120,16 @@ function parseMarkdownBlocks(raw: string): MarkdownBlock[] {
     }
 
     // Unordered List
-    if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('+ ')) {
       const items: string[] = [];
-      while (i < lines.length && (lines[i].trim().startsWith('* ') || lines[i].trim().startsWith('- '))) {
-        items.push(lines[i].trim().replace(/^(\*|-)\s*/, ''));
+      while (
+        i < lines.length &&
+        (lines[i].trim().startsWith('* ') ||
+          lines[i].trim().startsWith('- ') ||
+          lines[i].trim().startsWith('• ') ||
+          lines[i].trim().startsWith('+ '))
+      ) {
+        items.push(lines[i].trim().replace(/^(\*|-|•|\+)\s*/, ''));
         i++;
       }
       blocks.push({ type: 'ul', items });
@@ -150,6 +156,8 @@ function parseMarkdownBlocks(raw: string): MarkdownBlock[] {
       !lines[i].trim().startsWith('```') &&
       !lines[i].trim().startsWith('* ') &&
       !lines[i].trim().startsWith('- ') &&
+      !lines[i].trim().startsWith('• ') &&
+      !lines[i].trim().startsWith('+ ') &&
       !/^\d+\.\s+/.test(lines[i].trim()) &&
       !lines[i].trim().startsWith('>') &&
       lines[i].trim() !== '---'

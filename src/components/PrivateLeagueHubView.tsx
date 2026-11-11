@@ -32,6 +32,7 @@ import {
   ArrowLeft,
   Share2,
   ArrowUpDown,
+  Trash2,
   X
 } from 'lucide-react';
 import {
@@ -728,6 +729,16 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const itemInspectDialogRef = useRef<HTMLDialogElement>(null);
   const inspectTitleId = useId();
 
+  // Wishlist Edit and Delete State
+  const [editingLookingForItem, setEditingLookingForItem] = useState<LookingForItem | null>(null);
+  const [editItemName, setEditItemName] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<LookingForItem['category']>('Unique');
+  const [editStatus, setEditStatus] = useState<ItemNeedStatus>('NEED');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editChar, setEditChar] = useState<string>('');
+  const [editDisplay, setEditDisplay] = useState<string>('');
+  const editLookingForDialogRef = useRef<HTMLDialogElement>(null);
+
   const aggregatedItemsMap = React.useMemo(() => {
     const map = new Map<string, {
       itemName: string;
@@ -865,6 +876,141 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         return it;
       })
     );
+  };
+
+  useEffect(() => {
+    const dialog = editLookingForDialogRef.current;
+    if (!dialog) return;
+
+    let handleBackdropClick: ((e: MouseEvent) => void) | undefined;
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      handleBackdropClick = (e: MouseEvent) => {
+        if (e.target === dialog) {
+          const rect = dialog.getBoundingClientRect();
+          const clickedInDialog =
+            rect.top <= e.clientY &&
+            e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX &&
+            e.clientX <= rect.left + rect.width;
+          if (!clickedInDialog) {
+            dialog.close();
+            setEditingLookingForItem(null);
+          }
+        }
+      };
+      dialog.addEventListener('click', handleBackdropClick);
+    }
+    return () => {
+      if (handleBackdropClick) dialog.removeEventListener('click', handleBackdropClick);
+    };
+  }, []);
+
+  const isCurrentUserAdmin = Boolean(
+    userAccount?.isAdmin ||
+    userAccount?.displayName?.toLowerCase() === 'leuie' ||
+    userAccount?.poeAccountName?.toLowerCase() === 'leuie#0001'
+  );
+
+  const canEditOrDeleteWishlist = (item: LookingForItem): boolean => {
+    if (isCurrentUserAdmin) return true;
+    if (!userAccount) return false;
+
+    const uDisp = userAccount.displayName?.toLowerCase().trim();
+    const uChar = userAccount.characterName?.toLowerCase().trim();
+    const uPoe = userAccount.poeAccountName?.toLowerCase().trim();
+    const uDisc = userAccount.discordName?.toLowerCase().trim();
+
+    const iDisp = item.displayName?.toLowerCase().trim();
+    const iChar = item.characterName?.toLowerCase().trim();
+    const iPoe = item.poeAccountName?.toLowerCase().trim();
+    const iDisc = item.discordName?.toLowerCase().trim();
+
+    if (uDisp && iDisp && uDisp === iDisp) return true;
+    if (uChar && iChar && uChar === iChar) return true;
+    if (uPoe && iPoe && uPoe === iPoe) return true;
+    if (uDisc && iDisc && uDisc === iDisc) return true;
+
+    return false;
+  };
+
+  const handleStartEditLookingForItem = (item: LookingForItem) => {
+    if (!canEditOrDeleteWishlist(item)) {
+      triggerCopy('', 'Permission denied: Only admin or the requestor can edit this request');
+      return;
+    }
+    setEditingLookingForItem(item);
+    setEditItemName(item.itemName);
+    setEditCategory(item.category);
+    setEditStatus(item.status);
+    setEditNotes(item.notes || '');
+    setEditChar(item.characterName || '');
+    setEditDisplay(item.displayName || '');
+    setTimeout(() => {
+      editLookingForDialogRef.current?.showModal();
+    }, 10);
+  };
+
+  const handleSaveEditLookingForItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLookingForItem) return;
+    const cleanItemName = editItemName.trim();
+    if (!cleanItemName) return;
+
+    const wikiSlug = encodeURIComponent(cleanItemName.replace(/\s+/g, '_'));
+    const updated: LookingForItem[] = lookingForItems.map((it) => {
+      if (it.id === editingLookingForItem.id) {
+        return {
+          ...it,
+          itemName: cleanItemName,
+          category: editCategory,
+          status: editStatus,
+          notes: editNotes.trim(),
+          characterName: editChar.trim() || it.characterName,
+          displayName: editDisplay.trim() || it.displayName,
+          poeWikiUrl: `https://www.poewiki.net/wiki/${wikiSlug}`,
+          poeDbUrl: `https://poedb.tw/us/${wikiSlug}`
+        };
+      }
+      return it;
+    });
+
+    setLookingForItems(updated);
+    try {
+      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+    } catch {}
+
+    editLookingForDialogRef.current?.close();
+    setEditingLookingForItem(null);
+    triggerCopy('', `Updated wishlist item: ${cleanItemName}`);
+
+    if (selectedInspectItemName && selectedInspectItemName.toLowerCase() === editingLookingForItem.itemName.toLowerCase()) {
+      setSelectedInspectItemName(cleanItemName);
+    }
+  };
+
+  const handleDeleteLookingForItem = (itemId: string) => {
+    const target = lookingForItems.find((it) => it.id === itemId);
+    if (!target) return;
+    if (!canEditOrDeleteWishlist(target)) {
+      triggerCopy('', 'Permission denied: Only admin or the requestor can delete this request');
+      return;
+    }
+
+    const updated = lookingForItems.filter((it) => it.id !== itemId);
+    setLookingForItems(updated);
+    try {
+      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+    } catch {}
+
+    triggerCopy('', `Removed ${target.itemName} from wishlist`);
+
+    if (selectedInspectItemName && selectedInspectItemName.toLowerCase() === target.itemName.toLowerCase()) {
+      const remaining = updated.filter((it) => it.itemName.toLowerCase() === target.itemName.toLowerCase());
+      if (remaining.length === 0) {
+        itemInspectDialogRef.current?.close();
+        setSelectedInspectItemName(null);
+      }
+    }
   };
 
   // Roster Search & Filters
@@ -1983,11 +2129,34 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleCycleStatus(req.id)}
-                            className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-mono flex items-center gap-1 ml-auto cursor-pointer"
+                            className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
                           >
                             <CheckCircle2 className="w-3 h-3" />
                             <span>{req.status === 'HAVE' ? 'Revert to Need' : 'Mark Stashed'}</span>
                           </button>
+
+                          {canEditOrDeleteWishlist(req) && (
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditLookingForItem(req)}
+                                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                                title="Edit request"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLookingForItem(req.id)}
+                                className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                                title="Delete request"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1995,6 +2164,158 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 </div>
               </div>
             </div>
+          )}
+        </dialog>
+
+        {/* ============================================================================ */}
+        {/* EDIT WISHLIST / NEED REQUEST MODAL */}
+        {/* ============================================================================ */}
+        <dialog
+          ref={editLookingForDialogRef}
+          {...({ closedby: 'any' } as any)}
+          className="w-[94vw] sm:w-full sm:max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
+        >
+          {editingLookingForItem && (
+            <form onSubmit={handleSaveEditLookingForItem} className="flex flex-col">
+              <div className="p-4 border-b border-slate-800 bg-slate-800/60 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider">
+                    Edit Wishlist Request
+                  </span>
+                  <h2 className="text-base font-bold text-white mt-0.5">
+                    {editingLookingForItem.itemName}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editLookingForDialogRef.current?.close();
+                    setEditingLookingForItem(null);
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 overflow-y-auto max-h-[75vh]">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Item Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editItemName}
+                    onChange={(e) => setEditItemName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                    placeholder="Item Name (e.g. Cloak of Flame)"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300">Category</label>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+                    >
+                      <option value="Unique">Unique</option>
+                      <option value="Gem">Gem</option>
+                      <option value="Div Card">Div Card</option>
+                      <option value="Base / Crafting">Base / Crafting</option>
+                      <option value="Cluster Jewel">Cluster Jewel</option>
+                      <option value="Oil / Enchant">Oil / Enchant</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300">Status</label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+                    >
+                      <option value="NEED">NEED (High Priority)</option>
+                      <option value="SECOND CHAR">SECOND CHAR</option>
+                      <option value="LOW PRIO">LOW PRIO</option>
+                      <option value="HAVE">HAVE (Acquired)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300">Requester Tag</label>
+                    <input
+                      type="text"
+                      value={editDisplay}
+                      onChange={(e) => setEditDisplay(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                      placeholder="App Tag (e.g. Leuie)"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300">Character IGN</label>
+                    <input
+                      type="text"
+                      value={editChar}
+                      onChange={(e) => setEditChar(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                      placeholder="In Game Character IGN"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Notes</label>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                    placeholder="Notes (rolls, socket colors, corruption goals, etc.)"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingLookingForItem) {
+                      handleDeleteLookingForItem(editingLookingForItem.id);
+                      editLookingForDialogRef.current?.close();
+                      setEditingLookingForItem(null);
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Request</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editLookingForDialogRef.current?.close();
+                      setEditingLookingForItem(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </div>
+            </form>
           )}
         </dialog>
 
@@ -2672,19 +2993,42 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                               <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleCycleStatus(item.id)}
-                              className={`flex-shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                                item.status === 'NEED'
-                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                                  : item.status === 'HAVE'
-                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-slate-800 text-slate-400 border-slate-700'
-                              }`}
-                            >
-                              {item.status}
-                            </button>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleCycleStatus(item.id)}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                                  item.status === 'NEED'
+                                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                    : item.status === 'HAVE'
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}
+                              >
+                                {item.status}
+                              </button>
+
+                              {canEditOrDeleteWishlist(item) && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditLookingForItem(item)}
+                                    className="p-1 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="Edit request"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLookingForItem(item.id)}
+                                    className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="Delete request"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2732,13 +3076,37 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                           </td>
                           <td className="p-2.5 text-slate-400">{item.notes}</td>
                           <td className="p-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
-                              className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
-                            >
-                              Whisper
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
+                                className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                              >
+                                Whisper
+                              </button>
+                              {canEditOrDeleteWishlist(item) && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditLookingForItem(item)}
+                                    className="text-[11px] font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                                    title="Edit request"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLookingForItem(item.id)}
+                                    className="text-[11px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                                    title="Delete request"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Delete</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
