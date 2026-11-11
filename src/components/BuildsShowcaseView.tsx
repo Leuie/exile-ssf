@@ -10,7 +10,8 @@ import {
   Hammer,
   Video,
   Copy,
-  ExternalLink
+  ExternalLink,
+  BookOpen
 } from 'lucide-react';
 import { SSF_BUILDS } from '../data/builds';
 import type { SSFBuild } from '../types';
@@ -253,6 +254,25 @@ export const BuildsShowcaseView: React.FC = () => {
                   {/* Actions & Creator Links */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/40">
                     <div className="flex flex-wrap items-center gap-2">
+                      {build.guideSlug && (
+                        <a
+                          href={`/guide/${build.guideSlug}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            try {
+                              window.history.pushState({}, '', `/guide/${build.guideSlug}`);
+                              window.dispatchEvent(new PopStateEvent('popstate'));
+                            } catch {
+                              window.location.href = `/guide/${build.guideSlug}`;
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Open Full Guide (Secondary Monitor)</span>
+                        </a>
+                      )}
+
                       {build.pobUrl && (
                         <button
                           onClick={() => handleCopyPob(build.id, build.pobUrl!)}

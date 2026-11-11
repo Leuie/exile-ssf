@@ -66,6 +66,7 @@ import type {
 import { fireConfetti } from '../utils/confetti';
 import { LeagueHeroBanner } from './LeagueHeroBanner';
 import { LeagueContentManagerModal, type ManagerSectionType } from './LeagueContentManagerModal';
+import { FullGuideReaderView } from './FullGuideReaderView';
 
 interface PrivateLeagueHubViewProps {
   userAccount?: UserAccount | null;
@@ -87,6 +88,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   // Horizontal Nav Tabs
   type HubTab = 'overview' | 'looking_for' | 'roster' | 'vault' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
   const [activeTab, setActiveTab] = useState<HubTab>('overview');
+  const [activeReadingGuide, setActiveReadingGuide] = useState<CommunityGuide | null>(null);
 
   // Roster State
   const [roster, setRoster] = useState<LeagueRosterMember[]>(() => {
@@ -1048,6 +1050,32 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
   };
+
+  if (activeReadingGuide) {
+    return (
+      <FullGuideReaderView
+        guide={activeReadingGuide}
+        onBack={() => setActiveReadingGuide(null)}
+        onAddUniquesToLookingFor={(uniques) => {
+          const newItems: LookingForItem[] = uniques.map((u) => ({
+            id: `lf-auto-${Date.now()}-${Math.random()}`,
+            characterName: userAccount?.characterName || 'MyCharacter',
+            displayName: userAccount?.displayName || 'Leuie',
+            preferredContact: userAccount?.preferredContact || 'app',
+            itemName: u,
+            category: 'Unique',
+            status: 'NEED',
+            notes: `Required for ${activeReadingGuide.title}`,
+            poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(u.replace(/ /g, '_'))}`,
+            poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(u)}`
+          }));
+          setLookingForItems((prev) => [...newItems, ...prev]);
+          setCopyNotice(`Added ${uniques.length} items to your Looking For list!`);
+          setTimeout(() => setCopyNotice(null), 2500);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="w-full space-y-4 pb-20 font-sans text-slate-200">
@@ -2770,11 +2798,17 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 className="p-4 rounded-xl border border-slate-800 bg-slate-900/70 space-y-3"
               >
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div
+                    onClick={() => setActiveReadingGuide(guide)}
+                    className="cursor-pointer group flex-1 mr-2"
+                  >
                     <span className="text-[10px] font-mono uppercase text-slate-400">
                       {guide.ascendancy} • {guide.playstyle}
                     </span>
-                    <div className="font-bold text-sm text-white mt-0.5">{guide.title}</div>
+                    <div className="font-bold text-sm text-white group-hover:text-indigo-300 transition-colors mt-0.5 flex items-center gap-1.5">
+                      <span>{guide.title}</span>
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-400 opacity-80 group-hover:opacity-100" />
+                    </div>
                     <div className="text-[11px] text-slate-500">Shared by @{guide.authorName}</div>
                   </div>
                   <button
@@ -2795,16 +2829,27 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <p><strong className="text-slate-300">Endgame: </strong>{guide.endgameNotes}</p>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                  <a
-                    href={guide.pobCodeOrUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                  >
-                    <span>Path of Building</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveReadingGuide(guide)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors shadow cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Read Full Guide</span>
+                    </button>
+
+                    <a
+                      href={guide.pobCodeOrUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+                    >
+                      <span>PoB</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
 
                   <button
                     type="button"

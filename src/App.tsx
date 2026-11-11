@@ -25,9 +25,10 @@ import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
 import { AdminPortalPage } from './components/AdminPortalPage';
 import { PrivateLeaguesDirectoryView } from './components/PrivateLeaguesDirectoryView';
+import { FullGuideReaderView } from './components/FullGuideReaderView';
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
-import { getInitialLeagueRoster } from './data/privateLeagueData';
-import type { TrackerItem, UserAccount, LeagueRosterMember } from './types';
+import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/privateLeagueData';
+import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem } from './types';
 
 export const App: React.FC = () => {
   const getInitialActiveTab = (): string => {
@@ -48,6 +49,21 @@ export const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
+  const getInitialGuideSlug = (): string => {
+    if (typeof window === 'undefined') return '';
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+    if (path.startsWith('/guide/')) {
+      return path.replace('/guide/', '');
+    }
+    if (hash.startsWith('guide/')) {
+      return hash.replace('guide/', '');
+    }
+    return '';
+  };
+
+  const [currentGuideSlug, setCurrentGuideSlug] = useState<string>(getInitialGuideSlug);
+
   // Dedicated Route Detection (/login, /register, /admin, /leagues)
   const getInitialRoute = (): 'login' | 'register' | 'admin' | 'leagues' | '' => {
     if (typeof window === 'undefined') return '';
@@ -67,6 +83,8 @@ export const App: React.FC = () => {
     const handleLocationChange = () => {
       const route = getInitialRoute();
       setCurrentRoute(route);
+      const slug = getInitialGuideSlug();
+      setCurrentGuideSlug(slug);
       const tab = getInitialActiveTab();
       if (tab === 'private_league' || tab === 'private_leagues' || tab === 'home') {
         setActiveTab(tab);
@@ -299,6 +317,46 @@ export const App: React.FC = () => {
           onOpenAuthModal={handleOpenAuth}
         />
       </div>
+    );
+  }
+
+  const activeFullGuide = currentGuideSlug
+    ? INITIAL_COMMUNITY_GUIDES.find(
+        (g) => (g.slug && g.slug.toLowerCase() === currentGuideSlug) || g.id === currentGuideSlug
+      )
+    : null;
+
+  if (activeFullGuide) {
+    return (
+      <FullGuideReaderView
+        guide={activeFullGuide}
+        onBack={() => {
+          setCurrentGuideSlug('');
+          try {
+            window.history.pushState({}, '', '/privateleaguehub');
+          } catch {}
+          handleSelectTab('private_league');
+        }}
+        onAddUniquesToLookingFor={(uniques) => {
+          try {
+            const raw = localStorage.getItem('poe_clean330_looking_for');
+            const items: LookingForItem[] = raw ? JSON.parse(raw) : [];
+            const newItems: LookingForItem[] = uniques.map((u) => ({
+              id: `lf-auto-${Date.now()}-${Math.random()}`,
+              characterName: userAccount?.characterName || 'MyCharacter',
+              displayName: userAccount?.displayName || 'Leuie',
+              preferredContact: userAccount?.preferredContact || 'app',
+              itemName: u,
+              category: 'Unique',
+              status: 'NEED',
+              notes: `Required for ${activeFullGuide.title}`,
+              poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(u.replace(/ /g, '_'))}`,
+              poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(u)}`
+            }));
+            localStorage.setItem('poe_clean330_looking_for', JSON.stringify([...newItems, ...items]));
+          } catch {}
+        }}
+      />
     );
   }
 

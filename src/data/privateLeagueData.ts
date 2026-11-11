@@ -15,6 +15,7 @@ import type {
   AtlasMapRating,
   UserAccount
 } from '../types';
+import { LIGHTNING_STRIKE_FULL_GUIDE, LIGHTNING_ARROW_FULL_GUIDE } from './fullGuideContents';
 
 
 export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
@@ -715,7 +716,9 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     atlasFocus: ['Essences', 'Expedition (Rog)', 'Harvest', 'Searing Exarch', 'Threads of Creation'],
     upvotes: 35,
     createdAt: 'Pinned League Starter',
-    tags: ['3.30', 'Lightning Strike', 'Slayer', 'Double Hit', 'Claw', 'Nightblade']
+    tags: ['3.30', 'Lightning Strike', 'Slayer', 'Double Hit', 'Claw', 'Nightblade'],
+    slug: 'lightning-strike',
+    fullGuideMarkdown: LIGHTNING_STRIKE_FULL_GUIDE
   },
   {
     id: 'guide-5',
@@ -733,7 +736,9 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     atlasFocus: ['Expedition (Rog & Tujen)', 'Essences', 'Legion', 'Strongboxes'],
     upvotes: 31,
     createdAt: 'Verified NOIR Starter',
-    tags: ['3.30', 'Lightning Arrow', 'Deadeye', 'Storm Rain', 'Bow', 'Omniscience']
+    tags: ['3.30', 'Lightning Arrow', 'Deadeye', 'Storm Rain', 'Bow', 'Omniscience'],
+    slug: 'lightning-arrow',
+    fullGuideMarkdown: LIGHTNING_ARROW_FULL_GUIDE
   }
 ];
 

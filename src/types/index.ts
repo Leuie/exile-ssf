@@ -39,6 +39,7 @@ export interface SSFBuild {
   creatorUrl?: string;
   pobUrl?: string;
   videoGuideUrl?: string;
+  guideSlug?: string;
   ssfViabilityScore: number; // 1 - 10
   uniqueDependency: 'None (Pure Rare)' | '1 Farmable Unique' | 'Transfigured Gem' | 'Specific Div Card';
   playstyle: 'DoT' | 'Melee' | 'Spell Caster' | 'Totem / Ballista' | 'Minion / Corpse' | 'Bow Attack' | 'Brands';
@@ -285,6 +286,8 @@ export interface CommunityGuide {
   creatorChannelUrl?: string;
   creatorPlatform?: 'YouTube' | 'Maxroll' | 'Twitch' | 'Forum' | 'Mobalytics' | 'Community';
   tags?: string[];
+  slug?: string;
+  fullGuideMarkdown?: string;
 }
 
 export type FeedbackCategory = 'feature_request' | 'website_improvement' | 'private_league_tool' | 'bug_report' | 'build_guide_request';
