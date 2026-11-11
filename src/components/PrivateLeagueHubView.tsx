@@ -3104,7 +3104,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const template = "Hey Exiles! Ravenwatch Coven of Umbra GSF | Winter 2026 league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: https://poe-ssf.noir/ Accept invite: " + activeLeagueInfo.officialLeagueUrl;
+                    const portalUrl = typeof window !== 'undefined' ? window.location.origin : 'https://exilessf.app';
+                    const template = `Hey Exiles! Ravenwatch Coven of Umbra GSF | Winter 2026 league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: ${portalUrl} Accept invite: ${activeLeagueInfo.officialLeagueUrl || 'https://www.pathofexile.com/private-leagues'}`;
                     triggerCopy(template, '3.30 Announcement Message');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -3182,7 +3183,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   return matchSearch && matchFilter;
                 })
                 .map((alumnus: LeagueParticipantAlumnus) => {
-                  const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Coven of Umbra GSF | Winter 2026 private league is launching soon. Register here: https://poe-ssf.noir/`;
+                  const portalUrl = typeof window !== 'undefined' ? window.location.origin : 'https://exilessf.app';
+                  const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Coven of Umbra GSF | Winter 2026 private league is launching soon. Register here: ${portalUrl}`;
 
                   return (
                     <div
