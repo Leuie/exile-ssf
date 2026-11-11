@@ -39,9 +39,9 @@ openSearch: () => void;
 const LEAGUE_INFO = {
   poe1: {
     version: '3.30',
-    name: 'Coven of Umbra',
-    shortName: '3.30 Coven of Umbra',
-    url: 'https://www.pathofexile.com/umbra',
+    name: 'Covens of Umbra',
+    shortName: '3.30 Covens of Umbra',
+    url: 'https://www.pathofexile.com/covens',
     badgeBg: 'bg-gradient-to-r from-indigo-500/20 via-purple-500/15 to-amber-500/15',
     badgeBorder: 'border-indigo-500/40 hover:border-indigo-400 hover:from-indigo-500/30 hover:to-purple-500/30',
     textMain: 'text-indigo-600 dark:text-indigo-300 group-hover:text-indigo-500 dark:group-hover:text-indigo-200',

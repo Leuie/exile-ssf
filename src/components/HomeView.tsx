@@ -34,14 +34,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               </span>
               
               <a 
-                href="https://www.pathofexile.com/umbra"
+                href="https://www.pathofexile.com/covens"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-mono transition-colors"
-                title="Current League: 3.30 Coven of Umbra (Click to view season page)"
+                title="Current League: 3.30 Covens of Umbra (Click to view season page)"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>PoE 1: 3.30 Coven of Umbra</span><span className="text-[9px] font-mono px-1 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold uppercase">New</span>
+                <span>PoE 1: 3.30 Covens of Umbra</span><span className="text-[9px] font-mono px-1 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold uppercase">New</span>
                 <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
               </a>
 

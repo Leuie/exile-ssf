@@ -29,7 +29,7 @@ export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
     id: 'poe1-330-umbra',
     game: 'poe1',
     name: 'Ravenwatch Coven of Umbra GSF | Winter 2026',
-    expansion: 'Coven of Umbra',
+    expansion: 'Covens of Umbra',
     version: '3.30',
     isActive: true,
     launchDateIso: '2026-11-13T19:00:00Z',
@@ -41,7 +41,7 @@ export const ACTIVE_LEAGUE_SESSIONS: ActiveLeagueSession[] = [
     hostAccountTag: 'Leuie#0001',
     officialLeagueUrl: 'https://www.pathofexile.com/private-leagues/league/Ravenwatch+Coven+of+Umbra',
     discordUrl: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
-    description: 'Official Ravenwatch community Group Self Found private league for 3.30 Coven of Umbra.',
+    description: 'Official Ravenwatch community Group Self Found private league for 3.30 Covens of Umbra.',
     isReadOnlyArchive: false
   },
   {
@@ -131,7 +131,7 @@ export function getAllActiveLeagueSessions(): ActiveLeagueSession[] {
 
 export const COVEN_OF_UMBRA_INFO = {
   version: '3.30',
-  expansionName: 'Coven of Umbra',
+  expansionName: 'Covens of Umbra',
   tagline: 'She comes for your realm.',
   leagueName: 'Ravenwatch Coven of Umbra GSF | Winter 2026',
   revealDateIso: '2026-11-06T19:00:00Z',
@@ -140,7 +140,7 @@ export const COVEN_OF_UMBRA_INFO = {
   discordUrl: 'https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A',
   discordChannel: '#gsf-coordination',
   officialLeagueUrl: '',
-  expansionPageUrl: 'https://www.pathofexile.com/umbra',
+  expansionPageUrl: 'https://www.pathofexile.com/covens',
   heroArtworkUrl: '/images/covens_of_umbra_hero.png',
   gameAvatarUrl: '/logo.png',
   fundedDays: 20,
@@ -163,10 +163,10 @@ export const COVEN_OF_UMBRA_INFO = {
       description: 'Official NOIR guild home on Root. Founded and created by Leuie in January 2018.'
     },
     {
-      label: '3.30 Coven of Umbra Official Hub',
+      label: '3.30 Covens of Umbra Official Hub',
       category: 'Official',
-      url: 'https://www.pathofexile.com/umbra',
-      description: 'Official expansion teaser, ritual coven lore, and ExileCon reveal countdown.'
+      url: 'https://www.pathofexile.com/covens',
+      description: 'Official expansion page for Path of Exile: Covens of Umbra featuring ritual covens, Wickerman and Viscera mechanics, and full league details.'
     },
     {
       label: '3.30 Patch Notes & Balance Manifesto',
