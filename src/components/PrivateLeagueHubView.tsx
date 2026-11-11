@@ -787,7 +787,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             (e.discordName && e.discordName.toLowerCase().includes(searchLow)) ||
             (e.notes && e.notes.toLowerCase().includes(searchLow))
         );
-      const matchCat = lookingForCategoryFilter === 'All' || entry.category === lookingForCategoryFilter;
+      const matchCat =
+        lookingForCategoryFilter === 'All' ||
+        entry.category === lookingForCategoryFilter ||
+        (lookingForCategoryFilter === 'Gem' &&
+          (entry.category === 'Gem' || entry.category === 'Vaal Gem' || entry.category === 'Transfigured Gem'));
       const matchStatus =
         lookingForStatusFilter === 'All' ||
         entry.entries.some((e) => e.status === lookingForStatusFilter);
@@ -807,7 +811,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         (item.notes && item.notes.toLowerCase().includes(searchLow));
 
       const matchCat =
-        lookingForCategoryFilter === 'All' || item.category === lookingForCategoryFilter;
+        lookingForCategoryFilter === 'All' ||
+        item.category === lookingForCategoryFilter ||
+        (lookingForCategoryFilter === 'Gem' &&
+          (item.category === 'Gem' || item.category === 'Vaal Gem' || item.category === 'Transfigured Gem'));
 
       const matchStatus =
         lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
@@ -1151,7 +1158,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [newLfChar, setNewLfChar] = useState<string>(userAccount?.characterName || '');
   const [newLfDisplay, setNewLfDisplay] = useState<string>(userAccount?.displayName || '');
   const [newLfItem, setNewLfItem] = useState<string>('');
-  const [newLfCat, setNewLfCat] = useState<'Unique' | 'Gem' | 'Div Card' | 'Cluster Jewel' | 'Base / Crafting' | 'Oil / Enchant'>('Unique');
+  const [newLfCat, setNewLfCat] = useState<LookingForItem['category']>('Unique');
   const [newLfStatus, setNewLfStatus] = useState<ItemNeedStatus>('NEED');
   const [newLfNotes, setNewLfNotes] = useState<string>('');
 
@@ -2220,11 +2227,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
                     >
                       <option value="Unique">Unique</option>
-                      <option value="Gem">Gem</option>
+                      <option value="Vaal Gem">Vaal Gem</option>
+                      <option value="Transfigured Gem">Transfigured Gem</option>
+                      <option value="Gem">Skill, Support Gem</option>
                       <option value="Div Card">Div Card</option>
-                      <option value="Base / Crafting">Base / Crafting</option>
+                      <option value="Base / Crafting">Base, Crafting</option>
                       <option value="Cluster Jewel">Cluster Jewel</option>
-                      <option value="Oil / Enchant">Oil / Enchant</option>
+                      <option value="Oil / Enchant">Oil, Enchant</option>
                     </select>
                   </div>
 
@@ -2744,10 +2753,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 >
                   <option value="All">All Categories</option>
                   <option value="Unique">Unique</option>
-                  <option value="Gem">Gem</option>
+                  <option value="Vaal Gem">Vaal Gem</option>
+                  <option value="Transfigured Gem">Transfigured Gem</option>
+                  <option value="Gem">All Gems</option>
                   <option value="Div Card">Div Card</option>
-                  <option value="Base / Crafting">Base / Crafting</option>
+                  <option value="Base / Crafting">Base, Crafting</option>
                   <option value="Cluster Jewel">Cluster Jewel</option>
+                  <option value="Oil / Enchant">Oil, Enchant</option>
                 </select>
 
                 {/* Status Filter */}
@@ -2857,10 +2869,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
                   >
                     <option value="Unique">Unique Item</option>
-                    <option value="Gem">Transfigured Gem</option>
+                    <option value="Vaal Gem">Vaal Gem</option>
+                    <option value="Transfigured Gem">Transfigured Gem</option>
+                    <option value="Gem">Skill, Support Gem</option>
                     <option value="Div Card">Divination Card</option>
-                    <option value="Base / Crafting">Base / Crafting</option>
+                    <option value="Base / Crafting">Base, Crafting</option>
                     <option value="Cluster Jewel">Cluster Jewel</option>
+                    <option value="Oil / Enchant">Oil, Enchant</option>
                   </select>
 
                   <select

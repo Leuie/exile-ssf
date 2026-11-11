@@ -240,7 +240,7 @@ export interface LookingForItem {
   discordName?: string;
   poeAccountName?: string;
   itemName: string;
-  category: 'Unique' | 'Gem' | 'Div Card' | 'Cluster Jewel' | 'Base / Crafting' | 'Oil / Enchant';
+  category: 'Unique' | 'Gem' | 'Vaal Gem' | 'Transfigured Gem' | 'Div Card' | 'Cluster Jewel' | 'Base / Crafting' | 'Oil / Enchant';
   status: ItemNeedStatus;
   notes: string;
   poeWikiUrl: string;
@@ -250,7 +250,7 @@ export interface LookingForItem {
 export interface FoundUniqueVaultItem {
   id: string;
   itemName: string;
-  category: 'Unique' | 'Transfigured Gem' | 'Div Card' | 'Fractured Base' | 'Cluster Jewel' | 'Oil / Catalyst / Currency';
+  category: 'Unique' | 'Transfigured Gem' | 'Vaal Gem' | 'Gem' | 'Div Card' | 'Fractured Base' | 'Cluster Jewel' | 'Oil / Catalyst / Currency';
   finderCharacter: string;
   finderDiscord: string;
   location: 'Guild Tab 1 (Uniques)' | 'Guild Tab 2 (Bases & Gems)' | 'Whisper Finder' | 'Admin Hold Tab';
