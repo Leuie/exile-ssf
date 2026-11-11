@@ -28,6 +28,7 @@ import { PrivateLeaguesDirectoryView } from './components/PrivateLeaguesDirector
 import { FullGuideReaderView } from './components/FullGuideReaderView';
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
 import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/privateLeagueData';
+import { saveCloudRosterMember } from './services/cloudSync';
 import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem, CommunityGuide } from './types';
 
 export const App: React.FC = () => {
@@ -235,6 +236,9 @@ export const App: React.FC = () => {
       }
       localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
     } catch {}
+
+    // Broadcast to Cloudflare KV multiplayer edge database
+    saveCloudRosterMember(selectedLeagueSessionId || 'poe1-330-umbra', rosterEntry);
   };
 
   const handleSignOut = () => {
