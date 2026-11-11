@@ -135,7 +135,16 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [guides, setGuides] = useState<CommunityGuide[]>(() => {
     try {
       const saved = localStorage.getItem('poe_umbraleague_guides');
-      return saved ? JSON.parse(saved) : INITIAL_COMMUNITY_GUIDES;
+      if (saved) {
+        const parsed: CommunityGuide[] = JSON.parse(saved);
+        for (const g of INITIAL_COMMUNITY_GUIDES) {
+          if (!parsed.some((p) => p.id === g.id)) {
+            parsed.push(g);
+          }
+        }
+        return parsed;
+      }
+      return INITIAL_COMMUNITY_GUIDES;
     } catch {
       return INITIAL_COMMUNITY_GUIDES;
     }

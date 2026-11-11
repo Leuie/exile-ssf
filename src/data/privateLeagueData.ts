@@ -698,6 +698,42 @@ export const INITIAL_COMMUNITY_GUIDES: CommunityGuide[] = [
     atlasFocus: ['Expedition (Rog)', 'Harvest', 'Sanctum'],
     upvotes: 16,
     createdAt: 'Verified NOIR Starter'
+  },
+  {
+    id: 'guide-4',
+    title: 'Lightning Strike Slayer (Double Hit Claw Masterclass)',
+    authorName: 'Leuie',
+    authorDiscord: '@leuie',
+    className: 'Duelist',
+    ascendancy: 'Slayer',
+    playstyle: 'Melee and Projectile Double Hit / Charge Stacker',
+    starterRating: 10,
+    pobCodeOrUrl: 'https://pobb.in/',
+    levelingNotes: 'Level Spectral Throw or Frost Blades in Act 1. Equip Lightning Strike at Level 12 with Ancestral Call and Added Lightning. Upgrade flat elemental claws every 10 to 12 levels via vendor recipe (Magic Claw + Topaz/Ruby/Sapphire Ring + Orb of Augmentation). Allocate Masterful Form to equate Maximum Endurance to Frenzy charges (7 to 9 each). Allocate Attack Mastery early for Non Vaal Strike Skills Target 1 Additional Enemy.',
+    endgameNotes: 'Stand 1.5 to 2 character models away from bosses: your melee swing hits air launching projectiles while the strike clone strikes the boss, dealing 100% More Damage (Double Hit). Transition into Nightblade Support with a triple flat elemental Imperial Claw (+46 Life Gain on Hit). Layer with Svalinn (65% Lucky Block), Arn Anguish (Brutal Charges), and Vaal Lightning Strike with placed War Banner at max Valour.',
+    requiredUniques: ["Arn's Anguish", 'Svalinn', "Ralakesh's Impatience", 'The Taming', 'Yoke of Suffering'],
+    atlasFocus: ['Essences', 'Expedition (Rog)', 'Harvest', 'Searing Exarch', 'Threads of Creation'],
+    upvotes: 35,
+    createdAt: 'Pinned League Starter',
+    tags: ['3.30', 'Lightning Strike', 'Slayer', 'Double Hit', 'Claw', 'Nightblade']
+  },
+  {
+    id: 'guide-5',
+    title: 'Lightning Arrow Deadeye (Storm Rain & Artillery Ballista)',
+    authorName: 'Leuie',
+    authorDiscord: '@leuie',
+    className: 'Ranger',
+    ascendancy: 'Deadeye',
+    playstyle: 'Bow Projectile / Offscreen Clear & Storm Rain Single Target',
+    starterRating: 9.5,
+    pobCodeOrUrl: 'https://pobb.in/',
+    levelingNotes: 'Start Split Arrow and Caustic Arrow in Act 1, switching to Lightning Arrow + Added Lightning + Mirage Archer at Level 12. Automate Frenzy and Power Charges with Manaforged Arrows. Craft flat elemental bows via vendor recipe (Magic Bow + Resistance Ring + Aug). Ascend Gathering Winds for Tailwind speed in Normal Lab, and Endless Munitions for +2 Projectiles in Merciless Lab.',
+    endgameNotes: 'Lightning Arrow clears multiple screens via Deadeye Ricochet chain and Sniper Mark splits. For single target bossing, deploy 6 link Storm Rain (arrows cap at 100 on the ground and pulse lightning beams, triggering immense Life Gain on Hit) or Artillery Ballista. Scale into triple flat elemental Spine Bows, 100% Spell Suppression, and late game Crystallised Omniscience or Headhunter.',
+    requiredUniques: ['The Taming', "Lioneye's Fall", 'Yoke of Suffering', "Hyrri's Truth", 'Crystallised Omniscience'],
+    atlasFocus: ['Expedition (Rog & Tujen)', 'Essences', 'Legion', 'Strongboxes'],
+    upvotes: 31,
+    createdAt: 'Verified NOIR Starter',
+    tags: ['3.30', 'Lightning Arrow', 'Deadeye', 'Storm Rain', 'Bow', 'Omniscience']
   }
 ];
 

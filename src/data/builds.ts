@@ -404,4 +404,134 @@ export const SSF_BUILDS: SSFBuild[] = [
       }
     ]
   },
+  {
+    id: 'lightning-strike-slayer-ssf',
+    name: 'Lightning Strike Slayer (Claw Double Hit Masterclass)',
+    class: 'Duelist',
+    ascendancy: 'Slayer',
+    creator: 'Leuie',
+    creatorUrl: 'https://exilessf.app/privateleaguehub',
+    pobUrl: 'https://pobb.in/',
+    videoGuideUrl: 'https://www.pathofexile.com/forum/view-thread/4013680',
+    ssfViabilityScore: 10,
+    uniqueDependency: 'None (Pure Rare)',
+    playstyle: 'Melee',
+    summary: 'The undisputed #1 league starter and boss farmer of Path of Exile 3.30 Covens of Umbra. Functions seamlessly on simple vendor and essence claws with zero required uniques, scaling into an S Tier endgame juggernaut through overlapping melee and projectile double hit mechanics, 8 permanent Endurance charges with Masterful Form, 20% cull, and continuous 1,200+ Life/sec Slayer overleech.',
+    pros: [
+      'The Double Hit Mechanic: Standing 1.5 to 2 character models away allows both the melee strike clone and the forward projectiles to register on the isolated target simultaneously for a 100% More Damage multiplier',
+      'Masterful Form and Overleech: Equates Maximum Endurance Charges to Frenzy Charges for 8 to 9 of each automatically, delivering 32% flat physical and elemental damage reduction with permanent life overleech',
+      'Claw Life Gain on Hit: An Imperial Claw (+46 LGoH) firing 7 projectiles at 8 to 11 attacks per second yields 2,300 to 4,140 instantaneous Life recovered per second outside standard leech caps',
+      'Zero Unique Dependency: Progresses smoothly from vendor recipe claws into Screaming and Shrieking Essences (Torment, Hatred, Wrath) without trade requirements',
+      'Vaal Lightning Strike Burst: Two stored charges drop autonomous ground weapon clones firing orbiting lightning projectiles for over 6 seconds alongside placed War Banners'
+    ],
+    cons: [
+      'Requires proper positioning (1.5 character lengths back) to ensure both the melee hit and projectiles connect for double damage',
+      'Endgame boss arenas with prolonged invulnerability phases require active charge refresh and awareness if overleech buffers expire'
+    ],
+    levelingGems: [
+      'Acts 1 to 2: Spectral Throw or Frost Blades with Momentum Support until Level 12',
+      'Level 12+: Lightning Strike + Ancestral Call Support (or Pierce) + Added Lightning Damage Support',
+      'Act 2+: Introduce Trinity Support as soon as a flat elemental weapon with distinct damage boundaries is forged',
+      'Act 3+: Add Sniper Mark with Mark on Hit Support, Grace, and Whirling Blades with Fortify Support',
+      'Act 4+: Multistrike Support (Level 38) + Nightblade Support + Returning Projectiles Support'
+    ],
+    keyCraftingSteps: [
+      'Claw Progression: Vendor craft flat elemental claws every 10 to 12 levels (Magic Claw Base + Topaz/Ruby/Sapphire Ring + Orb of Augmentation). Transition to Gut Ripper (Act 3), Blinder (Act 4), Timeworn Claw (Act 5), and Imperial Claw (+46 LGoH) in early maps',
+      'Prefix Essence Forging: Spam Deafening or Shrieking Essence of Torment, Wrath, Hatred, or Anger on ilvl 82+ Imperial Claws until hitting two T1 to T2 flat elemental prefixes',
+      'Suffix Metamod Craft: Benchcraft Prefixes Cannot Be Changed and use Harvest Reforge Speed for guaranteed Attack Speed or Reforge Critical for Critical Strike Chance',
+      'Shield Crafting: Colossal Tower Shield or Supreme Spiked Shield spammed with Essence of Greed for Life until hitting Tier 1 or 2 Spell Suppression (8 to 12%)',
+      'Eldritch Implicits: Roll Lesser or Greater Eldritch Ichors on gloves for Non Vaal Strike Skills Target 1 Additional Nearby Enemy, freeing up the Attack Mastery on the tree'
+    ],
+    targetUniquesOrCards: [
+      {
+        name: 'The Taming',
+        farmLocation: 'Vendor recipe combining Berek Pass, Berek Grip, and Berek Respite (sourced from Heist jewellery chests or Expedition)',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/The_Taming',
+        poeDbUrl: 'https://poedb.tw/us/The_Taming'
+      },
+      {
+        name: 'Svalinn',
+        farmLocation: 'Pinnacle defensive shield making Attack and Spell Block Lucky (farmable through core map drops and Divination cards)',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Svalinn',
+        poeDbUrl: 'https://poedb.tw/us/Svalinn'
+      },
+      {
+        name: "Arn's Anguish",
+        farmLocation: 'The Maven Crucible / Black Star invitations (converts Endurance Charges into Brutal Charges for 24 to 36% Triple Damage chance)',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Arn%27s_Anguish',
+        poeDbUrl: 'https://poedb.tw/us/Arns_Anguish'
+      },
+      {
+        name: 'Yoke of Suffering',
+        farmLocation: 'The Eradicator (Elder Guardian Maps) for 5 to 10% increased damage taken per active elemental ailment',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Yoke_of_Suffering',
+        poeDbUrl: 'https://poedb.tw/us/Yoke_of_Suffering'
+      }
+    ]
+  },
+  {
+    id: 'lightning-arrow-deadeye-ssf',
+    name: 'Lightning Arrow Deadeye (Storm Rain & Artillery Ballista)',
+    class: 'Ranger',
+    ascendancy: 'Deadeye',
+    creator: 'Leuie',
+    creatorUrl: 'https://exilessf.app/privateleaguehub',
+    pobUrl: 'https://pobb.in/',
+    videoGuideUrl: 'https://www.pathofexile.com/forum/view-thread/4013680',
+    ssfViabilityScore: 9.8,
+    uniqueDependency: 'None (Pure Rare)',
+    playstyle: 'Bow Attack',
+    summary: 'The premier bow speed mapper and legion farmer for Path of Exile 3.30 Covens of Umbra. Engineered for exponential clear speed, effortless off screening, and smooth progression curves on a pure rare budget. Features Endless Munitions (+2 Projectiles), Tailwind action speed, and Ricochet chain, paired with a dedicated 6 link Storm Rain or Artillery Ballista engine to melt isolated boss hitboxes.',
+    pros: [
+      'Unmatched Clear Speed: Endless Munitions (+2 Projectiles) and Focal Point (75% Mark Effect) paired with Ricochet chain clear multiple screens per attack',
+      'Dual Single Target Suite: Solves bow bossing via Storm Rain (ground arrows cap at 100 and pulse lightning beams, triggering immense Life Gain on Hit) or Artillery Ballista',
+      'Smooth Leveling Pathway: Smooth progression using vendor recipe flat elemental bows and early Mirage Archer support from Act 1 onwards',
+      'Defensive Suppression Core: Capped 100% Spell Suppression, 20,000+ Evasion Rating, and instant recovery via Attack Leech Mastery',
+      'Aspirational Omniscience Scaling: Seamlessly transitions into Crystallised Omniscience (1,400+ Omni) or Headhunter in late endgame'
+    ],
+    cons: [
+      'Pure Evasion baseline makes character susceptible to heavy undodged physical slams if positioning is sloppy',
+      'Demands continuous weapon upgrades during yellow and red maps using Essences or Rog in Expedition'
+    ],
+    levelingGems: [
+      'Act 1: Split Arrow and Caustic Arrow for packs, Galvanic Arrow for single target burst until Level 12',
+      'Level 12+: Lightning Arrow + Added Lightning Damage Support + Mirage Archer Support with Sniper Mark',
+      'Act 2: Herald of Thunder and Herald of Ice (or Herald of Ash depending on flat weapon drops)',
+      'Acts 3 to 10: Grace + Wrath / Anger, paired with Manaforged Arrows Support linked with Frenzy and Power Charge on Critical',
+      'Boss Setup: 4 to 6 link Storm Rain + Concentrated Effect Support + Trinity Support + Added Lightning + Ballista Totem / Focused Ballista'
+    ],
+    keyCraftingSteps: [
+      'Bow Crafting: Imperial Bow or Spine Bow rolled with Screaming Essences of Torment, Wrath, Hatred, or Anger until hitting two T1 to T3 flat elemental prefixes, then benchcraft Attack Speed or Critical Strike Chance',
+      'Quiver Crafting: Broadhead Quiver (flat physical) or Feathered Quiver (projectile speed) essence spammed with Torment or Zeal for attack speed, life, and +1 Arrow',
+      'Suppression Body Armour: Pure Evasion Sadist Garb or Dragonscale Plate crafted with Essences of Greed and Loathing for 100% Spell Suppression cap',
+      'Expedition Rog Scaling: Leverage Rog in Expedition for high ilvl triple flat elemental bows, spell suppression armor bases, and double attribute jewellery',
+      'Eldritch Implicits: Roll Lesser and Greater Eldritch Embers and Ichors for Aura Effect and Elemental Penetration'
+    ],
+    targetUniquesOrCards: [
+      {
+        name: 'The Taming',
+        farmLocation: 'Vendor recipe selling Berek Pass, Berek Grip, and Berek Respite (sourced via Heist jewellery chests or Expedition)',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/The_Taming',
+        poeDbUrl: 'https://poedb.tw/us/The_Taming'
+      },
+      {
+        name: "Lioneye's Fall",
+        farmLocation: 'Deterministic farming via The Lion Divination Card in The Mud Flats, The Coast, or map tilesets',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Lioneye%27s_Fall',
+        poeDbUrl: 'https://poedb.tw/us/Lioneyes_Fall'
+      },
+      {
+        name: 'Yoke of Suffering',
+        farmLocation: 'The Eradicator (Elder Guardian Maps) allowing all elemental damage to shock and amplifying damage taken per ailment',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Yoke_of_Suffering',
+        poeDbUrl: 'https://poedb.tw/us/Yoke_of_Suffering'
+      },
+      {
+        name: "Hyrri's Truth",
+        farmLocation: 'Level 30 Precision with 100% reservation efficiency, massive flat cold, and culling strike (Delirium / Ritual / Drop pool)',
+        poeWikiUrl: 'https://www.poewiki.net/wiki/Hyrri%27s_Truth',
+        poeDbUrl: 'https://poedb.tw/us/Hyrris_Truth'
+      }
+    ]
+  }
 ];
