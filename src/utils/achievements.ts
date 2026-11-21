@@ -133,8 +133,42 @@ export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
     points: 100,
     rewardTitle: 'Wraeclast Scholar',
     target: 1
+  },
+  {
+    id: 'league_join_poe1-330-umbra',
+    title: 'Coven of Umbra (3.30) Member',
+    description: 'Joined the 3.30 Ravenwatch Covens of Umbra GSF private league. Awarded live upon joining (non retroactive).',
+    category: 'League Loyalty',
+    tier: 'Unique',
+    points: 25,
+    rewardTitle: 'Umbra Coven Witch',
+    target: 1,
+    iconUrl: '/achievements/umbra-witch-330.jpg',
+    leagueId: 'poe1-330-umbra',
+    nonRetroactive: true
+  },
+  {
+    id: 'league_join_poe2-05-ancients',
+    title: 'Return of the Ancients (0.5) Member',
+    description: 'Joined the PoE 2 Return of the Ancients GSF private league. Awarded live upon joining (non retroactive).',
+    category: 'League Loyalty',
+    tier: 'Unique',
+    points: 25,
+    rewardTitle: 'Ancients Pioneer',
+    target: 1,
+    leagueId: 'poe2-05-ancients',
+    nonRetroactive: true
   }
 ];
+
+export function getLeagueJoinAchievementId(leagueId: string): string {
+  return `league_join_${leagueId.toLowerCase().trim()}`;
+}
+
+export function getLeagueJoinAchievementDef(leagueId: string): AchievementDefinition | undefined {
+  const targetId = getLeagueJoinAchievementId(leagueId);
+  return ACHIEVEMENT_CATALOG.find((a) => a.id === targetId);
+}
 
 const EMPTY_PROFILE: PersistentAchievementProfile = {
   unlockedIds: {},
@@ -442,7 +476,7 @@ export function evaluateCloudAchievements(params: {
   const evaluated: EvaluatedAchievement[] = ACHIEVEMENT_CATALOG.map((def) => {
     const rawCurrent = progressMap[def.id] || 0;
     const previouslyUnlocked = Boolean(nextUnlocked[def.id]);
-    const unlocked = previouslyUnlocked || rawCurrent >= def.target;
+    const unlocked = def.nonRetroactive ? previouslyUnlocked : previouslyUnlocked || rawCurrent >= def.target;
 
     if (unlocked && !previouslyUnlocked) {
       nextUnlocked[def.id] = nowIso;

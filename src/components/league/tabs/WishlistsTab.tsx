@@ -19,7 +19,7 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory, FreeStashDrop } from '../../../types';
+import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory, FreeStashDrop, LeagueFeedEvent } from '../../../types';
 import { saveCloudWishlistItem, deleteCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
 import { HONOR_PER_ITEM_FOUND, HONOR_PER_RECEIPT_CONFIRMED, HONOR_PER_SELF_FOUND, formatLeagueLabel } from '../../../utils/achievements';
 import { parsePoeClipboardTooltip } from '../../../utils/poeItemParser';
@@ -102,6 +102,7 @@ export interface WishlistsTabProps {
   initialSearchQuery?: string | null;
   onClearInitialSearch?: () => void;
   onOpenProfile?: (handle: string) => void;
+  onEmitFeedEvent?: (event: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => void;
   stashDrops?: FreeStashDrop[];
   onAddStashDrop?: (drop: FreeStashDrop) => void;
   onClaimStashDrop?: (drop: FreeStashDrop) => void;
@@ -123,6 +124,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   initialSearchQuery,
   onClearInitialSearch,
   onOpenProfile,
+  onEmitFeedEvent,
   stashDrops = [],
   onAddStashDrop,
   onClaimStashDrop,
@@ -425,6 +427,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       ...existing,
       status: 'HAVE' as ItemNeedStatus,
       fulfilledBy: helperTag,
+      fulfilledByAccount: userAccount?.poeAccountName || existing.fulfilledByAccount,
       fulfilledAtIso: new Date().toISOString()
     };
 
@@ -457,6 +460,14 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
             kind: 'item_found'
           }
         ]
+      });
+      onEmitFeedEvent?.({
+        type: 'item_fulfilled',
+        actorHandle: cleanHelper,
+        targetHandle: requesterTag,
+        title: `Found "${existing.itemName}" for @${requesterTag}`,
+        detail: existing.bountyOffer ? `Bounty: ${existing.bountyOffer} • +${HONOR_PER_ITEM_FOUND} Honor Points` : `+${HONOR_PER_ITEM_FOUND} Honor Points earned`,
+        targetTab: 'looking_for'
       });
       setHonorAwardBanner({ finder: cleanHelper, itemName: existing.itemName, requester: requesterTag });
       setTimeout(() => setHonorAwardBanner(null), 5000);
@@ -764,6 +775,16 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
 
     setLookingForItems([newItem, ...lookingForItems]);
     saveCloudWishlistItem(activeSessionId, newItem);
+    onEmitFeedEvent?.({
+      type: newItem.bountyOffer ? 'bounty_listed' : 'wishlist_added',
+      actorHandle: newItem.displayName || newItem.characterName,
+      actorCharacter: newItem.characterName,
+      title: newItem.bountyOffer
+        ? `Posted Bounty for "${newItem.itemName}" (${newItem.bountyOffer})`
+        : `Wishlisted "${newItem.itemName}"`,
+      detail: `${newItem.category} • ${newItem.status}${newItem.notes ? ` • ${newItem.notes}` : ''}`,
+      targetTab: newItem.bountyOffer ? 'bounties' : 'looking_for'
+    });
     setNewLfItem('');
     setNewLfNotes('');
     setNewLfBounty('');

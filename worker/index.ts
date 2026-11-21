@@ -44,6 +44,8 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_boss_rotas_league ON boss_rotas(league_id)`,
     `CREATE TABLE IF NOT EXISTS league_firsts (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_league_firsts_league ON league_firsts(league_id)`,
+    `CREATE TABLE IF NOT EXISTS activity_feed (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_activity_feed_league ON activity_feed(league_id, created_at DESC)`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -261,6 +263,12 @@ function resolvePageMeta(url: URL): PageMeta {
         description: `Essential crafting bench recipe unlock locations and prioritized stash tab buyer tiers for Solo Self Found and Group Self Found progression.`
       };
     }
+    if (subTab === 'feed' || subTab === 'activity' || subTab === 'wall') {
+      return {
+        title: `League Feed | ${leagueName} | Exile SSF`,
+        description: `Live activity wall for ${leagueName} tracking new exiles, characters, wishlist drops, bounties, fulfillments, build guides, and achievements.`
+      };
+    }
     if (subTab === 'alumni' || subTab === 'alumni-directory') {
       return {
         title: `Alumni | ${leagueName} | Exile SSF`,
@@ -429,7 +437,7 @@ export default {
         try {
           await migrateKvToD1ForLeague(env, leagueId);
 
-          const [wishRes, rosterRes, guideRes, achRes, alumniRes, metaRes, svcRes, vouchRes, stashRes, rotaRes, firstsRes] = await Promise.all([
+          const [wishRes, rosterRes, guideRes, achRes, alumniRes, metaRes, svcRes, vouchRes, stashRes, rotaRes, firstsRes, feedRes] = await Promise.all([
             db.prepare('SELECT data FROM wishlists WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
             db.prepare('SELECT data FROM roster WHERE league_id = ?').bind(leagueId).all(),
             db.prepare('SELECT data FROM guides WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
@@ -440,7 +448,8 @@ export default {
             db.prepare('SELECT data FROM vouches WHERE league_id = ? ORDER BY created_at DESC').bind(leagueId).all(),
             db.prepare('SELECT data FROM stash_drops WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
             db.prepare('SELECT data FROM boss_rotas WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
-            db.prepare('SELECT data FROM league_firsts WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all()
+            db.prepare('SELECT data FROM league_firsts WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM activity_feed WHERE league_id = ? ORDER BY created_at DESC LIMIT 100').bind(leagueId).all()
           ]);
 
           const wishlist = (wishRes.results || []).map((r: any) => JSON.parse(r.data));
@@ -457,6 +466,7 @@ export default {
           const stashDrops = (stashRes.results || []).map((r: any) => JSON.parse(r.data));
           const bossRotas = (rotaRes.results || []).map((r: any) => JSON.parse(r.data));
           const leagueFirsts = (firstsRes.results || []).map((r: any) => JSON.parse(r.data));
+          const activityFeed = (feedRes.results || []).map((r: any) => JSON.parse(r.data));
 
           return new Response(
             JSON.stringify({
@@ -473,6 +483,7 @@ export default {
               stashDrops,
               bossRotas,
               leagueFirsts,
+              activityFeed,
               lastSynced: now
             }),
             { headers: CORS_HEADERS }
@@ -598,13 +609,25 @@ export default {
             ])
           );
 
+          const honorMap = new Map<string, any>();
+          for (const h of Array.isArray(prev.honorLog) ? prev.honorLog : []) {
+            if (h?.id) honorMap.set(String(h.id), h);
+          }
+          for (const h of Array.isArray(incoming.honorLog) ? incoming.honorLog : []) {
+            if (h?.id) honorMap.set(String(h.id), h);
+          }
+          const mergedHonorLog = Array.from(honorMap.values()).sort((a: any, b: any) =>
+            String(b.timestampIso || '').localeCompare(String(a.timestampIso || ''))
+          );
+
           const merged = {
             unlockedIds: { ...(prev.unlockedIds || {}), ...(incoming.unlockedIds || {}) },
             equippedTitle: incoming.equippedTitle !== undefined ? incoming.equippedTitle : prev.equippedTitle,
             lifetimeFulfilledCount: Math.max(Number(prev.lifetimeFulfilledCount) || 0, Number(incoming.lifetimeFulfilledCount) || 0),
             lifetimeBountiesClaimed: Math.max(Number(prev.lifetimeBountiesClaimed) || 0, Number(incoming.lifetimeBountiesClaimed) || 0),
             lifetimeBountiesPaid: Math.max(Number(prev.lifetimeBountiesPaid) || 0, Number(incoming.lifetimeBountiesPaid) || 0),
-            leaguesParticipated: mergedLeagues
+            leaguesParticipated: mergedLeagues,
+            honorLog: mergedHonorLog
           };
 
           await db
@@ -1170,6 +1193,26 @@ export default {
         try {
           const rotaId = decodeURIComponent(url.pathname.replace('/api/boss-rotas/', '').trim());
           await db.prepare('DELETE FROM boss_rotas WHERE id = ? AND league_id = ?').bind(rotaId, leagueId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/feed
+      if (url.pathname === '/api/feed' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const event = body.event;
+          if (!event || !event.id) {
+            return new Response(JSON.stringify({ error: 'Missing feed event payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          const createdAt = event.createdAtIso || now;
+          await db
+            .prepare('INSERT OR REPLACE INTO activity_feed (id, league_id, data, created_at) VALUES (?, ?, ?, ?)')
+            .bind(String(event.id), targetLeague, JSON.stringify({ ...event, createdAtIso: createdAt }), createdAt)
+            .run();
           return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });

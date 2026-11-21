@@ -17,7 +17,7 @@ import {
   RefreshCw,
   X
 } from 'lucide-react';
-import type { LeagueRosterMember, LeagueCharacter, UserAccount, LookingForItem } from '../../../types';
+import type { LeagueRosterMember, LeagueCharacter, UserAccount, LookingForItem, LeagueFeedEvent } from '../../../types';
 
 export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter[] {
   if (member.characters && member.characters.length > 0) {
@@ -56,6 +56,7 @@ export interface RosterTabProps {
   handleOpenJoinModal: () => void;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onOpenProfile?: (handle: string) => void;
+  onEmitFeedEvent?: (event: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => void;
 }
 
 export const RosterTab: React.FC<RosterTabProps> = ({
@@ -73,7 +74,8 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   handleOpenInviteModal,
   handleOpenJoinModal,
   onUpdateUserAccount,
-  onOpenProfile
+  onOpenProfile,
+  onEmitFeedEvent
 }) => {
   const [rosterSearch, setRosterSearch] = useState<string>('');
   const [rosterAscendancyFilter, setRosterAscendancyFilter] = useState<string>('All');
@@ -234,6 +236,14 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     };
 
     persistUpdatedMember(updatedMember);
+    onEmitFeedEvent?.({
+      type: 'character_posted',
+      actorHandle: selectedPlayerModal.displayName,
+      actorCharacter: newChar.characterName,
+      title: `Posted New Character: ${newChar.characterName} (${newChar.ascendancy})`,
+      detail: `Build: ${newChar.buildName} • Level ${newChar.level}`,
+      targetTab: 'roster'
+    });
     setNewCharName('');
     setNewCharBuild('');
     setNewCharLevel(1);

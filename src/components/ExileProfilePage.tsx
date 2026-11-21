@@ -731,8 +731,16 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/15 space-y-1 text-xs"
                 >
                   <div className="flex items-center justify-between gap-1">
-                    <span className="font-bold text-white flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="font-bold text-white flex items-center gap-2">
+                      {ach.iconUrl ? (
+                        <img
+                          src={ach.iconUrl}
+                          alt={ach.title}
+                          className="w-8 h-8 rounded-lg object-cover border border-purple-400/70 shadow-sm flex-shrink-0"
+                        />
+                      ) : (
+                        <Award className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                      )}
                       <span>{ach.title}</span>
                     </span>
                     <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase font-bold ${tierStyles[ach.tier]}`}>

@@ -32,7 +32,8 @@ import type {
   SquadServiceType,
   PlayerVouch,
   VouchCategory,
-  BossRotaListing
+  BossRotaListing,
+  LeagueFeedEvent
 } from '../../../types';
 import { saveCloudWishlistItem, saveCloudAchievementProfile, saveCloudService, deleteCloudService, saveCloudVouch } from '../../../services/cloudSync';
 import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
@@ -65,6 +66,7 @@ export interface BountiesAndHonorsTabProps {
   fireConfetti: () => void;
   onJumpToWishlist: (itemName: string) => void;
   onOpenProfile?: (handle: string) => void;
+  onEmitFeedEvent?: (event: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => void;
   bossRotas?: BossRotaListing[];
   onSaveBossRota?: (rota: BossRotaListing) => void;
   onDeleteBossRota?: (rotaId: string) => void;
@@ -100,6 +102,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   fireConfetti,
   onJumpToWishlist,
   onOpenProfile,
+  onEmitFeedEvent,
   bossRotas = [],
   onSaveBossRota,
   onDeleteBossRota
@@ -470,6 +473,14 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
     const nextList = [newItem, ...lookingForItems];
     setLookingForItems(nextList);
     saveCloudWishlistItem(activeSessionId, newItem);
+    onEmitFeedEvent?.({
+      type: 'bounty_listed',
+      actorHandle: newItem.displayName || newItem.characterName,
+      actorCharacter: newItem.characterName,
+      title: `Posted Bounty: "${newItem.itemName}" (${newItem.bountyOffer})`,
+      detail: `${newItem.category} • ${newItem.notes || 'Open for any squadmate'}`,
+      targetTab: 'bounties'
+    });
 
     setBountyItemName('');
     setBountyOfferText('');
@@ -1364,15 +1375,27 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center border flex-shrink-0 ${
-                            unlocked
-                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                              : 'bg-slate-800/80 border-slate-700 text-slate-500'
-                          }`}
-                        >
-                          {unlocked ? <Trophy className="w-4 h-4" /> : <Lock className="w-3.5 h-3.5" />}
-                        </div>
+                        {definition.iconUrl ? (
+                          <img
+                            src={definition.iconUrl}
+                            alt={definition.title}
+                            className={`w-10 h-10 rounded-xl object-cover border flex-shrink-0 shadow-md ${
+                              unlocked
+                                ? 'border-purple-400/70 ring-1 ring-amber-400/40'
+                                : 'border-slate-700 grayscale opacity-55'
+                            }`}
+                          />
+                        ) : (
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center border flex-shrink-0 ${
+                              unlocked
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                : 'bg-slate-800/80 border-slate-700 text-slate-500'
+                            }`}
+                          >
+                            {unlocked ? <Trophy className="w-4 h-4" /> : <Lock className="w-3.5 h-3.5" />}
+                          </div>
+                        )}
                         <div>
                           <div className="text-xs font-bold text-white">{definition.title}</div>
                           <div className="text-[10px] font-mono text-slate-400">{definition.category}</div>

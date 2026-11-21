@@ -25,6 +25,7 @@ import {
   Trophy,
   Search,
   Coins,
+  Activity,
   X
 } from 'lucide-react';
 import {
@@ -54,7 +55,8 @@ import type {
   PlayerVouch,
   FreeStashDrop,
   BossRotaListing,
-  LeagueFirstMilestone
+  LeagueFirstMilestone,
+  LeagueFeedEvent
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import type { ManagerSectionType } from './LeagueContentManagerModal';
@@ -68,6 +70,7 @@ const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m
 const BenchGuideTab = lazy(() => import('./league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const AlumniTab = lazy(() => import('./league/tabs/AlumniTab').then((m) => ({ default: m.AlumniTab })));
 const BountiesAndHonorsTab = lazy(() => import('./league/tabs/BountiesAndHonorsTab').then((m) => ({ default: m.BountiesAndHonorsTab })));
+const FeedTab = lazy(() => import('./league/tabs/FeedTab').then((m) => ({ default: m.FeedTab })));
 import {
   fetchCloudLeagueData,
   saveCloudWishlistItem,
@@ -80,8 +83,11 @@ import {
   deleteCloudStashDrop,
   saveCloudBossRota,
   deleteCloudBossRota,
-  saveCloudLeagueFirst
+  saveCloudLeagueFirst,
+  saveCloudFeedEvent,
+  saveCloudAchievementProfile
 } from '../services/cloudSync';
+import { getLeagueJoinAchievementDef, formatLeagueLabel } from '../utils/achievements';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 
 interface PrivateLeagueHubViewProps {
@@ -106,10 +112,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenProfile
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
+    feed: 'feed',
     looking_for: 'wishlists',
     bounties: 'bounties',
     roster: 'roster',
@@ -123,6 +130,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (!slug) return 'overview';
     const clean = slug.toLowerCase().trim();
     if (clean === 'command-center' || clean === 'commandcenter' || clean === 'overview') return 'overview';
+    if (clean === 'feed' || clean === 'activity' || clean === 'wall') return 'feed';
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
     if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
@@ -185,6 +193,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   useEffect(() => {
     const titles: Record<HubTab, string> = {
       overview: 'Command Center',
+      feed: 'Feed',
       looking_for: 'Wishlists',
       bounties: 'Bounties',
       roster: 'Roster',
@@ -356,6 +365,33 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [stashDrops, setStashDrops] = useState<FreeStashDrop[]>([]);
   const [bossRotas, setBossRotas] = useState<BossRotaListing[]>([]);
   const [leagueFirsts, setLeagueFirsts] = useState<LeagueFirstMilestone[]>([]);
+  const [activityFeed, setActivityFeed] = useState<LeagueFeedEvent[]>([]);
+
+  const emitFeedEvent = (partial: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => {
+    const ev: LeagueFeedEvent = {
+      ...partial,
+      id: `feed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      leagueId: activeSessionId,
+      createdAtIso: new Date().toISOString()
+    };
+    setActivityFeed((prev) => [ev, ...prev].slice(0, 100));
+    saveCloudFeedEvent(activeSessionId, ev);
+  };
+
+  const handleCheerFeedEvent = (ev: LeagueFeedEvent) => {
+    const me = userAccount?.displayName || 'Exile';
+    const currentCheers = Array.isArray(ev.cheers) ? ev.cheers : [];
+    const has = currentCheers.some((c) => c.toLowerCase() === me.toLowerCase());
+    const nextCheers = has
+      ? currentCheers.filter((c) => c.toLowerCase() !== me.toLowerCase())
+      : [...currentCheers, me];
+    const updated: LeagueFeedEvent = { ...ev, cheers: nextCheers };
+    setActivityFeed((prev) => {
+      const exists = prev.some((x) => x.id === ev.id);
+      return exists ? prev.map((x) => (x.id === ev.id ? updated : x)) : [updated, ...prev];
+    });
+    saveCloudFeedEvent(activeSessionId, updated);
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -394,6 +430,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         }
         if (Array.isArray(data.leagueFirsts)) {
           setLeagueFirsts(data.leagueFirsts);
+        }
+        if (Array.isArray(data.activityFeed)) {
+          setActivityFeed(data.activityFeed);
         }
         if (Array.isArray(data.alumni) && data.alumni.length > 0) {
           setAlumniList(data.alumni);
@@ -1011,6 +1050,48 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       }
     }
 
+    emitFeedEvent({
+      type: 'roster_join',
+      actorHandle: dispName,
+      actorCharacter: cleanChar,
+      title: `Joined ${activeLeagueInfo.name} as ${joinAscendancy} (${newMember.buildName})`,
+      detail: `Character: ${cleanChar} • PoE Account: ${cleanAccount}`,
+      targetTab: 'roster'
+    });
+
+    // Award non retroactive League Join Achievement (e.g. 3.30 Witch Emblem)
+    const leagueAch = getLeagueJoinAchievementDef(activeSessionId);
+    if (leagueAch) {
+      const achNow = new Date().toISOString();
+      const playerKey = (cleanAccount || dispName).trim().toLowerCase();
+      saveCloudAchievementProfile(playerKey, {
+        unlockedIds: { [leagueAch.id]: achNow },
+        lifetimeFulfilledCount: 0,
+        lifetimeBountiesClaimed: 0,
+        lifetimeBountiesPaid: 0,
+        leaguesParticipated: [activeSessionId],
+        honorLog: [
+          {
+            id: `honor-ach-${leagueAch.id}`,
+            points: leagueAch.points,
+            reason: `Unlocked Achievement: ${leagueAch.title}`,
+            where: `${formatLeagueLabel(activeSessionId)} • League Join`,
+            timestampIso: achNow,
+            kind: 'achievement'
+          }
+        ]
+      });
+      emitFeedEvent({
+        type: 'achievement_earned',
+        actorHandle: dispName,
+        actorCharacter: cleanChar,
+        title: `Unlocked Achievement: ${leagueAch.title}`,
+        detail: `+${leagueAch.points} Honor Points • ${leagueAch.description}`,
+        iconUrl: leagueAch.iconUrl,
+        targetTab: 'bounties'
+      });
+    }
+
     fireConfetti();
     setHasJoinedSuccess(true);
     triggerCopy('', `Successfully joined ${activeLeagueInfo.name}!`);
@@ -1097,6 +1178,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           setActiveReadingGuide(updated);
           setGuides((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
           saveCloudGuide(activeSessionId, updated);
+          emitFeedEvent({
+            type: 'build_published',
+            actorHandle: updated.authorName || userAccount?.displayName || 'Exile',
+            title: `Updated Build Guide: ${updated.title}`,
+            detail: `${updated.ascendancy} • ${updated.className}`,
+            targetTab: 'guides'
+          });
         }}
         onAddUniquesToLookingFor={(uniques) => {
           const newItems: LookingForItem[] = uniques.map((u) => ({
@@ -1325,6 +1413,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         <div className="px-3 sm:px-6 flex flex-wrap items-center gap-1.5 sm:gap-2 py-2 border-t border-slate-800/40 bg-slate-950/40">
           {[
             { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
+            { id: 'feed' as HubTab, label: 'Feed', icon: Activity, badge: activityFeed.length > 0 ? `${activityFeed.length}` : null, slug: 'feed' },
             { id: 'looking_for' as HubTab, label: 'Wishlists', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
             {
               id: 'bounties' as HubTab,
@@ -1402,6 +1491,25 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           />
         )}
 
+        {/* TAB: LIVE LEAGUE ACTIVITY FEED */}
+        {activeTab === 'feed' && (
+          <FeedTab
+            activeSessionId={activeSessionId}
+            leagueName={activeLeagueInfo.name}
+            activityFeed={activityFeed}
+            lookingForItems={lookingForItems}
+            roster={roster}
+            guides={guides}
+            stashDrops={stashDrops}
+            bossRotas={bossRotas}
+            leagueFirsts={leagueFirsts}
+            userAccount={userAccount}
+            onCheerEvent={handleCheerFeedEvent}
+            onOpenProfile={onOpenProfile}
+            onNavigateTab={handleSelectTab}
+          />
+        )}
+
         {/* ============================================================================ */}
         {/* TAB 3: ROSTER DIRECTORY */}
         {/* ============================================================================ */}
@@ -1422,6 +1530,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             handleOpenJoinModal={handleOpenJoinModal}
             onUpdateUserAccount={onUpdateUserAccount}
             onOpenProfile={onOpenProfile}
+            onEmitFeedEvent={emitFeedEvent}
           />
         )}
 
@@ -1442,6 +1551,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             initialSearchQuery={wishlistJumpQuery}
             onClearInitialSearch={() => setWishlistJumpQuery(null)}
             onOpenProfile={onOpenProfile}
+            onEmitFeedEvent={emitFeedEvent}
             stashDrops={stashDrops}
             onAddStashDrop={(drop) => {
               setStashDrops((prev) => [drop, ...prev]);
@@ -1485,6 +1595,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             setCopyNotice={setCopyNotice}
             fireConfetti={fireConfetti}
             onOpenProfile={onOpenProfile}
+            onEmitFeedEvent={emitFeedEvent}
             onJumpToWishlist={(itemName) => {
               setWishlistJumpQuery(itemName);
               handleSelectTab('looking_for');

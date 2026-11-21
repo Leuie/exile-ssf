@@ -117,3 +117,11 @@ CREATE TABLE IF NOT EXISTS league_firsts (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_league_firsts_league ON league_firsts(league_id);
+
+CREATE TABLE IF NOT EXISTS activity_feed (
+  id TEXT PRIMARY KEY,
+  league_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_feed_league ON activity_feed(league_id, created_at DESC);

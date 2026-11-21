@@ -14,7 +14,8 @@ import type {
   ExileProfile,
   FreeStashDrop,
   BossRotaListing,
-  LeagueFirstMilestone
+  LeagueFirstMilestone,
+  LeagueFeedEvent
 } from '../types';
 
 export interface CloudLeagueMeta {
@@ -38,6 +39,7 @@ export interface CloudLeagueDataResponse {
   stashDrops?: FreeStashDrop[] | null;
   bossRotas?: BossRotaListing[] | null;
   leagueFirsts?: LeagueFirstMilestone[] | null;
+  activityFeed?: LeagueFeedEvent[] | null;
   lastSynced?: string;
   message?: string;
 }
@@ -555,6 +557,22 @@ export async function saveCloudLeagueFirst(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, milestone })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudFeedEvent(
+  leagueId: string,
+  event: LeagueFeedEvent
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/feed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, event })
     });
     return res.ok;
   } catch {

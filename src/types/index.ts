@@ -314,6 +314,9 @@ export interface AchievementDefinition {
   points: number;
   rewardTitle?: string;
   target: number;
+  iconUrl?: string;
+  leagueId?: string;
+  nonRetroactive?: boolean;
 }
 
 export interface HonorHistoryEntry {
@@ -571,4 +574,31 @@ export interface LeagueFirstMilestone {
   winnerCharacterName?: string;
   proofNote?: string;
   achievedAtIso: string;
+}
+
+export type LeagueFeedEventType =
+  | 'roster_join'
+  | 'character_posted'
+  | 'wishlist_added'
+  | 'bounty_listed'
+  | 'item_fulfilled'
+  | 'build_published'
+  | 'achievement_earned'
+  | 'stash_drop'
+  | 'boss_rota'
+  | 'league_first';
+
+export interface LeagueFeedEvent {
+  id: string;
+  leagueId: string;
+  type: LeagueFeedEventType;
+  actorHandle: string;
+  actorCharacter?: string;
+  title: string;
+  detail?: string;
+  targetHandle?: string;
+  targetTab?: string;
+  iconUrl?: string;
+  cheers?: string[];
+  createdAtIso: string;
 }
