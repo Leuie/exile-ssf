@@ -275,11 +275,6 @@ export function buildRetroactiveHonorHistory(params: {
   // 4. Retroactively credit +5 Honor Points for self found items
   for (const item of selfFoundByPlayer) {
     if (item.status !== 'HAVE') continue;
-    const isSelf =
-      !item.fulfilledBy ||
-      item.fulfilledBy.trim().toLowerCase() === 'self found' ||
-      (item.displayName && item.fulfilledBy.trim().replace(/^@/, '').toLowerCase() === item.displayName.trim().toLowerCase());
-    if (!isSelf) continue;
 
     const selfId = `honor-self-${item.id}`;
     if (!map.has(selfId)) {

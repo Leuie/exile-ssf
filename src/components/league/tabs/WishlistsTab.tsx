@@ -395,16 +395,14 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         : 'NEED';
 
     if (nextStatus === 'HAVE') {
-      fireConfetti();
+      const resolvedHelper = helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found');
+      handleMarkFulfilled(itemId, resolvedHelper);
+      return;
     }
 
     const itemCopy: LookingForItem = {
       ...existing,
-      status: nextStatus,
-      fulfilledBy: nextStatus === 'HAVE'
-        ? (helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found'))
-        : existing.fulfilledBy,
-      fulfilledAtIso: nextStatus === 'HAVE' ? new Date().toISOString() : existing.fulfilledAtIso
+      status: nextStatus
     };
 
     setLookingForItems((prev) => {
@@ -441,7 +439,14 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
 
     saveCloudWishlistItem(activeSessionId, itemCopy);
     const cleanHelper = helperTag.trim().replace(/^@/, '');
-    if (cleanHelper && cleanHelper.toLowerCase() !== 'self found') {
+    const requesterClean = (existing.displayName || existing.characterName || '').trim().replace(/^@/, '').toLowerCase();
+    const isSelfFound =
+      !cleanHelper ||
+      cleanHelper.toLowerCase() === 'self found' ||
+      (requesterClean && cleanHelper.toLowerCase() === requesterClean) ||
+      (existing.characterName && cleanHelper.toLowerCase() === existing.characterName.trim().toLowerCase());
+
+    if (!isSelfFound) {
       const requesterTag = existing.displayName || existing.characterName || 'Squadmate';
       const finderKey = (userAccount?.poeAccountName || cleanHelper).trim().toLowerCase();
       saveCloudAchievementProfile(finderKey, {

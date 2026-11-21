@@ -163,11 +163,18 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const openWishes = (data?.wishes || []).filter((w) => w.status !== 'HAVE');
   const openBounties = openWishes.filter((w) => w.bountyOffer && w.bountyOffer.trim());
   const fulfilledByMe = data?.fulfilledByMe || [];
-  const selfFoundByMe = (data?.wishes || []).filter(
-    (w) =>
-      w.status === 'HAVE' &&
-      (!w.fulfilledBy || w.fulfilledBy.trim().toLowerCase() === 'self found')
-  );
+  const myCharNamesLower = new Set(allCharacters.map((c) => c.characterName.trim().toLowerCase()));
+  const selfFoundByMe = (data?.wishes || []).filter((w) => {
+    if (w.status !== 'HAVE') return false;
+    const fb = (w.fulfilledBy || '').trim().replace(/^@/, '').toLowerCase();
+    return (
+      !fb ||
+      fb === 'self found' ||
+      fb === cleanHandle.toLowerCase() ||
+      fb === profile.handle.toLowerCase() ||
+      myCharNamesLower.has(fb)
+    );
+  });
   const isEarly330Pioneer =
     rosterEntries.some((entry) => entry.leagueId === 'poe1-330-umbra') ||
     Boolean(data?.alumniRecord);

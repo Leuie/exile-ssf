@@ -161,7 +161,9 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
       {/* League Firsts & Hall of Fame Wall */}
       {onClaimLeagueFirst && (
         <LeagueFirstsWall
+          leagueId={activeSessionId}
           firsts={leagueFirsts}
+          roster={roster}
           currentUser={userAccount || null}
           isAdmin={isCurrentUserAdmin}
           onClaimFirst={onClaimLeagueFirst}
