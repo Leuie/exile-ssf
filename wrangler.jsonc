@@ -11,6 +11,13 @@
     "not_found_handling": "single-page-application",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "EXILE_DB",
+      "database_name": "exile-ssf-db",
+      "database_id": "2b0b12b6-c4d7-4378-bae6-352d56f026a8"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "EXILE_KV",

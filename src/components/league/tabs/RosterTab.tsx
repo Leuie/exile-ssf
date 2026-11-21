@@ -14,6 +14,7 @@ import {
   Globe,
   Plus,
   Star,
+  RefreshCw,
   X
 } from 'lucide-react';
 import type { LeagueRosterMember, LeagueCharacter, UserAccount, LookingForItem } from '../../../types';
@@ -36,7 +37,7 @@ export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter
     }
   ];
 }
-import { saveCloudRosterMember, deleteCloudRosterMember } from '../../../services/cloudSync';
+import { saveCloudRosterMember, deleteCloudRosterMember, fetchOfficialPoeLadder } from '../../../services/cloudSync';
 
 export interface RosterTabProps {
   activeSessionId: string;
@@ -94,6 +95,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
 
   // Multi Character Add Form State
   const [showAddCharForm, setShowAddCharForm] = useState<boolean>(false);
+  const [isSyncingLadder, setIsSyncingLadder] = useState<boolean>(false);
   const [newCharName, setNewCharName] = useState<string>('');
   const [newCharAsc, setNewCharAsc] = useState<string>(currentAscendancyCatalog[0]?.name || 'Slayer');
   const [newCharBuild, setNewCharBuild] = useState<string>('');
@@ -293,6 +295,91 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
+  const handleSyncOfficialLadder = async () => {
+    setIsSyncingLadder(true);
+    try {
+      const res = await fetchOfficialPoeLadder(activeSessionId, undefined, true);
+      if (!res || res.status !== 'ok' || !res.entries || res.entries.length === 0) {
+        setCopyNotice(
+          res?.message ||
+            'Could not reach official PoE ladder (ensure profiles are public on pathofexile.com).'
+        );
+        setTimeout(() => setCopyNotice(null), 4500);
+        return;
+      }
+
+      const entriesByAccount = new Map<string, typeof res.entries>();
+      for (const entry of res.entries) {
+        const accClean = entry.accountName.toLowerCase().trim();
+        const accBase = accClean.split('#')[0];
+        if (!entriesByAccount.has(accClean)) entriesByAccount.set(accClean, []);
+        entriesByAccount.get(accClean)!.push(entry);
+        if (accBase !== accClean) {
+          if (!entriesByAccount.has(accBase)) entriesByAccount.set(accBase, []);
+          entriesByAccount.get(accBase)!.push(entry);
+        }
+      }
+
+      let updatedPlayers = 0;
+      let discoveredAlts = 0;
+
+      const nextRoster = roster.map((member) => {
+        const mAcc = (member.poeAccountName || '').toLowerCase().trim();
+        const mAccBase = mAcc.split('#')[0];
+        const ladderChars = entriesByAccount.get(mAcc) || entriesByAccount.get(mAccBase);
+        if (!ladderChars || ladderChars.length === 0) return member;
+
+        const existingChars = getMemberCharacters(member);
+        const charMap = new Map(existingChars.map((c) => [c.characterName.toLowerCase(), { ...c }]));
+
+        for (const lc of ladderChars) {
+          const key = lc.characterName.toLowerCase();
+          if (charMap.has(key)) {
+            const prev = charMap.get(key)!;
+            prev.level = Math.max(prev.level || 1, lc.level);
+            if (lc.ascendancy && lc.ascendancy !== 'Exile') prev.ascendancy = lc.ascendancy;
+          } else {
+            discoveredAlts += 1;
+            charMap.set(key, {
+              id: `char-ladder-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              characterName: lc.characterName,
+              ascendancy: lc.ascendancy,
+              className: lc.ascendancy,
+              buildName: `${lc.ascendancy} (Ladder Synced)`,
+              level: lc.level,
+              isMain: false
+            });
+          }
+        }
+
+        const mergedChars = Array.from(charMap.values()).sort((a, b) => (b.level || 1) - (a.level || 1));
+        const mainChar = mergedChars.find((c) => c.isMain) || mergedChars[0];
+        updatedPlayers += 1;
+
+        const updatedMember: LeagueRosterMember = {
+          ...member,
+          level: mainChar.level,
+          ascendancy: mainChar.ascendancy,
+          characterName: mainChar.characterName,
+          characters: mergedChars
+        };
+        saveCloudRosterMember(activeSessionId, updatedMember);
+        return updatedMember;
+      });
+
+      setRoster(nextRoster);
+      fireConfetti();
+      setCopyNotice(
+        updatedPlayers > 0
+          ? `Synced PoE Ladder: updated ${updatedPlayers} accounts (${discoveredAlts} new alt characters discovered)!`
+          : `Ladder fetched (${res.entries.length} entries), but no matching PoE account names found on roster.`
+      );
+      setTimeout(() => setCopyNotice(null), 4500);
+    } finally {
+      setIsSyncingLadder(false);
+    }
+  };
+
   const handleSaveModalCharacterDetails = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlayerModal) return;
@@ -457,6 +544,17 @@ export const RosterTab: React.FC<RosterTabProps> = ({
           >
             <Copy className="w-3 h-3" />
             <span>Copy All Tags</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={isSyncingLadder}
+            onClick={handleSyncOfficialLadder}
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            title="Sync live character levels, ascendancies, and alt characters directly from the official Path of Exile ladder API"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingLadder ? 'animate-spin' : ''}`} />
+            <span>{isSyncingLadder ? 'Syncing...' : 'Sync PoE Ladder'}</span>
           </button>
 
           <button

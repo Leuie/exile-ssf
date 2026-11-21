@@ -16,11 +16,13 @@ import {
   Coins,
   ArrowUpRight,
   Users,
+  Filter,
   X
 } from 'lucide-react';
 import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory } from '../../../types';
 import { saveCloudWishlistItem, deleteCloudWishlistItem } from '../../../services/cloudSync';
 import { getMemberCharacters } from './RosterTab';
+import { LootFilterExportModal } from '../modals/LootFilterExportModal';
 
 export const WISHLIST_CATEGORY_GROUPS: {
   group: string;
@@ -119,6 +121,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [onlyMyNeeds, setOnlyMyNeeds] = useState<boolean>(false);
   const [selectedCharFilter, setSelectedCharFilter] = useState<string>('All');
   const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
+  const [showLootFilterModal, setShowLootFilterModal] = useState<boolean>(false);
 
   const myRosterEntry = React.useMemo(() => {
     if (!userAccount) return undefined;
@@ -785,6 +788,17 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           >
             <Copy className="w-3.5 h-3.5 text-slate-400" />
             <span>Copy Squad Wishlist</span>
+          </button>
+
+          {/* Squad Loot Filter Generator Button */}
+          <button
+            type="button"
+            onClick={() => setShowLootFilterModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Generate a Path of Exile loot filter block with step by step setup instructions"
+          >
+            <Filter className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Squad Loot Filter</span>
           </button>
 
           {/* Add Wanted Item Button */}
@@ -1875,6 +1889,12 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           </form>
         )}
       </dialog>
+      <LootFilterExportModal
+        isOpen={showLootFilterModal}
+        onClose={() => setShowLootFilterModal(false)}
+        lookingForItems={lookingForItems}
+        triggerCopy={triggerCopy}
+      />
     </div>
   );
 };

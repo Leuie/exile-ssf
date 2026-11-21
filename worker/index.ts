@@ -1,7 +1,8 @@
 // Cloudflare Worker for Exile SSF
-// Provides global edge storage via Cloudflare KV for Wishlists, Roster, Vault, and Guides
+// Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
 
 export interface Env {
+  EXILE_DB?: any;
   EXILE_KV?: any;
   ASSETS?: any;
 }
@@ -13,6 +14,172 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
 };
+
+let schemaInitialized = false;
+
+async function ensureD1Schema(db: any): Promise<void> {
+  if (schemaInitialized || !db) return;
+
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS wishlists (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_wishlists_league ON wishlists(league_id)`,
+    `CREATE TABLE IF NOT EXISTS roster (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, display_name_lower TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_roster_league ON roster(league_id)`,
+    `CREATE TABLE IF NOT EXISTS guides (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_guides_league ON guides(league_id)`,
+    `CREATE TABLE IF NOT EXISTS achievements (player_key TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS alumni (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS league_meta (league_id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS custom_leagues (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS accounts (username_lower TEXT PRIMARY KEY, email_lower TEXT, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS services (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, provider_key TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_services_league ON services(league_id)`,
+    `CREATE TABLE IF NOT EXISTS vouches (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, provider_key TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_vouches_league ON vouches(league_id)`,
+    `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
+  ];
+
+  await db.batch(statements.map((sql) => db.prepare(sql)));
+  schemaInitialized = true;
+}
+
+async function migrateKvToD1ForLeague(env: Env, leagueId: string): Promise<void> {
+  if (!env.EXILE_DB || !env.EXILE_KV) return;
+  const db = env.EXILE_DB;
+  const kv = env.EXILE_KV;
+  const now = new Date().toISOString();
+
+  // 1. Per league migration check
+  const leagueMigKey = `kv_to_d1:league:${leagueId}`;
+  const leagueMigrated = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(leagueMigKey).first();
+  if (!leagueMigrated) {
+    const [wishlistRaw, rosterRaw, guidesRaw, metaRaw] = await Promise.all([
+      kv.get(`league:${leagueId}:wishlist`),
+      kv.get(`league:${leagueId}:roster`),
+      kv.get(`league:${leagueId}:guides`),
+      kv.get(`league:${leagueId}:meta`)
+    ]);
+
+    const batch: any[] = [];
+    if (wishlistRaw) {
+      const items: any[] = JSON.parse(wishlistRaw);
+      for (const item of items) {
+        if (item?.id) {
+          batch.push(
+            db.prepare('INSERT OR IGNORE INTO wishlists (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+              .bind(String(item.id), leagueId, JSON.stringify(item), now)
+          );
+        }
+      }
+    }
+    if (rosterRaw) {
+      const members: any[] = JSON.parse(rosterRaw);
+      for (const m of members) {
+        const id = String(m.id || `member-${(m.displayName || '').toLowerCase()}`);
+        const disp = String(m.displayName || m.characterName || id).toLowerCase();
+        batch.push(
+          db.prepare('INSERT OR IGNORE INTO roster (id, league_id, display_name_lower, data, updated_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(id, leagueId, disp, JSON.stringify({ ...m, id }), now)
+        );
+      }
+    }
+    if (guidesRaw) {
+      const guides: any[] = JSON.parse(guidesRaw);
+      for (const g of guides) {
+        const id = String(g.id || g.slug || `guide-${Date.now()}`);
+        batch.push(
+          db.prepare('INSERT OR IGNORE INTO guides (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(id, leagueId, JSON.stringify(g), now)
+        );
+      }
+    }
+    if (metaRaw) {
+      batch.push(
+        db.prepare('INSERT OR IGNORE INTO league_meta (league_id, data, updated_at) VALUES (?, ?, ?)')
+          .bind(leagueId, metaRaw, now)
+      );
+    }
+
+    batch.push(
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(leagueMigKey, now)
+    );
+    if (batch.length > 0) await db.batch(batch);
+  }
+
+  // 2. Global tables migration check
+  const globalMigKey = 'kv_to_d1:global:v1';
+  const globalMigrated = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(globalMigKey).first();
+  if (!globalMigrated) {
+    const [achRaw, alumniRaw, fbRaw, leaguesRaw, accountsRaw] = await Promise.all([
+      kv.get('global:achievements'),
+      kv.get('global:alumni'),
+      kv.get('global:feedback'),
+      kv.get('global:leagues'),
+      kv.get('global:accounts')
+    ]);
+
+    const batch: any[] = [];
+    if (achRaw) {
+      const store: Record<string, any> = JSON.parse(achRaw);
+      for (const [playerKey, prof] of Object.entries(store)) {
+        batch.push(
+          db.prepare('INSERT OR IGNORE INTO achievements (player_key, data, updated_at) VALUES (?, ?, ?)')
+            .bind(playerKey.toLowerCase(), JSON.stringify(prof), now)
+        );
+      }
+    }
+    if (alumniRaw) {
+      const list: any[] = JSON.parse(alumniRaw);
+      for (const a of list) {
+        if (a?.id) {
+          batch.push(
+            db.prepare('INSERT OR IGNORE INTO alumni (id, data, updated_at) VALUES (?, ?, ?)')
+              .bind(String(a.id), JSON.stringify(a), now)
+          );
+        }
+      }
+    }
+    if (fbRaw) {
+      const list: any[] = JSON.parse(fbRaw);
+      for (const f of list) {
+        if (f?.id) {
+          batch.push(
+            db.prepare('INSERT OR IGNORE INTO feedback (id, data, updated_at) VALUES (?, ?, ?)')
+              .bind(String(f.id), JSON.stringify(f), now)
+          );
+        }
+      }
+    }
+    if (leaguesRaw) {
+      const list: any[] = JSON.parse(leaguesRaw);
+      for (const l of list) {
+        if (l?.id) {
+          batch.push(
+            db.prepare('INSERT OR IGNORE INTO custom_leagues (id, data, updated_at) VALUES (?, ?, ?)')
+              .bind(String(l.id), JSON.stringify(l), now)
+          );
+        }
+      }
+    }
+    if (accountsRaw) {
+      const list: any[] = JSON.parse(accountsRaw);
+      for (const acc of list) {
+        if (acc?.username) {
+          batch.push(
+            db.prepare('INSERT OR IGNORE INTO accounts (username_lower, email_lower, data, updated_at) VALUES (?, ?, ?, ?)')
+              .bind(acc.username.toLowerCase(), acc.email ? acc.email.toLowerCase() : null, JSON.stringify(acc), now)
+          );
+        }
+      }
+    }
+
+    batch.push(
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(globalMigKey, now)
+    );
+    if (batch.length > 0) await db.batch(batch);
+  }
+}
 
 interface PageMeta {
   title: string;
@@ -34,11 +201,17 @@ function resolveLeagueDisplayName(leagueId: string): string {
   return 'Exile SSF Private League';
 }
 
+function resolveOfficialLadderName(leagueId: string, customName?: string | null): string {
+  if (customName && customName.trim()) return customName.trim();
+  const clean = leagueId.toLowerCase().trim();
+  if (clean === 'poe1-330-umbra') return 'Ravenwatch Covens of Umbra GSF (PL87651)';
+  return leagueId;
+}
+
 function resolvePageMeta(url: URL): PageMeta {
   const path = url.pathname.toLowerCase().replace(/\/+$/, '') || '/';
   const queryTab = (url.searchParams.get('tab') || url.searchParams.get('page') || '').toLowerCase().trim();
 
-  // League routes: /league/:leagueId/:subTab?
   if (path.startsWith('/league/')) {
     const parts = path.replace('/league/', '').split('/').filter(Boolean);
     const leagueId = parts[0] || 'poe1-330-umbra';
@@ -53,14 +226,14 @@ function resolvePageMeta(url: URL): PageMeta {
     }
     if (subTab === 'bounties' || subTab === 'bounty' || subTab === 'honors' || subTab === 'achievements' || subTab === 'rewards') {
       return {
-        title: `Bounties & Honors | ${leagueName} | Exile SSF`,
-        description: `Post incentivized finder bounties for chase items, track Fulfillment Heroes, settle deliveries, and unlock achievements that carry over across future seasons.`
+        title: `Bounties, Carries & Honors | ${leagueName} | Exile SSF`,
+        description: `Post incentivized finder bounties, browse squad boss carries and vouches, track Fulfillment Heroes, and unlock achievements that carry over across future seasons.`
       };
     }
     if (subTab === 'roster' || subTab === 'roster-directory' || subTab === 'directory') {
       return {
         title: `Roster Directory | ${leagueName} | Exile SSF`,
-        description: `View active private league account slots, multi character builds, ascendancies, levels, and direct contact handles for every exile in ${leagueName}.`
+        description: `View active private league account slots, multi character builds, ascendancies, live ladder levels, and direct contact handles for every exile in ${leagueName}.`
       };
     }
     if (subTab === 'guides' || subTab === 'build-guides' || subTab === 'buildguides') {
@@ -128,69 +301,6 @@ function resolvePageMeta(url: URL): PageMeta {
     };
   }
 
-  if (path.includes('feedback')) {
-    return {
-      title: 'Feedback & Roadmap Hub | Exile SSF',
-      description: 'Submit feature requests, report issues, upvote community ideas, and track upcoming improvements to the Exile SSF portal.'
-    };
-  }
-
-  if (path.includes('analyzer') || path.includes('doctor')) {
-    return {
-      title: 'PoB Build Doctor & Analyzer | Exile SSF',
-      description: 'Import Path of Building share codes to diagnose elemental resistance caps, Chaos resistance, physical mitigation, life pools, and spell suppression.'
-    };
-  }
-
-  if (path.includes('ingest')) {
-    return {
-      title: 'Build Guide Ingestion Engine | Exile SSF',
-      description: 'Import Path of Exile guides from pobb.in, YouTube, Maxroll, or forum threads into your SSF library with automatic creator attribution.'
-    };
-  }
-
-  if (path.includes('builds') || path.includes('starters')) {
-    return {
-      title: 'SSF League Starters | Exile SSF',
-      description: 'Verified Solo Self Found and Group Self Found league starter builds for Path of Exile 1 (3.30.0d) and Path of Exile 2 (0.5).'
-    };
-  }
-
-  if (path.includes('atlas') || path.includes('maps')) {
-    return {
-      title: 'Atlas & Mapping Progression | Exile SSF',
-      description: 'Endgame Atlas progression strategy, 4 Voidstone roadmap, favorite map ratings, and SSF farming trees.'
-    };
-  }
-
-  if (path.includes('campaign') || path.includes('acts')) {
-    return {
-      title: 'Acts 1 to 10 Campaign Walkthrough | Exile SSF',
-      description: 'Fast act by act campaign checklist covering mandatory passive skill quests, bench unlocks, and leveling tips for Path of Exile.'
-    };
-  }
-
-  if (path.includes('labyrinth') || path.includes('lab')) {
-    return {
-      title: 'Lord\'s Labyrinth & Ascendancy Guide | Exile SSF',
-      description: 'Trial locations, Izaro mechanics, transfigured gem farming tips, and Ascendancy progression benchmarks.'
-    };
-  }
-
-  if (path.includes('recipes') || path.includes('vendor')) {
-    return {
-      title: 'Vendor Recipes & Deterministic Crafting | Exile SSF',
-      description: 'Essential Path of Exile vendor formulas including weapon damage upgrades, gem recipes, currency swaps, and the 3.30.0c 3 to 1 Threads of Creation recipe.'
-    };
-  }
-
-  if (path.includes('progress') || path.includes('checklist')) {
-    return {
-      title: 'SSF Progression Checklist | Exile SSF',
-      description: 'Interactive milestone checklist tracking your Solo Self Found journey from Twilight Strand through 4 Voidstones and Uber Pinnacle bosses.'
-    };
-  }
-
   return {
     title: 'Exile SSF | Path of Exile 1 & 2 Compendium and GSF Portal',
     description: 'All in one Solo Self Found compendium and Group Self Found private league hub for Path of Exile 1 (3.30.0d) and Path of Exile 2 (0.5).'
@@ -216,58 +326,83 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Handle preflight requests
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    // Handle API endpoints
     if (url.pathname.startsWith('/api/')) {
-      if (!env.EXILE_KV) {
+      const db = env.EXILE_DB;
+      if (!db) {
         return new Response(
           JSON.stringify({
             status: 'unconfigured',
-            message: 'Cloudflare KV namespace EXILE_KV is not yet bound in wrangler.jsonc or Cloudflare dashboard.'
+            message: 'Cloudflare D1 binding EXILE_DB is not configured.'
           }),
           { status: 200, headers: CORS_HEADERS }
         );
       }
 
-      const leagueId = url.searchParams.get('league') || 'poe1-330-umbra';
+      try {
+        await ensureD1Schema(db);
+      } catch (err: any) {
+        return new Response(JSON.stringify({ status: 'error', message: `D1 init error: ${err.message}` }), {
+          status: 500,
+          headers: CORS_HEADERS
+        });
+      }
 
-      // GET /api/data endpoint
-      // Fast single round trip endpoint to fetch all league records
+      const leagueId = url.searchParams.get('league') || 'poe1-330-umbra';
+      const now = new Date().toISOString();
+
+      // GET /api/data (Single atomic round trip from D1 with automatic KV migration)
       if (url.pathname === '/api/data' && request.method === 'GET') {
         try {
-          const [wishlistRaw, rosterRaw, vaultRaw, guidesRaw, achievementsRaw, alumniRaw, metaRaw] = await Promise.all([
-            env.EXILE_KV.get(`league:${leagueId}:wishlist`),
-            env.EXILE_KV.get(`league:${leagueId}:roster`),
-            env.EXILE_KV.get(`league:${leagueId}:vault`),
-            env.EXILE_KV.get(`league:${leagueId}:guides`),
-            env.EXILE_KV.get('global:achievements'),
-            env.EXILE_KV.get('global:alumni'),
-            env.EXILE_KV.get(`league:${leagueId}:meta`)
+          await migrateKvToD1ForLeague(env, leagueId);
+
+          const [wishRes, rosterRes, guideRes, achRes, alumniRes, metaRes, svcRes, vouchRes] = await Promise.all([
+            db.prepare('SELECT data FROM wishlists WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM roster WHERE league_id = ?').bind(leagueId).all(),
+            db.prepare('SELECT data FROM guides WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT player_key, data FROM achievements').all(),
+            db.prepare('SELECT data FROM alumni').all(),
+            db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind(leagueId).first(),
+            db.prepare('SELECT data FROM services WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM vouches WHERE league_id = ? ORDER BY created_at DESC').bind(leagueId).all()
           ]);
+
+          const wishlist = (wishRes.results || []).map((r: any) => JSON.parse(r.data));
+          const roster = (rosterRes.results || []).map((r: any) => JSON.parse(r.data));
+          const guides = (guideRes.results || []).map((r: any) => JSON.parse(r.data));
+          const achievements: Record<string, any> = {};
+          for (const row of achRes.results || []) {
+            achievements[row.player_key] = JSON.parse(row.data);
+          }
+          const alumni = (alumniRes.results || []).map((r: any) => JSON.parse(r.data));
+          const meta = metaRes?.data ? JSON.parse(metaRes.data) : null;
+          const services = (svcRes.results || []).map((r: any) => JSON.parse(r.data));
+          const vouches = (vouchRes.results || []).map((r: any) => JSON.parse(r.data));
 
           return new Response(
             JSON.stringify({
               status: 'connected',
-              wishlist: wishlistRaw ? JSON.parse(wishlistRaw) : null,
-              roster: rosterRaw ? JSON.parse(rosterRaw) : null,
-              vault: vaultRaw ? JSON.parse(vaultRaw) : null,
-              guides: guidesRaw ? JSON.parse(guidesRaw) : null,
-              achievements: achievementsRaw ? JSON.parse(achievementsRaw) : {},
-              alumni: alumniRaw ? JSON.parse(alumniRaw) : null,
-              meta: metaRaw ? JSON.parse(metaRaw) : null,
-              lastSynced: new Date().toISOString()
+              storage: 'd1',
+              wishlist,
+              roster: roster.length > 0 ? roster : null,
+              guides: guides.length > 0 ? guides : null,
+              achievements,
+              alumni: alumni.length > 0 ? alumni : null,
+              meta,
+              services,
+              vouches,
+              lastSynced: now
             }),
             { headers: CORS_HEADERS }
           );
         } catch (err: any) {
-          return new Response(
-            JSON.stringify({ status: 'error', message: err.message }),
-            { status: 500, headers: CORS_HEADERS }
-          );
+          return new Response(JSON.stringify({ status: 'error', message: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
         }
       }
 
@@ -278,51 +413,26 @@ export default {
           const targetLeague = body.leagueId || leagueId;
           const item = body.item;
           if (!item || !item.id) {
-            return new Response(JSON.stringify({ error: 'Missing item payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing item payload' }), { status: 400, headers: CORS_HEADERS });
           }
-
-          const key = `league:${targetLeague}:wishlist`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          const existingIdx = list.findIndex((i: any) => i.id === item.id);
-          if (existingIdx >= 0) {
-            list[existingIdx] = item;
-          } else {
-            list.unshift(item);
-          }
-
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO wishlists (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(String(item.id), targetLeague, JSON.stringify(item), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // DELETE /api/wishlist/:id
       if (url.pathname.startsWith('/api/wishlist/') && request.method === 'DELETE') {
         try {
-          const itemId = url.pathname.replace('/api/wishlist/', '').trim();
-          const key = `league:${leagueId}:wishlist`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          list = list.filter((i: any) => i.id !== itemId);
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, remaining: list.length }), {
-            headers: CORS_HEADERS
-          });
+          const itemId = decodeURIComponent(url.pathname.replace('/api/wishlist/', '').trim());
+          await db.prepare('DELETE FROM wishlists WHERE id = ? AND league_id = ?').bind(itemId, leagueId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -333,37 +443,24 @@ export default {
           const targetLeague = body.leagueId || leagueId;
           const member = body.member;
           if (!member || (!member.id && !member.displayName)) {
-            return new Response(JSON.stringify({ error: 'Missing member payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing member payload' }), { status: 400, headers: CORS_HEADERS });
           }
+          const dispLower = String(member.displayName || member.characterName || member.id).toLowerCase();
+          const existing = await db
+            .prepare('SELECT id, data FROM roster WHERE league_id = ? AND (id = ? OR display_name_lower = ?)')
+            .bind(targetLeague, String(member.id || ''), dispLower)
+            .first();
 
-          const key = `league:${targetLeague}:roster`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          const existingIdx = list.findIndex(
-            (m: any) =>
-              (member.id && m.id === member.id) ||
-              m.displayName?.toLowerCase() === member.displayName?.toLowerCase()
-          );
+          const finalId = existing?.id || String(member.id || `member-${Date.now()}`);
+          const merged = existing?.data ? { ...JSON.parse(existing.data), ...member, id: finalId } : { ...member, id: finalId };
 
-          if (existingIdx >= 0) {
-            list[existingIdx] = { ...list[existingIdx], ...member };
-          } else {
-            member.slotNumber = list.length + 1;
-            list.push(member);
-          }
-
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO roster (id, league_id, display_name_lower, data, updated_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(finalId, targetLeague, dispLower, JSON.stringify(merged), now)
+            .run();
+          return new Response(JSON.stringify({ success: true, member: merged }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -371,58 +468,13 @@ export default {
       if (url.pathname.startsWith('/api/roster/') && request.method === 'DELETE') {
         try {
           const memberId = decodeURIComponent(url.pathname.replace('/api/roster/', '').trim());
-          const key = `league:${leagueId}:roster`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          list = list.filter((m: any) =>
-            m.id !== memberId &&
-            m.displayName?.toLowerCase() !== memberId.toLowerCase() &&
-            m.characterName?.toLowerCase() !== memberId.toLowerCase()
-          );
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('DELETE FROM roster WHERE league_id = ? AND (id = ? OR display_name_lower = ?)')
+            .bind(leagueId, memberId, memberId.toLowerCase())
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
-        }
-      }
-
-      // POST /api/vault
-      if (url.pathname === '/api/vault' && request.method === 'POST') {
-        try {
-          const body = (await request.json()) as any;
-          const targetLeague = body.leagueId || leagueId;
-          const item = body.item;
-          if (!item || !item.id) {
-            return new Response(JSON.stringify({ error: 'Missing vault payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
-          }
-
-          const key = `league:${targetLeague}:vault`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          const existingIdx = list.findIndex((i: any) => i.id === item.id);
-          if (existingIdx >= 0) {
-            list[existingIdx] = item;
-          } else {
-            list.unshift(item);
-          }
-
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -433,61 +485,32 @@ export default {
           const targetLeague = body.leagueId || leagueId;
           const guide = body.guide;
           if (!guide || (!guide.id && !guide.slug)) {
-            return new Response(JSON.stringify({ error: 'Missing guide payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing guide payload' }), { status: 400, headers: CORS_HEADERS });
           }
-
-          const key = `league:${targetLeague}:guides`;
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          const existingIdx = list.findIndex(
-            (g: any) => (guide.id && g.id === guide.id) || (guide.slug && g.slug === guide.slug)
-          );
-
-          if (existingIdx >= 0) {
-            list[existingIdx] = guide;
-          } else {
-            list.unshift(guide);
-          }
-
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          const finalId = String(guide.id || guide.slug);
+          await db
+            .prepare('INSERT OR REPLACE INTO guides (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(finalId, targetLeague, JSON.stringify(guide), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
-      // POST /api/achievements
-      // Merges player achievement profile into global:achievements in Cloudflare KV
+      // POST /api/achievements (Atomic D1 merge)
       if (url.pathname === '/api/achievements' && request.method === 'POST') {
         try {
           const body = (await request.json()) as any;
           const playerKey = String(body.playerKey || '').trim().toLowerCase();
           const incoming = body.profile;
           if (!playerKey || !incoming) {
-            return new Response(JSON.stringify({ error: 'Missing playerKey or profile payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing playerKey or profile payload' }), { status: 400, headers: CORS_HEADERS });
           }
-
-          const key = 'global:achievements';
-          const raw = await env.EXILE_KV.get(key);
-          const store: Record<string, any> = raw ? JSON.parse(raw) : {};
-          const prev = store[playerKey] || {
-            unlockedIds: {},
-            lifetimeFulfilledCount: 0,
-            lifetimeBountiesClaimed: 0,
-            lifetimeBountiesPaid: 0,
-            leaguesParticipated: []
-          };
+          const row = await db.prepare('SELECT data FROM achievements WHERE player_key = ?').bind(playerKey).first();
+          const prev = row?.data
+            ? JSON.parse(row.data)
+            : { unlockedIds: {}, lifetimeFulfilledCount: 0, lifetimeBountiesClaimed: 0, lifetimeBountiesPaid: 0, leaguesParticipated: [] };
 
           const mergedLeagues = Array.from(
             new Set([
@@ -496,7 +519,7 @@ export default {
             ])
           );
 
-          store[playerKey] = {
+          const merged = {
             unlockedIds: { ...(prev.unlockedIds || {}), ...(incoming.unlockedIds || {}) },
             equippedTitle: incoming.equippedTitle !== undefined ? incoming.equippedTitle : prev.equippedTitle,
             lifetimeFulfilledCount: Math.max(Number(prev.lifetimeFulfilledCount) || 0, Number(incoming.lifetimeFulfilledCount) || 0),
@@ -505,58 +528,46 @@ export default {
             leaguesParticipated: mergedLeagues
           };
 
-          await env.EXILE_KV.put(key, JSON.stringify(store));
-          return new Response(JSON.stringify({ success: true, profile: store[playerKey] }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO achievements (player_key, data, updated_at) VALUES (?, ?, ?)')
+            .bind(playerKey, JSON.stringify(merged), now)
+            .run();
+          return new Response(JSON.stringify({ success: true, profile: merged }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // POST /api/alumni
-      // Persists global NOIR alumni directory in Cloudflare KV
       if (url.pathname === '/api/alumni' && request.method === 'POST') {
         try {
           const body = (await request.json()) as any;
           if (!Array.isArray(body.alumni)) {
-            return new Response(JSON.stringify({ error: 'Missing alumni array payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing alumni array payload' }), { status: 400, headers: CORS_HEADERS });
           }
-
-          await env.EXILE_KV.put('global:alumni', JSON.stringify(body.alumni));
-          return new Response(JSON.stringify({ success: true, count: body.alumni.length }), {
-            headers: CORS_HEADERS
-          });
+          const batch = body.alumni
+            .filter((a: any) => a?.id)
+            .map((a: any) =>
+              db.prepare('INSERT OR REPLACE INTO alumni (id, data, updated_at) VALUES (?, ?, ?)')
+                .bind(String(a.id), JSON.stringify(a), now)
+            );
+          if (batch.length > 0) await db.batch(batch);
+          return new Response(JSON.stringify({ success: true, count: batch.length }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // GET /api/feedback
       if (url.pathname === '/api/feedback' && request.method === 'GET') {
         try {
-          const raw = await env.EXILE_KV.get('global:feedback');
-          return new Response(
-            JSON.stringify({
-              status: 'connected',
-              feedback: raw ? JSON.parse(raw) : null
-            }),
-            { headers: CORS_HEADERS }
-          );
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
+          const res = await db.prepare('SELECT data FROM feedback ORDER BY updated_at DESC').all();
+          const list = (res.results || []).map((r: any) => JSON.parse(r.data));
+          return new Response(JSON.stringify({ status: 'connected', feedback: list.length > 0 ? list : null }), {
             headers: CORS_HEADERS
           });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -566,74 +577,49 @@ export default {
           const body = (await request.json()) as any;
           const item = body.item;
           if (!item || !item.id) {
-            return new Response(JSON.stringify({ error: 'Missing feedback item payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing feedback item payload' }), { status: 400, headers: CORS_HEADERS });
           }
-
-          const key = 'global:feedback';
-          const raw = await env.EXILE_KV.get(key);
-          let list: any[] = raw ? JSON.parse(raw) : [];
-          const existingIdx = list.findIndex((f: any) => f.id === item.id);
-          if (existingIdx >= 0) {
-            list[existingIdx] = item;
-          } else {
-            list.unshift(item);
-          }
-
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO feedback (id, data, updated_at) VALUES (?, ?, ?)')
+            .bind(String(item.id), JSON.stringify(item), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // POST /api/meta
-      // Persists league quickLinks, faqList, and archivesList in Cloudflare KV
       if (url.pathname === '/api/meta' && request.method === 'POST') {
         try {
           const body = (await request.json()) as any;
           const targetLeague = body.leagueId || leagueId;
-          const key = `league:${targetLeague}:meta`;
-          const raw = await env.EXILE_KV.get(key);
-          const prev = raw ? JSON.parse(raw) : {};
+          const row = await db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind(targetLeague).first();
+          const prev = row?.data ? JSON.parse(row.data) : {};
           const next = {
             ...prev,
             ...(body.quickLinks !== undefined ? { quickLinks: body.quickLinks } : {}),
             ...(body.faqList !== undefined ? { faqList: body.faqList } : {}),
             ...(body.archivesList !== undefined ? { archivesList: body.archivesList } : {})
           };
-          await env.EXILE_KV.put(key, JSON.stringify(next));
-          return new Response(JSON.stringify({ success: true, meta: next }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO league_meta (league_id, data, updated_at) VALUES (?, ?, ?)')
+            .bind(targetLeague, JSON.stringify(next), now)
+            .run();
+          return new Response(JSON.stringify({ success: true, meta: next }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // GET /api/leagues
       if (url.pathname === '/api/leagues' && request.method === 'GET') {
         try {
-          const raw = await env.EXILE_KV.get('global:leagues');
-          return new Response(
-            JSON.stringify({ status: 'connected', leagues: raw ? JSON.parse(raw) : [] }),
-            { headers: CORS_HEADERS }
-          );
+          const res = await db.prepare('SELECT data FROM custom_leagues ORDER BY updated_at DESC').all();
+          const leagues = (res.results || []).map((r: any) => JSON.parse(r.data));
+          return new Response(JSON.stringify({ status: 'connected', leagues }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -643,45 +629,26 @@ export default {
           const body = (await request.json()) as any;
           const league = body.league;
           if (!league || !league.id) {
-            return new Response(JSON.stringify({ error: 'Missing league payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing league payload' }), { status: 400, headers: CORS_HEADERS });
           }
-          const key = 'global:leagues';
-          const raw = await env.EXILE_KV.get(key);
-          const list: any[] = raw ? JSON.parse(raw) : [];
-          const idx = list.findIndex((l: any) => l.id === league.id);
-          if (idx >= 0) {
-            list[idx] = league;
-          } else {
-            list.push(league);
-          }
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, leagues: list }), {
-            headers: CORS_HEADERS
-          });
+          await db
+            .prepare('INSERT OR REPLACE INTO custom_leagues (id, data, updated_at) VALUES (?, ?, ?)')
+            .bind(String(league.id), JSON.stringify(league), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
       // GET /api/accounts
       if (url.pathname === '/api/accounts' && request.method === 'GET') {
         try {
-          const raw = await env.EXILE_KV.get('global:accounts');
-          return new Response(
-            JSON.stringify({ status: 'connected', accounts: raw ? JSON.parse(raw) : [] }),
-            { headers: CORS_HEADERS }
-          );
+          const res = await db.prepare('SELECT data FROM accounts').all();
+          const accounts = (res.results || []).map((r: any) => JSON.parse(r.data));
+          return new Response(JSON.stringify({ status: 'connected', accounts }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
@@ -691,31 +658,133 @@ export default {
           const body = (await request.json()) as any;
           const account = body.account;
           if (!account || !account.username) {
-            return new Response(JSON.stringify({ error: 'Missing account payload' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
+            return new Response(JSON.stringify({ error: 'Missing account payload' }), { status: 400, headers: CORS_HEADERS });
           }
-          const key = 'global:accounts';
-          const raw = await env.EXILE_KV.get(key);
-          const list: any[] = raw ? JSON.parse(raw) : [];
-          const idx = list.findIndex(
-            (a: any) =>
-              a.username?.toLowerCase() === account.username.toLowerCase() ||
-              (account.email && a.email?.toLowerCase() === account.email.toLowerCase())
-          );
-          if (idx >= 0) {
-            list[idx] = { ...list[idx], ...account };
-          } else {
-            list.push(account);
-          }
-          await env.EXILE_KV.put(key, JSON.stringify(list));
-          return new Response(JSON.stringify({ success: true, count: list.length }), {
-            headers: CORS_HEADERS
-          });
+          const userLower = String(account.username).trim().toLowerCase();
+          const emailLower = account.email ? String(account.email).trim().toLowerCase() : null;
+          await db
+            .prepare('INSERT OR REPLACE INTO accounts (username_lower, email_lower, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(userLower, emailLower, JSON.stringify(account), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/services (Squad Atlas & Boss Carry Board)
+      if (url.pathname === '/api/services' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const service = body.service;
+          if (!service || !service.id) {
+            return new Response(JSON.stringify({ error: 'Missing service payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          const providerKey = String(service.providerDisplayName || service.providerCharacterName || 'unknown').toLowerCase();
+          await db
+            .prepare('INSERT OR REPLACE INTO services (id, league_id, provider_key, data, updated_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(String(service.id), targetLeague, providerKey, JSON.stringify(service), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // DELETE /api/services/:id
+      if (url.pathname.startsWith('/api/services/') && request.method === 'DELETE') {
+        try {
+          const serviceId = decodeURIComponent(url.pathname.replace('/api/services/', '').trim());
+          await db.prepare('DELETE FROM services WHERE id = ? AND league_id = ?').bind(serviceId, leagueId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/vouches (Verified Vouch & Reputation Ledger)
+      if (url.pathname === '/api/vouches' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const vouch = body.vouch;
+          if (!vouch || !vouch.id || !vouch.providerDisplayName) {
+            return new Response(JSON.stringify({ error: 'Missing vouch payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          const providerKey = String(vouch.providerKey || vouch.providerDisplayName).trim().toLowerCase();
+          await db
+            .prepare('INSERT OR REPLACE INTO vouches (id, league_id, provider_key, data, created_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(String(vouch.id), targetLeague, providerKey, JSON.stringify({ ...vouch, providerKey }), vouch.createdAtIso || now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // GET /api/ladder (Live PoE Official Private League Ladder Sync with 5 Minute KV Cache)
+      if (url.pathname === '/api/ladder' && request.method === 'GET') {
+        try {
+          const officialName = resolveOfficialLadderName(leagueId, url.searchParams.get('name'));
+          const cacheKey = `ladder_cache:${officialName.toLowerCase()}`;
+          const forceRefresh = url.searchParams.get('refresh') === '1';
+
+          if (!forceRefresh && env.EXILE_KV) {
+            const cachedRaw = await env.EXILE_KV.get(cacheKey);
+            if (cachedRaw) {
+              return new Response(cachedRaw, { headers: CORS_HEADERS });
+            }
+          }
+
+          const gggUrl = `https://api.pathofexile.com/ladders/${encodeURIComponent(officialName)}?limit=200`;
+          const gggRes = await fetch(gggUrl, {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'OAuth exile-ssf/1.0 (contact: support@exilessf.app)'
+            }
+          });
+
+          if (!gggRes.ok) {
+            return new Response(
+              JSON.stringify({
+                status: 'unavailable',
+                httpStatus: gggRes.status,
+                leagueName: officialName,
+                message: 'Path of Exile official ladder API returned a non 200 status (league may be private or rate limited).'
+              }),
+              { status: 200, headers: CORS_HEADERS }
+            );
+          }
+
+          const gggJson = (await gggRes.json()) as any;
+          const entries = (gggJson.entries || []).map((e: any) => ({
+            rank: e.rank,
+            dead: Boolean(e.dead),
+            online: Boolean(e.online),
+            accountName: e.account?.name || '',
+            characterName: e.character?.name || '',
+            level: Number(e.character?.level) || 1,
+            ascendancy: e.character?.class || 'Exile',
+            experience: Number(e.character?.experience) || 0
+          }));
+
+          const payload = JSON.stringify({
+            status: 'ok',
+            leagueName: officialName,
+            total: gggJson.total || entries.length,
+            syncedAtIso: now,
+            entries
+          });
+
+          if (env.EXILE_KV) {
+            await env.EXILE_KV.put(cacheKey, payload, { expirationTtl: 300 });
+          }
+
+          return new Response(payload, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ status: 'error', message: err.message }), {
+            status: 200,
             headers: CORS_HEADERS
           });
         }
@@ -746,7 +815,7 @@ export default {
       return assetRes;
     }
 
-    return new Response('Exile SSF Cloudflare API Worker running', {
+    return new Response('Exile SSF Cloudflare API Worker (D1) running', {
       status: 200,
       headers: { 'Content-Type': 'text/plain' }
     });

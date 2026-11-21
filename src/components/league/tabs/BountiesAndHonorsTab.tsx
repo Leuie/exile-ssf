@@ -14,7 +14,10 @@ import {
   ShieldCheck,
   X,
   Lock,
-  Flame
+  Flame,
+  Star,
+  Trash2,
+  Swords
 } from 'lucide-react';
 import type {
   LookingForItem,
@@ -24,9 +27,13 @@ import type {
   UserAccount,
   WishlistItemCategory,
   AchievementCategory,
-  PersistentAchievementProfile
+  PersistentAchievementProfile,
+  SquadServiceListing,
+  SquadServiceType,
+  PlayerVouch,
+  VouchCategory
 } from '../../../types';
-import { saveCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
+import { saveCloudWishlistItem, saveCloudAchievementProfile, saveCloudService, deleteCloudService, saveCloudVouch } from '../../../services/cloudSync';
 import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
 import { getMemberCharacters } from './RosterTab';
 import {
@@ -43,6 +50,10 @@ export interface BountiesAndHonorsTabProps {
   guides: CommunityGuide[];
   cloudAchievements: Record<string, PersistentAchievementProfile>;
   setCloudAchievements: React.Dispatch<React.SetStateAction<Record<string, PersistentAchievementProfile>>>;
+  services: SquadServiceListing[];
+  setServices: React.Dispatch<React.SetStateAction<SquadServiceListing[]>>;
+  vouches: PlayerVouch[];
+  setVouches: React.Dispatch<React.SetStateAction<PlayerVouch[]>>;
   userAccount?: UserAccount | null;
   isCurrentUserAdmin: boolean;
   triggerCopy: (text: string, label: string) => void;
@@ -70,6 +81,10 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   guides,
   cloudAchievements,
   setCloudAchievements,
+  services,
+  setServices,
+  vouches,
+  setVouches,
   userAccount,
   isCurrentUserAdmin,
   triggerCopy,
@@ -77,7 +92,96 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   fireConfetti,
   onJumpToWishlist
 }) => {
-  const [subView, setSubView] = useState<'bounties' | 'ledger' | 'achievements'>('bounties');
+  const [subView, setSubView] = useState<'bounties' | 'carries' | 'ledger' | 'achievements'>('bounties');
+  const [showPostServiceForm, setShowPostServiceForm] = useState<boolean>(false);
+  const [svcType, setSvcType] = useState<SquadServiceType>('Boss Carry');
+  const [svcTitle, setSvcTitle] = useState<string>('');
+  const [svcFee, setSvcFee] = useState<string>('Free for Squad');
+  const [svcAtlasFocus, setSvcAtlasFocus] = useState<string>('');
+  const [svcNotes, setSvcNotes] = useState<string>('');
+
+  // Vouch Modal State
+  const [vouchTarget, setVouchTarget] = useState<{ provider: string; category: VouchCategory; itemOrService: string } | null>(null);
+  const [vouchComment, setVouchComment] = useState<string>('');
+  const vouchDialogRef = useRef<HTMLDialogElement>(null);
+
+  const vouchCountByProvider = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const v of vouches) {
+      const key = (v.providerKey || v.providerDisplayName).trim().toLowerCase();
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [vouches]);
+
+  const getVouchCount = (name?: string): number => {
+    if (!name) return 0;
+    return vouchCountByProvider.get(name.trim().toLowerCase()) || 0;
+  };
+
+  const handleOpenVouchModal = (provider: string, category: VouchCategory, itemOrService: string) => {
+    setVouchTarget({ provider, category, itemOrService });
+    setVouchComment('');
+    setTimeout(() => vouchDialogRef.current?.showModal(), 10);
+  };
+
+  const handleSubmitVouch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vouchTarget) return;
+    const newVouch: PlayerVouch = {
+      id: `vouch-${Date.now()}`,
+      leagueId: activeSessionId,
+      providerDisplayName: vouchTarget.provider,
+      providerKey: vouchTarget.provider.trim().toLowerCase(),
+      voucherDisplayName: userAccount?.displayName || userAccount?.characterName || 'Squadmate',
+      category: vouchTarget.category,
+      itemOrServiceName: vouchTarget.itemOrService,
+      comment: vouchComment.trim() || 'Fast, trustworthy squad help!',
+      createdAtIso: new Date().toISOString()
+    };
+    setVouches((prev) => [newVouch, ...prev]);
+    saveCloudVouch(activeSessionId, newVouch);
+    vouchDialogRef.current?.close();
+    setVouchTarget(null);
+    fireConfetti();
+    setCopyNotice(`Verified vouch recorded for @${newVouch.providerDisplayName}!`);
+    setTimeout(() => setCopyNotice(null), 3000);
+  };
+
+  const handlePostService = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!svcTitle.trim()) return;
+    const newSvc: SquadServiceListing = {
+      id: `svc-${Date.now()}`,
+      leagueId: activeSessionId,
+      providerDisplayName: userAccount?.displayName || userAccount?.characterName || 'Squad Exile',
+      providerCharacterName: userAccount?.characterName || 'MyExile',
+      providerPoeAccount: userAccount?.poeAccountName || '',
+      serviceType: svcType,
+      title: svcTitle.trim(),
+      fee: svcFee.trim() || 'Free for Squad',
+      atlasFocus: svcAtlasFocus.trim() || undefined,
+      notes: svcNotes.trim() || undefined,
+      isActive: true,
+      createdAtIso: new Date().toISOString()
+    };
+    setServices((prev) => [newSvc, ...prev]);
+    saveCloudService(activeSessionId, newSvc);
+    setSvcTitle('');
+    setSvcAtlasFocus('');
+    setSvcNotes('');
+    setShowPostServiceForm(false);
+    fireConfetti();
+    setCopyNotice(`Listed "${newSvc.title}" on the Squad Carry & Service Board!`);
+    setTimeout(() => setCopyNotice(null), 3000);
+  };
+
+  const handleDeleteService = (svcId: string) => {
+    setServices((prev) => prev.filter((s) => s.id !== svcId));
+    deleteCloudService(activeSessionId, svcId);
+    setCopyNotice('Removed service listing.');
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showPostBountyForm, setShowPostBountyForm] = useState<boolean>(false);
   const [achievementCategoryFilter, setAchievementCategoryFilter] = useState<'All' | AchievementCategory>('All');
@@ -286,6 +390,21 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
     const nextList = lookingForItems.map((it) => (it.id === item.id ? updatedItem : it));
     setLookingForItems(nextList);
     saveCloudWishlistItem(activeSessionId, updatedItem);
+    if (item.fulfilledBy && item.fulfilledBy.toLowerCase() !== 'self found') {
+      const autoVouch: PlayerVouch = {
+        id: `vouch-bounty-${Date.now()}`,
+        leagueId: activeSessionId,
+        providerDisplayName: item.fulfilledBy,
+        providerKey: item.fulfilledBy.trim().toLowerCase(),
+        voucherDisplayName: userAccount?.displayName || item.displayName || 'Squadmate',
+        category: 'Wishlist Bounty',
+        itemOrServiceName: item.itemName,
+        comment: `Delivered ${item.itemName} (Bounty: ${item.bountyOffer || 'Coop Honor'})`,
+        createdAtIso: new Date().toISOString()
+      };
+      setVouches((prev) => [autoVouch, ...prev]);
+      saveCloudVouch(activeSessionId, autoVouch);
+    }
     fireConfetti();
     setCopyNotice(`Confirmed receipt and settled ${item.bountyOffer} bounty for @${item.fulfilledBy}!`);
     setTimeout(() => setCopyNotice(null), 3500);
@@ -429,6 +548,19 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
           >
             <Coins className="w-3.5 h-3.5" />
             <span>Active Bounty Board ({openBountyItems.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubView('carries')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              subView === 'carries'
+                ? 'bg-indigo-500 text-white shadow-sm'
+                : 'bg-slate-800/70 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Swords className="w-3.5 h-3.5" />
+            <span>Boss Carries & Vouches ({services.length})</span>
           </button>
 
           <button
@@ -719,6 +851,229 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
         </div>
       )}
 
+      {/* SUB VIEW: SQUAD ATLAS, BOSS CARRIES & VOUCH BOARD */}
+      {subView === 'carries' && (
+        <div className="space-y-5">
+          <div className="p-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+                <Swords className="w-4 h-4" />
+                <span>Squad Atlas, Boss Carries & Reputation Vouches</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                Offer 4 Voidstone carries, Uber Boss kills, T17 completions, Betrayal crafts, or Lab runs to your squad. Every confirmed carry or settled bounty awards a verified Vouch stored in Cloudflare D1.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPostServiceForm((v) => !v)}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{showPostServiceForm ? 'Close Form' : 'List My Carry or Service'}</span>
+            </button>
+          </div>
+
+          {showPostServiceForm && (
+            <form
+              onSubmit={handlePostService}
+              className="p-4 rounded-2xl border border-indigo-500/40 bg-slate-900/90 space-y-3 shadow-lg"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-[11px] font-mono text-slate-300 block mb-1">Service Category</label>
+                  <select
+                    value={svcType}
+                    onChange={(e) => setSvcType(e.target.value as SquadServiceType)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 cursor-pointer"
+                  >
+                    <option value="Boss Carry">Boss Carry (Uber / Pinnacle)</option>
+                    <option value="4 Voidstones">4 Voidstone Completion</option>
+                    <option value="T17 Completion">T17 Map Completion</option>
+                    <option value="Crafting & Betrayal">Crafting Bench / Betrayal</option>
+                    <option value="Lab Runner">Lab / Transfigured Gem Runner</option>
+                    <option value="Atlas & Mapping">Atlas Niche & Group Mapping</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-mono text-slate-300 block mb-1">Service Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={svcTitle}
+                    onChange={(e) => setSvcTitle(e.target.value)}
+                    placeholder="e.g. Deathless Maven & Uber Elder Carries"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-mono text-amber-300 block mb-1">Fee or Terms</label>
+                  <input
+                    type="text"
+                    value={svcFee}
+                    onChange={(e) => setSvcFee(e.target.value)}
+                    placeholder="Free for Squad / Tips Welcome"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-amber-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-mono text-slate-300 block mb-1">Atlas Focus (Optional)</label>
+                  <input
+                    type="text"
+                    value={svcAtlasFocus}
+                    onChange={(e) => setSvcAtlasFocus(e.target.value)}
+                    placeholder="e.g. Destructive Play, Essences, Jun"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">Notes & Availability</label>
+                <input
+                  type="text"
+                  value={svcNotes}
+                  onChange={(e) => setSvcNotes(e.target.value)}
+                  placeholder="e.g. Your map/invitation, online evenings CST"
+                  className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPostServiceForm(false)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer"
+                >
+                  Publish Service
+                </button>
+              </div>
+            </form>
+          )}
+
+          {services.length === 0 ? (
+            <div className="p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-xs text-slate-400">
+              No squad carry or Atlas services listed yet. Click "List My Carry or Service" above to offer help and start earning Vouches!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {services.map((svc) => {
+                const repCount = getVouchCount(svc.providerDisplayName);
+                const canDelete =
+                  isCurrentUserAdmin ||
+                  (userAccount?.displayName &&
+                    userAccount.displayName.toLowerCase() === svc.providerDisplayName.toLowerCase());
+                return (
+                  <div
+                    key={svc.id}
+                    className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between space-y-3 shadow"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold uppercase">
+                          {svc.serviceType}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">
+                          ★ {repCount} {repCount === 1 ? 'Vouch' : 'Vouches'}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-bold text-white">{svc.title}</h3>
+                      <div className="text-xs text-slate-400 font-mono">
+                        Provider: <span className="text-slate-200 font-semibold">@{svc.providerDisplayName}</span> ({svc.providerCharacterName})
+                      </div>
+                      <div className="text-[11px] font-mono text-emerald-300">Fee: {svc.fee}</div>
+                      {svc.atlasFocus && (
+                        <div className="text-[11px] text-slate-400">Atlas Focus: {svc.atlasFocus}</div>
+                      )}
+                      {svc.notes && (
+                        <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300">
+                          {svc.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          triggerCopy(
+                            `@${svc.providerCharacterName} Hey! Saw your "${svc.title}" listing on Exile SSF, are you available?`,
+                            'Service Whisper'
+                          )
+                        }
+                        className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono cursor-pointer"
+                      >
+                        Whisper
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleOpenVouchModal(
+                            svc.providerDisplayName,
+                            svc.serviceType === 'Crafting & Betrayal' ? 'Crafting Service' : 'Boss Carry',
+                            svc.title
+                          )
+                        }
+                        className="flex-1 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Star className="w-3 h-3" />
+                        <span>Vouch</span>
+                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteService(svc.id)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer"
+                          title="Delete service listing"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Recent Verified Vouches Feed */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-amber-400" />
+                <span>Verified Squad Vouch Ledger ({vouches.length})</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500">Stored atomically in Cloudflare D1</span>
+            </div>
+            {vouches.length === 0 ? (
+              <div className="text-xs text-slate-500 italic">No vouches logged yet. Complete a carry or settle a bounty to build reputation!</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {vouches.slice(0, 12).map((v) => (
+                  <div key={v.id} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-xs space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-emerald-300">@{v.providerDisplayName}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                        {v.category}
+                      </span>
+                    </div>
+                    <div className="text-slate-200">"{v.comment}"</div>
+                    <div className="text-[10px] font-mono text-slate-500 flex items-center justify-between">
+                      <span>Vouched by @{v.voucherDisplayName} ({v.itemOrServiceName})</span>
+                      <span>{new Date(v.createdAtIso).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SUB VIEW 2: FULFILLED WISHES LEDGER & HEROES LEADERBOARD */}
       {subView === 'ledger' && (
         <div className="space-y-5">
@@ -760,6 +1115,8 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                       <span className="text-amber-300">{hero.bountiesClaimed} Bounties</span>
                       <span>•</span>
                       <span className="text-emerald-400">{hero.bountiesPaid} Settled</span>
+                      <span>•</span>
+                      <span className="text-purple-300">★ {getVouchCount(hero.helper)} Vouches</span>
                     </div>
                   </div>
                 ))}
@@ -1024,6 +1381,68 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
           </div>
         </div>
       )}
+      {/* Native Dark Vouch Modal */}
+      <dialog
+        ref={vouchDialogRef}
+        {...({ closedby: 'any' } as any)}
+        className="w-[94vw] sm:w-full sm:max-w-md rounded-2xl border border-amber-500/40 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+      >
+        {vouchTarget && (
+          <form onSubmit={handleSubmitVouch} className="flex flex-col">
+            <div className="p-4 border-b border-slate-800 bg-amber-950/30 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-amber-300">
+                <Star className="w-4 h-4 text-amber-400" />
+                <span>Leave Verified Vouch for @{vouchTarget.provider}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  vouchDialogRef.current?.close();
+                  setVouchTarget(null);
+                }}
+                className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3 text-xs">
+              <div className="text-slate-400">
+                Service: <strong className="text-white">{vouchTarget.itemOrService}</strong> ({vouchTarget.category})
+              </div>
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">Vouch Note *</label>
+                <input
+                  type="text"
+                  required
+                  value={vouchComment}
+                  onChange={(e) => setVouchComment(e.target.value)}
+                  placeholder="e.g. Fast deathless Maven carry, super helpful!"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  vouchDialogRef.current?.close();
+                  setVouchTarget(null);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer"
+              >
+                Submit Verified Vouch
+              </button>
+            </div>
+          </form>
+        )}
+      </dialog>
+
       {/* Native Dark Claim Bounty Dialog */}
       <dialog
         ref={claimDialogRef}

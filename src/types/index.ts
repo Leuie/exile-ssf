@@ -440,3 +440,55 @@ export interface AtlasMapRating {
   totalScore: number;
   notableCards?: string;
 }
+
+export type SquadServiceType =
+  | 'Boss Carry'
+  | '4 Voidstones'
+  | 'T17 Completion'
+  | 'Crafting & Betrayal'
+  | 'Lab Runner'
+  | 'Atlas & Mapping';
+
+export interface SquadServiceListing {
+  id: string;
+  leagueId: string;
+  providerDisplayName: string;
+  providerCharacterName: string;
+  providerPoeAccount?: string;
+  serviceType: SquadServiceType;
+  title: string;
+  fee: string;
+  atlasFocus?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAtIso: string;
+}
+
+export type VouchCategory =
+  | 'Boss Carry'
+  | 'Wishlist Bounty'
+  | 'Crafting Service'
+  | 'General Coop';
+
+export interface PlayerVouch {
+  id: string;
+  leagueId: string;
+  providerDisplayName: string;
+  providerKey: string;
+  voucherDisplayName: string;
+  category: VouchCategory;
+  itemOrServiceName: string;
+  comment: string;
+  createdAtIso: string;
+}
+
+export interface OfficialLadderEntry {
+  rank: number;
+  dead: boolean;
+  online: boolean;
+  accountName: string;
+  characterName: string;
+  level: number;
+  ascendancy: string;
+  experience: number;
+}

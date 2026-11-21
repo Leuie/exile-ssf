@@ -7,7 +7,10 @@ import type {
   LeagueParticipantAlumnus,
   SiteFeedbackItem,
   ActiveLeagueSession,
-  PastPrivateLeague
+  PastPrivateLeague,
+  SquadServiceListing,
+  PlayerVouch,
+  OfficialLadderEntry
 } from '../types';
 
 export interface CloudLeagueMeta {
@@ -18,6 +21,7 @@ export interface CloudLeagueMeta {
 
 export interface CloudLeagueDataResponse {
   status: 'connected' | 'unconfigured' | 'error' | 'fallback';
+  storage?: 'd1' | 'kv';
   wishlist?: LookingForItem[] | null;
   roster?: LeagueRosterMember[] | null;
   vault?: FoundUniqueVaultItem[] | null;
@@ -25,6 +29,8 @@ export interface CloudLeagueDataResponse {
   achievements?: Record<string, PersistentAchievementProfile> | null;
   alumni?: LeagueParticipantAlumnus[] | null;
   meta?: CloudLeagueMeta | null;
+  services?: SquadServiceListing[] | null;
+  vouches?: PlayerVouch[] | null;
   lastSynced?: string;
   message?: string;
 }
@@ -306,5 +312,82 @@ export async function saveCloudAccount(account: any): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function saveCloudService(
+  leagueId: string,
+  service: SquadServiceListing
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/services`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, service })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteCloudService(
+  leagueId: string,
+  serviceId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/services/${encodeURIComponent(serviceId)}?league=${encodeURIComponent(leagueId)}`,
+      { method: 'DELETE' }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudVouch(
+  leagueId: string,
+  vouch: PlayerVouch
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/vouches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, vouch })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface OfficialLadderResponse {
+  status: 'ok' | 'unavailable' | 'error';
+  leagueName?: string;
+  total?: number;
+  syncedAtIso?: string;
+  entries?: OfficialLadderEntry[];
+  message?: string;
+}
+
+export async function fetchOfficialPoeLadder(
+  leagueId: string,
+  officialLeagueName?: string,
+  forceRefresh: boolean = false
+): Promise<OfficialLadderResponse | null> {
+  try {
+    const params = new URLSearchParams({ league: leagueId });
+    if (officialLeagueName) params.set('name', officialLeagueName);
+    if (forceRefresh) params.set('refresh', '1');
+    const res = await fetch(`${getApiBase()}/api/ladder?${params.toString()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }

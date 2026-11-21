@@ -49,7 +49,9 @@ import type {
   CommunityGuide,
   UserAccount,
   PastPrivateLeague,
-  PersistentAchievementProfile
+  PersistentAchievementProfile,
+  SquadServiceListing,
+  PlayerVouch
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import type { ManagerSectionType } from './LeagueContentManagerModal';
@@ -338,6 +340,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   // Cloudflare KV Cloud Sync State & Periodic Listener
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'syncing' | 'idle' | 'offline'>('idle');
   const [cloudAchievements, setCloudAchievements] = useState<Record<string, PersistentAchievementProfile>>({});
+  const [squadServices, setSquadServices] = useState<SquadServiceListing[]>([]);
+  const [playerVouches, setPlayerVouches] = useState<PlayerVouch[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -361,6 +365,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         }
         if (data.achievements && typeof data.achievements === 'object') {
           setCloudAchievements(data.achievements);
+        }
+        if (Array.isArray(data.services)) {
+          setSquadServices(data.services);
+        }
+        if (Array.isArray(data.vouches)) {
+          setPlayerVouches(data.vouches);
         }
         if (Array.isArray(data.alumni) && data.alumni.length > 0) {
           setAlumniList(data.alumni);
@@ -1412,6 +1422,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             guides={guides}
             cloudAchievements={cloudAchievements}
             setCloudAchievements={setCloudAchievements}
+            services={squadServices}
+            setServices={setSquadServices}
+            vouches={playerVouches}
+            setVouches={setPlayerVouches}
             userAccount={userAccount}
             isCurrentUserAdmin={isCurrentUserAdmin}
             triggerCopy={triggerCopy}
