@@ -14,6 +14,204 @@ const CORS_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
 };
 
+interface PageMeta {
+  title: string;
+  description: string;
+}
+
+function escapeHtmlAttr(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function resolveLeagueDisplayName(leagueId: string): string {
+  const clean = leagueId.toLowerCase().trim();
+  if (clean === 'poe1-330-umbra') return 'Ravenwatch Covens of Umbra GSF (3.30)';
+  if (clean === 'poe2-05-ancients') return 'Ravenwatch Return of the Ancients GSF (0.5)';
+  return 'Exile SSF Private League';
+}
+
+function resolvePageMeta(url: URL): PageMeta {
+  const path = url.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  const queryTab = (url.searchParams.get('tab') || url.searchParams.get('page') || '').toLowerCase().trim();
+
+  // League routes: /league/:leagueId/:subTab?
+  if (path.startsWith('/league/')) {
+    const parts = path.replace('/league/', '').split('/').filter(Boolean);
+    const leagueId = parts[0] || 'poe1-330-umbra';
+    const subTab = parts[1] || queryTab || 'command-center';
+    const leagueName = resolveLeagueDisplayName(leagueId);
+
+    if (subTab === 'wishlists' || subTab === 'wishlist' || subTab === 'needs' || subTab === 'looking_for' || subTab === 'looking-for') {
+      return {
+        title: `Wishlists & Drop Matcher | ${leagueName} | Exile SSF`,
+        description: `Track wanted uniques, gems, boss fragments, and crafting bases across ${leagueName}. Filter by character for farming sessions and match drops in one click.`
+      };
+    }
+    if (subTab === 'bounties' || subTab === 'bounty' || subTab === 'honors' || subTab === 'achievements' || subTab === 'rewards') {
+      return {
+        title: `Bounties & Honors | ${leagueName} | Exile SSF`,
+        description: `Post incentivized finder bounties for chase items, track Fulfillment Heroes, settle deliveries, and unlock achievements that carry over across future seasons.`
+      };
+    }
+    if (subTab === 'roster' || subTab === 'roster-directory' || subTab === 'directory') {
+      return {
+        title: `Roster Directory | ${leagueName} | Exile SSF`,
+        description: `View active private league account slots, multi character builds, ascendancies, levels, and direct contact handles for every exile in ${leagueName}.`
+      };
+    }
+    if (subTab === 'guides' || subTab === 'build-guides' || subTab === 'buildguides') {
+      return {
+        title: `Community Build Guides | ${leagueName} | Exile SSF`,
+        description: `Explore curated SSF league starter and endgame build guides with PoB links, class filters, and one click import of required uniques to your wishlist.`
+      };
+    }
+    if (subTab === 'cheatsheets' || subTab === 'cheat-sheets' || subTab === 'mechanics') {
+      return {
+        title: `Mechanic Cheat Sheets (3.30.0d) | ${leagueName} | Exile SSF`,
+        description: `Quick reference tables for 3.30.0d Threads of Creation thresholds, Betrayal Syndicate rewards, Heist Rogues, Delve Fossils, Incursion rooms, and Atlas Maps.`
+      };
+    }
+    if (subTab === 'bench' || subTab === 'bench-stash-guide' || subTab === 'new_player' || subTab === 'stash') {
+      return {
+        title: `Bench Unlocks & Stash Tab Guide | ${leagueName} | Exile SSF`,
+        description: `Essential crafting bench recipe unlock locations and prioritized stash tab buyer tiers for Solo Self Found and Group Self Found progression.`
+      };
+    }
+    if (subTab === 'alumni' || subTab === 'alumni-directory') {
+      return {
+        title: `Alumni Directory | ${leagueName} | Exile SSF`,
+        description: `Historical directory of over 100 past private league participants across 5 seasons with preferred contact tags and squad outreach tools.`
+      };
+    }
+    return {
+      title: `Command Center | ${leagueName} | Exile SSF`,
+      description: `League headquarters for ${leagueName} with live crowdfunding status, countdown timers, 4 step onboarding, community links, archives, and F.A.Q.`
+    };
+  }
+
+  if (path === '/privateleaguehub' || path === '/privateleagues') {
+    return {
+      title: 'Private League Directory | Exile SSF',
+      description: 'Browse active and upcoming Group Self Found private leagues for Path of Exile 1 and Path of Exile 2, or launch a new community league.'
+    };
+  }
+
+  if (path.startsWith('/guide/')) {
+    return {
+      title: 'Build Guide Reader | Exile SSF',
+      description: 'Full interactive Path of Exile SSF build guide with leveling progression, endgame gearing, PoB links, and one click wishlist unique import.'
+    };
+  }
+
+  if (path === '/login') {
+    return {
+      title: 'Sign In | Exile SSF',
+      description: 'Sign in to your Exile SSF account to sync characters, wishlists, item bounties, and achievements across private league seasons.'
+    };
+  }
+
+  if (path === '/register') {
+    return {
+      title: 'Register Account | Exile SSF',
+      description: 'Create your Exile SSF profile to join private leagues, register multiple characters, post wanted items, and track achievements.'
+    };
+  }
+
+  if (path === '/admin') {
+    return {
+      title: 'League Admin Portal | Exile SSF',
+      description: 'Host administration tools for managing private league rosters, ownership assignments, resource links, and seasonal resets.'
+    };
+  }
+
+  if (path.includes('feedback')) {
+    return {
+      title: 'Feedback & Roadmap Hub | Exile SSF',
+      description: 'Submit feature requests, report issues, upvote community ideas, and track upcoming improvements to the Exile SSF portal.'
+    };
+  }
+
+  if (path.includes('analyzer') || path.includes('doctor')) {
+    return {
+      title: 'PoB Build Doctor & Analyzer | Exile SSF',
+      description: 'Import Path of Building share codes to diagnose elemental resistance caps, Chaos resistance, physical mitigation, life pools, and spell suppression.'
+    };
+  }
+
+  if (path.includes('ingest')) {
+    return {
+      title: 'Build Guide Ingestion Engine | Exile SSF',
+      description: 'Import Path of Exile guides from pobb.in, YouTube, Maxroll, or forum threads into your SSF library with automatic creator attribution.'
+    };
+  }
+
+  if (path.includes('builds') || path.includes('starters')) {
+    return {
+      title: 'SSF League Starters | Exile SSF',
+      description: 'Verified Solo Self Found and Group Self Found league starter builds for Path of Exile 1 (3.30.0d) and Path of Exile 2 (0.5).'
+    };
+  }
+
+  if (path.includes('atlas') || path.includes('maps')) {
+    return {
+      title: 'Atlas & Mapping Progression | Exile SSF',
+      description: 'Endgame Atlas progression strategy, 4 Voidstone roadmap, favorite map ratings, and SSF farming trees.'
+    };
+  }
+
+  if (path.includes('campaign') || path.includes('acts')) {
+    return {
+      title: 'Acts 1 to 10 Campaign Walkthrough | Exile SSF',
+      description: 'Fast act by act campaign checklist covering mandatory passive skill quests, bench unlocks, and leveling tips for Path of Exile.'
+    };
+  }
+
+  if (path.includes('labyrinth') || path.includes('lab')) {
+    return {
+      title: 'Lord\'s Labyrinth & Ascendancy Guide | Exile SSF',
+      description: 'Trial locations, Izaro mechanics, transfigured gem farming tips, and Ascendancy progression benchmarks.'
+    };
+  }
+
+  if (path.includes('recipes') || path.includes('vendor')) {
+    return {
+      title: 'Vendor Recipes & Deterministic Crafting | Exile SSF',
+      description: 'Essential Path of Exile vendor formulas including weapon damage upgrades, gem recipes, currency swaps, and the 3.30.0c 3 to 1 Threads of Creation recipe.'
+    };
+  }
+
+  if (path.includes('progress') || path.includes('checklist')) {
+    return {
+      title: 'SSF Progression Checklist | Exile SSF',
+      description: 'Interactive milestone checklist tracking your Solo Self Found journey from Twilight Strand through 4 Voidstones and Uber Pinnacle bosses.'
+    };
+  }
+
+  return {
+    title: 'Exile SSF | Path of Exile 1 & 2 Compendium and GSF Portal',
+    description: 'All in one Solo Self Found compendium and Group Self Found private league hub for Path of Exile 1 (3.30.0d) and Path of Exile 2 (0.5).'
+  };
+}
+
+function injectMetaIntoHtml(html: string, meta: PageMeta, pageUrl: string): string {
+  const safeTitle = escapeHtmlAttr(meta.title);
+  const safeDesc = escapeHtmlAttr(meta.description);
+  const safeUrl = escapeHtmlAttr(pageUrl);
+
+  return html
+    .replace(/<title>[^<]*<\/title>/i, `<title>${safeTitle}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/i, `<meta name="description" content="${safeDesc}" />`)
+    .replace(/<meta property="og:title" content="[^"]*" \/>/i, `<meta property="og:title" content="${safeTitle}" />`)
+    .replace(/<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${safeDesc}" />`)
+    .replace(/<meta property="og:url" content="[^"]*" \/>/i, `<meta property="og:url" content="${safeUrl}" />`)
+    .replace(/<meta name="twitter:title" content="[^"]*" \/>/i, `<meta name="twitter:title" content="${safeTitle}" />`)
+    .replace(/<meta name="twitter:description" content="[^"]*" \/>/i, `<meta name="twitter:description" content="${safeDesc}" />`);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -529,9 +727,23 @@ export default {
       });
     }
 
-    // Pass through to static assets (SPA) when ASSETS binding is available
+    // Pass through to static assets (SPA) and inject route aware OpenGraph meta tags for HTML responses
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const assetRes = await env.ASSETS.fetch(request);
+      const contentType = assetRes.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        const rawHtml = await assetRes.text();
+        const meta = resolvePageMeta(url);
+        const rewrittenHtml = injectMetaIntoHtml(rawHtml, meta, url.toString());
+        const headers = new Headers(assetRes.headers);
+        headers.delete('content-length');
+        return new Response(rewrittenHtml, {
+          status: assetRes.status,
+          statusText: assetRes.statusText,
+          headers
+        });
+      }
+      return assetRes;
     }
 
     return new Response('Exile SSF Cloudflare API Worker running', {

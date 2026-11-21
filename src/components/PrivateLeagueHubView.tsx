@@ -169,6 +169,20 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }
   }, [initialSubTab]);
 
+  useEffect(() => {
+    const titles: Record<HubTab, string> = {
+      overview: 'Command Center',
+      looking_for: 'Wishlists & Drop Matcher',
+      bounties: 'Bounties & Honors',
+      roster: 'Roster Directory',
+      guides: 'Community Build Guides',
+      cheatsheets: 'Mechanic Cheat Sheets (3.30.0d)',
+      new_player: 'Bench Unlocks & Stash Guide',
+      alumni: 'Alumni Directory'
+    };
+    document.title = `${titles[activeTab]} | Exile SSF`;
+  }, [activeTab]);
+
   const [activeReadingGuide, setActiveReadingGuide] = useState<CommunityGuide | null>(null);
 
   // Roster State
