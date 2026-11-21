@@ -78,6 +78,7 @@ import {
   saveCloudWishlistItem,
   deleteCloudWishlistItem,
   saveCloudRosterMember,
+  deleteCloudRosterMember,
   saveCloudGuide
 } from '../services/cloudSync';
 
@@ -1160,6 +1161,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }
 
     return Array.from(map.values()).sort((a, b) => {
+      const aAcquired = a.entries.length > 0 && a.entries.every((e) => e.status === 'HAVE');
+      const bAcquired = b.entries.length > 0 && b.entries.every((e) => e.status === 'HAVE');
+      if (aAcquired !== bAcquired) {
+        return aAcquired ? 1 : -1;
+      }
       if (b.activeNeeds !== a.activeNeeds) return b.activeNeeds - a.activeNeeds;
       return a.itemName.localeCompare(b.itemName);
     });
@@ -1185,13 +1191,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           (entry.category === 'Gem' || entry.category === 'Vaal Gem' || entry.category === 'Transfigured Gem'));
       const matchStatus =
         lookingForStatusFilter === 'All' ||
-        entry.entries.some((e) => e.status === lookingForStatusFilter);
+        (lookingForStatusFilter === 'HAVE'
+          ? entry.entries.some((e) => e.status === 'HAVE')
+          : entry.entries.some((e) => e.status === lookingForStatusFilter));
       return matchText && matchCat && matchStatus;
     });
   }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
 
   const filteredLookingForItems = React.useMemo(() => {
-    return lookingForItems.filter((item) => {
+    const list = lookingForItems.filter((item) => {
       const searchLow = lookingForSearch.toLowerCase();
       const matchSearch =
         !lookingForSearch ||
@@ -1211,6 +1219,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
 
       return matchSearch && matchCat && matchStatus;
+    });
+
+    return [...list].sort((a, b) => {
+      const aAcq = a.status === 'HAVE' ? 1 : 0;
+      const bAcq = b.status === 'HAVE' ? 1 : 0;
+      if (aAcq !== bAcq) return aAcq - bAcq;
+      return a.itemName.localeCompare(b.itemName);
     });
   }, [lookingForItems, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
 
@@ -1255,71 +1270,63 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   }, []);
 
   const handleCycleStatus = (itemId: string, helperTag?: string) => {
-    let targetUpdated: LookingForItem | null = null;
+    const existing = lookingForItems.find((it) => it.id === itemId);
+    if (!existing) return;
+
+    const nextStatus: ItemNeedStatus =
+      existing.status === 'NEED'
+        ? 'HAVE'
+        : existing.status === 'HAVE'
+        ? 'SECOND CHAR'
+        : existing.status === 'SECOND CHAR'
+        ? 'LOW PRIO'
+        : 'NEED';
+
+    if (nextStatus === 'HAVE') {
+      fireConfetti();
+    }
+
+    const itemCopy: LookingForItem = {
+      ...existing,
+      status: nextStatus,
+      fulfilledBy: nextStatus === 'HAVE'
+        ? (helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found'))
+        : existing.fulfilledBy,
+      fulfilledAtIso: nextStatus === 'HAVE' ? new Date().toISOString() : existing.fulfilledAtIso
+    };
+
     setLookingForItems((prev) => {
-      const updated = prev.map((it) => {
-        if (it.id === itemId) {
-          const nextStatus: ItemNeedStatus =
-            it.status === 'NEED'
-              ? 'HAVE'
-              : it.status === 'HAVE'
-              ? 'SECOND CHAR'
-              : it.status === 'SECOND CHAR'
-              ? 'LOW PRIO'
-              : 'NEED';
-          if (nextStatus === 'HAVE') {
-            fireConfetti();
-          }
-          const itemCopy = {
-            ...it,
-            status: nextStatus,
-            fulfilledBy: nextStatus === 'HAVE' 
-              ? (helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found'))
-              : it.fulfilledBy,
-            fulfilledAtIso: nextStatus === 'HAVE' ? new Date().toISOString() : it.fulfilledAtIso
-          };
-          targetUpdated = itemCopy;
-          return itemCopy;
-        }
-        return it;
-      });
+      const updated = prev.map((it) => (it.id === itemId ? itemCopy : it));
       try {
         localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
       } catch {}
       return updated;
     });
 
-    if (targetUpdated) {
-      saveCloudWishlistItem(activeSessionId, targetUpdated);
-    }
+    saveCloudWishlistItem(activeSessionId, itemCopy);
   };
 
   const handleMarkFulfilled = (itemId: string, helperTag: string) => {
-    let targetUpdated: LookingForItem | null = null;
+    const existing = lookingForItems.find((it) => it.id === itemId);
+    if (!existing) return;
+
+    fireConfetti();
+    const itemCopy: LookingForItem = {
+      ...existing,
+      status: 'HAVE' as ItemNeedStatus,
+      fulfilledBy: helperTag,
+      fulfilledAtIso: new Date().toISOString()
+    };
+
     setLookingForItems((prev) => {
-      const updated = prev.map((it) => {
-        if (it.id === itemId) {
-          fireConfetti();
-          const itemCopy = {
-            ...it,
-            status: 'HAVE' as ItemNeedStatus,
-            fulfilledBy: helperTag,
-            fulfilledAtIso: new Date().toISOString()
-          };
-          targetUpdated = itemCopy;
-          return itemCopy;
-        }
-        return it;
-      });
+      const updated = prev.map((it) => (it.id === itemId ? itemCopy : it));
       try {
         localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
       } catch {}
       return updated;
     });
 
-    if (targetUpdated) {
-      saveCloudWishlistItem(activeSessionId, targetUpdated);
-    }
+    saveCloudWishlistItem(activeSessionId, itemCopy);
     setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
     setTimeout(() => setCopyNotice(null), 3500);
   };
@@ -1369,10 +1376,23 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     };
   }, []);
 
+  const [adminModeOverride, setAdminModeOverride] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('poe_league_admin_override') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   const isCurrentUserAdmin = Boolean(
+    adminModeOverride ||
     userAccount?.isAdmin ||
     userAccount?.displayName?.toLowerCase() === 'leuie' ||
-    userAccount?.poeAccountName?.toLowerCase() === 'leuie#0001'
+    userAccount?.displayName?.toLowerCase() === 'venulum' ||
+    userAccount?.poeAccountName?.toLowerCase() === 'leuie#0001' ||
+    userAccount?.poeAccountName?.toLowerCase() === 'cgbulloc#4500' ||
+    userAccount?.characterName?.toLowerCase() === 'leuie' ||
+    userAccount?.characterName?.toLowerCase() === 'venulum'
   );
 
   const canEditOrDeleteWishlist = (item: LookingForItem): boolean => {
@@ -1524,19 +1544,25 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   // Inline Character Modal Editor State
   const [isEditingProfileModal, setIsEditingProfileModal] = useState<boolean>(false);
+  const [modalEditDisplayName, setModalEditDisplayName] = useState<string>('');
   const [modalEditPoeAccount, setModalEditPoeAccount] = useState<string>('');
   const [modalEditCharName, setModalEditCharName] = useState<string>('');
+  const [modalEditDiscord, setModalEditDiscord] = useState<string>('');
+  const [modalEditSlotNumber, setModalEditSlotNumber] = useState<number>(1);
   const [modalEditAsc, setModalEditAsc] = useState<string>('Elementalist');
   const [modalEditLevel, setModalEditLevel] = useState<number>(95);
   const [modalEditBuild, setModalEditBuild] = useState<string>('');
   const [modalEditPob, setModalEditPob] = useState<string>('');
   const [modalEditNotes, setModalEditNotes] = useState<string>('');
 
-  const handleOpenPlayerModal = (member: LeagueRosterMember) => {
+  const handleOpenPlayerModal = (member: LeagueRosterMember, startEditing: boolean = false) => {
     setSelectedPlayerModal(member);
-    setIsEditingProfileModal(false);
+    setIsEditingProfileModal(startEditing);
+    setModalEditDisplayName(member.displayName || '');
     setModalEditPoeAccount(member.poeAccountName || '');
     setModalEditCharName(member.characterName || '');
+    setModalEditDiscord(member.discordName || '');
+    setModalEditSlotNumber(member.slotNumber || 1);
     setModalEditAsc(member.ascendancy || 'Elementalist');
     setModalEditLevel(member.level || 1);
     setModalEditBuild(member.buildName || '');
@@ -1547,6 +1573,38 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }, 10);
   };
 
+  const handleAdminRemoveRosterMember = async (targetMember: LeagueRosterMember) => {
+    if (!isCurrentUserAdmin) {
+      triggerCopy('', 'Permission denied: Only league admins can remove exiles');
+      return;
+    }
+    const confirmDelete = window.confirm(
+      `Are you sure you want to remove @${targetMember.displayName} (${targetMember.characterName || targetMember.poeAccountName}) from the league roster?`
+    );
+    if (!confirmDelete) return;
+
+    const memberKey = targetMember.id || targetMember.displayName;
+    await deleteCloudRosterMember(activeSessionId, memberKey);
+
+    setRoster((prev) => {
+      const next = prev.filter(
+        (m) => m.id !== targetMember.id && m.displayName.toLowerCase() !== targetMember.displayName.toLowerCase()
+      );
+      try {
+        localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (selectedPlayerModal && (selectedPlayerModal.id === targetMember.id || selectedPlayerModal.displayName === targetMember.displayName)) {
+      playerProfileDialogRef.current?.close();
+      setSelectedPlayerModal(null);
+    }
+
+    setCopyNotice(`Removed @${targetMember.displayName} from the league roster.`);
+    setTimeout(() => setCopyNotice(null), 3500);
+  };
+
   const handleSaveModalCharacterDetails = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlayerModal) return;
@@ -1555,9 +1613,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     const resolvedClass = matchedAsc ? matchedAsc.baseClass : selectedPlayerModal.className;
     const cleanAccountName = modalEditPoeAccount.trim() || selectedPlayerModal.poeAccountName;
     const cleanCharName = modalEditCharName.trim() || selectedPlayerModal.characterName;
+    const cleanDisplayName = modalEditDisplayName.trim() || selectedPlayerModal.displayName;
+    const cleanDiscord = modalEditDiscord.trim() || selectedPlayerModal.discordName;
+    const cleanSlot = Number(modalEditSlotNumber) || selectedPlayerModal.slotNumber;
 
     const updatedMember: LeagueRosterMember = {
       ...selectedPlayerModal,
+      displayName: isCurrentUserAdmin ? cleanDisplayName : selectedPlayerModal.displayName,
+      slotNumber: isCurrentUserAdmin ? cleanSlot : selectedPlayerModal.slotNumber,
+      discordName: isCurrentUserAdmin ? cleanDiscord : selectedPlayerModal.discordName,
       poeAccountName: cleanAccountName,
       poeProfileUrl: `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanAccountName.split('#')[0])}`,
       characterName: cleanCharName,
@@ -1569,14 +1633,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       notes: modalEditNotes.trim()
     };
 
-    // Update selectedPlayerModal immediately so modal shows new info!
+    // Update selectedPlayerModal immediately so modal shows new info
     setSelectedPlayerModal(updatedMember);
     saveCloudRosterMember(activeSessionId, updatedMember);
 
     // Update roster state & localStorage
     setRoster((prev) => {
       const next = prev.map((m) =>
-        (m.id === updatedMember.id || m.displayName.toLowerCase() === updatedMember.displayName.toLowerCase())
+        (m.id === selectedPlayerModal.id || m.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase())
           ? updatedMember
           : m
       );
@@ -1586,10 +1650,18 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       return next;
     });
 
-    // Update userAccount in parent & localStorage
-    if (userAccount) {
+    // Update userAccount in parent & localStorage only if this is the active user
+    const isTargetCurrentUser = Boolean(
+      userAccount && (
+        (selectedPlayerModal.id && userAccount.id === selectedPlayerModal.id) ||
+        userAccount.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase()
+      )
+    );
+
+    if (isTargetCurrentUser && userAccount) {
       const updatedAccount: UserAccount = {
         ...userAccount,
+        displayName: isCurrentUserAdmin ? cleanDisplayName : userAccount.displayName,
         poeAccountName: updatedMember.poeAccountName,
         poeProfileUrl: updatedMember.poeProfileUrl,
         characterName: updatedMember.characterName,
@@ -1624,6 +1696,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
     setIsEditingProfileModal(false);
     fireConfetti();
+    setCopyNotice(`Saved updates for @${updatedMember.displayName}`);
+    setTimeout(() => setCopyNotice(null), 3000);
   };
 
   // Add Wanted Item Form State
@@ -1672,6 +1746,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         map.set(groupKey, []);
       }
       map.get(groupKey)!.push(item);
+    }
+    for (const [, items] of map.entries()) {
+      items.sort((a, b) => {
+        const aAcq = a.status === 'HAVE' ? 1 : 0;
+        const bAcq = b.status === 'HAVE' ? 1 : 0;
+        if (aAcq !== bAcq) return aAcq - bAcq;
+        return a.itemName.localeCompare(b.itemName);
+      });
     }
     return map;
   }, [filteredLookingForItems]);
@@ -1845,6 +1927,29 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Host Admin Controls Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !adminModeOverride;
+                setAdminModeOverride(nextState);
+                try {
+                  localStorage.setItem('poe_league_admin_override', String(nextState));
+                } catch {}
+                setCopyNotice(nextState ? 'Admin Mode Activated' : 'Admin Mode Deactivated');
+                setTimeout(() => setCopyNotice(null), 3000);
+              }}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isCurrentUserAdmin
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                  : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
+              }`}
+              title="Toggle League Host Admin Controls"
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 ${isCurrentUserAdmin ? 'text-amber-400' : 'text-slate-500'}`} />
+              <span>{isCurrentUserAdmin ? 'Admin Mode' : 'Admin'}</span>
+            </button>
+
             {/* User Account / Profile action */}
             <button
               onClick={onOpenAuthModal}
@@ -3403,6 +3508,35 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                         {isMe ? 'Edit Character →' : 'Profile →'}
                       </span>
                     </div>
+
+                    {isCurrentUserAdmin && (
+                      <div className="pt-2 border-t border-amber-500/30 flex items-center justify-between text-[11px] gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenPlayerModal(member, true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Admin: Reassign owner or edit character details"
+                        >
+                          <Edit3 className="w-2.5 h-2.5" />
+                          <span>Reassign, Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdminRemoveRosterMember(member);
+                          }}
+                          className="px-2 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Admin: Remove exile from league roster"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -3435,18 +3569,19 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {userAccount && (
-                    (userAccount.id && selectedPlayerModal.id === userAccount.id) ||
-                    userAccount.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase() ||
-                    (userAccount.isAdmin && selectedPlayerModal.displayName.toLowerCase() === 'leuie')
-                  ) && (
+                  {(isCurrentUserAdmin || Boolean(
+                    userAccount && (
+                      (userAccount.id && selectedPlayerModal.id === userAccount.id) ||
+                      userAccount.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase()
+                    )
+                  )) && (
                     <button
                       type="button"
                       onClick={() => setIsEditingProfileModal((prev) => !prev)}
                       className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>{isEditingProfileModal ? 'Cancel Edit' : 'Edit My Character'}</span>
+                      <span>{isEditingProfileModal ? 'Cancel Edit' : (isCurrentUserAdmin ? 'Admin Edit, Reassign' : 'Edit My Character')}</span>
                     </button>
                   )}
 
@@ -3464,8 +3599,57 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <form onSubmit={handleSaveModalCharacterDetails} className="p-4 space-y-3 overflow-y-auto max-h-[70vh] text-xs">
                   <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-2">
                     <Sparkles className="w-4 h-4 flex-shrink-0" />
-                    <span>Direct Character Editor: Update your Path of Exile account tag, IGN, ascendancy, and build live.</span>
+                    <span>
+                      {isCurrentUserAdmin
+                        ? 'Host Admin Editor: Reassign owner, adjust roster slot, or update character and build credentials.'
+                        : 'Direct Character Editor: Update your Path of Exile account tag, IGN, ascendancy, and build live.'}
+                    </span>
                   </div>
+
+                  {isCurrentUserAdmin && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                      <div>
+                        <label className="font-semibold text-amber-300 block mb-1">
+                          Owner App Tag (Reassign)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Leuie or Venulum"
+                          value={modalEditDisplayName}
+                          onChange={(e) => setModalEditDisplayName(e.target.value)}
+                          className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-amber-300 block mb-1">
+                          Roster Slot Number
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={50}
+                          value={modalEditSlotNumber}
+                          onChange={(e) => setModalEditSlotNumber(Number(e.target.value) || 1)}
+                          className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-amber-300 block mb-1">
+                          Discord Tag
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. exile_disc"
+                          value={modalEditDiscord}
+                          onChange={(e) => setModalEditDiscord(e.target.value)}
+                          className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="font-semibold text-slate-300 block mb-1">
@@ -3547,7 +3731,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Status / Notes</label>
+                    <label className="font-semibold text-slate-300 block mb-1">Status, Notes</label>
                     <textarea
                       rows={2}
                       placeholder="Profile notes or guild status..."
@@ -3557,22 +3741,35 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     />
                   </div>
 
-                  <div className="pt-2 flex items-center gap-2">
-                    <button
-                      type="submit"
-                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Save Character Changes</span>
-                    </button>
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t border-slate-800">
+                    {isCurrentUserAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleAdminRemoveRosterMember(selectedPlayerModal)}
+                        className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove from Roster</span>
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfileModal(false)}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingProfileModal(false)}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Character Changes</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               ) : (
@@ -3676,6 +3873,23 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Host Admin Controls in Profile View */}
+                {isCurrentUserAdmin && (
+                  <div className="pt-2 border-t border-amber-500/30 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-amber-400 font-bold uppercase">
+                      Admin Roster Actions
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAdminRemoveRosterMember(selectedPlayerModal)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[11px] flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove Exile</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             </div>

@@ -100,6 +100,20 @@ export async function saveCloudRosterMember(
   }
 }
 
+export async function deleteCloudRosterMember(
+  leagueId: string = 'poe1-330-umbra',
+  memberId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/roster/${encodeURIComponent(memberId)}?league=${encodeURIComponent(leagueId)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveCloudVaultItem(
   leagueId: string = 'poe1-330-umbra',
   item: FoundUniqueVaultItem

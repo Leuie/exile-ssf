@@ -170,7 +170,11 @@ export default {
           const key = `league:${leagueId}:roster`;
           const raw = await env.EXILE_KV.get(key);
           let list: any[] = raw ? JSON.parse(raw) : [];
-          list = list.filter((m: any) => m.id !== memberId && m.displayName !== memberId);
+          list = list.filter((m: any) =>
+            m.id !== memberId &&
+            m.displayName?.toLowerCase() !== memberId.toLowerCase() &&
+            m.characterName?.toLowerCase() !== memberId.toLowerCase()
+          );
           await env.EXILE_KV.put(key, JSON.stringify(list));
           return new Response(JSON.stringify({ success: true, count: list.length }), {
             headers: CORS_HEADERS
