@@ -63,10 +63,10 @@ export const VendorRecipesView: React.FC = () => {
         <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
         <div className="space-y-1 text-xs sm:text-sm">
           <div className="font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider text-xs">
-            Audited for Modern PoE (Patch 3.20 to 3.29+ Verified)
+            Audited for Modern PoE (Patch 3.30.0d Verified)
           </div>
           <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
-            The old <em>"+1 to Level of all Spell Gems"</em> wand recipe was <strong>removed in Patch 3.20</strong>. Use the verified <strong>Added Flat Spell Damage Recipe</strong> (Wand + Magic Resist Ring + Alteration) for campaign leveling. The 20% gem flip recipe now only functions on <strong>Support Gems</strong> (as of 3.23+), and item sockets are <strong>White by default</strong> with +10% quality bonuses for matching gem colors (Patch 3.29+).
+            The old <em>"+1 to Level of all Spell Gems"</em> wand recipe was <strong>removed in Patch 3.20</strong>. Use the verified <strong>Added Flat Spell Damage Recipe</strong> (Wand + Magic Resist Ring + Alteration) for campaign leveling. The 20% gem flip recipe now only functions on <strong>Support Gems</strong> (as of 3.23+), item sockets are <strong>White by default</strong> with +10% quality bonuses for matching gem colors (Patch 3.29+), and <strong>Patch 3.30.0c/d</strong> introduced official <strong>3 to 1 Threads of Creation</strong> and <strong>Viscera</strong> vendor formulas alongside Foulborn core drops.
           </p>
         </div>
       </div>

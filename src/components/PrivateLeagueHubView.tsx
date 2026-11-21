@@ -56,7 +56,8 @@ import {
   INCURSION_CHEAT_SHEET,
   ATLAS_MAP_RATINGS,
   CRAFTING_BENCH_UNLOCKS,
-  STASH_TAB_BUYER_TIERS
+  STASH_TAB_BUYER_TIERS,
+  COVENS_THREADS_CHEAT_SHEET
 } from '../data/privateLeagueData';
 import type {
   LeagueParticipantAlumnus,
@@ -487,7 +488,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [quickLinks, setQuickLinks] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('poe_league_quick_links');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length >= COVEN_OF_UMBRA_INFO.quickLinks.length) return parsed;
+      }
     } catch {}
     return COVEN_OF_UMBRA_INFO.quickLinks;
   });
@@ -1674,8 +1678,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
 
   // Cheat Sheets Sub tabs
-  type CheatSubTab = 'syndicate' | 'heist' | 'delve' | 'incursion' | 'maps';
-  const [cheatSubTab, setCheatSubTab] = useState<CheatSubTab>('syndicate');
+  type CheatSubTab = 'syndicate' | 'heist' | 'delve' | 'incursion' | 'maps' | 'threads';
+  const [cheatSubTab, setCheatSubTab] = useState<CheatSubTab>('threads');
   const [cheatSearch, setCheatSearch] = useState<string>('');
 
   // FAQ
@@ -4499,6 +4503,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1 overflow-x-auto pb-1">
                 {[
+                  { id: 'threads', label: 'Threads Thresholds (3.30.0c/d)' },
                   { id: 'syndicate', label: 'Betrayal (Jun)' },
                   { id: 'heist', label: 'Heist Rogues' },
                   { id: 'delve', label: 'Delve Fossils' },
@@ -4664,6 +4669,49 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Threads of Creation Thresholds (3.30.0c & 3.30.0d) */}
+            {cheatSubTab === 'threads' && (
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 text-xs space-y-1">
+                  <div className="font-bold text-indigo-300 font-mono uppercase tracking-wider text-[11px]">
+                    Threads of Creation Guaranteed Modifiers & 3 to 1 Vendor Formula (3.30.0c)
+                  </div>
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    Applying 1 to 3 Threads guarantees at least 1 modifier. Applying 4 to 7 Threads guarantees at least 2 modifiers. Applying 8 or more Threads guarantees at least 3 modifiers. Sell any 3 unwanted Threads to any vendor for 1 fresh random Thread of Creation.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-500 font-mono text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="p-2.5">Mechanic</th>
+                        <th className="p-2.5">3 Threads Applied</th>
+                        <th className="p-2.5">6 Threads Applied</th>
+                        <th className="p-2.5">8 Threads Applied</th>
+                        <th className="p-2.5">Special Rules & Patch Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {COVENS_THREADS_CHEAT_SHEET.filter((row) =>
+                        !cheatSearch ||
+                        row.mechanic.toLowerCase().includes(cheatSearch.toLowerCase()) ||
+                        row.specialRules.toLowerCase().includes(cheatSearch.toLowerCase())
+                      ).map((row, idx) => (
+                        <tr key={idx} className="hover:bg-slate-800/30">
+                          <td className="p-2.5 font-bold text-white whitespace-nowrap">{row.mechanic}</td>
+                          <td className="p-2.5 text-indigo-300 font-medium whitespace-nowrap">{row.threads3}</td>
+                          <td className="p-2.5 text-purple-300 font-medium whitespace-nowrap">{row.threads6}</td>
+                          <td className="p-2.5 text-emerald-300 font-bold whitespace-nowrap">{row.threads8}</td>
+                          <td className="p-2.5 text-slate-300 text-[11px] leading-relaxed">{row.specialRules}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

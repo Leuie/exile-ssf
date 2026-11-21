@@ -2,6 +2,54 @@ import type { KnowledgeArticle, VendorRecipe } from '../types';
 
 export const VENDOR_RECIPES: VendorRecipe[] = [
   {
+    id: 'threads-of-creation-recipe',
+    title: 'Threads of Creation 3 to 1 Reroll Recipe',
+    category: 'utility',
+    components: [
+      '3x Threads of Creation (any identical or mixed types)'
+    ],
+    reward: '1x Unidentified Thread of Creation with new random modifiers',
+    usageNotes: 'OFFICIALLY ADDED IN PATCH 3.30.0C: Exiles can recycle unwanted or duplicate Threads of Creation into fresh rolls. Essential for SSF and GSF players targeting specific league encounter modifiers.',
+    poeWikiUrl: 'https://www.pathofexile.com/forum/view-thread/4017172',
+    poeDbUrl: 'https://poedb.tw/us/Threads_of_Creation'
+  },
+  {
+    id: 'viscera-vendor-recipe',
+    title: 'Viscera 3 to 1 Upgrade Recipe',
+    category: 'utility',
+    components: [
+      '3x Viscera of the same tier'
+    ],
+    reward: '1x Viscera of random type or upgraded grade',
+    usageNotes: 'OFFICIALLY ADDED IN PATCH 3.30.0C: Safely recycle surplus Viscera from Covens encounters to target specific boss summon materials for the Wickerman altar.',
+    poeWikiUrl: 'https://www.pathofexile.com/forum/view-thread/4017172',
+    poeDbUrl: 'https://poedb.tw/us/Viscera'
+  },
+  {
+    id: 'originators-exalted-orb-recipe',
+    title: 'Originator\'s Exalted Orb (Map Suffix Scour and Rare Infusion)',
+    category: 'crafting',
+    components: [
+      '1x Originator\'s Exalted Orb applied to a Rare Map'
+    ],
+    reward: 'Removes a random Suffix modifier and adds a random rare only modifier to a rare map (usable on Nightmare Maps)',
+    usageNotes: 'OFFICIALLY ADDED IN PATCH 3.30.0D: Ultimate high tier map crafting currency for rolling nightmare and corrupted layouts. Drops globally in the core pool.',
+    poeWikiUrl: 'https://www.pathofexile.com/forum/view-thread/4017726',
+    poeDbUrl: 'https://poedb.tw/us/Originators_Exalted_Orb'
+  },
+  {
+    id: 'primordial-exalted-orb-info',
+    title: 'Primordial Exalted Orb (Exotic Exalted Orb Discovery)',
+    category: 'currency',
+    components: [
+      '1x Primordial Exalted Orb (Right click in inventory)'
+    ],
+    reward: 'Reveals a random Exotic Exalted Orb (Foulborn, Originator, or conqueror variants)',
+    usageNotes: 'OFFICIALLY ADDED IN PATCH 3.30.0D: Core drop pool currency item. Right click to reveal a random Exotic Exalted Orb. Note: Unavailable in Ruthless mode.',
+    poeWikiUrl: 'https://www.pathofexile.com/forum/view-thread/4017726',
+    poeDbUrl: 'https://poedb.tw/us/Primordial_Exalted_Orb'
+  },
+  {
     id: 'added-spell-damage-weapon',
     title: 'Added Spell Damage Weapon (Wands / Sceptres)',
     category: 'leveling',
@@ -463,6 +511,97 @@ In SSF, you will often find 5x Fragment of the Hydra and 0x Fragment of the Phoe
 ### 3. Sourcing Boss Maps Deterministically
 * Take **"Remnants of the Past"** and **"Vivid Memories"** on the Atlas passive tree for +3% chance for map bosses to drop Shaper/Elder guardian maps and Synthesis maps.
 * Run **Kirac Missions**: Look for red tier mission objectives titled *"Slay the Shaper Guardian"* or *"Slay the Elder Guardian"*. These count toward your fragments and Atlas completion!
+`
+  },
+  {
+    id: 'poe1-post-330-patch-notes-and-mechanics',
+    title: 'Path of Exile 1: Post 3.30 Patch Notes & Mechanics Digest',
+    subtitle: 'Official updates from 3.30 Hotfixes 1 through 3, 3.30.0b, 3.30.0c, and 3.30.0d Hotfixes',
+    category: 'league_mechanics',
+    readTime: '9 min read',
+    summary: 'Complete mechanical analysis of all 12 post launch updates for Path of Exile 3.30 Covens of Umbra. Includes Threads of Creation threshold scaling, Fates reward reductions, new core currency, Atlas anomalies, and vendor formulas.',
+    tags: ['3.30', 'patch notes', 'hotfix', 'covens of umbra', 'threads of creation', 'originators exalted orb', 'primordial exalted orb', 'archon anomalies', 'fates'],
+    content: `
+### 1. Threads of Creation Scaling and Threshold Upgrades (3.30.0c & 3.30.0d)
+
+Threads of Creation permanently replace Scarabs in Path of Exile 3.30. Major revisions deployed across 3.30.0c and 3.30.0d established exact bonus mechanics when applying multiple Threads:
+
+* **Guaranteed Modifiers by Thread Count:**
+  * 1 to 3 Threads applied: Guarantees at least 1 modifier will occur.
+  * 4 to 7 Threads applied: Guarantees at least 2 modifiers will occur.
+  * 8 or more Threads applied: Guarantees at least 3 modifiers will occur.
+
+* **Threshold Power Bonuses (at 3, 6, and 8 Threads applied):**
+  * **Abyss:** 3 Threads grants +1 Pit. 6 Threads grants +2 Pits. 8 Threads grants +3 Pits. New mod: Rare Abyssal monsters gain an additional Abyssal modifier.
+  * **Breach:** 3 Threads grants 20% increased Magic Monsters. 6 Threads grants 40%. 8 Threads grants 60%. Final wave of Hive encounters duplicates Rare monsters.
+  * **Blight:** 3 Threads grants +40% Surpassing Chance for lanes to be Magic. 6 Threads grants +80%. 8 Threads grants +120%. Currency lane monster drops now scale with area Atlas drops.
+  * **Legion:** 3 Threads grants +1 Legion encounter. 6 Threads grants +2 Legions. 8 Threads grants +3 Legions.
+  * **Expedition:** 3 Threads grants 15% Surpassing Chance for Remnants to gain an extra Suffix. 6 Threads grants 30%. 8 Threads grants 50%. Runic monsters drop 20 to 30% more items and grant 20 to 30% more experience.
+  * **Ultimatum:** 3 Threads grants 15% increased Rare Monsters. 6 Threads grants 15% increased Rares and rewards granted as though completing an extra round. 8 Threads grants 30% increased Rares plus the extra round reward. Slaying monsters while holding a Soul Core no longer grants souls to bosses.
+  * **Ritual:** 3 Threads grants 20% increased Favours. 6 Threads grants 40%. 8 Threads grants 60%. The Bodach modifier grants a substantial tribute windfall. Revived monsters suffer lessened drop penalties based on applied Threads.
+  * **Bestiary:** 3 Threads grants 2 Additional Red Beasts. 6 Threads grants 3 Additional Red Beasts. 8 Threads grants 4 Additional Red Beasts.
+  * **Betrayal:** 3 Threads grants 30% increased reinforcement chance. 6 Threads grants 60%. 8 Threads grants 90%. Syndicate targets feature elevated innate rarity and gain bonus rarity for every rank and equipped item. Non reinforcement targets spawn with 2 rare monster bodyguards.
+  * **Incursion:** 3 Threads grants 20% increased pack size. 6 Threads grants 30%. 8 Threads grants 40%. Slaying all Architects in the Architect only room drops an itemized Temple of Atzoatl with randomized room tiers.
+
+* **3 to 1 Thread Vendor Recipe (3.30.0c):**
+  * Sell any 3 Threads of Creation to any vendor to receive 1 fresh random Thread of Creation.
+
+---
+
+### 2. Covens of Umbra and Fates Progression Overhauls (3.30.0b, 3.30.0c, 3.30.0d)
+
+* **Halved Divine and Annulment Cost:** Single Divine Orb and single Orb of Annulment Fate reward outcomes now only require 2 copies to complete rather than 3 (Patch 3.30.0d).
+* **Area Fate Counter:** A dedicated onscreen counter now displays how many Fates are available within your current map or campaign zone (Patch 3.30.0d).
+* **New Chase Fate Rewards in High Tier Maps:** Invoking Fates in high tier maps can now award additional Divine Orbs, Mirror Shards, Fracturing Orbs, Hinekora Lock, and rare Amulets with Gem modifiers (Patch 3.30.0c).
+* **Guaranteed Boss Viscera:** Extra bosses summoned by Savage, Pestilent, and Sadist Fates are guaranteed to drop the Viscera item associated with that specific encounter (Patch 3.30.0c).
+* **Viscera Quality of Life:** Added a dedicated Stash Tab Affinity for Viscera and a 3 to 1 Viscera vendor recipe (Patch 3.30.0c). Pressing V now closes the Covens league interface.
+* **Empowered Monster Item Guarantees:** Shields and Body Armours dropped by Empowered monsters guarantee a Defence modifier (replacing no Life modifiers). Helmets and Gloves guarantee a Life modifier (replacing no Defence modifiers).
+* **Pantheon Achievement Progression:** The Gifted Gods achievement can now be completed against Map equivalent Pantheon gods as well as campaign bosses when invoking at least 1 Fate.
+
+---
+
+### 3. Economy and Drop Mechanics Overhaul (3.30.0d)
+
+* **Rarity Scaling on Currency Quality:**
+  * In 3.30.0d, high inherent rarity monsters and chests no longer suffer from diminishing returns on currency quality. Additional item rarity now always contributes to elevating the average tier and quality of dropped currency.
+
+* **Foulborn Currency in Core Drop Pool:**
+  * Foulborn Exalted Orbs, Foulborn Regal Orbs, and Foulborn Orbs of Augmentation now drop naturally in the core drop pool across maps and leagues.
+
+* **Originator's Exalted Orb:**
+  * Brand new high tier currency item added in 3.30.0d. When applied to a Rare Map, it removes one random Suffix modifier and adds one random rare only modifier. Fully functional on Nightmare Maps.
+
+* **Primordial Exalted Orb:**
+  * Brand new exotic currency item added in 3.30.0d. Right clicking reveals a random Exotic Exalted Orb. Unavailable in Ruthless mode.
+
+* **Genesis Tree Adjustments:**
+  * Mutation Cultivation grants 6% chance to birth an additional Foulborn Currency.
+  * Flawed Seeds has been replaced by a node providing 25% chance for Wombgifts to birth an additional currency item.
+  * Genesis Tree Sapling from Breach Threads grants substantial Hiveblood.
+
+---
+
+### 4. Atlas Tree Notables and Anomalies (3.30.0c)
+
+* **Archon of Corruption Hideouts (Atlas Anomalies):**
+  * Archon of Corruption Hideouts can now manifest directly on your Atlas as Atlas Anomalies when completing Tier 16 Maps with Voidstones socketed.
+* **Celestial Presence (New Atlas Notable):**
+  * Multiple choice notable that guarantees Eldritch Altars always offer at least one choice affecting either Map Bosses, Players, or Influenced Monsters.
+* **Runic Distortion (New Atlas Notable):**
+  * Multiple choice notable that prevents Expedition Remnants from having Suffix modifiers affecting either Chests or Monsters, protecting your build from unwanted immunities.
+* **Ancient Writings:**
+  * Grants 35% Surpassing Chance for Remnants in your Maps to gain an additional Suffix modifier.
+
+---
+
+### 5. Critical Combat & Balance Adjustments (Hotfixes 1 through 12)
+
+* **Life Recoup Bug Fix (3.30.0b Hotfix 1):** Fixed an issue where Damage taken Recouped as Life modifiers failed to recover life. Recoup is now fully verified and operational as a prime defensive buffer.
+* **Double Corrupting Imbued Gems (3.30.0b Hotfix 1):** Fixed an issue where double corrupting Imbued Gems removed their Imbued Support effect.
+* **Gwennen Take a Chance Rules (3.30.0b & Hotfix 2):** Gwennen now requires target items to have empty sockets and prevents players from initiating gambles without sufficient currency. Players cannot reclaim items until an outcome is chosen.
+* **Shrine Hazards Mitigated (3.30.0b & 3.30.0d Hotfix 2):** Covetous Shrines no longer apply 20% increased damage taken to players. The Witch of the Woods spawned during Evolving Shrine encounters has lowered maximum life and reduced teleport frequency.
+* **Abyssal Degenerates Nerfed (3.30 Hotfix 2 & 3.30.0d Hotfix 1):** Physical damage over time inflicted by Abyssal monster modifiers was lowered across the board. Stolen Abyssal Headhunter modifiers no longer immobilize the player.
+* **Stat Penalty Cap (3.30.0c):** Gear slot reduction penalties are now strictly capped at 100% reduced penalty to prevent statistical rollover bugs.
 `
   }
 ];

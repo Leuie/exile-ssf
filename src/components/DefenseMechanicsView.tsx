@@ -158,10 +158,10 @@ export const DefenseMechanicsView: React.FC = () => {
           </div>
 
           <div className="p-5 rounded-2xl border border-purple-500/30 bg-purple-500/5 space-y-2">
-            <div className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 uppercase">Layer 4 • Recovery</div>
+            <div className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 uppercase">Layer 4 • Recovery (3.30.0b Recoup Verified)</div>
             <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Refill Immediately</h3>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              Instant Leech mastery, Life Gain on Hit, Consecrated Ground dual regen, Recoup, and automated utility Life Flasks.
+              Instant Leech mastery, Life Gain on Hit, Consecrated Ground dual regen, Recoup (fixed in 3.30.0b Hotfix 1 to properly recover life), and automated utility Life Flasks.
             </p>
           </div>
         </div>

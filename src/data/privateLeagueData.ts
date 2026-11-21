@@ -179,6 +179,78 @@ export const COVEN_OF_UMBRA_INFO = {
       description: 'Official Content Update 3.30.0 Patch Notes: Covens of Umbra, Wickerman and Viscera, Fates and Grim Fates boss empowerment, Threads of Creation replacing Scarabs, 150 Atlas passive points, Atziri replacing Vaal Omnitect, and Gold Scrolls of Wisdom.'
     },
     {
+      label: '3.30.0d Hotfix 2 (Latest)',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4017887',
+      description: 'Shield resistance Fate fix, Evolving Shrine Witch of the Woods teleport reduction and life nerf, duplicate rare monster positioning fix.'
+    },
+    {
+      label: '3.30.0d Hotfix 1',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4017837',
+      description: 'Covetous Dark permanent blind fix, Abyssal monster Headhunter immobilization prevention, physical damage over time lowered across the board.'
+    },
+    {
+      label: '3.30.0d Major Patch Notes',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4017726',
+      description: 'Currency rarity scaling rework, Originator and Primordial Exalted Orbs, Foulborn currency in core drop pool, Divine/Annulment Fate costs reduced to 2 copies, cluster jewel drop rate scaling.'
+    },
+    {
+      label: '3.30.0c Major Patch Notes',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4017172',
+      description: 'Archon of Corruption Hideout Anomalies on T16 maps, 3/6/8 Threads of Creation threshold scaling, 3 to 1 Thread and Viscera vendor recipes, high tier chase Fates rewards, Celestial Presence and Runic Distortion notables.'
+    },
+    {
+      label: '3.30.0b Hotfix 4',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4016174',
+      description: 'Crowkeeper Fate balance adjustments, Menagerie captured beast frost wall removal, and instance stability.'
+    },
+    {
+      label: '3.30.0b Hotfix 3',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4015683',
+      description: 'Swarmforge boss early aggro fix, Fate boss viscera drop guarantees, and something dark card turn in fix.'
+    },
+    {
+      label: '3.30.0b Hotfix 2',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4015564',
+      description: 'Corpse Rose wand friendly fire fix, Gwennen socket requirement (empty sockets only), and Fate monster rewards.'
+    },
+    {
+      label: '3.30.0b Hotfix 1',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4015085',
+      description: 'Damage taken Recouped as Life recovery fix, double corrupting Imbued Gems support preservation.'
+    },
+    {
+      label: '3.30.0b Major Patch Notes',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4014963',
+      description: 'Covetous Shrines 20% increased damage taken penalty removed, Gwennen gamble warning text and currency check safeguards.'
+    },
+    {
+      label: '3.30.0 Hotfix 3',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4014475',
+      description: 'Mirage border visual effect cleanup and client stability.'
+    },
+    {
+      label: '3.30.0 Hotfix 2',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4014442',
+      description: 'Abyssal monster modifier physical damage over time balance and Bestiary explosion aura alignment.'
+    },
+    {
+      label: '3.30.0 Hotfix 1',
+      category: 'Patch Notes',
+      url: 'https://www.pathofexile.com/forum/view-thread/4014378',
+      description: 'Controller XP popup bind fix, Vulkan window minimize crash fix, and instance crash resolutions.'
+    },
+    {
       label: 'New & Transfigured Gems (3.30)',
       category: 'Gems',
       url: 'https://www.pathofexile.com/forum/view-thread/3532728',
@@ -1146,6 +1218,99 @@ export const INCURSION_CHEAT_SHEET: IncursionRoomInfo[] = [
     tier3: 'Cradle of Creation (Tier 3 ★)',
     effect: 'Atziri has claimed the apex of Atzoatl: drops Queen pinnacle items, Story of the Vaal, and Puhuarte fire resistance damage gloves.',
     isHighValue: true
+  }
+];
+
+// Sheet 14: Threads of Creation Thresholds & League Specific Mechanics (3.30.0c & 3.30.0d)
+export interface CovensThreadMechanicInfo {
+  mechanic: string;
+  threads3: string;
+  threads6: string;
+  threads8: string;
+  specialRules: string;
+  patchOrigin: string;
+}
+
+export const COVENS_THREADS_CHEAT_SHEET: CovensThreadMechanicInfo[] = [
+  {
+    mechanic: 'Abyss',
+    threads3: '+1 Additional Pit',
+    threads6: '+2 Additional Pits',
+    threads8: '+3 Additional Pits',
+    specialRules: 'Rare Abyssal monsters gain an additional Abyssal modifier (3.30.0d). Physical damage over time from modifiers significantly reduced (Hotfixes).',
+    patchOrigin: 'Patch 3.30.0c & 3.30.0d'
+  },
+  {
+    mechanic: 'Breach',
+    threads3: '20% increased Magic Monsters',
+    threads6: '40% increased Magic Monsters',
+    threads8: '60% increased Magic Monsters',
+    specialRules: 'Final wave of Breach Hive encounters duplicates Rare monsters. Genesis Tree Sapling grants substantial Hiveblood (3.30.0d).',
+    patchOrigin: 'Patch 3.30.0c & 3.30.0d'
+  },
+  {
+    mechanic: 'Blight',
+    threads3: '+40% Surpassing Chance for Magic lanes',
+    threads6: '+80% Surpassing Chance for Magic lanes',
+    threads8: '+120% Surpassing Chance for Magic lanes',
+    specialRules: 'Monsters from Currency Lanes scale drops with area Atlas Drops. Rogue Exiles movement, life, and damage lowered (3.30.0d).',
+    patchOrigin: 'Patch 3.30.0c & 3.30.0d'
+  },
+  {
+    mechanic: 'Legion',
+    threads3: '1 Additional Legion encounter',
+    threads6: '2 Additional Legion encounters',
+    threads8: '3 Additional Legion encounters',
+    specialRules: 'Encounter density amplifies general splinter yields and jewel drops.',
+    patchOrigin: 'Patch 3.30.0c'
+  },
+  {
+    mechanic: 'Expedition',
+    threads3: '15% Surpassing Chance for Remnant extra Suffix',
+    threads6: '30% Surpassing Chance for Remnant extra Suffix',
+    threads8: '50% Surpassing Chance for Remnant extra Suffix',
+    specialRules: 'Runic Monsters drop 20 to 30% more items and grant 20 to 30% more experience. Ancient Writings notable grants 35% Surpassing Chance for Suffixes.',
+    patchOrigin: 'Patch 3.30.0c'
+  },
+  {
+    mechanic: 'Ultimatum',
+    threads3: '15% increased Rare Monsters',
+    threads6: '15% increased Rares + extra round rewards',
+    threads8: '30% increased Rares + extra round rewards',
+    specialRules: 'Unique monsters will no longer gain a soul when hitting a player carrying a Soul Core (3.30.0d). Rewards granted as though completing an extra round.',
+    patchOrigin: 'Patch 3.30.0c & 3.30.0d'
+  },
+  {
+    mechanic: 'Ritual',
+    threads3: '20% increased Favours',
+    threads6: '40% increased Favours',
+    threads8: '60% increased Favours',
+    specialRules: 'Revived monsters have lessened quantity/rarity penalty scaling with Threads. Bodach modifier grants large tribute windfall (3.30.0c).',
+    patchOrigin: 'Patch 3.30.0c'
+  },
+  {
+    mechanic: 'Bestiary',
+    threads3: '2 Additional Red Beasts',
+    threads6: '3 Additional Red Beasts',
+    threads8: '4 Additional Red Beasts',
+    specialRules: 'Red beasts captured with frost wall mod no longer retain walls in Menagerie (3.30.0b Hotfix 4).',
+    patchOrigin: 'Patch 3.30.0c'
+  },
+  {
+    mechanic: 'Betrayal',
+    threads3: '30% increased reinforcement chance',
+    threads6: '60% increased reinforcement chance',
+    threads8: '90% increased reinforcement chance',
+    specialRules: 'Syndicate targets feature elevated innate rarity and gain bonus rarity per rank and equipped item. Non reinforcement targets get 2 rare monster bodyguards.',
+    patchOrigin: 'Patch 3.30.0c'
+  },
+  {
+    mechanic: 'Incursion',
+    threads3: '20% increased Pack Size',
+    threads6: '30% increased Pack Size',
+    threads8: '40% increased Pack Size',
+    specialRules: 'Architects accompanied by extra rare monster per finished Incursion. Special room with only Architects drops an Itemized Temple with randomized tiers (3.30.0d)!',
+    patchOrigin: 'Patch 3.30.0c & 3.30.0d'
   }
 ];
 

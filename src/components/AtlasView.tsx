@@ -48,17 +48,19 @@ export const AtlasView: React.FC = () => {
     },
     {
       stageNumber: 3,
-      title: 'The Boss Rush & Scarab Engine',
-      points: '90 to 132 Points',
+      title: 'The Boss Rush & Threads of Creation Engine',
+      points: '90 to 150 Points',
       themeColor: 'purple',
-      focus: 'Destructive Play Maven guardian farming, Scarabs, and Favoured Map layouts.',
+      focus: 'Destructive Play Maven guardian farming, Threads of Creation threshold weaving, and Favoured Map layouts.',
       nodes: [
         'Destructive Play (Maven summons 1 to 3 additional bosses for massive guardian map drops)',
         'Remnants of the Past & Vivid Memories (+3% chance for map bosses to drop Shaper/Elder maps)',
-        'Scarab Drop Chance wheels to target farm specific league mechanics',
-        'Unnatural Strength & Singular Focus (when running a single favoured map layout)'
+        'Threads of Creation wheels (3, 6, and 8 Thread thresholds for pack density, magic monster chance, and duplicated bosses)',
+        'Celestial Presence notable (guaranteeing Eldritch Altars always offer Map Boss, Player, or Influenced Monster options)',
+        'Runic Distortion notable (preventing unwanted Suffix modifiers on Expedition Remnants)',
+        'Archon of Corruption Hideout Anomalies manifesting on T16 maps with socketed Voidstones'
       ],
-      strategy: 'Farm Shaper, Elder, and Conqueror guardian sets rapidly. Use Destructive Play to maintain endless 10 boss Maven invitations.'
+      strategy: 'Farm Shaper, Elder, and Conqueror guardian sets rapidly. Use Destructive Play to maintain endless 10 boss Maven invitations and weave Threads of Creation at 3, 6, and 8 thresholds for maximum loot scaling.'
     }
   ];
 
@@ -179,7 +181,7 @@ export const AtlasView: React.FC = () => {
             Atlas Passive Tree Roadmap (3 Stages)
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Follow this 3-stage progression to ensure you never get map starved and deterministically acquire your gear.
+            Follow this 3 stage progression to ensure you never get map starved and deterministically acquire your gear.
           </p>
         </div>
 
