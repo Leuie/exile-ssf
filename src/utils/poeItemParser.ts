@@ -1,4 +1,4 @@
-import pako from 'pako';
+import { inflate } from 'pako';
 import type { WishlistItemCategory } from '../types';
 
 export interface ParsedPoeTooltip {
@@ -143,7 +143,7 @@ export function extractWishlistItemsFromPobCode(rawInput: string): ExtractedPobW
     for (let i = 0; i < binaryStr.length; i++) {
       bytes[i] = binaryStr.charCodeAt(i);
     }
-    const inflated = pako.inflate(bytes);
+    const inflated = inflate(bytes);
     const xmlStr = new TextDecoder('utf-8').decode(inflated);
 
     // 1. Extract Unique items and Cluster Jewels from <Item ...> blocks
