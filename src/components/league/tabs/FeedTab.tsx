@@ -274,6 +274,10 @@ export const FeedTab: React.FC<FeedTabProps> = ({
     for (const g of guides.slice(0, 6)) {
       const synthId = `synth_guide_${g.id}`;
       if (!byId.has(synthId)) {
+        const parsedTs = g.createdAt ? Date.parse(g.createdAt) : Number.NaN;
+        const safeIso = !Number.isNaN(parsedTs)
+          ? new Date(parsedTs).toISOString()
+          : '2026-11-13T00:00:00Z';
         byId.set(synthId, {
           id: synthId,
           leagueId: activeSessionId,
@@ -282,14 +286,16 @@ export const FeedTab: React.FC<FeedTabProps> = ({
           title: `Published Build Guide: ${g.title}`,
           detail: `${g.ascendancy} • ${g.className}`,
           targetTab: 'guides',
-          createdAtIso: g.createdAt || '2026-11-13T12:00:00Z'
+          createdAtIso: safeIso
         });
       }
     }
 
-    return Array.from(byId.values()).sort((a, b) =>
-      (b.createdAtIso || '').localeCompare(a.createdAtIso || '')
-    );
+    return Array.from(byId.values()).sort((a, b) => {
+      const aTs = Date.parse(a.createdAtIso || '') || 0;
+      const bTs = Date.parse(b.createdAtIso || '') || 0;
+      return bTs - aTs;
+    });
   }, [activityFeed, lookingForItems, stashDrops, bossRotas, leagueFirsts, guides, activeSessionId]);
 
   const myHandleLower = userAccount?.displayName?.trim().toLowerCase() || '';
