@@ -92,3 +92,28 @@ CREATE TABLE IF NOT EXISTS profiles (
   data TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS stash_drops (
+  id TEXT PRIMARY KEY,
+  league_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stash_drops_league ON stash_drops(league_id);
+
+CREATE TABLE IF NOT EXISTS boss_rotas (
+  id TEXT PRIMARY KEY,
+  league_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_boss_rotas_league ON boss_rotas(league_id);
+
+CREATE TABLE IF NOT EXISTS league_firsts (
+  id TEXT PRIMARY KEY,
+  league_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_league_firsts_league ON league_firsts(league_id);

@@ -10,6 +10,10 @@ import type {
 } from '../types';
 
 export const HONOR_PER_ITEM_FOUND = 5;
+export const HONOR_PER_RECEIPT_CONFIRMED = 5;
+export const HONOR_PER_SELF_FOUND = 5;
+export const HONOR_EARLY_330_PIONEER = 25;
+export const LEAGUE_330_LAUNCH_ISO = '2026-11-13T19:00:00Z';
 
 export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   {
@@ -160,6 +164,8 @@ export function formatLeagueLabel(leagueId?: string): string {
 
 export function buildRetroactiveHonorHistory(params: {
   fulfilledByPlayer: LookingForItem[];
+  selfFoundByPlayer?: LookingForItem[];
+  isEarly330Pioneer?: boolean;
   achievementProfile?: PersistentAchievementProfile | null;
   leagueId?: string;
 }): {
@@ -168,7 +174,13 @@ export function buildRetroactiveHonorHistory(params: {
   fulfillmentBonusPoints: number;
   totalHonorPoints: number;
 } {
-  const { fulfilledByPlayer, achievementProfile, leagueId } = params;
+  const {
+    fulfilledByPlayer,
+    selfFoundByPlayer = [],
+    isEarly330Pioneer = false,
+    achievementProfile,
+    leagueId
+  } = params;
   const map = new Map<string, HonorHistoryEntry>();
   const leagueLabel = formatLeagueLabel(leagueId);
 
@@ -179,15 +191,30 @@ export function buildRetroactiveHonorHistory(params: {
     }
   }
 
-  // 2. Retroactively credit +5 Honor Points for every item found for a squadmate
+  // 2. Retroactive +25 Honor Points for Early 3.30 Private League Registration (pre launch)
+  if (isEarly330Pioneer) {
+    const pioneerId = 'honor-pioneer-330';
+    if (!map.has(pioneerId)) {
+      map.set(pioneerId, {
+        id: pioneerId,
+        points: HONOR_EARLY_330_PIONEER,
+        reason: 'Early Pioneer Registration (Registered prior to 3.30 League Launch)',
+        where: 'Covens of Umbra (3.30) • Roster',
+        timestampIso: '2026-11-12T00:00:00Z',
+        kind: 'early_pioneer'
+      });
+    }
+  }
+
+  // 3. Retroactively credit +5 Honor Points for finding an item for a squadmate, PLUS +5 when receipt is confirmed (+10 total!)
   for (const item of fulfilledByPlayer) {
     if (item.status !== 'HAVE') continue;
     if (!item.fulfilledBy || item.fulfilledBy.trim().toLowerCase() === 'self found') continue;
     const requester = item.displayName || item.characterName || 'Squadmate';
-    const entryId = `honor-find-${item.id}`;
-    if (!map.has(entryId)) {
-      map.set(entryId, {
-        id: entryId,
+    const findId = `honor-find-${item.id}`;
+    if (!map.has(findId)) {
+      map.set(findId, {
+        id: findId,
         points: HONOR_PER_ITEM_FOUND,
         reason: `Found "${item.itemName}" for @${requester}${item.bountyOffer ? ` (Bounty: ${item.bountyOffer})` : ''}`,
         where: `${leagueLabel} • Wishlists`,
@@ -195,9 +222,45 @@ export function buildRetroactiveHonorHistory(params: {
         kind: 'item_found'
       });
     }
+
+    if (item.receiptConfirmed || item.bountyStatus === 'PAID') {
+      const receiptId = `honor-receipt-${item.id}`;
+      if (!map.has(receiptId)) {
+        map.set(receiptId, {
+          id: receiptId,
+          points: HONOR_PER_RECEIPT_CONFIRMED,
+          reason: `Delivery Confirmed by @${requester} for "${item.itemName}" (Coop Delivery Bonus)`,
+          where: `${leagueLabel} • Wishlists`,
+          timestampIso: item.receiptConfirmedAtIso || item.bountyPaidAtIso || item.fulfilledAtIso || '',
+          kind: 'receipt_confirmed'
+        });
+      }
+    }
   }
 
-  // 3. Add unlocked achievement entries
+  // 4. Retroactively credit +5 Honor Points for self found items
+  for (const item of selfFoundByPlayer) {
+    if (item.status !== 'HAVE') continue;
+    const isSelf =
+      !item.fulfilledBy ||
+      item.fulfilledBy.trim().toLowerCase() === 'self found' ||
+      (item.displayName && item.fulfilledBy.trim().replace(/^@/, '').toLowerCase() === item.displayName.trim().toLowerCase());
+    if (!isSelf) continue;
+
+    const selfId = `honor-self-${item.id}`;
+    if (!map.has(selfId)) {
+      map.set(selfId, {
+        id: selfId,
+        points: HONOR_PER_SELF_FOUND,
+        reason: `Self Found "${item.itemName}"`,
+        where: `${leagueLabel} • Wishlists`,
+        timestampIso: item.fulfilledAtIso || '',
+        kind: 'self_found'
+      });
+    }
+  }
+
+  // 5. Add unlocked achievement entries
   const unlockedIds = achievementProfile?.unlockedIds || {};
   for (const def of ACHIEVEMENT_CATALOG) {
     if (unlockedIds[def.id]) {
@@ -223,15 +286,15 @@ export function buildRetroactiveHonorHistory(params: {
     .filter((e) => e.kind === 'achievement')
     .reduce((sum, e) => sum + e.points, 0);
 
-  const findEntriesCount = entries.filter((e) => e.kind === 'item_found').length;
-  const effectiveFinds = Math.max(findEntriesCount, achievementProfile?.lifetimeFulfilledCount || 0);
-  const fulfillmentBonusPoints = effectiveFinds * HONOR_PER_ITEM_FOUND;
+  const nonAchievementPoints = entries
+    .filter((e) => e.kind !== 'achievement')
+    .reduce((sum, e) => sum + e.points, 0);
 
   return {
     entries,
     achievementPoints,
-    fulfillmentBonusPoints,
-    totalHonorPoints: achievementPoints + fulfillmentBonusPoints
+    fulfillmentBonusPoints: nonAchievementPoints,
+    totalHonorPoints: achievementPoints + nonAchievementPoints
   };
 }
 
@@ -281,7 +344,7 @@ export function evaluateCloudAchievements(params: {
 
   const matchIdentity = (val?: string): boolean => {
     if (!val || !userAccount) return false;
-    const low = val.trim().toLowerCase();
+    const low = val.trim().replace(/^@/, '').toLowerCase();
     return Boolean(
       (userAccount.displayName && low === userAccount.displayName.trim().toLowerCase()) ||
       (userAccount.characterName && low === userAccount.characterName.trim().toLowerCase()) ||
@@ -294,7 +357,15 @@ export function evaluateCloudAchievements(params: {
       it.status === 'HAVE' &&
       it.fulfilledBy &&
       it.fulfilledBy.toLowerCase() !== 'self found' &&
+      !matchIdentity(it.displayName) &&
       (matchIdentity(it.fulfilledBy) || matchIdentity(it.fulfilledByAccount))
+  );
+
+  const sessionSelfFound = lookingForItems.filter(
+    (it) =>
+      it.status === 'HAVE' &&
+      (matchIdentity(it.displayName) || matchIdentity(it.characterName) || matchIdentity(it.poeAccountName)) &&
+      (!it.fulfilledBy || it.fulfilledBy.toLowerCase() === 'self found' || matchIdentity(it.fulfilledBy))
   );
 
   const sessionBountiesClaimed = sessionFulfilled.filter(
@@ -311,11 +382,20 @@ export function evaluateCloudAchievements(params: {
   const myPostedBounties = myPostedItems.filter((it) => Boolean(it.bountyOffer && it.bountyOffer.trim())).length;
   const sessionBountiesPaid = myPostedItems.filter((it) => it.bountyStatus === 'PAID').length;
 
-  const onActiveRoster = roster.some(
+  const myRosterMember = roster.find(
     (m) =>
       matchIdentity(m.displayName) ||
       matchIdentity(m.characterName) ||
       matchIdentity(m.poeAccountName)
+  );
+  const onActiveRoster = Boolean(myRosterMember);
+
+  // Early 3.30 Pioneer: registered on 3.30 roster with Day 1 availability or registeredAt prior to 3.30 launch
+  const isEarly330Pioneer = Boolean(
+    onActiveRoster &&
+      (activeSessionId === 'poe1-330-umbra') &&
+      (myRosterMember?.availableAtLaunch === 'Yes' ||
+        (userAccount?.registeredAt && userAccount.registeredAt < LEAGUE_330_LAUNCH_ISO))
   );
 
   const alumniRecord = alumniList.find(
@@ -382,9 +462,10 @@ export function evaluateCloudAchievements(params: {
     };
   });
 
-  // Build retroactive + live honor log
   const historyCalc = buildRetroactiveHonorHistory({
     fulfilledByPlayer: sessionFulfilled,
+    selfFoundByPlayer: sessionSelfFound,
+    isEarly330Pioneer,
     achievementProfile: { ...stored, unlockedIds: nextUnlocked, lifetimeFulfilledCount },
     leagueId: activeSessionId
   });
@@ -409,9 +490,6 @@ export function evaluateCloudAchievements(params: {
       (nextProfile.honorLog?.length || 0) !== (stored.honorLog?.length || 0))
   );
 
-  const achievementPoints = evaluated.reduce((acc, a) => acc + (a.unlocked ? a.definition.points : 0), 0);
-  const fulfillmentBonusPoints = lifetimeFulfilledCount * HONOR_PER_ITEM_FOUND;
-  const totalPoints = achievementPoints + fulfillmentBonusPoints;
   const maxPoints = ACHIEVEMENT_CATALOG.reduce((acc, d) => acc + d.points, 0);
   const unlockedCount = evaluated.filter((a) => a.unlocked).length;
   const availableTitles = evaluated
@@ -422,9 +500,9 @@ export function evaluateCloudAchievements(params: {
     playerKey,
     profile: nextProfile,
     achievements: evaluated,
-    achievementPoints,
-    fulfillmentBonusPoints,
-    totalPoints,
+    achievementPoints: historyCalc.achievementPoints,
+    fulfillmentBonusPoints: historyCalc.fulfillmentBonusPoints,
+    totalPoints: historyCalc.totalHonorPoints,
     maxPoints,
     unlockedCount,
     hasCloudChanges,

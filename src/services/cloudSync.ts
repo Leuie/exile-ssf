@@ -11,7 +11,10 @@ import type {
   SquadServiceListing,
   PlayerVouch,
   OfficialLadderEntry,
-  ExileProfile
+  ExileProfile,
+  FreeStashDrop,
+  BossRotaListing,
+  LeagueFirstMilestone
 } from '../types';
 
 export interface CloudLeagueMeta {
@@ -32,6 +35,9 @@ export interface CloudLeagueDataResponse {
   meta?: CloudLeagueMeta | null;
   services?: SquadServiceListing[] | null;
   vouches?: PlayerVouch[] | null;
+  stashDrops?: FreeStashDrop[] | null;
+  bossRotas?: BossRotaListing[] | null;
+  leagueFirsts?: LeagueFirstMilestone[] | null;
   lastSynced?: string;
   message?: string;
 }
@@ -474,5 +480,84 @@ export async function cloudAuthLogin(identifier: string, password: string): Prom
     return { success: true, userAccount: data.userAccount, rosterEntry: data.rosterEntry };
   } catch {
     return { success: false, error: 'Network error' };
+  }
+}
+
+
+export async function saveCloudStashDrop(
+  leagueId: string,
+  drop: FreeStashDrop
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/stash-drops`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, drop })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteCloudStashDrop(
+  leagueId: string,
+  dropId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/stash-drops/${encodeURIComponent(dropId)}?league=${encodeURIComponent(leagueId)}`,
+      { method: 'DELETE' }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudBossRota(
+  leagueId: string,
+  rota: BossRotaListing
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/boss-rotas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, rota })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteCloudBossRota(
+  leagueId: string,
+  rotaId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/boss-rotas/${encodeURIComponent(rotaId)}?league=${encodeURIComponent(leagueId)}`,
+      { method: 'DELETE' }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudLeagueFirst(
+  leagueId: string,
+  milestone: LeagueFirstMilestone
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/league-firsts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, milestone })
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

@@ -18,10 +18,12 @@ import type {
   ActiveLeagueSession,
   LeagueRosterMember,
   UserAccount,
-  PastPrivateLeague
+  PastPrivateLeague,
+  LeagueFirstMilestone
 } from '../../../types';
 import { COVEN_OF_UMBRA_INFO } from '../../../data/privateLeagueData';
 import { LeagueHeroBanner } from '../../LeagueHeroBanner';
+import { LeagueFirstsWall } from '../widgets/LeagueFirstsWall';
 import type { ManagerSectionType } from '../../LeagueContentManagerModal';
 
 export interface CommandCenterTabProps {
@@ -41,6 +43,9 @@ export interface CommandCenterTabProps {
   archivesList: PastPrivateLeague[];
   faqList: any[];
   openManagerModal: (section: ManagerSectionType) => void;
+  isCurrentUserAdmin?: boolean;
+  leagueFirsts?: LeagueFirstMilestone[];
+  onClaimLeagueFirst?: (milestone: LeagueFirstMilestone) => void;
 }
 
 export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
@@ -59,7 +64,10 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
   quickLinks,
   archivesList,
   faqList,
-  openManagerModal
+  openManagerModal,
+  isCurrentUserAdmin = false,
+  leagueFirsts = [],
+  onClaimLeagueFirst
 }) => {
   // Collapsible Sections State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -149,6 +157,16 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
         onOpenJoinModal={handleOpenJoinModal}
         isUserOnRoster={isCurrentUserOnRoster}
       />
+
+      {/* League Firsts & Hall of Fame Wall */}
+      {onClaimLeagueFirst && (
+        <LeagueFirstsWall
+          firsts={leagueFirsts}
+          currentUser={userAccount || null}
+          isAdmin={isCurrentUserAdmin}
+          onClaimFirst={onClaimLeagueFirst}
+        />
+      )}
 
       {/* Category Collapsible Master Controls */}
       <div className="px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between text-xs font-mono">

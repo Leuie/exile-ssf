@@ -31,11 +31,13 @@ import type {
   SquadServiceListing,
   SquadServiceType,
   PlayerVouch,
-  VouchCategory
+  VouchCategory,
+  BossRotaListing
 } from '../../../types';
 import { saveCloudWishlistItem, saveCloudAchievementProfile, saveCloudService, deleteCloudService, saveCloudVouch } from '../../../services/cloudSync';
 import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
 import { getMemberCharacters } from './RosterTab';
+import { BossRotaScheduler } from '../widgets/BossRotaScheduler';
 import {
   evaluateCloudAchievements,
   getPlayerCloudKey,
@@ -63,6 +65,9 @@ export interface BountiesAndHonorsTabProps {
   fireConfetti: () => void;
   onJumpToWishlist: (itemName: string) => void;
   onOpenProfile?: (handle: string) => void;
+  bossRotas?: BossRotaListing[];
+  onSaveBossRota?: (rota: BossRotaListing) => void;
+  onDeleteBossRota?: (rotaId: string) => void;
 }
 
 const BOUNTY_PRESETS = [
@@ -94,7 +99,10 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   setCopyNotice,
   fireConfetti,
   onJumpToWishlist,
-  onOpenProfile
+  onOpenProfile,
+  bossRotas = [],
+  onSaveBossRota,
+  onDeleteBossRota
 }) => {
   const [subView, setSubView] = useState<'bounties' | 'carries' | 'ledger' | 'achievements'>('bounties');
   const [showPostServiceForm, setShowPostServiceForm] = useState<boolean>(false);
@@ -881,6 +889,15 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
       {/* SUB VIEW: SQUAD ATLAS, BOSS CARRIES & VOUCH BOARD */}
       {subView === 'carries' && (
         <div className="space-y-5">
+          {onSaveBossRota && onDeleteBossRota && (
+            <BossRotaScheduler
+              rotas={bossRotas}
+              currentUser={userAccount || null}
+              isAdmin={isCurrentUserAdmin}
+              onSaveRota={onSaveBossRota}
+              onDeleteRota={onDeleteBossRota}
+            />
+          )}
           <div className="p-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">

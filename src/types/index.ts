@@ -297,6 +297,8 @@ export interface LookingForItem {
   bountyOffer?: string; // Optional finder incentive (e.g. 8 Divines, 150 Chaos, Boss Carry)
   bountyStatus?: 'OPEN' | 'CLAIMED' | 'PAID';
   bountyPaidAtIso?: string;
+  receiptConfirmed?: boolean;
+  receiptConfirmedAtIso?: string;
 }
 
 export type AchievementTier = 'Common' | 'Rare' | 'Unique' | 'Pinnacle';
@@ -320,7 +322,7 @@ export interface HonorHistoryEntry {
   reason: string;
   where: string;
   timestampIso: string;
-  kind: 'item_found' | 'achievement';
+  kind: 'item_found' | 'receipt_confirmed' | 'self_found' | 'early_pioneer' | 'achievement';
 }
 
 export interface PersistentAchievementProfile {
@@ -515,5 +517,58 @@ export interface ExileProfile {
   discordHandle?: string;
   twitchUrl?: string;
   favoriteClass?: string;
+  mapRegexBricks?: string[];
+  sessionGoals?: PersonalSessionGoal[];
   updatedAtIso?: string;
+}
+
+export interface PersonalSessionGoal {
+  id: string;
+  text: string;
+  characterName?: string;
+  done: boolean;
+  createdAtIso: string;
+}
+
+export interface FreeStashDrop {
+  id: string;
+  leagueId: string;
+  donorDisplayName: string;
+  donorCharacterName: string;
+  itemName: string;
+  baseType?: string;
+  rarity: 'Unique' | 'Rare' | 'Magic' | 'Gem' | 'Currency' | 'Divination Card' | 'Other';
+  itemLevel?: number;
+  mods: string[];
+  rawTooltip?: string;
+  notes?: string;
+  claimedBy?: string;
+  claimedAtIso?: string;
+  createdAtIso: string;
+}
+
+export interface BossRotaListing {
+  id: string;
+  leagueId: string;
+  hostDisplayName: string;
+  hostCharacterName: string;
+  title: string;
+  bossType: string;
+  scheduledTime: string;
+  maxSpots: number;
+  participants: string[];
+  notes?: string;
+  status: 'OPEN' | 'FULL' | 'COMPLETED';
+  createdAtIso: string;
+}
+
+export interface LeagueFirstMilestone {
+  id: string;
+  leagueId: string;
+  milestoneKey: string;
+  title: string;
+  winnerDisplayName: string;
+  winnerCharacterName?: string;
+  proofNote?: string;
+  achievedAtIso: string;
 }

@@ -38,6 +38,12 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE TABLE IF NOT EXISTS vouches (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, provider_key TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_vouches_league ON vouches(league_id)`,
     `CREATE TABLE IF NOT EXISTS profiles (handle_lower TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS stash_drops (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_stash_drops_league ON stash_drops(league_id)`,
+    `CREATE TABLE IF NOT EXISTS boss_rotas (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_boss_rotas_league ON boss_rotas(league_id)`,
+    `CREATE TABLE IF NOT EXISTS league_firsts (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_league_firsts_league ON league_firsts(league_id)`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -423,7 +429,7 @@ export default {
         try {
           await migrateKvToD1ForLeague(env, leagueId);
 
-          const [wishRes, rosterRes, guideRes, achRes, alumniRes, metaRes, svcRes, vouchRes] = await Promise.all([
+          const [wishRes, rosterRes, guideRes, achRes, alumniRes, metaRes, svcRes, vouchRes, stashRes, rotaRes, firstsRes] = await Promise.all([
             db.prepare('SELECT data FROM wishlists WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
             db.prepare('SELECT data FROM roster WHERE league_id = ?').bind(leagueId).all(),
             db.prepare('SELECT data FROM guides WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
@@ -431,7 +437,10 @@ export default {
             db.prepare('SELECT data FROM alumni').all(),
             db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind(leagueId).first(),
             db.prepare('SELECT data FROM services WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
-            db.prepare('SELECT data FROM vouches WHERE league_id = ? ORDER BY created_at DESC').bind(leagueId).all()
+            db.prepare('SELECT data FROM vouches WHERE league_id = ? ORDER BY created_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM stash_drops WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM boss_rotas WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all(),
+            db.prepare('SELECT data FROM league_firsts WHERE league_id = ? ORDER BY updated_at DESC').bind(leagueId).all()
           ]);
 
           const wishlist = (wishRes.results || []).map((r: any) => JSON.parse(r.data));
@@ -445,6 +454,9 @@ export default {
           const meta = metaRes?.data ? JSON.parse(metaRes.data) : null;
           const services = (svcRes.results || []).map((r: any) => JSON.parse(r.data));
           const vouches = (vouchRes.results || []).map((r: any) => JSON.parse(r.data));
+          const stashDrops = (stashRes.results || []).map((r: any) => JSON.parse(r.data));
+          const bossRotas = (rotaRes.results || []).map((r: any) => JSON.parse(r.data));
+          const leagueFirsts = (firstsRes.results || []).map((r: any) => JSON.parse(r.data));
 
           return new Response(
             JSON.stringify({
@@ -458,6 +470,9 @@ export default {
               meta,
               services,
               vouches,
+              stashDrops,
+              bossRotas,
+              leagueFirsts,
               lastSynced: now
             }),
             { headers: CORS_HEADERS }
@@ -949,7 +964,9 @@ export default {
             rootHandle: customProfile?.rootHandle || primaryMember?.displayName || handleRaw,
             discordHandle: customProfile?.discordHandle || primaryMember?.discordName || alumniMatches[0]?.discordName || '',
             twitchUrl: customProfile?.twitchUrl || '',
-            favoriteClass: customProfile?.favoriteClass || primaryMember?.ascendancy || ''
+            favoriteClass: customProfile?.favoriteClass || primaryMember?.ascendancy || '',
+            mapRegexBricks: Array.isArray(customProfile?.mapRegexBricks) ? customProfile.mapRegexBricks : [],
+            sessionGoals: Array.isArray(customProfile?.sessionGoals) ? customProfile.sessionGoals : []
           };
 
           return new Response(
@@ -1093,6 +1110,86 @@ export default {
             }),
             { headers: CORS_HEADERS }
           );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+
+      // POST /api/stash-drops
+      if (url.pathname === '/api/stash-drops' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const drop = body.drop;
+          if (!drop || !drop.id) {
+            return new Response(JSON.stringify({ error: 'Missing stash drop payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          await db
+            .prepare('INSERT OR REPLACE INTO stash_drops (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(String(drop.id), targetLeague, JSON.stringify(drop), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // DELETE /api/stash-drops/:id
+      if (url.pathname.startsWith('/api/stash-drops/') && request.method === 'DELETE') {
+        try {
+          const dropId = decodeURIComponent(url.pathname.replace('/api/stash-drops/', '').trim());
+          await db.prepare('DELETE FROM stash_drops WHERE id = ? AND league_id = ?').bind(dropId, leagueId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/boss-rotas
+      if (url.pathname === '/api/boss-rotas' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const rota = body.rota;
+          if (!rota || !rota.id) {
+            return new Response(JSON.stringify({ error: 'Missing boss rota payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          await db
+            .prepare('INSERT OR REPLACE INTO boss_rotas (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(String(rota.id), targetLeague, JSON.stringify(rota), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // DELETE /api/boss-rotas/:id
+      if (url.pathname.startsWith('/api/boss-rotas/') && request.method === 'DELETE') {
+        try {
+          const rotaId = decodeURIComponent(url.pathname.replace('/api/boss-rotas/', '').trim());
+          await db.prepare('DELETE FROM boss_rotas WHERE id = ? AND league_id = ?').bind(rotaId, leagueId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/league-firsts
+      if (url.pathname === '/api/league-firsts' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const milestone = body.milestone;
+          if (!milestone || !milestone.id) {
+            return new Response(JSON.stringify({ error: 'Missing league first payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          await db
+            .prepare('INSERT OR REPLACE INTO league_firsts (id, league_id, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(String(milestone.id), targetLeague, JSON.stringify(milestone), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }

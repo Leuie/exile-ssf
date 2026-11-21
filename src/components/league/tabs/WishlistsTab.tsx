@@ -19,9 +19,12 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory } from '../../../types';
+import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory, FreeStashDrop } from '../../../types';
 import { saveCloudWishlistItem, deleteCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
-import { HONOR_PER_ITEM_FOUND, formatLeagueLabel } from '../../../utils/achievements';
+import { HONOR_PER_ITEM_FOUND, HONOR_PER_RECEIPT_CONFIRMED, HONOR_PER_SELF_FOUND, formatLeagueLabel } from '../../../utils/achievements';
+import { parsePoeClipboardTooltip } from '../../../utils/poeItemParser';
+import { FreeStashFeed } from '../widgets/FreeStashFeed';
+import { PobWishlistImportModal } from '../modals/PobWishlistImportModal';
 import { getMemberCharacters } from './RosterTab';
 import { LootFilterExportModal } from '../modals/LootFilterExportModal';
 
@@ -99,6 +102,10 @@ export interface WishlistsTabProps {
   initialSearchQuery?: string | null;
   onClearInitialSearch?: () => void;
   onOpenProfile?: (handle: string) => void;
+  stashDrops?: FreeStashDrop[];
+  onAddStashDrop?: (drop: FreeStashDrop) => void;
+  onClaimStashDrop?: (drop: FreeStashDrop) => void;
+  onDeleteStashDrop?: (dropId: string) => void;
 }
 
 export const WishlistsTab: React.FC<WishlistsTabProps> = ({
@@ -115,9 +122,14 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   onOpenBountiesPage,
   initialSearchQuery,
   onClearInitialSearch,
-  onOpenProfile
+  onOpenProfile,
+  stashDrops = [],
+  onAddStashDrop,
+  onClaimStashDrop,
+  onDeleteStashDrop
 }) => {
-  const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table'>('item');
+  const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table' | 'stash'>('item');
+  const [showPobImportModal, setShowPobImportModal] = useState<boolean>(false);
   const [lookingForSearch, setLookingForSearch] = useState<string>('');
   const [lookingForCategoryFilter, setLookingForCategoryFilter] = useState<string>('All');
   const [lookingForStatusFilter, setLookingForStatusFilter] = useState<string>('All');
@@ -125,7 +137,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [selectedCharFilter, setSelectedCharFilter] = useState<string>('All');
   const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
   const [showLootFilterModal, setShowLootFilterModal] = useState<boolean>(false);
-  const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string } | null>(null);
+  const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string; points?: number; label?: string } | null>(null);
 
   const myRosterEntry = React.useMemo(() => {
     if (!userAccount) return undefined;
@@ -450,9 +462,117 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       setTimeout(() => setHonorAwardBanner(null), 5000);
       setCopyNotice(`+${HONOR_PER_ITEM_FOUND} Honor Points to @${cleanHelper}! Marked ${existing.itemName} as HAVE.`);
     } else {
-      setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
+      const selfHandle = userAccount?.displayName || existing.displayName || existing.characterName || 'Exile';
+      const selfKey = (userAccount?.poeAccountName || selfHandle).trim().toLowerCase();
+      saveCloudAchievementProfile(selfKey, {
+        unlockedIds: {},
+        lifetimeFulfilledCount: 0,
+        lifetimeBountiesClaimed: 0,
+        lifetimeBountiesPaid: 0,
+        leaguesParticipated: [activeSessionId],
+        honorLog: [
+          {
+            id: `honor-self-${existing.id}`,
+            points: HONOR_PER_SELF_FOUND,
+            reason: `Self Found "${existing.itemName}" for your build`,
+            where: `${formatLeagueLabel(activeSessionId)} • Wishlists`,
+            timestampIso: itemCopy.fulfilledAtIso || new Date().toISOString(),
+            kind: 'self_found'
+          }
+        ]
+      });
+      setHonorAwardBanner({ finder: selfHandle, itemName: existing.itemName, requester: 'Self Found', points: HONOR_PER_SELF_FOUND, label: 'SELF FOUND BONUS!' });
+      setTimeout(() => setHonorAwardBanner(null), 4500);
+      setCopyNotice(`+${HONOR_PER_SELF_FOUND} Honor Points! Marked ${existing.itemName} as Self Found.`);
     }
     setTimeout(() => setCopyNotice(null), 3500);
+  };
+
+  const handleConfirmReceipt = (itemId: string) => {
+    const existing = lookingForItems.find((it) => it.id === itemId);
+    if (!existing || existing.receiptConfirmed) return;
+    const nowIso = new Date().toISOString();
+    const itemCopy: LookingForItem = {
+      ...existing,
+      receiptConfirmed: true,
+      receiptConfirmedAtIso: nowIso,
+      bountyStatus: existing.bountyOffer ? 'PAID' : existing.bountyStatus,
+      bountyPaidAtIso: existing.bountyOffer ? nowIso : existing.bountyPaidAtIso
+    };
+    setLookingForItems((prev) => prev.map((it) => (it.id === itemId ? itemCopy : it)));
+    saveCloudWishlistItem(activeSessionId, itemCopy);
+    fireConfetti();
+    const cleanHelper = (existing.fulfilledBy || '').replace(/^@/, '').trim();
+    const requesterTag = existing.displayName || existing.characterName || 'Squadmate';
+    if (cleanHelper && cleanHelper.toLowerCase() !== 'self found') {
+      const finderKey = cleanHelper.toLowerCase();
+      saveCloudAchievementProfile(finderKey, {
+        unlockedIds: {},
+        lifetimeFulfilledCount: 0,
+        lifetimeBountiesClaimed: 0,
+        lifetimeBountiesPaid: existing.bountyOffer ? 1 : 0,
+        leaguesParticipated: [activeSessionId],
+        honorLog: [
+          {
+            id: `honor-receipt-${existing.id}`,
+            points: HONOR_PER_RECEIPT_CONFIRMED,
+            reason: `@${requesterTag} confirmed receipt of "${existing.itemName}"`,
+            where: `${formatLeagueLabel(activeSessionId)} • Delivery Confirmed`,
+            timestampIso: nowIso,
+            kind: 'receipt_confirmed'
+          }
+        ]
+      });
+      setHonorAwardBanner({
+        finder: cleanHelper,
+        itemName: existing.itemName,
+        requester: requesterTag,
+        points: HONOR_PER_RECEIPT_CONFIRMED,
+        label: 'RECEIPT CONFIRMED BONUS!'
+      });
+      setTimeout(() => setHonorAwardBanner(null), 5000);
+      setCopyNotice(`Confirmed! +${HONOR_PER_RECEIPT_CONFIRMED} Bonus Honor Points awarded to @${cleanHelper}.`);
+      setTimeout(() => setCopyNotice(null), 3500);
+    }
+  };
+
+  const handleBulkImportFromPob = (
+    items: { itemName: string; category: WishlistItemCategory; notes: string }[],
+    targetCharacterName?: string
+  ) => {
+    const charName = targetCharacterName || userAccount?.characterName || userAccount?.displayName || 'Main';
+    const dispName = userAccount?.displayName || charName;
+    const existingLower = new Set(
+      lookingForItems
+        .filter((i) => (i.displayName || i.characterName).toLowerCase() === dispName.toLowerCase())
+        .map((i) => i.itemName.toLowerCase())
+    );
+    const created: LookingForItem[] = [];
+    for (const it of items) {
+      if (existingLower.has(it.itemName.toLowerCase())) continue;
+      const newItem: LookingForItem = {
+        id: `lf-pob-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        characterName: charName,
+        displayName: dispName,
+        preferredContact: userAccount?.preferredContact || 'app',
+        discordName: userAccount?.discordName,
+        poeAccountName: userAccount?.poeAccountName,
+        itemName: it.itemName,
+        category: it.category,
+        status: 'NEED',
+        notes: it.notes || 'Imported from PoB',
+        poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(it.itemName.replace(/ /g, '_'))}`,
+        poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(it.itemName)}`
+      };
+      created.push(newItem);
+      saveCloudWishlistItem(activeSessionId, newItem);
+    }
+    if (created.length > 0) {
+      setLookingForItems((prev) => [...created, ...prev]);
+      fireConfetti();
+      setCopyNotice(`Imported ${created.length} items from PoB straight into your Wishlist!`);
+      setTimeout(() => setCopyNotice(null), 3500);
+    }
   };
 
   const helperStats = React.useMemo(() => {
@@ -809,6 +929,15 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
             >
               Table
             </button>
+            <button
+              type="button"
+              onClick={() => setLookingForViewMode('stash')}
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium flex items-center gap-1 ${
+                lookingForViewMode === 'stash' ? 'bg-emerald-600/30 text-emerald-200 border border-emerald-500/40 shadow-sm' : 'text-emerald-400/80 hover:text-emerald-200'
+              }`}
+            >
+              Free Stash ({stashDrops.filter((d) => !d.claimedBy).length})
+            </button>
           </div>
 
           {/* Copy Squad Wishlist Button */}
@@ -836,6 +965,17 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           >
             <Filter className="w-3.5 h-3.5 text-emerald-400" />
             <span>Squad Loot Filter</span>
+          </button>
+
+          {/* One Click Import from PoB Button */}
+          <button
+            type="button"
+            onClick={() => setShowPobImportModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Import required Uniques, Cluster Jewels, and Gems from a Path of Building code"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Import PoB</span>
           </button>
 
           {/* Add Wanted Item Button */}
@@ -957,7 +1097,21 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                 required
                 placeholder="e.g. Cloak of Flame"
                 value={newLfItem}
-                onChange={(e) => setNewLfItem(e.target.value)}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw.includes('Item Class:') || raw.includes('Rarity:')) {
+                    const parsed = parsePoeClipboardTooltip(raw);
+                    if (parsed) {
+                      setNewLfItem(parsed.itemName);
+                      setNewLfCat(parsed.category);
+                      if (parsed.mods.length > 0 && !newLfNotes) {
+                        setNewLfNotes(parsed.mods.slice(0, 2).join(' | '));
+                      }
+                      return;
+                    }
+                  }
+                  setNewLfItem(raw);
+                }}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
               />
             </div>
@@ -1516,6 +1670,17 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         </div>
       )}
 
+      {lookingForViewMode === 'stash' && onAddStashDrop && onClaimStashDrop && onDeleteStashDrop && (
+        <FreeStashFeed
+          drops={stashDrops}
+          currentUser={userAccount || null}
+          isAdmin={isCurrentUserAdmin}
+          onAddDrop={onAddStashDrop}
+          onClaimDrop={onClaimStashDrop}
+          onDeleteDrop={onDeleteStashDrop}
+        />
+      )}
+
       {/* Item Inspection Modal */}
       <dialog
         ref={itemInspectDialogRef}
@@ -1677,14 +1842,34 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                             <span>I Found This!</span>
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleCycleStatus(req.id)}
-                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Revert to Need</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {req.fulfilledBy && req.fulfilledBy.toLowerCase() !== 'self found' && (
+                              req.receiptConfirmed || req.bountyStatus === 'PAID' ? (
+                                <span className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Receipt Confirmed (+5 Honor)</span>
+                                </span>
+                              ) : canEditOrDeleteWishlist(req) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmReceipt(req.id)}
+                                  className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow"
+                                  title="Confirm you received this item to award an extra +5 Honor Points to the finder"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Confirm Receipt (+5 Honor)</span>
+                                </button>
+                              ) : null
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleCycleStatus(req.id)}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Revert to Need</span>
+                            </button>
+                          </div>
                         )}
 
                         {canEditOrDeleteWishlist(req) && (
@@ -1939,10 +2124,10 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           </div>
           <div>
             <div className="text-sm font-bold text-amber-300 font-mono">
-              +{HONOR_PER_ITEM_FOUND} HONOR POINTS EARNED!
+              +{honorAwardBanner.points || HONOR_PER_ITEM_FOUND} HONOR POINTS EARNED! {honorAwardBanner.label ? `(${honorAwardBanner.label})` : ''}
             </div>
             <div className="text-xs text-slate-200">
-              @{honorAwardBanner.finder} found <strong>{honorAwardBanner.itemName}</strong> for @{honorAwardBanner.requester}
+              @{honorAwardBanner.finder}: <strong>{honorAwardBanner.itemName}</strong> ({honorAwardBanner.requester})
             </div>
           </div>
         </div>
@@ -1953,6 +2138,13 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         onClose={() => setShowLootFilterModal(false)}
         lookingForItems={lookingForItems}
         triggerCopy={triggerCopy}
+      />
+
+      <PobWishlistImportModal
+        isOpen={showPobImportModal}
+        onClose={() => setShowPobImportModal(false)}
+        myCharacters={myCharacters}
+        onImportItems={handleBulkImportFromPob}
       />
     </div>
   );

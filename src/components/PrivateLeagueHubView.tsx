@@ -51,7 +51,10 @@ import type {
   PastPrivateLeague,
   PersistentAchievementProfile,
   SquadServiceListing,
-  PlayerVouch
+  PlayerVouch,
+  FreeStashDrop,
+  BossRotaListing,
+  LeagueFirstMilestone
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import type { ManagerSectionType } from './LeagueContentManagerModal';
@@ -72,8 +75,14 @@ import {
   saveCloudGuide,
   saveCloudAlumniList,
   saveCloudLeagueMeta,
-  fetchCloudLeagues
+  fetchCloudLeagues,
+  saveCloudStashDrop,
+  deleteCloudStashDrop,
+  saveCloudBossRota,
+  deleteCloudBossRota,
+  saveCloudLeagueFirst
 } from '../services/cloudSync';
+import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 
 interface PrivateLeagueHubViewProps {
   userAccount?: UserAccount | null;
@@ -344,6 +353,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [cloudAchievements, setCloudAchievements] = useState<Record<string, PersistentAchievementProfile>>({});
   const [squadServices, setSquadServices] = useState<SquadServiceListing[]>([]);
   const [playerVouches, setPlayerVouches] = useState<PlayerVouch[]>([]);
+  const [stashDrops, setStashDrops] = useState<FreeStashDrop[]>([]);
+  const [bossRotas, setBossRotas] = useState<BossRotaListing[]>([]);
+  const [leagueFirsts, setLeagueFirsts] = useState<LeagueFirstMilestone[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -373,6 +385,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         }
         if (Array.isArray(data.vouches)) {
           setPlayerVouches(data.vouches);
+        }
+        if (Array.isArray(data.stashDrops)) {
+          setStashDrops(data.stashDrops);
+        }
+        if (Array.isArray(data.bossRotas)) {
+          setBossRotas(data.bossRotas);
+        }
+        if (Array.isArray(data.leagueFirsts)) {
+          setLeagueFirsts(data.leagueFirsts);
         }
         if (Array.isArray(data.alumni) && data.alumni.length > 0) {
           setAlumniList(data.alumni);
@@ -1369,6 +1390,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             archivesList={archivesList}
             faqList={faqList}
             openManagerModal={openManagerModal}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            leagueFirsts={leagueFirsts}
+            onClaimLeagueFirst={(m) => {
+              setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
+              saveCloudLeagueFirst(activeSessionId, m);
+              fireConfetti();
+              setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
+              setTimeout(() => setCopyNotice(null), 3500);
+            }}
           />
         )}
 
@@ -1412,6 +1442,25 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             initialSearchQuery={wishlistJumpQuery}
             onClearInitialSearch={() => setWishlistJumpQuery(null)}
             onOpenProfile={onOpenProfile}
+            stashDrops={stashDrops}
+            onAddStashDrop={(drop) => {
+              setStashDrops((prev) => [drop, ...prev]);
+              saveCloudStashDrop(activeSessionId, drop);
+              setCopyNotice(`Posted ${drop.itemName} to Free Stash Feed!`);
+              setTimeout(() => setCopyNotice(null), 3000);
+            }}
+            onClaimStashDrop={(drop) => {
+              const claimer = userAccount?.displayName || 'Squadmate';
+              const updated: FreeStashDrop = { ...drop, claimedBy: claimer, claimedAtIso: new Date().toISOString() };
+              setStashDrops((prev) => prev.map((d) => (d.id === drop.id ? updated : d)));
+              saveCloudStashDrop(activeSessionId, updated);
+              fireConfetti();
+              triggerCopy(`@${drop.donorCharacterName || drop.donorDisplayName} Hey! I claimed ${drop.itemName} from the Free Stash Feed on Exile SSF!`, 'Stash Claim Whisper');
+            }}
+            onDeleteStashDrop={(id) => {
+              setStashDrops((prev) => prev.filter((d) => d.id !== id));
+              deleteCloudStashDrop(activeSessionId, id);
+            }}
           />
         )}
 
@@ -1439,6 +1488,18 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             onJumpToWishlist={(itemName) => {
               setWishlistJumpQuery(itemName);
               handleSelectTab('looking_for');
+            }}
+            bossRotas={bossRotas}
+            onSaveBossRota={(rota) => {
+              setBossRotas((prev) => {
+                const exists = prev.some((r) => r.id === rota.id);
+                return exists ? prev.map((r) => (r.id === rota.id ? rota : r)) : [rota, ...prev];
+              });
+              saveCloudBossRota(activeSessionId, rota);
+            }}
+            onDeleteBossRota={(id) => {
+              setBossRotas((prev) => prev.filter((r) => r.id !== id));
+              deleteCloudBossRota(activeSessionId, id);
             }}
           />
         )}
@@ -1512,7 +1573,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               type="text"
               autoFocus
               value={dropCheckQuery}
-              onChange={(e) => setDropCheckQuery(e.target.value)}
+              onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val.includes('Item Class:') || val.includes('Rarity:') ? parsePoeClipboardTooltip(val) : null;
+                    setDropCheckQuery(parsed ? parsed.itemName : val);
+                  }}
               placeholder="Type a dropped unique, gem, fragment, or base (e.g. Aegis Aurora)..."
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400 font-mono"
             />

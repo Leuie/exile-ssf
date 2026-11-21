@@ -38,6 +38,7 @@ export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter
   ];
 }
 import { saveCloudRosterMember, deleteCloudRosterMember, fetchOfficialPoeLadder } from '../../../services/cloudSync';
+import { SquadAtlasMatrix } from '../widgets/SquadAtlasMatrix';
 
 export interface RosterTabProps {
   activeSessionId: string;
@@ -596,6 +597,9 @@ export const RosterTab: React.FC<RosterTabProps> = ({
           )}
         </div>
       </div>
+
+      {/* Squad Atlas Tree & Niche Division Matrix */}
+      <SquadAtlasMatrix roster={roster} />
 
       {/* Roster Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

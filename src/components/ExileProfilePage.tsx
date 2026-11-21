@@ -17,13 +17,15 @@ import {
   Users,
   X
 } from 'lucide-react';
-import type { ExileProfile, UserAccount } from '../types';
+import type { ExileProfile, UserAccount, PersonalSessionGoal } from '../types';
 import {
   fetchCloudProfile,
   saveCloudProfile,
   type CloudExileProfileResponse
 } from '../services/cloudSync';
 import { getMemberCharacters } from './league/tabs/RosterTab';
+import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
+import { SessionScratchpad } from './league/widgets/SessionScratchpad';
 import { ACHIEVEMENT_CATALOG, buildRetroactiveHonorHistory, HONOR_PER_ITEM_FOUND } from '../utils/achievements';
 import { fireConfetti } from '../utils/confetti';
 
@@ -159,6 +161,14 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const openWishes = (data?.wishes || []).filter((w) => w.status !== 'HAVE');
   const openBounties = openWishes.filter((w) => w.bountyOffer && w.bountyOffer.trim());
   const fulfilledByMe = data?.fulfilledByMe || [];
+  const selfFoundByMe = (data?.wishes || []).filter(
+    (w) =>
+      w.status === 'HAVE' &&
+      (!w.fulfilledBy || w.fulfilledBy.trim().toLowerCase() === 'self found')
+  );
+  const isEarly330Pioneer =
+    rosterEntries.some((entry) => entry.leagueId === 'poe1-330-umbra') ||
+    Boolean(data?.alumniRecord);
   const services = data?.services || [];
   const vouches = data?.vouches || [];
   const achProfile = data?.achievementProfile;
@@ -166,9 +176,31 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a) => Boolean(unlockedIds[a.id]));
   const honorSummary = buildRetroactiveHonorHistory({
     fulfilledByPlayer: fulfilledByMe,
+    selfFoundByPlayer: selfFoundByMe,
+    isEarly330Pioneer,
     achievementProfile: achProfile,
     leagueId: rosterEntries[0]?.leagueId || 'poe1-330-umbra'
   });
+
+  const handleSaveMapRegexBricks = async (bricks: string[]) => {
+    if (!data?.profile) return;
+    const updated: ExileProfile = { ...data.profile, mapRegexBricks: bricks };
+    const ok = await saveCloudProfile(updated);
+    if (ok) {
+      setData({ ...data, profile: updated });
+      setCopyNotice('Saved your Map Regex brick mods to Cloudflare D1!');
+      setTimeout(() => setCopyNotice(null), 2500);
+    }
+  };
+
+  const handleSaveSessionGoals = async (goals: PersonalSessionGoal[]) => {
+    if (!data?.profile) return;
+    const updated: ExileProfile = { ...data.profile, sessionGoals: goals };
+    const ok = await saveCloudProfile(updated);
+    if (ok) {
+      setData({ ...data, profile: updated });
+    }
+  };
   const totalHonorPoints = honorSummary.totalHonorPoints;
 
   const primaryIgn = allCharacters[0]?.characterName || profile.handle;
@@ -714,6 +746,21 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           )}
         </div>
       </div>
+      {/* Personal Toolkit: Map Regex Generator & Farming Session Scratchpad */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <MapRegexBuilder
+          savedBricks={profile.mapRegexBricks || []}
+          canEdit={canEdit}
+          onSaveBricks={handleSaveMapRegexBricks}
+        />
+        <SessionScratchpad
+          savedGoals={profile.sessionGoals || []}
+          characters={allCharacters}
+          canEdit={canEdit}
+          onSaveGoals={handleSaveSessionGoals}
+        />
+      </div>
+
       {/* Honor Points History Ledger (When, Where, Why) */}
       <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/30 bg-slate-900/75 space-y-3 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
@@ -722,7 +769,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <span>Honor Points History ({honorSummary.entries.length} Events • {totalHonorPoints} Total Pts)</span>
           </div>
           <span className="text-[11px] font-mono text-slate-400">
-            +{HONOR_PER_ITEM_FOUND} Honor Points awarded retroactively for every squad item found
+            +5 Found • +5 Delivery Confirmed • +5 Self Found • +25 Early 3.30 Pioneer
           </span>
         </div>
 
@@ -742,6 +789,12 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                     className={`px-2 py-0.5 rounded-lg font-mono font-bold text-[11px] border flex-shrink-0 ${
                       entry.kind === 'item_found'
                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : entry.kind === 'receipt_confirmed'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : entry.kind === 'self_found'
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                        : entry.kind === 'early_pioneer'
+                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
                         : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                     }`}
                   >
