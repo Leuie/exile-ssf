@@ -162,6 +162,26 @@ export default {
         }
       }
 
+      // DELETE /api/roster/:id
+      if (url.pathname.startsWith('/api/roster/') && request.method === 'DELETE') {
+        try {
+          const memberId = decodeURIComponent(url.pathname.replace('/api/roster/', '').trim());
+          const key = `league:${leagueId}:roster`;
+          const raw = await env.EXILE_KV.get(key);
+          let list: any[] = raw ? JSON.parse(raw) : [];
+          list = list.filter((m: any) => m.id !== memberId && m.displayName !== memberId);
+          await env.EXILE_KV.put(key, JSON.stringify(list));
+          return new Response(JSON.stringify({ success: true, count: list.length }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
       // POST /api/vault
       if (url.pathname === '/api/vault' && request.method === 'POST') {
         try {

@@ -177,6 +177,9 @@ export interface ActiveLeagueSession {
   discordUrl?: string;
   description?: string;
   isReadOnlyArchive?: boolean;
+  crowdfundPointsCurrent?: number;
+  crowdfundPointsGoal?: number;
+  crowdfundStatus?: string;
 }
 
 export interface UserAccount {

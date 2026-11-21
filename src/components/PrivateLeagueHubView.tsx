@@ -488,10 +488,27 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const ingestLeagueDialogRef = useRef<HTMLDialogElement>(null);
   const ingestLeagueTitleId = useId();
 
+  const sanitizeSyncedData = (data: any) => {
+    if (!data) return null;
+    const clean = { ...data };
+    if (clean.crowdfundPointsCurrent === 1850 && clean.crowdfundPointsGoal === 3000) {
+      clean.crowdfundPointsCurrent = 0;
+      clean.crowdfundPointsGoal = 0;
+    }
+    if (clean.currentSlots === 30 && (!clean.officialLeagueUrl || clean.officialLeagueUrl.includes('Ravenwatch'))) {
+      clean.currentSlots = 10;
+    }
+    if (clean.fundedDays === 20 && (!clean.officialLeagueUrl || clean.officialLeagueUrl.includes('Ravenwatch'))) {
+      clean.fundedDays = 10;
+      clean.targetDays = 10;
+    }
+    return clean;
+  };
+
   const [syncedLeagueData, setSyncedLeagueData] = useState<any>(() => {
     try {
       const saved = localStorage.getItem(`poe_league_sync_${activeSessionId}`);
-      return saved ? JSON.parse(saved) : null;
+      return saved ? sanitizeSyncedData(JSON.parse(saved)) : null;
     } catch {
       return null;
     }
@@ -500,7 +517,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`poe_league_sync_${activeSessionId}`);
-      setSyncedLeagueData(saved ? JSON.parse(saved) : null);
+      setSyncedLeagueData(saved ? sanitizeSyncedData(JSON.parse(saved)) : null);
     } catch {}
   }, [activeSessionId]);
 
@@ -512,21 +529,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   // Ingest form inputs
   const [formOfficialUrl, setFormOfficialUrl] = useState<string>(activeLeagueInfo.officialLeagueUrl || '');
-  const [formFundedDays, setFormFundedDays] = useState<number>(activeLeagueInfo.fundedDays || 20);
-  const [formTargetDays, setFormTargetDays] = useState<number>(activeLeagueInfo.targetDays || 40);
-  const [formPointsCurrent, setFormPointsCurrent] = useState<number>(activeLeagueInfo.crowdfundPointsCurrent || 1850);
-  const [formPointsGoal, setFormPointsGoal] = useState<number>(activeLeagueInfo.crowdfundPointsGoal || 3000);
-  const [formSlots, setFormSlots] = useState<number>(activeLeagueInfo.currentSlots || 30);
-  const [formCrowdfundStatus, setFormCrowdfundStatus] = useState<string>(syncedLeagueData?.crowdfundStatus || 'Crowdfunding Active');
+  const [formFundedDays, setFormFundedDays] = useState<number>(activeLeagueInfo.fundedDays || 10);
+  const [formTargetDays, setFormTargetDays] = useState<number>(activeLeagueInfo.targetDays || 10);
+  const [formPointsCurrent, setFormPointsCurrent] = useState<number>(activeLeagueInfo.crowdfundPointsCurrent ?? 0);
+  const [formPointsGoal, setFormPointsGoal] = useState<number>(activeLeagueInfo.crowdfundPointsGoal ?? 0);
+  const [formSlots, setFormSlots] = useState<number>(activeLeagueInfo.currentSlots || 10);
+  const [formCrowdfundStatus, setFormCrowdfundStatus] = useState<string>(syncedLeagueData?.crowdfundStatus || 'Active League (Base Slots Funded)');
   const [rawSnippet, setRawSnippet] = useState<string>('');
 
   const handleOpenIngestModal = () => {
-    setFormOfficialUrl(activeLeagueInfo.officialLeagueUrl);
-    setFormFundedDays(activeLeagueInfo.fundedDays);
-    setFormTargetDays(activeLeagueInfo.targetDays);
-    setFormPointsCurrent(activeLeagueInfo.crowdfundPointsCurrent || 1850);
-    setFormPointsGoal(activeLeagueInfo.crowdfundPointsGoal || 3000);
-    setFormSlots(activeLeagueInfo.currentSlots);
+    setFormOfficialUrl(activeLeagueInfo.officialLeagueUrl || 'https://www.pathofexile.com/private-leagues/league/Ravenwatch+Covens+of+Umbra+GSF');
+    setFormFundedDays(activeLeagueInfo.fundedDays || 10);
+    setFormTargetDays(activeLeagueInfo.targetDays || 10);
+    setFormPointsCurrent(activeLeagueInfo.crowdfundPointsCurrent ?? 0);
+    setFormPointsGoal(activeLeagueInfo.crowdfundPointsGoal ?? 0);
+    setFormSlots(activeLeagueInfo.currentSlots || 10);
+    setFormCrowdfundStatus(activeLeagueInfo.crowdfundStatus || 'Active League (Base Slots Funded)');
     setShowIngestLeagueModal(true);
     setTimeout(() => {
       ingestLeagueDialogRef.current?.showModal();
@@ -535,24 +553,40 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const handleParseSnippet = () => {
     if (!rawSnippet.trim()) return;
-    // Extract slots
-    const slotMatch = rawSnippet.match(/(\d+)\s*(?:player|slot)/i);
-    if (slotMatch) setFormSlots(parseInt(slotMatch[1], 10));
 
-    // Extract days
-    const dayMatch = rawSnippet.match(/(\d+)\s*days/i);
-    if (dayMatch) setFormFundedDays(parseInt(dayMatch[1], 10));
+    // Extract players / slots: e.g. "Players: 4 / 10" or "10 slots"
+    const playersMatch = rawSnippet.match(/Players:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (playersMatch) {
+      setFormSlots(parseInt(playersMatch[2], 10));
+    } else {
+      const slotMatch = rawSnippet.match(/(\d+)\s*(?:player slots?|slots?)/i);
+      if (slotMatch) setFormSlots(parseInt(slotMatch[1], 10));
+    }
 
-    // Extract points
+    // Extract days or remaining duration: e.g. "Remaining Duration: 2 days 17 hours"
+    const dayMatch = rawSnippet.match(/(?:Remaining Duration:\s*)?(\d+)\s*days/i);
+    if (dayMatch) {
+      setFormFundedDays(parseInt(dayMatch[1], 10));
+      setFormTargetDays(Math.max(formTargetDays, parseInt(dayMatch[1], 10)));
+    }
+
+    // Extract points if an active crowdfund points drive exists
     const pointsMatch = rawSnippet.match(/([\d,]+)\s*\/\s*([\d,]+)\s*points/i);
     if (pointsMatch) {
       setFormPointsCurrent(parseInt(pointsMatch[1].replace(/,/g, ''), 10));
       setFormPointsGoal(parseInt(pointsMatch[2].replace(/,/g, ''), 10));
+    } else {
+      setFormPointsCurrent(0);
+      setFormPointsGoal(0);
     }
 
     // Extract URL
-    const urlMatch = rawSnippet.match(/https:\/\/www\.pathofexile\.com\/private-leagues\/league\/[^\s"']+/i);
-    if (urlMatch) setFormOfficialUrl(urlMatch[0]);
+    const urlMatch = rawSnippet.match(/https:\/\/(?:www\.)?pathofexile\.com\/private-leagues\/league\/[^\s"']+/i);
+    if (urlMatch) {
+      setFormOfficialUrl(urlMatch[0]);
+    } else if (rawSnippet.includes('PL87651')) {
+      setFormOfficialUrl('https://www.pathofexile.com/private-leagues/league/Ravenwatch+Covens+of+Umbra+GSF');
+    }
 
     setCopyNotice('Parsed snippet details into form!');
     setTimeout(() => setCopyNotice(null), 2500);
@@ -1884,7 +1918,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="text-xs text-slate-300">
-                      Funded: <strong>{activeLeagueInfo.fundedDays} / {activeLeagueInfo.targetDays} Days</strong> • Points: <strong>{activeLeagueInfo.crowdfundPointsCurrent || 1850} / {activeLeagueInfo.crowdfundPointsGoal || 3000}</strong> • Slots: <strong>{roster.length} / {activeLeagueInfo.currentSlots} Exiles</strong>
+                      Funded: <strong>{activeLeagueInfo.fundedDays} / {activeLeagueInfo.targetDays} Days</strong>
+                      {Boolean(activeLeagueInfo.crowdfundPointsGoal && activeLeagueInfo.crowdfundPointsGoal > 0) ? (
+                        <span> • Points: <strong>{activeLeagueInfo.crowdfundPointsCurrent || 0} / {activeLeagueInfo.crowdfundPointsGoal}</strong></span>
+                      ) : (
+                        <span> • Crowdfund: <strong className="text-emerald-400">Base Slots Funded</strong></span>
+                      )}
+                      <span> • Slots: <strong>{roster.length} / {activeLeagueInfo.currentSlots} Exiles</strong></span>
                     </div>
                   </div>
 
@@ -2000,17 +2040,33 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </div>
 
                     <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-1">
-                      <div className="text-[11px] font-mono text-slate-400 uppercase">Crowdfund Points</div>
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-xl font-orbitron font-bold text-white">{COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent} pts</span>
-                        <span className="text-xs text-slate-500 font-mono">Goal: {COVEN_OF_UMBRA_INFO.crowdfundPointsGoal} pts</span>
+                      <div className="text-[11px] font-mono text-slate-400 uppercase">
+                        {Boolean(activeLeagueInfo.crowdfundPointsGoal && activeLeagueInfo.crowdfundPointsGoal > 0) ? 'Crowdfund Points' : 'League Funding Status'}
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{ width: `${(COVEN_OF_UMBRA_INFO.crowdfundPointsCurrent / COVEN_OF_UMBRA_INFO.crowdfundPointsGoal) * 100}%` }}
-                        />
-                      </div>
+                      {Boolean(activeLeagueInfo.crowdfundPointsGoal && activeLeagueInfo.crowdfundPointsGoal > 0) ? (
+                        <>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-xl font-orbitron font-bold text-white">{activeLeagueInfo.crowdfundPointsCurrent || 0} pts</span>
+                            <span className="text-xs text-slate-500 font-mono">Goal: {activeLeagueInfo.crowdfundPointsGoal} pts</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+                            <div
+                              className="h-full bg-emerald-500"
+                              style={{ width: `${Math.min(100, Math.round(((activeLeagueInfo.crowdfundPointsCurrent || 0) / activeLeagueInfo.crowdfundPointsGoal) * 100))}%` }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-xl font-orbitron font-bold text-emerald-400">{activeLeagueInfo.fundedDays} Days</span>
+                            <span className="text-xs text-slate-400 font-mono">PL87651 Active</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+                            <div className="h-full bg-emerald-500 w-full" />
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -4532,7 +4588,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   type="button"
                   onClick={() => {
                     const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/privateleaguehub` : 'https://exilessf.app/privateleaguehub';
-                    const template = `Hey Exiles! Ravenwatch Coven of Umbra GSF | Winter 2026 league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: ${portalUrl} Accept invite: ${activeLeagueInfo.officialLeagueUrl || 'https://www.pathofexile.com/private-leagues'}`;
+                    const template = `Hey Exiles! Ravenwatch Covens of Umbra GSF (PL87651) league is officially live for registration! Visit our SSF Portal to claim your spot, post your starter build, and add your wanted items: ${portalUrl} Accept invite: ${activeLeagueInfo.officialLeagueUrl || 'https://www.pathofexile.com/private-leagues/league/Ravenwatch+Covens+of+Umbra+GSF'}`;
                     triggerCopy(template, '3.30 Announcement Message');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -4611,7 +4667,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 })
                 .map((alumnus: LeagueParticipantAlumnus) => {
                   const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/privateleaguehub` : 'https://exilessf.app/privateleaguehub';
-                  const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Coven of Umbra GSF | Winter 2026 private league is launching soon. Register here: ${portalUrl}`;
+                  const whisperCommand = `@${alumnus.displayName} Hey exile! Ravenwatch Covens of Umbra GSF (PL87651) private league is live. Register here: ${portalUrl}`;
 
                   return (
                     <div

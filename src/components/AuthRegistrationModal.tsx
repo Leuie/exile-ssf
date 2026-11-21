@@ -252,7 +252,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     const resolvedLevel = Number(savedAcc.level || savedRoster.level) || 95;
     const resolvedBuild = savedAcc.buildName || savedRoster.buildName || 'Penance Brand Ignite Elementalist';
     const resolvedPob = savedAcc.pobUrl || savedRoster.pobUrl || 'https://pobb.in/';
-    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!';
+    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Covens of Umbra GSF (PL87651)!';
 
     const adminAccount: UserAccount = {
       id: 'usr-leuie',
@@ -642,7 +642,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
           </div>
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-indigo-500 dark:text-indigo-300 font-bold">
-              Ravenwatch Coven of Umbra GSF • 3.30
+              Ravenwatch Covens of Umbra GSF (PL87651) • 3.30
             </div>
             <h2 id={titleId} className="text-lg sm:text-xl font-poppins font-bold text-slate-900 dark:text-white">
               {userAccount

@@ -277,7 +277,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Ravenwatch Coven of Umbra GSF</span>
+            <span>Ravenwatch Covens of Umbra GSF (PL87651)</span>
           </div>
           <h1 className="text-2xl font-black font-cinzel text-white tracking-tight">
             Create Your Exile SSF Account

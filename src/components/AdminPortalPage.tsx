@@ -74,7 +74,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     const resolvedLevel = Number(savedAcc.level || savedRoster.level) || 95;
     const resolvedBuild = savedAcc.buildName || savedRoster.buildName || 'Penance Brand Ignite Elementalist';
     const resolvedPob = savedAcc.pobUrl || savedRoster.pobUrl || 'https://pobb.in/';
-    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Coven of Umbra GSF!';
+    const resolvedNotes = savedAcc.notes || savedRoster.notes || 'League Host & Admin. Welcome to Ravenwatch Covens of Umbra GSF (PL87651)!';
 
     const adminAccount: UserAccount = {
       id: 'usr-leuie',

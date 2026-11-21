@@ -48,7 +48,7 @@ export const LeagueHeroBanner: React.FC<LeagueHeroBannerProps> = ({
   const defaultAvatar = '/logo.png';
   const defaultLeagueTitle = isPoE2Session 
     ? 'NOIR Return of the Ancients GSF' 
-    : 'Ravenwatch Coven of Umbra GSF | Winter 2026';
+    : 'Ravenwatch Covens of Umbra GSF (PL87651)';
 
   const [heroConfig, setHeroConfig] = useState<{
     artworkUrl: string;
