@@ -560,6 +560,7 @@ export const App: React.FC = () => {
           <ExileProfilePage
             handle={currentProfileHandle}
             userAccount={userAccount}
+            onOpenAccountSettings={handleOpenAuth}
             onBack={() => {
               setActiveTab('single_league');
               try {

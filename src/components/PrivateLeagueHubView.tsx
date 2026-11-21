@@ -1423,7 +1423,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
             {/* User Account / Profile action */}
             <button
-              onClick={onOpenAuthModal}
+              onClick={() => {
+                if (userAccount && onOpenProfile) {
+                  onOpenProfile(userAccount.displayName);
+                } else {
+                  onOpenAuthModal?.();
+                }
+              }}
+              title={userAccount ? `Open @${userAccount.displayName}'s Exile Profile` : 'Sign in to Exile SSF'}
               className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5 text-indigo-400" />

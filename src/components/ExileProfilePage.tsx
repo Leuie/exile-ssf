@@ -34,13 +34,15 @@ export interface ExileProfilePageProps {
   userAccount?: UserAccount | null;
   onBack: () => void;
   onNavigateLeague?: (leagueId: string, subTab?: string) => void;
+  onOpenAccountSettings?: () => void;
 }
 
 export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   handle,
   userAccount,
   onBack,
-  onNavigateLeague
+  onNavigateLeague,
+  onOpenAccountSettings
 }) => {
   const [data, setData] = useState<CloudExileProfileResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -256,6 +258,22 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <span>{isEditing ? 'Close Editor' : 'Edit Profile'}</span>
             </button>
           )}
+
+          {onOpenAccountSettings &&
+            userAccount &&
+            (userAccount.displayName.toLowerCase() === cleanHandle.toLowerCase() ||
+              (data?.profile?.handle &&
+                userAccount.displayName.toLowerCase() === data.profile.handle.toLowerCase())) && (
+              <button
+                type="button"
+                onClick={onOpenAccountSettings}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                title="Update account details, linked PoE account, or sign out"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Update Account</span>
+              </button>
+            )}
         </div>
       </div>
 
