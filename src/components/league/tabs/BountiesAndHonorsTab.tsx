@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Award,
   Coins,
@@ -87,6 +87,9 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   const [bountyCat, setBountyCat] = useState<WishlistItemCategory>('Unique');
   const [bountyOfferText, setBountyOfferText] = useState<string>('');
   const [bountyNotes, setBountyNotes] = useState<string>('');
+  const [claimingItem, setClaimingItem] = useState<LookingForItem | null>(null);
+  const [claimFinderName, setClaimFinderName] = useState<string>('');
+  const claimDialogRef = useRef<HTMLDialogElement>(null);
   const [bountyTargetChar, setBountyTargetChar] = useState<string>(userAccount?.characterName || '');
 
   const myBountyChars = useMemo(() => {
@@ -245,26 +248,31 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   const handleClaimBounty = (item: LookingForItem) => {
     const defaultFinder =
       userAccount?.displayName || userAccount?.characterName || 'Squad Helper';
-    const finderInput = window.prompt(
-      `Claim bounty for "${item.itemName}" (${item.bountyOffer || 'Coop Honor'})? Enter your display tag or character name:`,
-      defaultFinder
-    );
-    if (!finderInput || !finderInput.trim()) return;
+    setClaimingItem(item);
+    setClaimFinderName(defaultFinder);
+    setTimeout(() => claimDialogRef.current?.showModal(), 10);
+  };
+
+  const handleConfirmClaimBounty = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimingItem || !claimFinderName.trim()) return;
 
     const updatedItem: LookingForItem = {
-      ...item,
+      ...claimingItem,
       status: 'HAVE',
-      fulfilledBy: finderInput.trim(),
+      fulfilledBy: claimFinderName.trim(),
       fulfilledByAccount: userAccount?.poeAccountName || '',
       fulfilledAtIso: new Date().toISOString(),
-      bountyStatus: item.bountyOffer && item.bountyOffer.trim() ? 'CLAIMED' : undefined
+      bountyStatus: claimingItem.bountyOffer && claimingItem.bountyOffer.trim() ? 'CLAIMED' : undefined
     };
 
-    const nextList = lookingForItems.map((it) => (it.id === item.id ? updatedItem : it));
+    const nextList = lookingForItems.map((it) => (it.id === claimingItem.id ? updatedItem : it));
     setLookingForItems(nextList);
     saveCloudWishlistItem(activeSessionId, updatedItem);
+    claimDialogRef.current?.close();
+    setClaimingItem(null);
     fireConfetti();
-    setCopyNotice(`Bounty claimed for ${item.itemName}! Coordinate delivery with @${item.displayName || item.characterName}.`);
+    setCopyNotice(`Bounty claimed for ${updatedItem.itemName}! Coordinate delivery with @${updatedItem.displayName || updatedItem.characterName}.`);
     setTimeout(() => setCopyNotice(null), 3500);
   };
 
@@ -356,7 +364,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-                Attach Divines, Chaos, or boss carries to chase items so squadmates are rewarded for hunting drops. Claim bounties upon delivery, settle receipts with one click, and earn persistent app achievements that carry over across every private league season.
+                Attach Divines, Chaos, or boss carries to chase items so squadmates are rewarded for hunting drops. Claim bounties upon delivery, settle receipts with one click, and earn achievements that persist on your profile across future expansions and seasons.
               </p>
             </div>
           </div>
@@ -446,7 +454,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Persistent Achievements ({achievementEval.unlockedCount}/{achievementEval.achievements.length})</span>
+            <span>Achievements ({achievementEval.unlockedCount}/{achievementEval.achievements.length})</span>
           </button>
         </div>
 
@@ -880,10 +888,10 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-purple-300">
                 <Sparkles className="w-4 h-4" />
-                <span>Persistent App Achievements (Carries Over Across Seasons)</span>
+                <span>Achievements (Carries Over Across Seasons)</span>
               </div>
               <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                Honors unlocked in Ravenwatch private leagues are saved directly in Cloudflare KV cloud storage across all devices and carry over across every future private league season. Unlock rare and pinnacle titles by fulfilling squad wishes, hunting bounties, and returning for new NOIR seasons.
+                Honors unlocked in Exile SSF private leagues persist on your profile across future expansions. Unlock rare and pinnacle titles by fulfilling squad wishes, hunting bounties, and returning for new future seasons.
               </p>
             </div>
 
@@ -1016,6 +1024,82 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
           </div>
         </div>
       )}
+      {/* Native Dark Claim Bounty Dialog */}
+      <dialog
+        ref={claimDialogRef}
+        {...({ closedby: 'any' } as any)}
+        className="w-[94vw] sm:w-full sm:max-w-md rounded-2xl border border-emerald-500/40 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+      >
+        {claimingItem && (
+          <form onSubmit={handleConfirmClaimBounty} className="flex flex-col">
+            <div className="p-4 border-b border-slate-800 bg-emerald-950/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-300">
+                  Claim Item Bounty
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  claimDialogRef.current?.close();
+                  setClaimingItem(null);
+                }}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                <div className="font-bold text-white text-sm">{claimingItem.itemName}</div>
+                <div className="text-slate-400">
+                  Requested by <span className="text-slate-200 font-semibold">@{claimingItem.displayName || claimingItem.characterName}</span>
+                </div>
+                {claimingItem.bountyOffer && (
+                  <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono font-bold text-[11px]">
+                    <Coins className="w-3 h-3" />
+                    <span>Reward: {claimingItem.bountyOffer}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Your Display Tag or Character IGN (for Bounty Credit) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={claimFinderName}
+                  onChange={(e) => setClaimFinderName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  claimDialogRef.current?.close();
+                  setClaimingItem(null);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow"
+              >
+                Confirm & Claim Bounty
+              </button>
+            </div>
+          </form>
+        )}
+      </dialog>
     </div>
   );
 };

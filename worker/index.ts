@@ -41,13 +41,14 @@ export default {
       // Fast single round trip endpoint to fetch all league records
       if (url.pathname === '/api/data' && request.method === 'GET') {
         try {
-          const [wishlistRaw, rosterRaw, vaultRaw, guidesRaw, achievementsRaw, alumniRaw] = await Promise.all([
+          const [wishlistRaw, rosterRaw, vaultRaw, guidesRaw, achievementsRaw, alumniRaw, metaRaw] = await Promise.all([
             env.EXILE_KV.get(`league:${leagueId}:wishlist`),
             env.EXILE_KV.get(`league:${leagueId}:roster`),
             env.EXILE_KV.get(`league:${leagueId}:vault`),
             env.EXILE_KV.get(`league:${leagueId}:guides`),
             env.EXILE_KV.get('global:achievements'),
-            env.EXILE_KV.get('global:alumni')
+            env.EXILE_KV.get('global:alumni'),
+            env.EXILE_KV.get(`league:${leagueId}:meta`)
           ]);
 
           return new Response(
@@ -59,6 +60,7 @@ export default {
               guides: guidesRaw ? JSON.parse(guidesRaw) : null,
               achievements: achievementsRaw ? JSON.parse(achievementsRaw) : {},
               alumni: alumniRaw ? JSON.parse(alumniRaw) : null,
+              meta: metaRaw ? JSON.parse(metaRaw) : null,
               lastSynced: new Date().toISOString()
             }),
             { headers: CORS_HEADERS }
@@ -382,6 +384,133 @@ export default {
             list.unshift(item);
           }
 
+          await env.EXILE_KV.put(key, JSON.stringify(list));
+          return new Response(JSON.stringify({ success: true, count: list.length }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/meta
+      // Persists league quickLinks, faqList, and archivesList in Cloudflare KV
+      if (url.pathname === '/api/meta' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const targetLeague = body.leagueId || leagueId;
+          const key = `league:${targetLeague}:meta`;
+          const raw = await env.EXILE_KV.get(key);
+          const prev = raw ? JSON.parse(raw) : {};
+          const next = {
+            ...prev,
+            ...(body.quickLinks !== undefined ? { quickLinks: body.quickLinks } : {}),
+            ...(body.faqList !== undefined ? { faqList: body.faqList } : {}),
+            ...(body.archivesList !== undefined ? { archivesList: body.archivesList } : {})
+          };
+          await env.EXILE_KV.put(key, JSON.stringify(next));
+          return new Response(JSON.stringify({ success: true, meta: next }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // GET /api/leagues
+      if (url.pathname === '/api/leagues' && request.method === 'GET') {
+        try {
+          const raw = await env.EXILE_KV.get('global:leagues');
+          return new Response(
+            JSON.stringify({ status: 'connected', leagues: raw ? JSON.parse(raw) : [] }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/leagues
+      if (url.pathname === '/api/leagues' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const league = body.league;
+          if (!league || !league.id) {
+            return new Response(JSON.stringify({ error: 'Missing league payload' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+          const key = 'global:leagues';
+          const raw = await env.EXILE_KV.get(key);
+          const list: any[] = raw ? JSON.parse(raw) : [];
+          const idx = list.findIndex((l: any) => l.id === league.id);
+          if (idx >= 0) {
+            list[idx] = league;
+          } else {
+            list.push(league);
+          }
+          await env.EXILE_KV.put(key, JSON.stringify(list));
+          return new Response(JSON.stringify({ success: true, leagues: list }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // GET /api/accounts
+      if (url.pathname === '/api/accounts' && request.method === 'GET') {
+        try {
+          const raw = await env.EXILE_KV.get('global:accounts');
+          return new Response(
+            JSON.stringify({ status: 'connected', accounts: raw ? JSON.parse(raw) : [] }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/accounts
+      if (url.pathname === '/api/accounts' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const account = body.account;
+          if (!account || !account.username) {
+            return new Response(JSON.stringify({ error: 'Missing account payload' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+          const key = 'global:accounts';
+          const raw = await env.EXILE_KV.get(key);
+          const list: any[] = raw ? JSON.parse(raw) : [];
+          const idx = list.findIndex(
+            (a: any) =>
+              a.username?.toLowerCase() === account.username.toLowerCase() ||
+              (account.email && a.email?.toLowerCase() === account.email.toLowerCase())
+          );
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], ...account };
+          } else {
+            list.push(account);
+          }
           await env.EXILE_KV.put(key, JSON.stringify(list));
           return new Response(JSON.stringify({ success: true, count: list.length }), {
             headers: CORS_HEADERS

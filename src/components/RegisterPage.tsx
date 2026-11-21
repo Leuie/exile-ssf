@@ -12,6 +12,7 @@ import { ASCENDANCY_CATALOG } from '../data/privateLeagueData';
 import type { UserAccount, LeagueRosterMember, ContactPlatform } from '../types';
 import { computeSHA256 } from '../utils/crypto';
 import { fireConfetti } from '../utils/confetti';
+import { saveCloudAccount } from '../services/cloudSync';
 
 interface RegisterPageProps {
   onRegisterSuccess: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
@@ -248,6 +249,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       } else {
         storedList.push(entry);
       }
+      saveCloudAccount(entry);
       localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
     } catch {}
 

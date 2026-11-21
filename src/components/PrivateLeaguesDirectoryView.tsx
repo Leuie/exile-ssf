@@ -11,8 +11,9 @@ import {
   Check
 } from 'lucide-react';
 import type { ActiveLeagueSession, UserAccount } from '../types';
-import { ACTIVE_LEAGUE_SESSIONS, getStoredCustomLeagues } from '../data/privateLeagueData';
+import { ACTIVE_LEAGUE_SESSIONS } from '../data/privateLeagueData';
 import { fireConfetti } from '../utils/confetti';
+import { fetchCloudLeagues, saveCloudLeague } from '../services/cloudSync';
 
 interface PrivateLeaguesDirectoryViewProps {
   userAccount: UserAccount | null;
@@ -32,10 +33,21 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
   const [activeGame, setActiveGame] = useState<'poe1' | 'poe2'>(selectedGame);
   const [filter, setFilter] = useState<'active' | 'upcoming' | 'archive'>('active');
   const [copiedLeagueId, setCopiedLeagueId] = useState<string | null>(null);
-  const [leagues, setLeagues] = useState<ActiveLeagueSession[]>(() => {
-    const custom = getStoredCustomLeagues();
-    return [...ACTIVE_LEAGUE_SESSIONS, ...custom];
-  });
+  const [leagues, setLeagues] = useState<ActiveLeagueSession[]>(ACTIVE_LEAGUE_SESSIONS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCloudLeagues().then((cloudList) => {
+      if (!cancelled && cloudList && cloudList.length > 0) {
+        const merged = [...ACTIVE_LEAGUE_SESSIONS];
+        for (const cl of cloudList) {
+          if (!merged.some((m) => m.id === cl.id)) merged.push(cl);
+        }
+        setLeagues(merged);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (selectedGame) {
@@ -123,12 +135,8 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
       isReadOnlyArchive: false
     };
 
-    try {
-      const custom = getStoredCustomLeagues();
-      custom.push(newSession);
-      localStorage.setItem('poe_custom_private_leagues', JSON.stringify(custom));
-      setLeagues([...ACTIVE_LEAGUE_SESSIONS, ...custom]);
-    } catch {}
+    setLeagues((prev) => [...prev, newSession]);
+    saveCloudLeague(newSession);
 
     fireConfetti();
     createDialogRef.current?.close();

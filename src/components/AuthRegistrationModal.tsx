@@ -16,6 +16,7 @@ import {
 import { ASCENDANCY_CATALOG } from '../data/privateLeagueData';
 import type { UserAccount, LeagueRosterMember, ContactPlatform } from '../types';
 import { fireConfetti } from '../utils/confetti';
+import { saveCloudAccount } from '../services/cloudSync';
 
 interface AuthRegistrationModalProps {
   isOpen: boolean;
@@ -372,7 +373,8 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                 rosterEntry: foundRoster
               };
               storedList.push(matched);
-              localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
+              saveCloudAccount(matched);
+      localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
             }
           }
         } catch {}

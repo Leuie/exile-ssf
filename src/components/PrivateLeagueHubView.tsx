@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef, lazy, Suspense } from 'react';
 import {
   DownloadCloud,
   Users,
@@ -23,6 +23,8 @@ import {
   Share2,
   UserPlus,
   Trophy,
+  Search,
+  Coins,
   X
 } from 'lucide-react';
 import {
@@ -50,22 +52,25 @@ import type {
   PersistentAchievementProfile
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
-import { LeagueContentManagerModal, type ManagerSectionType } from './LeagueContentManagerModal';
-import { FullGuideReaderView } from './FullGuideReaderView';
-import { WishlistsTab } from './league/tabs/WishlistsTab';
-import { RosterTab } from './league/tabs/RosterTab';
-import { CommandCenterTab } from './league/tabs/CommandCenterTab';
-import { CheatSheetsTab } from './league/tabs/CheatSheetsTab';
-import { BuildGuidesTab } from './league/tabs/BuildGuidesTab';
-import { BenchGuideTab } from './league/tabs/BenchGuideTab';
-import { AlumniTab } from './league/tabs/AlumniTab';
-import { BountiesAndHonorsTab } from './league/tabs/BountiesAndHonorsTab';
+import type { ManagerSectionType } from './LeagueContentManagerModal';
+const LeagueContentManagerModal = lazy(() => import('./LeagueContentManagerModal').then((m) => ({ default: m.LeagueContentManagerModal })));
+const FullGuideReaderView = lazy(() => import('./FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
+const WishlistsTab = lazy(() => import('./league/tabs/WishlistsTab').then((m) => ({ default: m.WishlistsTab })));
+const RosterTab = lazy(() => import('./league/tabs/RosterTab').then((m) => ({ default: m.RosterTab })));
+const CommandCenterTab = lazy(() => import('./league/tabs/CommandCenterTab').then((m) => ({ default: m.CommandCenterTab })));
+const CheatSheetsTab = lazy(() => import('./league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
+const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m) => ({ default: m.BuildGuidesTab })));
+const BenchGuideTab = lazy(() => import('./league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
+const AlumniTab = lazy(() => import('./league/tabs/AlumniTab').then((m) => ({ default: m.AlumniTab })));
+const BountiesAndHonorsTab = lazy(() => import('./league/tabs/BountiesAndHonorsTab').then((m) => ({ default: m.BountiesAndHonorsTab })));
 import {
   fetchCloudLeagueData,
   saveCloudWishlistItem,
   saveCloudRosterMember,
   saveCloudGuide,
-  saveCloudAlumniList
+  saveCloudAlumniList,
+  saveCloudLeagueMeta,
+  fetchCloudLeagues
 } from '../services/cloudSync';
 
 interface PrivateLeagueHubViewProps {
@@ -139,6 +144,24 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const [activeTab, setActiveTab] = useState<HubTab>(getInitialTabFromLocation);
   const [wishlistJumpQuery, setWishlistJumpQuery] = useState<string | null>(null);
+  const [dropCheckQuery, setDropCheckQuery] = useState<string>('');
+  const dropCheckDialogRef = useRef<HTMLDialogElement>(null);
+
+  const handleOpenDropCheck = () => {
+    setDropCheckQuery('');
+    dropCheckDialogRef.current?.showModal();
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleOpenDropCheck();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (initialSubTab) {
@@ -313,26 +336,46 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
       if (data.status === 'connected') {
         setCloudSyncStatus('connected');
-        if (data.wishlist && Array.isArray(data.wishlist) && data.wishlist.length > 0) {
+        if (Array.isArray(data.wishlist)) {
           setLookingForItems(data.wishlist);
         }
-        if (data.roster && Array.isArray(data.roster) && data.roster.length > 0) {
+        if (Array.isArray(data.roster) && data.roster.length > 0) {
           setRoster(data.roster);
         }
-        if (data.guides && Array.isArray(data.guides) && data.guides.length > 0) {
+        if (Array.isArray(data.guides) && data.guides.length > 0) {
           setGuides(data.guides);
         }
         if (data.achievements && typeof data.achievements === 'object') {
           setCloudAchievements(data.achievements);
         }
-        if (data.alumni && Array.isArray(data.alumni) && data.alumni.length > 0) {
+        if (Array.isArray(data.alumni) && data.alumni.length > 0) {
           setAlumniList(data.alumni);
+        }
+        if (data.meta && typeof data.meta === 'object') {
+          if (Array.isArray(data.meta.quickLinks)) setQuickLinks(data.meta.quickLinks);
+          if (Array.isArray(data.meta.faqList)) setFaqList(data.meta.faqList);
+          if (Array.isArray(data.meta.archivesList)) setArchivesList(data.meta.archivesList);
         }
       }
     };
 
     syncFromCloud();
-    const timer = setInterval(syncFromCloud, 8000);
+    fetchCloudLeagues().then((cloudLeagues) => {
+      if (!isCancelled && cloudLeagues && cloudLeagues.length > 0) {
+        setAllLeagueSessions((prev) => {
+          const merged = [...prev];
+          for (const cl of cloudLeagues) {
+            if (!merged.some((m) => m.id === cl.id)) merged.push(cl);
+          }
+          return merged;
+        });
+      }
+    });
+    const timer = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        syncFromCloud();
+      }
+    }, 18000);
 
     const handleFocusOrVisible = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -435,37 +478,37 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   const handleSaveQuickLinks = (links: any[]) => {
     setQuickLinks(links);
-    try { localStorage.setItem('poe_league_quick_links', JSON.stringify(links)); } catch {}
-    setCopyNotice('Resource links updated!');
+    saveCloudLeagueMeta(activeSessionId, { quickLinks: links });
+    setCopyNotice('Resource links synced to cloud!');
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
   const handleSaveFaqList = (faqs: any[]) => {
     setFaqList(faqs);
-    try { localStorage.setItem('poe_league_faqs', JSON.stringify(faqs)); } catch {}
-    setCopyNotice('F.A.Q. list updated!');
+    saveCloudLeagueMeta(activeSessionId, { faqList: faqs });
+    setCopyNotice('F.A.Q. list synced to cloud!');
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
   const handleSaveArchivesList = (archives: any[]) => {
     setArchivesList(archives);
-    try { localStorage.setItem('poe_league_archives', JSON.stringify(archives)); } catch {}
-    setCopyNotice('Archives list updated!');
+    saveCloudLeagueMeta(activeSessionId, { archivesList: archives });
+    setCopyNotice('Archives list synced to cloud!');
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
   const handleResetSection = (sec: ManagerSectionType) => {
     if (sec === 'links') {
       setQuickLinks(COVEN_OF_UMBRA_INFO.quickLinks);
-      try { localStorage.removeItem('poe_league_quick_links'); } catch {}
+      saveCloudLeagueMeta(activeSessionId, { quickLinks: COVEN_OF_UMBRA_INFO.quickLinks });
     } else if (sec === 'faq') {
       setFaqList(NOIR_LEAGUE_FAQ);
-      try { localStorage.removeItem('poe_league_faqs'); } catch {}
+      saveCloudLeagueMeta(activeSessionId, { faqList: NOIR_LEAGUE_FAQ });
     } else if (sec === 'archives') {
       setArchivesList(PAST_NOIR_LEAGUES);
-      try { localStorage.removeItem('poe_league_archives'); } catch {}
+      saveCloudLeagueMeta(activeSessionId, { archivesList: PAST_NOIR_LEAGUES });
     }
-    setCopyNotice('Restored defaults for ' + sec);
+    setCopyNotice('Restored cloud defaults for ' + sec);
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
@@ -999,6 +1042,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   if (activeReadingGuide) {
     return (
+      <Suspense fallback={<div className="p-8 text-center text-xs font-mono text-slate-400">Loading build guide...</div>}>
       <FullGuideReaderView
         guide={activeReadingGuide}
         onBack={() => setActiveReadingGuide(null)}
@@ -1026,6 +1070,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           setTimeout(() => setCopyNotice(null), 2500);
         }}
       />
+      </Suspense>
     );
   }
 
@@ -1278,6 +1323,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
       {/* Main Content View Container (Full Width, Fluid, Springy) */}
       <div className="w-full px-2 sm:px-4 lg:px-6 pt-2">
+        <Suspense fallback={<div className="p-10 text-center text-xs font-mono text-slate-400">Loading module...</div>}>
         {/* TAB 1: OVERVIEW AND COMMAND CENTER */}
         {activeTab === 'overview' && (
           <CommandCenterTab
@@ -1401,7 +1447,127 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             handleToggleNudge={handleToggleNudge}
           />
         )}
+        </Suspense>
       </div>
+
+      {/* Global Instant Drop Check Modal (Ctrl+K) */}
+      <dialog
+        ref={dropCheckDialogRef}
+        {...({ closedby: 'any' } as any)}
+        className="w-[94vw] sm:w-full sm:max-w-xl rounded-2xl border border-amber-500/40 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+      >
+        <div className="flex flex-col max-h-[82vh]">
+          <div className="p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+                Instant Drop Check (Who Needs This Item?)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => dropCheckDialogRef.current?.close()}
+              className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3 overflow-y-auto">
+            <input
+              type="text"
+              autoFocus
+              value={dropCheckQuery}
+              onChange={(e) => setDropCheckQuery(e.target.value)}
+              placeholder="Type a dropped unique, gem, fragment, or base (e.g. Aegis Aurora)..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+            />
+
+            {(() => {
+              const q = dropCheckQuery.trim().toLowerCase();
+              const openMatches = lookingForItems.filter((it) => {
+                if (it.status === 'HAVE') return false;
+                if (!q) return Boolean(it.bountyOffer && it.bountyOffer.trim());
+                return (
+                  it.itemName.toLowerCase().includes(q) ||
+                  it.category.toLowerCase().includes(q) ||
+                  (it.displayName && it.displayName.toLowerCase().includes(q)) ||
+                  it.characterName.toLowerCase().includes(q)
+                );
+              });
+
+              if (openMatches.length === 0) {
+                return (
+                  <div className="p-6 text-center rounded-xl border border-dashed border-slate-800 text-xs text-slate-400">
+                    {q
+                      ? `No open squad requests matched "${dropCheckQuery}". Safe to stash or vendor!`
+                      : 'Start typing any dropped item name, or view open bounties below.'}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">
+                    {q ? `${openMatches.length} Open Squad Matches` : `${openMatches.length} Active Bounties Highlighted`}
+                  </div>
+                  {openMatches.slice(0, 12).map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-xl border border-slate-800 bg-slate-950/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-bold text-white">{item.itemName}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                            {item.category}
+                          </span>
+                          {item.bountyOffer && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                              <Coins className="w-2.5 h-2.5" />
+                              <span>{item.bountyOffer}</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Wanted by <span className="text-slate-200">@{item.displayName || item.characterName}</span>
+                          {item.characterName ? ` (For: ${item.characterName})` : ''}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerCopy(
+                              `@${item.characterName} Hey! I just dropped ${item.itemName} for you!`,
+                              'Drop Whisper'
+                            );
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer"
+                        >
+                          Whisper
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dropCheckDialogRef.current?.close();
+                            setWishlistJumpQuery(item.itemName);
+                            handleSelectTab('looking_for');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-mono cursor-pointer"
+                        >
+                          Open
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </dialog>
 
       {/* Global League Modals */}
       {/* Direct League Invite Modal */}
@@ -1986,7 +2152,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
         {/* ============================================================================ */}
         {/* CONTENT MANAGER MODAL FOR LINKS, FAQS, AND ARCHIVES */}
-        <LeagueContentManagerModal
+        <Suspense fallback={null}>
+          <LeagueContentManagerModal
           isOpen={isManagerModalOpen}
           onClose={() => setIsManagerModalOpen(false)}
           initialSection={managerInitialSection}
@@ -1998,6 +2165,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           onSaveArchivesList={handleSaveArchivesList}
           onResetSection={handleResetSection}
         />
+        </Suspense>
 
         {/* ============================================================================ */}
         {/* START FRESH LEAGUE / RESET SEASON CONFIRMATION MODAL */}

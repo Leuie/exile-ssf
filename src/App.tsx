@@ -1,31 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { HomeView } from './components/HomeView';
-import { VendorRecipesView } from './components/VendorRecipesView';
-import { AtlasView } from './components/AtlasView';
-import { DefenseMechanicsView } from './components/DefenseMechanicsView';
-import { OffensesView } from './components/OffensesView';
-import { BuildsShowcaseView } from './components/BuildsShowcaseView';
-import { BuildAnalyzerView } from './components/BuildAnalyzerView';
-import { LabyrinthGuideView } from './components/LabyrinthGuideView';
-import { CampaignWalkthroughView } from './components/CampaignWalkthroughView';
-import { ProgressTrackerView } from './components/ProgressTrackerView';
-import { ToolsDirectoryView } from './components/ToolsDirectoryView';
-import { PoEWikiWrapperView } from './components/PoEWikiWrapperView';
-import { PoEDBWrapperView } from './components/PoEDBWrapperView';
-import { PoENinjaWrapperView } from './components/PoENinjaWrapperView';
-import { PoE2HubView } from './components/PoE2HubView';
-import { AboutView } from './components/AboutView';
-import { PrivateLeagueHubView } from './components/PrivateLeagueHubView';
-import { FeedbackView } from './components/FeedbackView';
-import { BuildIngestionView } from './components/BuildIngestionView';
-import { DualLinkModal } from './components/DualLinkModal';
-import { AuthRegistrationModal } from './components/AuthRegistrationModal';
-import { LoginPage } from './components/LoginPage';
-import { RegisterPage } from './components/RegisterPage';
-import { AdminPortalPage } from './components/AdminPortalPage';
-import { PrivateLeaguesDirectoryView } from './components/PrivateLeaguesDirectoryView';
-import { FullGuideReaderView } from './components/FullGuideReaderView';
+const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
+const VendorRecipesView = lazy(() => import('./components/VendorRecipesView').then((m) => ({ default: m.VendorRecipesView })));
+const AtlasView = lazy(() => import('./components/AtlasView').then((m) => ({ default: m.AtlasView })));
+const DefenseMechanicsView = lazy(() => import('./components/DefenseMechanicsView').then((m) => ({ default: m.DefenseMechanicsView })));
+const OffensesView = lazy(() => import('./components/OffensesView').then((m) => ({ default: m.OffensesView })));
+const BuildsShowcaseView = lazy(() => import('./components/BuildsShowcaseView').then((m) => ({ default: m.BuildsShowcaseView })));
+const BuildAnalyzerView = lazy(() => import('./components/BuildAnalyzerView').then((m) => ({ default: m.BuildAnalyzerView })));
+const LabyrinthGuideView = lazy(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
+const CampaignWalkthroughView = lazy(() => import('./components/CampaignWalkthroughView').then((m) => ({ default: m.CampaignWalkthroughView })));
+const ProgressTrackerView = lazy(() => import('./components/ProgressTrackerView').then((m) => ({ default: m.ProgressTrackerView })));
+const ToolsDirectoryView = lazy(() => import('./components/ToolsDirectoryView').then((m) => ({ default: m.ToolsDirectoryView })));
+const PoEWikiWrapperView = lazy(() => import('./components/PoEWikiWrapperView').then((m) => ({ default: m.PoEWikiWrapperView })));
+const PoEDBWrapperView = lazy(() => import('./components/PoEDBWrapperView').then((m) => ({ default: m.PoEDBWrapperView })));
+const PoENinjaWrapperView = lazy(() => import('./components/PoENinjaWrapperView').then((m) => ({ default: m.PoENinjaWrapperView })));
+const PoE2HubView = lazy(() => import('./components/PoE2HubView').then((m) => ({ default: m.PoE2HubView })));
+const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
+const PrivateLeagueHubView = lazy(() => import('./components/PrivateLeagueHubView').then((m) => ({ default: m.PrivateLeagueHubView })));
+const FeedbackView = lazy(() => import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView })));
+const BuildIngestionView = lazy(() => import('./components/BuildIngestionView').then((m) => ({ default: m.BuildIngestionView })));
+const DualLinkModal = lazy(() => import('./components/DualLinkModal').then((m) => ({ default: m.DualLinkModal })));
+const AuthRegistrationModal = lazy(() => import('./components/AuthRegistrationModal').then((m) => ({ default: m.AuthRegistrationModal })));
+const LoginPage = lazy(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('./components/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const AdminPortalPage = lazy(() => import('./components/AdminPortalPage').then((m) => ({ default: m.AdminPortalPage })));
+const PrivateLeaguesDirectoryView = lazy(() => import('./components/PrivateLeaguesDirectoryView').then((m) => ({ default: m.PrivateLeaguesDirectoryView })));
+const FullGuideReaderView = lazy(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
+
+const PageLoader = (
+  <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-slate-400">
+    Loading Exile SSF module...
+  </div>
+);
 import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
 import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/privateLeagueData';
 import { saveCloudRosterMember } from './services/cloudSync';
@@ -345,6 +351,7 @@ export const App: React.FC = () => {
 
   if (currentRoute === 'login') {
     return (
+      <Suspense fallback={PageLoader}>
       <LoginPage
         onLoginSuccess={(account, roster) => {
           handleSaveAccount(account, roster);
@@ -353,11 +360,13 @@ export const App: React.FC = () => {
         onNavigateRegister={() => navigateToRoute('register')}
         onNavigateHome={() => navigateToRoute('')}
       />
+      </Suspense>
     );
   }
 
   if (currentRoute === 'register') {
     return (
+      <Suspense fallback={PageLoader}>
       <RegisterPage
         onRegisterSuccess={(account, roster) => {
           handleSaveAccount(account, roster);
@@ -366,11 +375,13 @@ export const App: React.FC = () => {
         onNavigateLogin={() => navigateToRoute('login')}
         onNavigateHome={() => navigateToRoute('')}
       />
+      </Suspense>
     );
   }
 
   if (currentRoute === 'admin') {
     return (
+      <Suspense fallback={PageLoader}>
       <AdminPortalPage
         userAccount={userAccount}
         onAdminLoginSuccess={(account, roster) => {
@@ -383,6 +394,7 @@ export const App: React.FC = () => {
         }}
         onNavigateHome={() => navigateToRoute('')}
       />
+      </Suspense>
     );
   }
 
@@ -412,6 +424,7 @@ export const App: React.FC = () => {
 
   if (activeFullGuide) {
     return (
+      <Suspense fallback={PageLoader}>
       <FullGuideReaderView
         guide={activeFullGuide}
         onUpdateGuide={(updated) => {
@@ -444,6 +457,7 @@ export const App: React.FC = () => {
           } catch {}
         }}
       />
+      </Suspense>
     );
   }
 
@@ -468,6 +482,7 @@ export const App: React.FC = () => {
             ? 'p-0 max-w-none' 
             : 'p-3 sm:p-5 lg:p-6 max-w-[1700px] w-full mx-auto'
         }`}>
+        <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'vendor_recipes' && <VendorRecipesView />}
         {activeTab === 'atlas' && <AtlasView />}
@@ -529,8 +544,10 @@ export const App: React.FC = () => {
             }}
           />
         )}
+        </Suspense>
       </main>
 
+      <Suspense fallback={null}>
       {/* Global Ctrl+K Dual Link Search Modal */}
       <DualLinkModal
         isOpen={isSearchOpen}
@@ -545,6 +562,7 @@ export const App: React.FC = () => {
         onSaveAccount={handleSaveAccount}
         onSignOut={handleSignOut}
       />
+      </Suspense>
 
     </div>
   );

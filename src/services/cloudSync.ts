@@ -5,8 +5,16 @@ import type {
   CommunityGuide,
   PersistentAchievementProfile,
   LeagueParticipantAlumnus,
-  SiteFeedbackItem
+  SiteFeedbackItem,
+  ActiveLeagueSession,
+  PastPrivateLeague
 } from '../types';
+
+export interface CloudLeagueMeta {
+  quickLinks?: any[];
+  faqList?: any[];
+  archivesList?: PastPrivateLeague[];
+}
 
 export interface CloudLeagueDataResponse {
   status: 'connected' | 'unconfigured' | 'error' | 'fallback';
@@ -16,6 +24,7 @@ export interface CloudLeagueDataResponse {
   guides?: CommunityGuide[] | null;
   achievements?: Record<string, PersistentAchievementProfile> | null;
   alumni?: LeagueParticipantAlumnus[] | null;
+  meta?: CloudLeagueMeta | null;
   lastSynced?: string;
   message?: string;
 }
@@ -221,6 +230,78 @@ export async function saveCloudFeedbackItem(item: SiteFeedbackItem): Promise<boo
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ item })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudLeagueMeta(
+  leagueId: string,
+  meta: CloudLeagueMeta
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/meta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, ...meta })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchCloudLeagues(): Promise<ActiveLeagueSession[] | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/leagues?_t=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.leagues) ? data.leagues : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCloudLeague(league: ActiveLeagueSession): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/leagues`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ league })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchCloudAccounts(): Promise<any[] | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/accounts?_t=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.accounts) ? data.accounts : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCloudAccount(account: any): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account })
     });
     return res.ok;
   } catch {
