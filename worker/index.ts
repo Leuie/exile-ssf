@@ -53,6 +53,145 @@ async function ensureD1Schema(db: any): Promise<void> {
   schemaInitialized = true;
 }
 
+let honorSeedChecked = false;
+
+async function seedHonorAndUmbraWitchToD1(db: any): Promise<void> {
+  if (honorSeedChecked || !db) return;
+  honorSeedChecked = true;
+  const migKey = 'seed:honor_and_umbra_witch:v1';
+  const existingMig = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(migKey).first();
+  if (existingMig) return;
+
+  const now = new Date().toISOString();
+  const umbraJoinIso = '2026-11-13T19:00:00Z';
+  const umbraAchId = 'league_join_poe1-330-umbra';
+
+  // Resolve roster poeAccountNames for the 4 founding Umbra members so both handle and poeAccount keys stay in sync
+  const rosterRes = await db.prepare('SELECT data FROM roster WHERE league_id = ?').bind('poe1-330-umbra').all();
+  const rosterMembers = (rosterRes.results || []).map((r: any) => JSON.parse(r.data));
+
+  const targetMembers: {
+    handle: string;
+    extraHonorLogs: { id: string; points: number; reason: string; where: string; timestampIso: string; kind: string }[];
+    extraFulfilledCount: number;
+  }[] = [
+    {
+      handle: 'leuie',
+      extraFulfilledCount: 2,
+      extraHonorLogs: [
+        {
+          id: 'honor-find-manual-vls-20261114',
+          points: 5,
+          reason: 'Found "Vaal Lightning Strike"',
+          where: 'Covens of Umbra (3.30) • Wishlists',
+          timestampIso: '2026-11-14T18:00:00Z',
+          kind: 'item_found'
+        },
+        {
+          id: 'honor-find-manual-stormrider-20261120',
+          points: 5,
+          reason: 'Found "Stormrider Boots"',
+          where: 'Covens of Umbra (3.30) • Wishlists',
+          timestampIso: '2026-11-20T18:00:00Z',
+          kind: 'item_found'
+        }
+      ]
+    },
+    {
+      handle: 'venulum',
+      extraFulfilledCount: 1,
+      extraHonorLogs: [
+        {
+          id: 'honor-find-manual-shaperstouch-20261121',
+          points: 5,
+          reason: 'Found "Shaper\'s Touch" for @Leuie',
+          where: 'Covens of Umbra (3.30) • Wishlists',
+          timestampIso: '2026-11-21T02:00:00Z',
+          kind: 'item_found'
+        }
+      ]
+    },
+    { handle: 'chuyo', extraFulfilledCount: 0, extraHonorLogs: [] },
+    { handle: 'queueray', extraFulfilledCount: 0, extraHonorLogs: [] }
+  ];
+
+  const batch: any[] = [];
+
+  for (const target of targetMembers) {
+    const matchedRoster = rosterMembers.find(
+      (m: any) => String(m.displayName || '').trim().toLowerCase() === target.handle
+    );
+    const keysToUpdate = new Set<string>([target.handle]);
+    if (matchedRoster?.poeAccountName) {
+      keysToUpdate.add(String(matchedRoster.poeAccountName).trim().toLowerCase());
+    }
+
+    for (const playerKey of keysToUpdate) {
+      const row = await db.prepare('SELECT data FROM achievements WHERE player_key = ?').bind(playerKey).first();
+      const prev = row?.data
+        ? JSON.parse(row.data)
+        : {
+            unlockedIds: {},
+            lifetimeFulfilledCount: 0,
+            lifetimeBountiesClaimed: 0,
+            lifetimeBountiesPaid: 0,
+            leaguesParticipated: [],
+            honorLog: []
+          };
+
+      const nextUnlocked = { ...(prev.unlockedIds || {}) };
+      if (!nextUnlocked[umbraAchId]) {
+        nextUnlocked[umbraAchId] = umbraJoinIso;
+      }
+
+      const leaguesSet = new Set<string>(Array.isArray(prev.leaguesParticipated) ? prev.leaguesParticipated : []);
+      leaguesSet.add('poe1-330-umbra');
+
+      const honorMap = new Map<string, any>();
+      for (const h of Array.isArray(prev.honorLog) ? prev.honorLog : []) {
+        if (h?.id) honorMap.set(String(h.id), h);
+      }
+      if (!honorMap.has(`honor-ach-${umbraAchId}`)) {
+        honorMap.set(`honor-ach-${umbraAchId}`, {
+          id: `honor-ach-${umbraAchId}`,
+          points: 25,
+          reason: 'Unlocked Achievement: Coven of Umbra (3.30) Member',
+          where: 'Covens of Umbra (3.30) • League Join',
+          timestampIso: umbraJoinIso,
+          kind: 'achievement'
+        });
+      }
+      for (const entry of target.extraHonorLogs) {
+        if (!honorMap.has(entry.id)) {
+          honorMap.set(entry.id, entry);
+        }
+      }
+
+      const merged = {
+        ...prev,
+        unlockedIds: nextUnlocked,
+        lifetimeFulfilledCount: Math.max(Number(prev.lifetimeFulfilledCount) || 0, target.extraFulfilledCount),
+        leaguesParticipated: Array.from(leaguesSet),
+        honorLog: Array.from(honorMap.values()).sort((a: any, b: any) =>
+          String(b.timestampIso || '').localeCompare(String(a.timestampIso || ''))
+        )
+      };
+
+      batch.push(
+        db
+          .prepare('INSERT OR REPLACE INTO achievements (player_key, data, updated_at) VALUES (?, ?, ?)')
+          .bind(playerKey, JSON.stringify(merged), now)
+      );
+    }
+  }
+
+  batch.push(db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(migKey, now));
+  if (batch.length > 0) {
+    await db.batch(batch);
+  }
+}
+
+
 async function migrateKvToD1ForLeague(env: Env, leagueId: string): Promise<void> {
   if (!env.EXILE_DB || !env.EXILE_KV) return;
   const db = env.EXILE_DB;
@@ -422,6 +561,7 @@ export default {
 
       try {
         await ensureD1Schema(db);
+      await seedHonorAndUmbraWitchToD1(db);
       } catch (err: any) {
         return new Response(JSON.stringify({ status: 'error', message: `D1 init error: ${err.message}` }), {
           status: 500,
@@ -946,13 +1086,32 @@ export default {
           const services = (svcRes.results || []).map((r: any) => JSON.parse(r.data));
           const vouches = (vouchRes.results || []).map((r: any) => JSON.parse(r.data));
 
-          // Match achievement profile by handle or poeAccountName
-          let achievementProfile = null;
+          // Merge all matching achievement rows (handle, poeAccountName, character names) so credits are never split
+          let achievementProfile: any = null;
           for (const row of achRes.results || []) {
             const pk = String(row.player_key || '').toLowerCase();
             if (pk === handleLower || (poeAccountLower && pk === poeAccountLower) || charNamesLower.has(pk)) {
-              achievementProfile = JSON.parse(row.data);
-              break;
+              const parsed = JSON.parse(row.data);
+              if (!achievementProfile) {
+                achievementProfile = parsed;
+              } else {
+                const logMap = new Map<string, any>();
+                for (const h of Array.isArray(achievementProfile.honorLog) ? achievementProfile.honorLog : []) {
+                  if (h?.id) logMap.set(String(h.id), h);
+                }
+                for (const h of Array.isArray(parsed.honorLog) ? parsed.honorLog : []) {
+                  if (h?.id) logMap.set(String(h.id), h);
+                }
+                achievementProfile = {
+                  unlockedIds: { ...(achievementProfile.unlockedIds || {}), ...(parsed.unlockedIds || {}) },
+                  equippedTitle: achievementProfile.equippedTitle || parsed.equippedTitle,
+                  lifetimeFulfilledCount: Math.max(Number(achievementProfile.lifetimeFulfilledCount) || 0, Number(parsed.lifetimeFulfilledCount) || 0),
+                  lifetimeBountiesClaimed: Math.max(Number(achievementProfile.lifetimeBountiesClaimed) || 0, Number(parsed.lifetimeBountiesClaimed) || 0),
+                  lifetimeBountiesPaid: Math.max(Number(achievementProfile.lifetimeBountiesPaid) || 0, Number(parsed.lifetimeBountiesPaid) || 0),
+                  leaguesParticipated: Array.from(new Set([...(achievementProfile.leaguesParticipated || []), ...(parsed.leaguesParticipated || [])])),
+                  honorLog: Array.from(logMap.values())
+                };
+              }
             }
           }
 
@@ -989,7 +1148,8 @@ export default {
             twitchUrl: customProfile?.twitchUrl || '',
             favoriteClass: customProfile?.favoriteClass || primaryMember?.ascendancy || '',
             mapRegexBricks: Array.isArray(customProfile?.mapRegexBricks) ? customProfile.mapRegexBricks : [],
-            sessionGoals: Array.isArray(customProfile?.sessionGoals) ? customProfile.sessionGoals : []
+            sessionGoals: Array.isArray(customProfile?.sessionGoals) ? customProfile.sessionGoals : [],
+            lastSeenFeedAt: customProfile?.lastSeenFeedAt || undefined
           };
 
           return new Response(

@@ -85,7 +85,9 @@ import {
   deleteCloudBossRota,
   saveCloudLeagueFirst,
   saveCloudFeedEvent,
-  saveCloudAchievementProfile
+  saveCloudAchievementProfile,
+  fetchCloudProfile,
+  saveCloudProfile
 } from '../services/cloudSync';
 import { getLeagueJoinAchievementDef, formatLeagueLabel } from '../utils/achievements';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
@@ -392,6 +394,70 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     });
     saveCloudFeedEvent(activeSessionId, updated);
   };
+
+  const handleCommentFeedEvent = (ev: LeagueFeedEvent, commentText: string) => {
+    const clean = commentText.trim();
+    if (!clean) return;
+    const author = userAccount?.displayName || 'Exile';
+    const newComment = {
+      id: `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      authorHandle: author,
+      text: clean,
+      createdAtIso: new Date().toISOString()
+    };
+    const updated: LeagueFeedEvent = {
+      ...ev,
+      comments: [...(Array.isArray(ev.comments) ? ev.comments : []), newComment]
+    };
+    setActivityFeed((prev) => {
+      const exists = prev.some((x) => x.id === ev.id);
+      return exists ? prev.map((x) => (x.id === ev.id ? updated : x)) : [updated, ...prev];
+    });
+    saveCloudFeedEvent(activeSessionId, updated);
+  };
+
+  const [lastSeenFeedAt, setLastSeenFeedAt] = useState<string | null>(null);
+  const [visitBaselineFeedAt, setVisitBaselineFeedAt] = useState<string | null>(null);
+  const [cachedCloudProfile, setCachedCloudProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (!userAccount?.displayName) return;
+    let cancelled = false;
+    fetchCloudProfile(userAccount.displayName).then((res) => {
+      if (!cancelled && res?.profile) {
+        setCachedCloudProfile(res.profile);
+        if (res.profile.lastSeenFeedAt) {
+          setLastSeenFeedAt(res.profile.lastSeenFeedAt);
+          setVisitBaselineFeedAt((prev) => prev || res.profile.lastSeenFeedAt || null);
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const unreadFeedCount = React.useMemo(() => {
+    const myLower = userAccount?.displayName?.trim().toLowerCase() || '';
+    return activityFeed.filter((ev) => {
+      if (myLower && ev.actorHandle.toLowerCase() === myLower) return false;
+      if (!lastSeenFeedAt) return true;
+      return ev.createdAtIso > lastSeenFeedAt;
+    }).length;
+  }, [activityFeed, lastSeenFeedAt, userAccount?.displayName]);
+
+  useEffect(() => {
+    if (activeTab !== 'feed') return;
+    const nowIso = new Date().toISOString();
+    setVisitBaselineFeedAt((prev) => prev || lastSeenFeedAt);
+    setLastSeenFeedAt(nowIso);
+    if (userAccount?.displayName) {
+      const baseProfile = cachedCloudProfile || { handle: userAccount.displayName, uid: 'EXILE-USER' };
+      const updatedProfile = { ...baseProfile, lastSeenFeedAt: nowIso };
+      setCachedCloudProfile(updatedProfile);
+      saveCloudProfile(updatedProfile);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1413,7 +1479,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         <div className="px-3 sm:px-6 flex flex-wrap items-center gap-1.5 sm:gap-2 py-2 border-t border-slate-800/40 bg-slate-950/40">
           {[
             { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
-            { id: 'feed' as HubTab, label: 'Feed', icon: Activity, badge: activityFeed.length > 0 ? `${activityFeed.length}` : null, slug: 'feed' },
+            { id: 'feed' as HubTab, label: 'Feed', icon: Activity, badge: activeTab !== 'feed' && unreadFeedCount > 0 ? `${unreadFeedCount} new` : activityFeed.length > 0 ? `${activityFeed.length}` : null, isUnreadHighlight: activeTab !== 'feed' && unreadFeedCount > 0, slug: 'feed' },
             { id: 'looking_for' as HubTab, label: 'Wishlists', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
             {
               id: 'bounties' as HubTab,
@@ -1445,7 +1511,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 {tab.badge && (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                      isActive ? 'bg-slate-700 text-slate-200' : 'bg-slate-800 text-slate-500'
+                      (tab as any).isUnreadHighlight ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 font-bold' : isActive ? 'bg-slate-700 text-slate-200' : 'bg-slate-800 text-slate-500'
                     }`}
                   >
                     {tab.badge}
@@ -1504,7 +1570,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             bossRotas={bossRotas}
             leagueFirsts={leagueFirsts}
             userAccount={userAccount}
+            lastSeenFeedAt={visitBaselineFeedAt}
             onCheerEvent={handleCheerFeedEvent}
+            onCommentEvent={handleCommentFeedEvent}
+            onCopyFeedLink={() => triggerCopy(`${window.location.origin}/league/${activeSessionId}/feed`, 'League Feed Link')}
             onOpenProfile={onOpenProfile}
             onNavigateTab={handleSelectTab}
           />

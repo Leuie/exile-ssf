@@ -11,7 +11,11 @@ import {
   UserPlus,
   Users,
   ArrowUpRight,
-  Heart
+  Heart,
+  MessageCircle,
+  Send,
+  Share2,
+  AtSign
 } from 'lucide-react';
 import type {
   LeagueFeedEvent,
@@ -36,12 +40,17 @@ export interface FeedTabProps {
   bossRotas: BossRotaListing[];
   leagueFirsts: LeagueFirstMilestone[];
   userAccount?: UserAccount | null;
+  lastSeenFeedAt?: string | null;
   onCheerEvent: (event: LeagueFeedEvent) => void;
+  onCommentEvent: (event: LeagueFeedEvent, commentText: string) => void;
+  onCopyFeedLink: () => void;
   onOpenProfile?: (handle: string) => void;
-  onNavigateTab: (tab: 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni') => void;
+  onNavigateTab: (
+    tab: 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni'
+  ) => void;
 }
 
-type FilterKey = 'all' | 'fulfillments' | 'bounties' | 'wishlists' | 'roster' | 'builds' | 'achievements';
+type FilterKey = 'all' | 'mentions' | 'fulfillments' | 'bounties' | 'wishlists' | 'roster' | 'builds' | 'achievements';
 
 function formatRelativeTime(iso?: string): string {
   if (!iso) return 'Recent';
@@ -147,11 +156,16 @@ export const FeedTab: React.FC<FeedTabProps> = ({
   bossRotas,
   leagueFirsts,
   userAccount,
+  lastSeenFeedAt,
   onCheerEvent,
+  onCommentEvent,
+  onCopyFeedLink,
   onOpenProfile,
   onNavigateTab
 }) => {
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [draftComments, setDraftComments] = useState<Record<string, string>>({});
 
   // Merge live D1 activity_feed events with synthesized historical league activity so the wall is rich immediately
   const combinedFeed = useMemo(() => {
@@ -278,8 +292,31 @@ export const FeedTab: React.FC<FeedTabProps> = ({
     );
   }, [activityFeed, lookingForItems, stashDrops, bossRotas, leagueFirsts, guides, activeSessionId]);
 
+  const myHandleLower = userAccount?.displayName?.trim().toLowerCase() || '';
+  const myCharLower = userAccount?.characterName?.trim().toLowerCase() || '';
+
+  const isEventMentioningMe = (ev: LeagueFeedEvent): boolean => {
+    if (!myHandleLower && !myCharLower) return false;
+    const matchStr = (val?: string) => {
+      if (!val) return false;
+      const low = val.trim().replace(/^@/, '').toLowerCase();
+      return (myHandleLower && low === myHandleLower) || (myCharLower && low === myCharLower);
+    };
+    if (matchStr(ev.actorHandle) || matchStr(ev.targetHandle) || matchStr(ev.actorCharacter)) return true;
+    if ((ev.cheers || []).some((c) => matchStr(c))) return true;
+    if ((ev.comments || []).some((c) => matchStr(c.authorHandle) || (myHandleLower && c.text.toLowerCase().includes(`@${myHandleLower}`)))) return true;
+    if (myHandleLower && ((ev.title || '').toLowerCase().includes(`@${myHandleLower}`) || (ev.detail || '').toLowerCase().includes(`@${myHandleLower}`))) return true;
+    return false;
+  };
+
+  const myMentionsCount = useMemo(
+    () => combinedFeed.filter(isEventMentioningMe).length,
+    [combinedFeed, myHandleLower, myCharLower]
+  );
+
   const filteredEvents = useMemo(() => {
     if (filter === 'all') return combinedFeed;
+    if (filter === 'mentions') return combinedFeed.filter(isEventMentioningMe);
     if (filter === 'fulfillments') return combinedFeed.filter((e) => e.type === 'item_fulfilled' || e.type === 'stash_drop');
     if (filter === 'bounties') return combinedFeed.filter((e) => e.type === 'bounty_listed' || e.type === 'boss_rota');
     if (filter === 'wishlists') return combinedFeed.filter((e) => e.type === 'wishlist_added');
@@ -287,19 +324,31 @@ export const FeedTab: React.FC<FeedTabProps> = ({
     if (filter === 'builds') return combinedFeed.filter((e) => e.type === 'build_published');
     if (filter === 'achievements') return combinedFeed.filter((e) => e.type === 'achievement_earned' || e.type === 'league_first');
     return combinedFeed;
-  }, [combinedFeed, filter]);
+  }, [combinedFeed, filter, myHandleLower, myCharLower]);
 
   const openBountiesCount = lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer?.trim()).length;
   const fulfilledCount = lookingForItems.filter((it) => it.status === 'HAVE' && it.fulfilledBy && it.fulfilledBy.toLowerCase() !== 'self found').length;
 
+  const handleSubmitComment = (e: React.FormEvent, ev: LeagueFeedEvent) => {
+    e.preventDefault();
+    const text = (draftComments[ev.id] || '').trim();
+    if (!text) return;
+    onCommentEvent(ev, text);
+    setDraftComments((prev) => ({ ...prev, [ev.id]: '' }));
+    setOpenComments((prev) => ({ ...prev, [ev.id]: true }));
+  };
+
   return (
-    <div className="space-y-5">
+    <div id={`league-feed-page-${activeSessionId}`} className="space-y-5">
       {/* Header Banner */}
       <div className="p-5 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/35 via-slate-900/90 to-slate-900/90 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
         <div>
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-indigo-300 font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-wider text-indigo-300 font-bold">
             <Activity className="w-4 h-4 text-emerald-400" />
             <span>Live League Activity Wall • {leagueName}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-slate-400">
+              /league/{activeSessionId}/feed
+            </span>
           </div>
           <h2 className="text-lg font-black text-white mt-1">What Your Squad Is Up To</h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -320,14 +369,49 @@ export const FeedTab: React.FC<FeedTabProps> = ({
             <div className="text-sm font-black text-emerald-300">{fulfilledCount}</div>
             <div className="text-[10px] text-slate-400">Squad Drops</div>
           </div>
+          <button
+            type="button"
+            onClick={onCopyFeedLink}
+            className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow"
+            title="Copy direct shareable link to this League Feed page"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Copy Feed Link</span>
+          </button>
         </div>
       </div>
 
       {/* Category Filter Strip */}
       <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/70 border border-slate-800 p-2 rounded-xl">
+        <button
+          type="button"
+          onClick={() => setFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+            filter === 'all'
+              ? 'bg-indigo-600 text-white shadow'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          All Activity ({combinedFeed.length})
+        </button>
+
+        {userAccount && (
+          <button
+            type="button"
+            onClick={() => setFilter('mentions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+              filter === 'mentions'
+                ? 'bg-amber-500 text-slate-950 shadow'
+                : 'bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+            }`}
+          >
+            <AtSign className="w-3.5 h-3.5" />
+            <span>My Squad & Mentions ({myMentionsCount})</span>
+          </button>
+        )}
+
         {(
           [
-            { id: 'all', label: `All Activity (${combinedFeed.length})` },
             { id: 'fulfillments', label: 'Fulfillments & Stash' },
             { id: 'bounties', label: 'Bounties & Rotas' },
             { id: 'wishlists', label: 'Wishlists' },
@@ -354,89 +438,176 @@ export const FeedTab: React.FC<FeedTabProps> = ({
       {/* Feed Timeline */}
       {filteredEvents.length === 0 ? (
         <div className="p-10 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-xs text-slate-400">
-          No activity matching this filter yet. Post a wishlist item, bounty, character, or build guide to kick off the wall!
+          {filter === 'mentions'
+            ? 'No events involving you or mentioning your @handle yet. Fulfill a wish, post a bounty, or drop a shoutout to see activity here!'
+            : 'No activity matching this filter yet. Post a wishlist item, bounty, character, or build guide to kick off the wall!'}
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {filteredEvents.map((ev) => {
             const meta = getEventBadge(ev.type);
             const Icon = meta.icon;
-            const me = userAccount?.displayName?.toLowerCase();
             const cheers = ev.cheers || [];
-            const hasCheered = Boolean(me && cheers.some((c) => c.toLowerCase() === me));
+            const comments = ev.comments || [];
+            const hasCheered = Boolean(myHandleLower && cheers.some((c) => c.toLowerCase() === myHandleLower));
+            const isCommentsOpen = Boolean(openComments[ev.id]) || comments.length > 0;
+            const isNewSinceLastVisit = Boolean(
+              lastSeenFeedAt &&
+                ev.createdAtIso &&
+                ev.createdAtIso > lastSeenFeedAt &&
+                ev.actorHandle.toLowerCase() !== myHandleLower
+            );
 
             return (
               <div
                 key={ev.id}
-                className={`p-4 rounded-2xl bg-slate-900/75 border ${meta.borderClass} flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-900 transition-colors`}
+                className={`p-4 rounded-2xl bg-slate-900/75 border ${meta.borderClass} space-y-3 hover:bg-slate-900 transition-colors`}
               >
-                <div className="flex items-start gap-3.5 min-w-0">
-                  {ev.iconUrl ? (
-                    <img
-                      src={ev.iconUrl}
-                      alt={ev.title}
-                      className="w-11 h-11 rounded-xl border border-purple-400/50 object-cover shrink-0 shadow-md"
-                    />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${meta.badgeClass}`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                  )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    {ev.iconUrl ? (
+                      <img
+                        src={ev.iconUrl}
+                        alt={ev.title}
+                        className="w-11 h-11 rounded-xl border border-purple-400/50 object-cover shrink-0 shadow-md"
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${meta.badgeClass}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                    )}
 
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${meta.badgeClass}`}>
-                        {meta.label}
-                      </span>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${meta.badgeClass}`}>
+                          {meta.label}
+                        </span>
+                        {isNewSinceLastVisit && (
+                          <span className="text-[10px] font-mono font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            NEW
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onOpenProfile?.(ev.actorHandle)}
+                          className="text-xs font-black text-amber-300 hover:underline cursor-pointer"
+                        >
+                          @{ev.actorHandle}
+                        </button>
+                        {ev.actorCharacter && ev.actorCharacter.toLowerCase() !== ev.actorHandle.toLowerCase() && (
+                          <span className="text-[10px] font-mono text-slate-500">({ev.actorCharacter})</span>
+                        )}
+                        <span
+                          className="text-[10px] font-mono text-slate-500"
+                          title={new Date(ev.createdAtIso).toLocaleString()}
+                        >
+                          • {formatRelativeTime(ev.createdAtIso)}
+                        </span>
+                      </div>
+
+                      <div className="text-sm font-bold text-white leading-snug">{ev.title}</div>
+                      {ev.detail && <div className="text-xs text-slate-400">{ev.detail}</div>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => onCheerEvent(ev)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold transition-colors cursor-pointer ${
+                        hasCheered
+                          ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-300 hover:border-rose-500/30'
+                      }`}
+                      title={cheers.length > 0 ? `Liked by: ${cheers.join(', ')}` : 'Like / Send a GG heart'}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${hasCheered ? 'fill-rose-400 text-rose-400' : ''}`} />
+                      <span>{cheers.length > 0 ? cheers.length : 'Like'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenComments((prev) => ({ ...prev, [ev.id]: !isCommentsOpen }))
+                      }
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold transition-colors cursor-pointer ${
+                        isCommentsOpen
+                          ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-indigo-300 hover:border-indigo-500/30'
+                      }`}
+                      title="Toggle shoutout comments"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>{comments.length > 0 ? comments.length : 'Reply'}</span>
+                    </button>
+
+                    {ev.targetTab && (
                       <button
                         type="button"
-                        onClick={() => onOpenProfile?.(ev.actorHandle)}
-                        className="text-xs font-black text-amber-300 hover:underline cursor-pointer"
+                        onClick={() => onNavigateTab(ev.targetTab as any)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
                       >
-                        @{ev.actorHandle}
+                        <span>Open</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
                       </button>
-                      {ev.actorCharacter && ev.actorCharacter.toLowerCase() !== ev.actorHandle.toLowerCase() && (
-                        <span className="text-[10px] font-mono text-slate-500">({ev.actorCharacter})</span>
-                      )}
-                      <span
-                        className="text-[10px] font-mono text-slate-500"
-                        title={new Date(ev.createdAtIso).toLocaleString()}
-                      >
-                        • {formatRelativeTime(ev.createdAtIso)}
-                      </span>
-                    </div>
-
-                    <div className="text-sm font-bold text-white leading-snug">{ev.title}</div>
-                    {ev.detail && <div className="text-xs text-slate-400">{ev.detail}</div>}
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => onCheerEvent(ev)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold transition-colors cursor-pointer ${
-                      hasCheered
-                        ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-300 hover:border-rose-500/30'
-                    }`}
-                    title="Send a GG cheer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${hasCheered ? 'fill-rose-400 text-rose-400' : ''}`} />
-                    <span>{cheers.length > 0 ? cheers.length : 'GG'}</span>
-                  </button>
+                {/* Inline Shoutout / Comment Thread */}
+                {isCommentsOpen && (
+                  <div className="pt-2.5 border-t border-slate-800/80 space-y-2 pl-2 sm:pl-14">
+                    {comments.length > 0 && (
+                      <div className="space-y-1.5">
+                        {comments.map((c) => (
+                          <div
+                            key={c.id}
+                            className="px-3 py-1.5 rounded-xl bg-slate-950/75 border border-slate-800/80 text-xs flex flex-wrap items-baseline justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => onOpenProfile?.(c.authorHandle)}
+                                className="font-bold text-amber-300 hover:underline mr-2 cursor-pointer"
+                              >
+                                @{c.authorHandle}
+                              </button>
+                              <span className="text-slate-200">{c.text}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                              {formatRelativeTime(c.createdAtIso)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                  {ev.targetTab && (
-                    <button
-                      type="button"
-                      onClick={() => onNavigateTab(ev.targetTab as any)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-                    >
-                      <span>Open</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                    <form onSubmit={(e) => handleSubmitComment(e, ev)} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={draftComments[ev.id] || ''}
+                        onChange={(e) =>
+                          setDraftComments((prev) => ({ ...prev, [ev.id]: e.target.value }))
+                        }
+                        placeholder={
+                          userAccount
+                            ? 'Drop a 1 line shoutout (e.g. HUGE drop gz!! or I have a spare 6L base)...'
+                            : 'Sign in or type a quick shoutout...'
+                        }
+                        maxLength={220}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!(draftComments[ev.id] || '').trim()}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>Send</span>
+                      </button>
+                    </form>
+                  </div>
+                )}
               </div>
             );
           })}

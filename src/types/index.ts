@@ -522,6 +522,7 @@ export interface ExileProfile {
   favoriteClass?: string;
   mapRegexBricks?: string[];
   sessionGoals?: PersonalSessionGoal[];
+  lastSeenFeedAt?: string;
   updatedAtIso?: string;
 }
 
@@ -588,6 +589,13 @@ export type LeagueFeedEventType =
   | 'boss_rota'
   | 'league_first';
 
+export interface LeagueFeedComment {
+  id: string;
+  authorHandle: string;
+  text: string;
+  createdAtIso: string;
+}
+
 export interface LeagueFeedEvent {
   id: string;
   leagueId: string;
@@ -600,5 +608,6 @@ export interface LeagueFeedEvent {
   targetTab?: string;
   iconUrl?: string;
   cheers?: string[];
+  comments?: LeagueFeedComment[];
   createdAtIso: string;
 }
