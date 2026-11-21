@@ -38,7 +38,9 @@ import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
 import { getMemberCharacters } from './RosterTab';
 import {
   evaluateCloudAchievements,
-  getPlayerCloudKey
+  getPlayerCloudKey,
+  HONOR_PER_ITEM_FOUND,
+  formatLeagueLabel
 } from '../../../utils/achievements';
 
 export interface BountiesAndHonorsTabProps {
@@ -195,6 +197,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   const [bountyNotes, setBountyNotes] = useState<string>('');
   const [claimingItem, setClaimingItem] = useState<LookingForItem | null>(null);
   const [claimFinderName, setClaimFinderName] = useState<string>('');
+  const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string } | null>(null);
   const claimDialogRef = useRef<HTMLDialogElement>(null);
   const [bountyTargetChar, setBountyTargetChar] = useState<string>(userAccount?.characterName || '');
 
@@ -377,8 +380,30 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
     saveCloudWishlistItem(activeSessionId, updatedItem);
     claimDialogRef.current?.close();
     setClaimingItem(null);
+    const requesterTag = updatedItem.displayName || updatedItem.characterName || 'Squadmate';
+    const finderName = claimFinderName.trim();
+    const finderKey = (userAccount?.poeAccountName || finderName).trim().toLowerCase();
+    saveCloudAchievementProfile(finderKey, {
+      unlockedIds: {},
+      lifetimeFulfilledCount: 1,
+      lifetimeBountiesClaimed: 1,
+      lifetimeBountiesPaid: 0,
+      leaguesParticipated: [activeSessionId],
+      honorLog: [
+        {
+          id: `honor-find-${updatedItem.id}`,
+          points: HONOR_PER_ITEM_FOUND,
+          reason: `Found "${updatedItem.itemName}" for @${requesterTag}${updatedItem.bountyOffer ? ` (Bounty: ${updatedItem.bountyOffer})` : ''}`,
+          where: `${formatLeagueLabel(activeSessionId)} • Bounties`,
+          timestampIso: updatedItem.fulfilledAtIso || new Date().toISOString(),
+          kind: 'item_found'
+        }
+      ]
+    });
+    setHonorAwardBanner({ finder: finderName, itemName: updatedItem.itemName, requester: requesterTag });
+    setTimeout(() => setHonorAwardBanner(null), 5000);
     fireConfetti();
-    setCopyNotice(`Bounty claimed for ${updatedItem.itemName}! Coordinate delivery with @${updatedItem.displayName || updatedItem.characterName}.`);
+    setCopyNotice(`+${HONOR_PER_ITEM_FOUND} Honor Points! Bounty claimed for ${updatedItem.itemName}.`);
     setTimeout(() => setCopyNotice(null), 3500);
   };
 
@@ -530,7 +555,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
               {achievementEval.totalPoints} <span className="text-xs font-normal text-slate-500">/ {achievementEval.maxPoints}</span>
             </div>
             <div className="text-[10px] text-slate-400">
-              {achievementEval.unlockedCount} of {achievementEval.achievements.length} Honors Unlocked
+              {achievementEval.unlockedCount} Achievements • +{achievementEval.fulfillmentBonusPoints} from Finds
             </div>
           </div>
         </div>
@@ -1385,6 +1410,22 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
           </div>
         </div>
       )}
+      {honorAwardBanner && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3.5 rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-950/95 via-slate-900/95 to-emerald-950/95 shadow-2xl shadow-amber-500/20 flex items-center gap-3.5 animate-bounce">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/25 border border-amber-400 flex items-center justify-center flex-shrink-0">
+            <Award className="w-6 h-6 text-amber-300" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-amber-300 font-mono">
+              +{HONOR_PER_ITEM_FOUND} HONOR POINTS EARNED!
+            </div>
+            <div className="text-xs text-slate-200">
+              @{honorAwardBanner.finder} found <strong>{honorAwardBanner.itemName}</strong> for @{honorAwardBanner.requester}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Native Dark Vouch Modal */}
       <dialog
         ref={vouchDialogRef}

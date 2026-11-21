@@ -20,7 +20,8 @@ import {
   X
 } from 'lucide-react';
 import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory } from '../../../types';
-import { saveCloudWishlistItem, deleteCloudWishlistItem } from '../../../services/cloudSync';
+import { saveCloudWishlistItem, deleteCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
+import { HONOR_PER_ITEM_FOUND, formatLeagueLabel } from '../../../utils/achievements';
 import { getMemberCharacters } from './RosterTab';
 import { LootFilterExportModal } from '../modals/LootFilterExportModal';
 
@@ -124,6 +125,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [selectedCharFilter, setSelectedCharFilter] = useState<string>('All');
   const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
   const [showLootFilterModal, setShowLootFilterModal] = useState<boolean>(false);
+  const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string } | null>(null);
 
   const myRosterEntry = React.useMemo(() => {
     if (!userAccount) return undefined;
@@ -423,7 +425,33 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
     });
 
     saveCloudWishlistItem(activeSessionId, itemCopy);
-    setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
+    const cleanHelper = helperTag.trim().replace(/^@/, '');
+    if (cleanHelper && cleanHelper.toLowerCase() !== 'self found') {
+      const requesterTag = existing.displayName || existing.characterName || 'Squadmate';
+      const finderKey = (userAccount?.poeAccountName || cleanHelper).trim().toLowerCase();
+      saveCloudAchievementProfile(finderKey, {
+        unlockedIds: {},
+        lifetimeFulfilledCount: 1,
+        lifetimeBountiesClaimed: existing.bountyOffer ? 1 : 0,
+        lifetimeBountiesPaid: 0,
+        leaguesParticipated: [activeSessionId],
+        honorLog: [
+          {
+            id: `honor-find-${existing.id}`,
+            points: HONOR_PER_ITEM_FOUND,
+            reason: `Found "${existing.itemName}" for @${requesterTag}${existing.bountyOffer ? ` (Bounty: ${existing.bountyOffer})` : ''}`,
+            where: `${formatLeagueLabel(activeSessionId)} • Wishlists`,
+            timestampIso: itemCopy.fulfilledAtIso || new Date().toISOString(),
+            kind: 'item_found'
+          }
+        ]
+      });
+      setHonorAwardBanner({ finder: cleanHelper, itemName: existing.itemName, requester: requesterTag });
+      setTimeout(() => setHonorAwardBanner(null), 5000);
+      setCopyNotice(`+${HONOR_PER_ITEM_FOUND} Honor Points to @${cleanHelper}! Marked ${existing.itemName} as HAVE.`);
+    } else {
+      setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
+    }
     setTimeout(() => setCopyNotice(null), 3500);
   };
 
@@ -1904,6 +1932,22 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           </form>
         )}
       </dialog>
+      {honorAwardBanner && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3.5 rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-950/95 via-slate-900/95 to-emerald-950/95 shadow-2xl shadow-amber-500/20 flex items-center gap-3.5 animate-bounce">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/25 border border-amber-400 flex items-center justify-center flex-shrink-0">
+            <Award className="w-6 h-6 text-amber-300" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-amber-300 font-mono">
+              +{HONOR_PER_ITEM_FOUND} HONOR POINTS EARNED!
+            </div>
+            <div className="text-xs text-slate-200">
+              @{honorAwardBanner.finder} found <strong>{honorAwardBanner.itemName}</strong> for @{honorAwardBanner.requester}
+            </div>
+          </div>
+        </div>
+      )}
+
       <LootFilterExportModal
         isOpen={showLootFilterModal}
         onClose={() => setShowLootFilterModal(false)}

@@ -1,12 +1,15 @@
 import type {
   AchievementDefinition,
   PersistentAchievementProfile,
+  HonorHistoryEntry,
   LookingForItem,
   LeagueRosterMember,
   LeagueParticipantAlumnus,
   CommunityGuide,
   UserAccount
 } from '../types';
+
+export const HONOR_PER_ITEM_FOUND = 5;
 
 export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   {
@@ -100,7 +103,7 @@ export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   {
     id: 'seasoned_veteran',
     title: 'Seasoned Veteran',
-    description: 'Participate in 2 or more NOIR private league seasons (carried over via Alumni records).',
+    description: 'Participate in 2 or more Exile SSF private league seasons (carried over via Alumni records).',
     category: 'League Loyalty',
     tier: 'Rare',
     points: 80,
@@ -110,7 +113,7 @@ export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   {
     id: 'noir_legend',
     title: 'NOIR Legend',
-    description: 'Participate in 4 or more NOIR private league seasons across Path of Exile history.',
+    description: 'Participate in 4 or more Exile SSF private league seasons across Path of Exile history.',
     category: 'League Loyalty',
     tier: 'Pinnacle',
     points: 250,
@@ -135,7 +138,8 @@ const EMPTY_PROFILE: PersistentAchievementProfile = {
   lifetimeFulfilledCount: 0,
   lifetimeBountiesClaimed: 0,
   lifetimeBountiesPaid: 0,
-  leaguesParticipated: []
+  leaguesParticipated: [],
+  honorLog: []
 };
 
 export function getPlayerCloudKey(userAccount?: UserAccount | null): string {
@@ -145,6 +149,90 @@ export function getPlayerCloudKey(userAccount?: UserAccount | null): string {
     userAccount?.characterName ||
     '';
   return raw.trim().toLowerCase();
+}
+
+export function formatLeagueLabel(leagueId?: string): string {
+  const clean = (leagueId || 'poe1-330-umbra').toLowerCase().trim();
+  if (clean === 'poe1-330-umbra') return 'Covens of Umbra (3.30)';
+  if (clean === 'poe2-05-ancients') return 'Return of the Ancients (0.5)';
+  return leagueId || 'Private League';
+}
+
+export function buildRetroactiveHonorHistory(params: {
+  fulfilledByPlayer: LookingForItem[];
+  achievementProfile?: PersistentAchievementProfile | null;
+  leagueId?: string;
+}): {
+  entries: HonorHistoryEntry[];
+  achievementPoints: number;
+  fulfillmentBonusPoints: number;
+  totalHonorPoints: number;
+} {
+  const { fulfilledByPlayer, achievementProfile, leagueId } = params;
+  const map = new Map<string, HonorHistoryEntry>();
+  const leagueLabel = formatLeagueLabel(leagueId);
+
+  // 1. Existing persisted honor log from Cloudflare D1 (carries across seasons)
+  for (const logItem of achievementProfile?.honorLog || []) {
+    if (logItem?.id) {
+      map.set(logItem.id, logItem);
+    }
+  }
+
+  // 2. Retroactively credit +5 Honor Points for every item found for a squadmate
+  for (const item of fulfilledByPlayer) {
+    if (item.status !== 'HAVE') continue;
+    if (!item.fulfilledBy || item.fulfilledBy.trim().toLowerCase() === 'self found') continue;
+    const requester = item.displayName || item.characterName || 'Squadmate';
+    const entryId = `honor-find-${item.id}`;
+    if (!map.has(entryId)) {
+      map.set(entryId, {
+        id: entryId,
+        points: HONOR_PER_ITEM_FOUND,
+        reason: `Found "${item.itemName}" for @${requester}${item.bountyOffer ? ` (Bounty: ${item.bountyOffer})` : ''}`,
+        where: `${leagueLabel} • Wishlists`,
+        timestampIso: item.fulfilledAtIso || '',
+        kind: 'item_found'
+      });
+    }
+  }
+
+  // 3. Add unlocked achievement entries
+  const unlockedIds = achievementProfile?.unlockedIds || {};
+  for (const def of ACHIEVEMENT_CATALOG) {
+    if (unlockedIds[def.id]) {
+      const entryId = `honor-ach-${def.id}`;
+      if (!map.has(entryId)) {
+        map.set(entryId, {
+          id: entryId,
+          points: def.points,
+          reason: `Unlocked Achievement: ${def.title}`,
+          where: 'Exile SSF Achievements',
+          timestampIso: unlockedIds[def.id],
+          kind: 'achievement'
+        });
+      }
+    }
+  }
+
+  const entries = Array.from(map.values()).sort((a, b) =>
+    (b.timestampIso || '').localeCompare(a.timestampIso || '')
+  );
+
+  const achievementPoints = entries
+    .filter((e) => e.kind === 'achievement')
+    .reduce((sum, e) => sum + e.points, 0);
+
+  const findEntriesCount = entries.filter((e) => e.kind === 'item_found').length;
+  const effectiveFinds = Math.max(findEntriesCount, achievementProfile?.lifetimeFulfilledCount || 0);
+  const fulfillmentBonusPoints = effectiveFinds * HONOR_PER_ITEM_FOUND;
+
+  return {
+    entries,
+    achievementPoints,
+    fulfillmentBonusPoints,
+    totalHonorPoints: achievementPoints + fulfillmentBonusPoints
+  };
 }
 
 export interface EvaluatedAchievement {
@@ -160,6 +248,8 @@ export interface AchievementEvaluationResult {
   playerKey: string;
   profile: PersistentAchievementProfile;
   achievements: EvaluatedAchievement[];
+  achievementPoints: number;
+  fulfillmentBonusPoints: number;
   totalPoints: number;
   maxPoints: number;
   unlockedCount: number;
@@ -185,7 +275,8 @@ export function evaluateCloudAchievements(params: {
     lifetimeFulfilledCount: Number(existingCloud.lifetimeFulfilledCount) || 0,
     lifetimeBountiesClaimed: Number(existingCloud.lifetimeBountiesClaimed) || 0,
     lifetimeBountiesPaid: Number(existingCloud.lifetimeBountiesPaid) || 0,
-    leaguesParticipated: Array.isArray(existingCloud.leaguesParticipated) ? [...existingCloud.leaguesParticipated] : []
+    leaguesParticipated: Array.isArray(existingCloud.leaguesParticipated) ? [...existingCloud.leaguesParticipated] : [],
+    honorLog: Array.isArray(existingCloud.honorLog) ? [...existingCloud.honorLog] : []
   };
 
   const matchIdentity = (val?: string): boolean => {
@@ -291,13 +382,21 @@ export function evaluateCloudAchievements(params: {
     };
   });
 
+  // Build retroactive + live honor log
+  const historyCalc = buildRetroactiveHonorHistory({
+    fulfilledByPlayer: sessionFulfilled,
+    achievementProfile: { ...stored, unlockedIds: nextUnlocked, lifetimeFulfilledCount },
+    leagueId: activeSessionId
+  });
+
   const nextProfile: PersistentAchievementProfile = {
     unlockedIds: nextUnlocked,
     equippedTitle: stored.equippedTitle,
     lifetimeFulfilledCount,
     lifetimeBountiesClaimed,
     lifetimeBountiesPaid,
-    leaguesParticipated: Array.from(leaguesSet)
+    leaguesParticipated: Array.from(leaguesSet),
+    honorLog: historyCalc.entries
   };
 
   const hasCloudChanges = Boolean(
@@ -306,10 +405,13 @@ export function evaluateCloudAchievements(params: {
       nextProfile.lifetimeFulfilledCount !== stored.lifetimeFulfilledCount ||
       nextProfile.lifetimeBountiesClaimed !== stored.lifetimeBountiesClaimed ||
       nextProfile.lifetimeBountiesPaid !== stored.lifetimeBountiesPaid ||
-      nextProfile.leaguesParticipated.length !== stored.leaguesParticipated.length)
+      nextProfile.leaguesParticipated.length !== stored.leaguesParticipated.length ||
+      (nextProfile.honorLog?.length || 0) !== (stored.honorLog?.length || 0))
   );
 
-  const totalPoints = evaluated.reduce((acc, a) => acc + (a.unlocked ? a.definition.points : 0), 0);
+  const achievementPoints = evaluated.reduce((acc, a) => acc + (a.unlocked ? a.definition.points : 0), 0);
+  const fulfillmentBonusPoints = lifetimeFulfilledCount * HONOR_PER_ITEM_FOUND;
+  const totalPoints = achievementPoints + fulfillmentBonusPoints;
   const maxPoints = ACHIEVEMENT_CATALOG.reduce((acc, d) => acc + d.points, 0);
   const unlockedCount = evaluated.filter((a) => a.unlocked).length;
   const availableTitles = evaluated
@@ -320,6 +422,8 @@ export function evaluateCloudAchievements(params: {
     playerKey,
     profile: nextProfile,
     achievements: evaluated,
+    achievementPoints,
+    fulfillmentBonusPoints,
     totalPoints,
     maxPoints,
     unlockedCount,

@@ -24,7 +24,7 @@ import {
   type CloudExileProfileResponse
 } from '../services/cloudSync';
 import { getMemberCharacters } from './league/tabs/RosterTab';
-import { ACHIEVEMENT_CATALOG } from '../utils/achievements';
+import { ACHIEVEMENT_CATALOG, buildRetroactiveHonorHistory, HONOR_PER_ITEM_FOUND } from '../utils/achievements';
 import { fireConfetti } from '../utils/confetti';
 
 export interface ExileProfilePageProps {
@@ -164,7 +164,12 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const achProfile = data?.achievementProfile;
   const unlockedIds = achProfile?.unlockedIds || {};
   const unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a) => Boolean(unlockedIds[a.id]));
-  const totalHonorPoints = unlockedAchievements.reduce((sum, a) => sum + a.points, 0);
+  const honorSummary = buildRetroactiveHonorHistory({
+    fulfilledByPlayer: fulfilledByMe,
+    achievementProfile: achProfile,
+    leagueId: rosterEntries[0]?.leagueId || 'poe1-330-umbra'
+  });
+  const totalHonorPoints = honorSummary.totalHonorPoints;
 
   const primaryIgn = allCharacters[0]?.characterName || profile.handle;
   const profileShareUrl =
@@ -348,7 +353,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <div className="text-[10px] font-mono uppercase text-purple-400">Honor Score</div>
             <div className="text-lg font-bold text-white mt-0.5">{totalHonorPoints} pts</div>
             <div className="text-[10px] text-slate-400">
-              {unlockedAchievements.length} / {ACHIEVEMENT_CATALOG.length} Achievements
+              {unlockedAchievements.length} Achievements • +{honorSummary.fulfillmentBonusPoints} from Finds (+{HONOR_PER_ITEM_FOUND}/ea)
             </div>
           </div>
         </div>
@@ -708,6 +713,54 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             </div>
           )}
         </div>
+      </div>
+      {/* Honor Points History Ledger (When, Where, Why) */}
+      <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/30 bg-slate-900/75 space-y-3 shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+            <Award className="w-4 h-4 text-amber-400" />
+            <span>Honor Points History ({honorSummary.entries.length} Events • {totalHonorPoints} Total Pts)</span>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400">
+            +{HONOR_PER_ITEM_FOUND} Honor Points awarded retroactively for every squad item found
+          </span>
+        </div>
+
+        {honorSummary.entries.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-500 italic">
+            No Honor Points earned yet. Find a wanted item for a squadmate (+{HONOR_PER_ITEM_FOUND} pts) or unlock an Achievement to start your ledger!
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {honorSummary.entries.map((entry) => (
+              <div
+                key={entry.id}
+                className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+              >
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
+                  <span
+                    className={`px-2 py-0.5 rounded-lg font-mono font-bold text-[11px] border flex-shrink-0 ${
+                      entry.kind === 'item_found'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                    }`}
+                  >
+                    +{entry.points} pts
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white truncate">{entry.reason}</div>
+                    <div className="text-[11px] font-mono text-slate-400">{entry.where}</div>
+                  </div>
+                </div>
+                <div className="text-[10px] font-mono text-slate-500 flex-shrink-0 sm:text-right">
+                  {entry.timestampIso
+                    ? new Date(entry.timestampIso).toLocaleString()
+                    : 'Retroactive Season Credit'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

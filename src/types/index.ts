@@ -314,6 +314,15 @@ export interface AchievementDefinition {
   target: number;
 }
 
+export interface HonorHistoryEntry {
+  id: string;
+  points: number;
+  reason: string;
+  where: string;
+  timestampIso: string;
+  kind: 'item_found' | 'achievement';
+}
+
 export interface PersistentAchievementProfile {
   unlockedIds: Record<string, string>; // achievementId -> unlockedAtIso
   equippedTitle?: string;
@@ -321,6 +330,7 @@ export interface PersistentAchievementProfile {
   lifetimeBountiesClaimed: number;
   lifetimeBountiesPaid: number;
   leaguesParticipated: string[];
+  honorLog?: HonorHistoryEntry[];
 }
 
 export interface FoundUniqueVaultItem {
