@@ -1,0 +1,1489 @@
+import React, { useState, useId, useRef, useEffect } from 'react';
+import {
+  Search,
+  ExternalLink,
+  CheckCircle2,
+  Copy,
+  Plus,
+  MessageSquare,
+  Sparkles,
+  RotateCcw,
+  Edit3,
+  Save,
+  Trash2,
+  Gift,
+  Award,
+  Users,
+  X
+} from 'lucide-react';
+import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember } from '../../../types';
+import { saveCloudWishlistItem, deleteCloudWishlistItem } from '../../../services/cloudSync';
+
+export interface WishlistsTabProps {
+  activeSessionId: string;
+  lookingForItems: LookingForItem[];
+  setLookingForItems: React.Dispatch<React.SetStateAction<LookingForItem[]>>;
+  userAccount?: UserAccount | null;
+  isCurrentUserAdmin: boolean;
+  triggerCopy: (text: string, label: string) => void;
+  setCopyNotice: (notice: string | null) => void;
+  fireConfetti: () => void;
+  findMember: (charName: string, dispName?: string) => LeagueRosterMember | undefined;
+}
+
+export const WishlistsTab: React.FC<WishlistsTabProps> = ({
+  activeSessionId,
+  lookingForItems,
+  setLookingForItems,
+  userAccount,
+  isCurrentUserAdmin,
+  triggerCopy,
+  setCopyNotice,
+  fireConfetti,
+  findMember
+}) => {
+  const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table'>('item');
+  const [lookingForSearch, setLookingForSearch] = useState<string>('');
+  const [lookingForCategoryFilter, setLookingForCategoryFilter] = useState<string>('All');
+  const [lookingForStatusFilter, setLookingForStatusFilter] = useState<string>('All');
+  const [selectedInspectItemName, setSelectedInspectItemName] = useState<string | null>(null);
+
+  const itemInspectDialogRef = useRef<HTMLDialogElement>(null);
+  const inspectTitleId = useId();
+
+  // Wishlist Edit and Delete State
+  const [editingLookingForItem, setEditingLookingForItem] = useState<LookingForItem | null>(null);
+  const [editItemName, setEditItemName] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<LookingForItem['category']>('Unique');
+  const [editStatus, setEditStatus] = useState<ItemNeedStatus>('NEED');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editChar, setEditChar] = useState<string>('');
+  const [editDisplay, setEditDisplay] = useState<string>('');
+  const [editFulfilledBy, setEditFulfilledBy] = useState<string>('');
+  const editLookingForDialogRef = useRef<HTMLDialogElement>(null);
+
+  // Add Wanted Item Form State
+  const [showAddLookingForModal, setShowAddLookingForModal] = useState<boolean>(false);
+  const [newLfChar, setNewLfChar] = useState<string>(userAccount?.characterName || '');
+  const [newLfDisplay, setNewLfDisplay] = useState<string>(userAccount?.displayName || '');
+  const [newLfItem, setNewLfItem] = useState<string>('');
+  const [newLfCat, setNewLfCat] = useState<LookingForItem['category']>('Unique');
+  const [newLfStatus, setNewLfStatus] = useState<ItemNeedStatus>('NEED');
+  const [newLfNotes, setNewLfNotes] = useState<string>('');
+
+  const aggregatedItemsMap = React.useMemo(() => {
+    const map = new Map<string, {
+      itemName: string;
+      category: string;
+      poeWikiUrl: string;
+      poeDbUrl: string;
+      entries: LookingForItem[];
+      activeNeeds: number;
+    }>();
+
+    for (const item of lookingForItems) {
+      const key = item.itemName.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          itemName: item.itemName.trim(),
+          category: item.category,
+          poeWikiUrl: item.poeWikiUrl,
+          poeDbUrl: item.poeDbUrl,
+          entries: [],
+          activeNeeds: 0
+        });
+      }
+      const existing = map.get(key)!;
+      existing.entries.push(item);
+      if (item.status === 'NEED' || item.status === 'SECOND CHAR' || item.status === 'LOW PRIO') {
+        existing.activeNeeds += 1;
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const aAcquired = a.entries.length > 0 && a.entries.every((e) => e.status === 'HAVE');
+      const bAcquired = b.entries.length > 0 && b.entries.every((e) => e.status === 'HAVE');
+      if (aAcquired !== bAcquired) {
+        return aAcquired ? 1 : -1;
+      }
+      if (b.activeNeeds !== a.activeNeeds) return b.activeNeeds - a.activeNeeds;
+      return a.itemName.localeCompare(b.itemName);
+    });
+  }, [lookingForItems]);
+
+  const filteredAggregatedItems = React.useMemo(() => {
+    return aggregatedItemsMap.filter((entry) => {
+      const searchLow = lookingForSearch.toLowerCase();
+      const matchText =
+        !lookingForSearch ||
+        entry.itemName.toLowerCase().includes(searchLow) ||
+        entry.entries.some(
+          (e) =>
+            (e.displayName && e.displayName.toLowerCase().includes(searchLow)) ||
+            e.characterName.toLowerCase().includes(searchLow) ||
+            (e.discordName && e.discordName.toLowerCase().includes(searchLow)) ||
+            (e.notes && e.notes.toLowerCase().includes(searchLow))
+        );
+      const matchCat =
+        lookingForCategoryFilter === 'All' ||
+        entry.category === lookingForCategoryFilter ||
+        (lookingForCategoryFilter === 'Gem' &&
+          (entry.category === 'Gem' || entry.category === 'Vaal Gem' || entry.category === 'Transfigured Gem'));
+      const matchStatus =
+        lookingForStatusFilter === 'All' ||
+        (lookingForStatusFilter === 'HAVE'
+          ? entry.entries.some((e) => e.status === 'HAVE')
+          : entry.entries.some((e) => e.status === lookingForStatusFilter));
+      return matchText && matchCat && matchStatus;
+    });
+  }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
+
+  const filteredLookingForItems = React.useMemo(() => {
+    const list = lookingForItems.filter((item) => {
+      const searchLow = lookingForSearch.toLowerCase();
+      const matchSearch =
+        !lookingForSearch ||
+        item.itemName.toLowerCase().includes(searchLow) ||
+        item.characterName.toLowerCase().includes(searchLow) ||
+        (item.displayName && item.displayName.toLowerCase().includes(searchLow)) ||
+        (item.discordName && item.discordName.toLowerCase().includes(searchLow)) ||
+        (item.notes && item.notes.toLowerCase().includes(searchLow));
+
+      const matchCat =
+        lookingForCategoryFilter === 'All' ||
+        item.category === lookingForCategoryFilter ||
+        (lookingForCategoryFilter === 'Gem' &&
+          (item.category === 'Gem' || item.category === 'Vaal Gem' || item.category === 'Transfigured Gem'));
+
+      const matchStatus =
+        lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
+
+      return matchSearch && matchCat && matchStatus;
+    });
+
+    return [...list].sort((a, b) => {
+      const aAcq = a.status === 'HAVE' ? 1 : 0;
+      const bAcq = b.status === 'HAVE' ? 1 : 0;
+      if (aAcq !== bAcq) return aAcq - bAcq;
+      return a.itemName.localeCompare(b.itemName);
+    });
+  }, [lookingForItems, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
+
+  const inspectedItemData = React.useMemo(() => {
+    if (!selectedInspectItemName) return null;
+    return aggregatedItemsMap.find(
+      (it) => it.itemName.toLowerCase() === selectedInspectItemName.toLowerCase()
+    );
+  }, [aggregatedItemsMap, selectedInspectItemName]);
+
+  const handleOpenItemInspector = (itemName: string) => {
+    setSelectedInspectItemName(itemName);
+    setTimeout(() => {
+      itemInspectDialogRef.current?.showModal();
+    }, 10);
+  };
+
+  useEffect(() => {
+    const dialog = itemInspectDialogRef.current;
+    if (!dialog) return;
+
+    let handleBackdropClick: ((e: MouseEvent) => void) | undefined;
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      handleBackdropClick = (e: MouseEvent) => {
+        if (e.target === dialog) {
+          const rect = dialog.getBoundingClientRect();
+          const clickedInDialog =
+            rect.top <= e.clientY &&
+            e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX &&
+            e.clientX <= rect.left + rect.width;
+          if (!clickedInDialog) {
+            dialog.close();
+          }
+        }
+      };
+      dialog.addEventListener('click', handleBackdropClick);
+    }
+    return () => {
+      if (handleBackdropClick) dialog.removeEventListener('click', handleBackdropClick);
+    };
+  }, []);
+
+  const handleCycleStatus = (itemId: string, helperTag?: string) => {
+    const existing = lookingForItems.find((it) => it.id === itemId);
+    if (!existing) return;
+
+    const nextStatus: ItemNeedStatus =
+      existing.status === 'NEED'
+        ? 'HAVE'
+        : existing.status === 'HAVE'
+        ? 'SECOND CHAR'
+        : existing.status === 'SECOND CHAR'
+        ? 'LOW PRIO'
+        : 'NEED';
+
+    if (nextStatus === 'HAVE') {
+      fireConfetti();
+    }
+
+    const itemCopy: LookingForItem = {
+      ...existing,
+      status: nextStatus,
+      fulfilledBy: nextStatus === 'HAVE'
+        ? (helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found'))
+        : existing.fulfilledBy,
+      fulfilledAtIso: nextStatus === 'HAVE' ? new Date().toISOString() : existing.fulfilledAtIso
+    };
+
+    setLookingForItems((prev) => {
+      const updated = prev.map((it) => (it.id === itemId ? itemCopy : it));
+      try {
+        localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    saveCloudWishlistItem(activeSessionId, itemCopy);
+  };
+
+  const handleMarkFulfilled = (itemId: string, helperTag: string) => {
+    const existing = lookingForItems.find((it) => it.id === itemId);
+    if (!existing) return;
+
+    fireConfetti();
+    const itemCopy: LookingForItem = {
+      ...existing,
+      status: 'HAVE' as ItemNeedStatus,
+      fulfilledBy: helperTag,
+      fulfilledAtIso: new Date().toISOString()
+    };
+
+    setLookingForItems((prev) => {
+      const updated = prev.map((it) => (it.id === itemId ? itemCopy : it));
+      try {
+        localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    saveCloudWishlistItem(activeSessionId, itemCopy);
+    setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
+    setTimeout(() => setCopyNotice(null), 3500);
+  };
+
+  const helperStats = React.useMemo(() => {
+    const counts = new Map<string, { count: number; items: string[] }>();
+    for (const it of lookingForItems) {
+      if (it.status === 'HAVE' && it.fulfilledBy && it.fulfilledBy !== 'Self Found') {
+        const helper = it.fulfilledBy.replace(/^@/, '').trim();
+        const current = counts.get(helper) || { count: 0, items: [] };
+        current.count += 1;
+        if (!current.items.includes(it.itemName)) {
+          current.items.push(it.itemName);
+        }
+        counts.set(helper, current);
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([helper, stat]) => ({ helper, count: stat.count, items: stat.items }))
+      .sort((a, b) => b.count - a.count);
+  }, [lookingForItems]);
+
+  useEffect(() => {
+    const dialog = editLookingForDialogRef.current;
+    if (!dialog) return;
+
+    let handleBackdropClick: ((e: MouseEvent) => void) | undefined;
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      handleBackdropClick = (e: MouseEvent) => {
+        if (e.target === dialog) {
+          const rect = dialog.getBoundingClientRect();
+          const clickedInDialog =
+            rect.top <= e.clientY &&
+            e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX &&
+            e.clientX <= rect.left + rect.width;
+          if (!clickedInDialog) {
+            dialog.close();
+            setEditingLookingForItem(null);
+          }
+        }
+      };
+      dialog.addEventListener('click', handleBackdropClick);
+    }
+    return () => {
+      if (handleBackdropClick) dialog.removeEventListener('click', handleBackdropClick);
+    };
+  }, []);
+
+  const canEditOrDeleteWishlist = (item: LookingForItem): boolean => {
+    if (isCurrentUserAdmin) return true;
+    if (!userAccount) return false;
+
+    const uDisp = userAccount.displayName?.toLowerCase().trim();
+    const uChar = userAccount.characterName?.toLowerCase().trim();
+    const uPoe = userAccount.poeAccountName?.toLowerCase().trim();
+    const uDisc = userAccount.discordName?.toLowerCase().trim();
+
+    const iDisp = item.displayName?.toLowerCase().trim();
+    const iChar = item.characterName?.toLowerCase().trim();
+    const iPoe = item.poeAccountName?.toLowerCase().trim();
+    const iDisc = item.discordName?.toLowerCase().trim();
+
+    if (uDisp && iDisp && uDisp === iDisp) return true;
+    if (uChar && iChar && uChar === iChar) return true;
+    if (uPoe && iPoe && uPoe === iPoe) return true;
+    if (uDisc && iDisc && uDisc === iDisc) return true;
+
+    return false;
+  };
+
+  const handleStartEditLookingForItem = (item: LookingForItem) => {
+    if (!canEditOrDeleteWishlist(item)) {
+      triggerCopy('', 'Permission denied: Only admin or the requestor can edit this request');
+      return;
+    }
+    setEditingLookingForItem(item);
+    setEditItemName(item.itemName);
+    setEditCategory(item.category);
+    setEditStatus(item.status);
+    setEditNotes(item.notes || '');
+    setEditChar(item.characterName || '');
+    setEditDisplay(item.displayName || '');
+    setEditFulfilledBy(item.fulfilledBy || '');
+    setTimeout(() => {
+      editLookingForDialogRef.current?.showModal();
+    }, 10);
+  };
+
+  const handleSaveEditLookingForItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLookingForItem) return;
+    const cleanItemName = editItemName.trim();
+    if (!cleanItemName) return;
+
+    const wikiSlug = encodeURIComponent(cleanItemName.replace(/\s+/g, '_'));
+    const updated: LookingForItem[] = lookingForItems.map((it) => {
+      if (it.id === editingLookingForItem.id) {
+        return {
+          ...it,
+          itemName: cleanItemName,
+          category: editCategory,
+          status: editStatus,
+          notes: editNotes.trim(),
+          characterName: editChar.trim() || it.characterName,
+          displayName: editDisplay.trim() || it.displayName,
+          fulfilledBy: editStatus === 'HAVE' ? (editFulfilledBy.trim() || it.fulfilledBy || 'Self Found') : undefined,
+          fulfilledAtIso: editStatus === 'HAVE' ? (it.fulfilledAtIso || new Date().toISOString()) : undefined,
+          poeWikiUrl: `https://www.poewiki.net/wiki/${wikiSlug}`,
+          poeDbUrl: `https://poedb.tw/us/${wikiSlug}`
+        };
+      }
+      return it;
+    });
+
+    setLookingForItems(updated);
+    try {
+      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+    } catch {}
+
+    const updatedTarget = updated.find((it) => it.id === editingLookingForItem.id);
+    if (updatedTarget) {
+      saveCloudWishlistItem(activeSessionId, updatedTarget);
+    }
+
+    editLookingForDialogRef.current?.close();
+    setEditingLookingForItem(null);
+    triggerCopy('', `Updated wishlist item: ${cleanItemName}`);
+
+    if (selectedInspectItemName && selectedInspectItemName.toLowerCase() === editingLookingForItem.itemName.toLowerCase()) {
+      setSelectedInspectItemName(cleanItemName);
+    }
+  };
+
+  const handleDeleteLookingForItem = (itemId: string) => {
+    const target = lookingForItems.find((it) => it.id === itemId);
+    if (!target) return;
+    if (!canEditOrDeleteWishlist(target)) {
+      triggerCopy('', 'Permission denied: Only admin or the requestor can delete this request');
+      return;
+    }
+
+    const updated = lookingForItems.filter((it) => it.id !== itemId);
+    setLookingForItems(updated);
+    try {
+      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      const delRaw = localStorage.getItem('poe_clean330_looking_for_deleted');
+      const delList: string[] = delRaw ? JSON.parse(delRaw) : [];
+      if (!delList.includes(itemId)) {
+        delList.push(itemId);
+        localStorage.setItem('poe_clean330_looking_for_deleted', JSON.stringify(delList));
+      }
+    } catch {}
+
+    deleteCloudWishlistItem(activeSessionId, itemId);
+    triggerCopy('', `Removed wishlist request for ${target.itemName}`);
+
+    if (itemInspectDialogRef.current?.open) {
+      const remainingForThis = updated.filter(
+        (it) => it.itemName.toLowerCase() === target.itemName.toLowerCase()
+      );
+      if (remainingForThis.length === 0) {
+        itemInspectDialogRef.current?.close();
+        setSelectedInspectItemName(null);
+      }
+    }
+  };
+
+  const handleAddLookingForItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLfItem.trim() || !newLfChar.trim()) return;
+
+    const matchedMem = findMember(newLfChar.trim(), newLfDisplay.trim());
+
+    const newItem: LookingForItem = {
+      id: `lf-${Date.now()}`,
+      characterName: newLfChar.trim(),
+      displayName: newLfDisplay.trim() || undefined,
+      preferredContact: matchedMem?.preferredContact || userAccount?.preferredContact || 'app',
+      discordName: matchedMem?.discordName || userAccount?.discordName,
+      poeAccountName: matchedMem?.poeAccountName || userAccount?.poeAccountName,
+      itemName: newLfItem.trim(),
+      category: newLfCat,
+      status: newLfStatus,
+      notes: newLfNotes.trim() || 'Any roll acceptable',
+      poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(newLfItem.trim().replace(/ /g, '_'))}`,
+      poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(newLfItem.trim())}`
+    };
+
+    setLookingForItems([newItem, ...lookingForItems]);
+    saveCloudWishlistItem(activeSessionId, newItem);
+    setNewLfItem('');
+    setNewLfNotes('');
+    setShowAddLookingForModal(false);
+    fireConfetti();
+  };
+
+  const lookingForGrouped = React.useMemo(() => {
+    const map = new Map<string, LookingForItem[]>();
+    for (const item of filteredLookingForItems) {
+      const groupKey = item.displayName || item.characterName;
+      if (!map.has(groupKey)) {
+        map.set(groupKey, []);
+      }
+      map.get(groupKey)!.push(item);
+    }
+    for (const [, items] of map.entries()) {
+      items.sort((a, b) => {
+        const aAcq = a.status === 'HAVE' ? 1 : 0;
+        const bAcq = b.status === 'HAVE' ? 1 : 0;
+        if (aAcq !== bAcq) return aAcq - bAcq;
+        return a.itemName.localeCompare(b.itemName);
+      });
+    }
+    return map;
+  }, [filteredLookingForItems]);
+
+  return (
+    <div className="space-y-4">
+      {/* Squad Bounty & Fulfillment Heroes Recognition Banner */}
+      <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center flex-shrink-0">
+            <Award className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white flex items-center gap-2">
+              <span>Squad Bounty & Wishlist Fulfillment Heroes</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-bold">
+                Co-op Rewards
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-400">
+              Fulfill wanted items for squadmates to earn benefactor honors and speed up squad build progression.
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {helperStats.length > 0 ? (
+            helperStats.slice(0, 4).map((h, hIdx) => (
+              <div
+                key={h.helper}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-mono"
+                title={`Fulfilled: ${h.items.join(', ')}`}
+              >
+                <span className="text-amber-400 font-bold">#{hIdx + 1}</span>
+                <span className="text-slate-200">@{h.helper}</span>
+                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
+                  {h.count} {h.count === 1 ? 'Wish' : 'Wishes'}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-[11px] font-mono text-slate-500 italic">
+              Find an exile's wanted item to claim the top provider spot!
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Unified Search, Filters & View Toggle Bar */}
+      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Search Bar */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Filter wanted items, dropped loot, exiles, or notes..."
+            value={lookingForSearch}
+            onChange={(e) => setLookingForSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-slate-700"
+          />
+        </div>
+
+        {/* Filters & View Switches */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Category Filter */}
+          <select
+            value={lookingForCategoryFilter}
+            onChange={(e) => setLookingForCategoryFilter(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700 cursor-pointer"
+          >
+            <option value="All">All Categories</option>
+            <option value="Unique">Unique</option>
+            <option value="Vaal Gem">Vaal Gem</option>
+            <option value="Transfigured Gem">Transfigured Gem</option>
+            <option value="Gem">All Gems</option>
+            <option value="Div Card">Div Card</option>
+            <option value="Base / Crafting">Base, Crafting</option>
+            <option value="Cluster Jewel">Cluster Jewel</option>
+            <option value="Oil / Enchant">Oil, Enchant</option>
+          </select>
+
+          {/* Status Filter */}
+          <select
+            value={lookingForStatusFilter}
+            onChange={(e) => setLookingForStatusFilter(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700 cursor-pointer"
+          >
+            <option value="All">All Statuses</option>
+            <option value="NEED">NEED</option>
+            <option value="SECOND CHAR">SECOND CHAR</option>
+            <option value="LOW PRIO">LOW PRIO</option>
+            <option value="HAVE">HAVE</option>
+          </select>
+
+          {/* 3-way View Switcher */}
+          <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setLookingForViewMode('item')}
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                lookingForViewMode === 'item' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              By Item
+            </button>
+            <button
+              type="button"
+              onClick={() => setLookingForViewMode('player')}
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                lookingForViewMode === 'player' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              By Player
+            </button>
+            <button
+              type="button"
+              onClick={() => setLookingForViewMode('table')}
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer font-medium ${
+                lookingForViewMode === 'table' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Table
+            </button>
+          </div>
+
+          {/* Copy Squad Wishlist Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const summaryLines = lookingForItems.map(
+                (it) => `@${it.displayName || it.characterName}: ${it.itemName} (${it.category}, ${it.status})`
+              );
+              triggerCopy(summaryLines.join('\n'), 'Squad Wishlist Summary');
+            }}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold flex items-center gap-1 cursor-pointer transition-colors border border-slate-700"
+            title="Copy formatted wishlist summary for Discord or whispers"
+          >
+            <Copy className="w-3.5 h-3.5 text-slate-400" />
+            <span>Copy Squad Wishlist</span>
+          </button>
+
+          {/* Add Wanted Item Button */}
+          <button
+            type="button"
+            onClick={() => setShowAddLookingForModal(true)}
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Wanted Item</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Add Wanted Item Form */}
+      {showAddLookingForModal && (
+        <form
+          onSubmit={handleAddLookingForItem}
+          className="p-4 rounded-xl border border-slate-700 bg-slate-900/95 space-y-3"
+        >
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="font-semibold text-xs text-white">Post Wanted Item to Squad Wishlist</span>
+            <button
+              type="button"
+              onClick={() => setShowAddLookingForModal(false)}
+              className="text-xs text-slate-400 hover:text-white cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Item Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Cloak of Flame"
+                value={newLfItem}
+                onChange={(e) => setNewLfItem(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Category</label>
+              <select
+                value={newLfCat}
+                onChange={(e) => setNewLfCat(e.target.value as any)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+              >
+                <option value="Unique">Unique</option>
+                <option value="Vaal Gem">Vaal Gem</option>
+                <option value="Transfigured Gem">Transfigured Gem</option>
+                <option value="Gem">Skill, Support Gem</option>
+                <option value="Div Card">Div Card</option>
+                <option value="Base / Crafting">Base, Crafting</option>
+                <option value="Cluster Jewel">Cluster Jewel</option>
+                <option value="Oil / Enchant">Oil, Enchant</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Priority Status</label>
+              <select
+                value={newLfStatus}
+                onChange={(e) => setNewLfStatus(e.target.value as any)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+              >
+                <option value="NEED">NEED (High Priority)</option>
+                <option value="SECOND CHAR">SECOND CHAR</option>
+                <option value="LOW PRIO">LOW PRIO</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">In Game Character IGN *</label>
+              <input
+                type="text"
+                required
+                placeholder="Your character IGN"
+                value={newLfChar}
+                onChange={(e) => setNewLfChar(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">App Display Tag (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Leuie"
+                value={newLfDisplay}
+                onChange={(e) => setNewLfDisplay(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Specific Needs / Rolls / Notes</label>
+            <input
+              type="text"
+              placeholder="e.g. Need high roll or corrupt for +2 proj"
+              value={newLfNotes}
+              onChange={(e) => setNewLfNotes(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="submit"
+              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer shadow"
+            >
+              Save Request
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* View Mode 1: By Item (Drop Matcher) */}
+      {lookingForViewMode === 'item' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredAggregatedItems.map((itemGroup, idx) => {
+              const activeCount = itemGroup.activeNeeds;
+              const hasCriticalNeed = itemGroup.entries.some((e) => e.status === 'NEED');
+              const allAcquired = itemGroup.entries.length > 0 && itemGroup.entries.every((e) => e.status === 'HAVE');
+              const someAcquired = itemGroup.entries.some((e) => e.status === 'HAVE');
+              const fulfilledFinders = Array.from(
+                new Set(
+                  itemGroup.entries
+                    .filter((e) => e.status === 'HAVE' && e.fulfilledBy)
+                    .map((e) => e.fulfilledBy!)
+                )
+              );
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => handleOpenItemInspector(itemGroup.itemName)}
+                  className={`p-3.5 rounded-xl transition-all cursor-pointer flex flex-col justify-between space-y-2 group shadow-sm ${
+                    allAcquired
+                      ? 'border-2 border-emerald-500 bg-emerald-950/20 hover:bg-emerald-950/30 hover:border-emerald-400 shadow-emerald-500/10'
+                      : someAcquired
+                      ? 'border border-emerald-500/50 bg-slate-900/80 hover:bg-slate-800/60 hover:border-emerald-500'
+                      : 'border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                        {itemGroup.category}
+                      </span>
+
+                      {allAcquired ? (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>Acquired (HAVE)</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                            hasCriticalNeed
+                              ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                          }`}
+                        >
+                          {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className={`font-semibold text-xs group-hover:text-white ${allAcquired ? 'text-emerald-200' : 'text-slate-200'}`}>
+                      {itemGroup.itemName}
+                    </div>
+
+                    {/* Requesting player tags */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {itemGroup.entries.slice(0, 3).map((entry, eIdx) => {
+                        const tagLabel = entry.displayName ? `@${entry.displayName}` : (entry.discordName || entry.characterName);
+                        return (
+                          <span
+                            key={eIdx}
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                              entry.status === 'HAVE'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
+                                : 'bg-slate-800/90 text-slate-300 border-slate-700/50'
+                            }`}
+                          >
+                            {tagLabel}
+                          </span>
+                        );
+                      })}
+                      {itemGroup.entries.length > 3 && (
+                        <span className="text-[10px] font-mono text-slate-500 self-center">
+                          +{itemGroup.entries.length - 3}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Fulfillment provider credit */}
+                    {fulfilledFinders.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-1 text-[10px] font-mono text-emerald-400">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-800/80 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          <span>Found by: {fulfilledFinders.join(', ')}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Click to inspect</span>
+                    {!allAcquired ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const firstActive = itemGroup.entries.find((e) => e.status !== 'HAVE');
+                          if (firstActive) {
+                            const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                            handleMarkFulfilled(firstActive.id, helper);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Mark this item as fulfilled or acquired"
+                      >
+                        <Gift className="w-2.5 h-2.5 text-emerald-400" />
+                        <span>Found It</span>
+                      </button>
+                    ) : (
+                      <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span>Acquired</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredAggregatedItems.length === 0 && (
+            <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+              No squad members currently have items requested matching this search or filter.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* View Mode 2: By Player */}
+      {lookingForViewMode === 'player' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {Array.from(lookingForGrouped.entries()).map(([playerKey, items]) => (
+              <div
+                key={playerKey}
+                className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2.5 shadow-sm"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                  <div className="font-semibold text-xs text-slate-200 font-mono">@{playerKey}</div>
+                  <span className="text-[10px] font-mono text-slate-500">{items.length} items</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {items.map((item) => {
+                    const isAcquired = item.status === 'HAVE';
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-2.5 rounded-lg border transition-all text-xs flex flex-col gap-2 ${
+                          isAcquired
+                            ? 'border-2 border-emerald-500 bg-emerald-950/25 shadow-sm shadow-emerald-500/10'
+                            : 'border-slate-800/80 bg-slate-950/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate">
+                            <div className={`truncate font-semibold ${isAcquired ? 'text-emerald-300 flex items-center gap-1.5' : 'text-slate-200'}`}>
+                              {isAcquired && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                              <span>{item.itemName}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleCycleStatus(item.id)}
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer font-bold ${
+                                item.status === 'NEED'
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : item.status === 'HAVE'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {item.status}
+                            </button>
+
+                            {canEditOrDeleteWishlist(item) && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditLookingForItem(item)}
+                                  className="p-1 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                  title="Edit request"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLookingForItem(item.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                                  title="Delete request"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Fulfillment attribution */}
+                        {isAcquired && (
+                          <div className="flex items-center justify-between pt-1 border-t border-emerald-900/40 text-[10px] font-mono text-emerald-400">
+                            <div className="flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-emerald-400" />
+                              <span>Fulfilled by: <strong>{item.fulfilledBy || 'Self Found'}</strong></span>
+                            </div>
+                            {item.fulfilledAtIso && (
+                              <span className="text-slate-500">{new Date(item.fulfilledAtIso).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Quick helper action if not acquired */}
+                        {!isAcquired && (
+                          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-800/40">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                                handleMarkFulfilled(item.id, helper);
+                              }}
+                              className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                              title="Mark this item as fulfilled by you for this squadmate"
+                            >
+                              <Gift className="w-3 h-3 text-emerald-400" />
+                              <span>I Found This!</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {lookingForGrouped.size === 0 && (
+            <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+              No squad members currently have items matching this filter.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* View Mode 3: Table View */}
+      {lookingForViewMode === 'table' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950 text-slate-500 font-mono text-[10px] uppercase border-b border-slate-800">
+                <tr>
+                  <th className="p-2.5">Item Name</th>
+                  <th className="p-2.5">Category</th>
+                  <th className="p-2.5">Requester</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5">Notes & Fulfillment</th>
+                  <th className="p-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredLookingForItems.map((item) => {
+                  const isAcquired = item.status === 'HAVE';
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition-colors ${
+                        isAcquired
+                          ? 'bg-emerald-950/20 border-l-4 border-l-emerald-500 hover:bg-emerald-950/30'
+                          : 'hover:bg-slate-800/30'
+                      }`}
+                    >
+                      <td className="p-2.5 font-medium text-slate-200">
+                        <div className="flex items-center gap-1.5">
+                          {isAcquired && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                          <span className={isAcquired ? 'text-emerald-300 font-semibold' : ''}>{item.itemName}</span>
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-slate-400 font-mono text-[11px]">{item.category}</td>
+                      <td className="p-2.5 font-mono text-slate-300">@{item.displayName || item.characterName}</td>
+                      <td className="p-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCycleStatus(item.id)}
+                          className={`font-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer font-bold transition-colors ${
+                            item.status === 'HAVE'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                              : item.status === 'NEED'
+                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          {item.status}
+                        </button>
+                      </td>
+                      <td className="p-2.5 text-slate-400">
+                        {isAcquired ? (
+                          <div className="flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
+                            <Sparkles className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                            <span>Fulfilled by: <strong>{item.fulfilledBy || 'Self Found'}</strong></span>
+                          </div>
+                        ) : (
+                          item.notes
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {!isAcquired && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                                handleMarkFulfilled(item.id, helper);
+                              }}
+                              className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                              title="Mark this item as fulfilled by you for this squadmate"
+                            >
+                              <Gift className="w-3 h-3" />
+                              <span>Found It</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
+                            className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                          >
+                            Whisper
+                          </button>
+                          {canEditOrDeleteWishlist(item) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditLookingForItem(item)}
+                                className="text-[11px] font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                                title="Edit request"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLookingForItem(item.id)}
+                                className="text-[11px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                                title="Delete request"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredLookingForItems.length === 0 && (
+            <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400">
+              No wanted items found matching your search.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Item Inspection Modal */}
+      <dialog
+        ref={itemInspectDialogRef}
+        {...({ closedby: 'any' } as any)}
+        aria-labelledby={inspectTitleId}
+        className="w-[94vw] sm:w-full sm:max-w-xl rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
+      >
+        {inspectedItemData && (
+          <div className="flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-slate-800 bg-slate-800/60 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                  {inspectedItemData.category} • Drop Matcher
+                </span>
+                <h2 id={inspectTitleId} className="text-base font-bold text-white mt-0.5">
+                  {inspectedItemData.itemName}
+                </h2>
+                <div className="flex items-center gap-3 text-xs mt-1">
+                  <a
+                    href={inspectedItemData.poeWikiUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-white flex items-center gap-1 font-mono"
+                  >
+                    PoE Wiki <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                  <a
+                    href={inspectedItemData.poeDbUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-white flex items-center gap-1 font-mono"
+                  >
+                    PoEDB <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => itemInspectDialogRef.current?.close()}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-3">
+              <div className="text-[11px] font-mono text-slate-400 uppercase">
+                Exiles who requested this item ({inspectedItemData.entries.length}):
+              </div>
+
+              <div className="space-y-2">
+                {inspectedItemData.entries.map((req, rIdx) => {
+                  const matchedMember = findMember(req.characterName, req.displayName);
+                  const dispTag = req.displayName || matchedMember?.displayName || 'Exile';
+                  const preferred = req.preferredContact || matchedMember?.preferredContact || 'app';
+                  const whisperCommand = `@${req.characterName} Hey! I just found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`;
+
+                  const isAcquired = req.status === 'HAVE';
+                  return (
+                    <div
+                      key={rIdx}
+                      className={`p-3 rounded-lg space-y-2 text-xs transition-all ${
+                        isAcquired
+                          ? 'border-2 border-emerald-500 bg-emerald-950/30 shadow-md shadow-emerald-500/10'
+                          : 'border border-slate-800 bg-slate-950/70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <strong className={`font-mono ${isAcquired ? 'text-emerald-200' : 'text-slate-100'}`}>@{dispTag}</strong>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                            Pref: {preferred === 'app' ? 'Root App' : preferred === 'poe_whisper' ? 'Whisper' : preferred}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono">IGN: {req.characterName}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCycleStatus(req.id)}
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer font-bold ${
+                            req.status === 'NEED'
+                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              : req.status === 'HAVE'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}
+                        >
+                          Status: {req.status}
+                        </button>
+                      </div>
+
+                      {/* Fulfillment attribution */}
+                      {isAcquired && (
+                        <div className="flex items-center justify-between text-[11px] font-mono text-emerald-300 bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Acquired • Fulfilled by: <strong>{req.fulfilledBy || 'Self Found'}</strong></span>
+                          </div>
+                          {req.fulfilledAtIso && (
+                            <span className="text-slate-400 text-[10px]">{new Date(req.fulfilledAtIso).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {req.notes && (
+                        <p className="text-[11px] text-slate-400 bg-slate-900 p-2 rounded border border-slate-800/80">
+                          Notes: {req.notes}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/60">
+                        {/* Root Whisper */}
+                        <button
+                          type="button"
+                          onClick={() => triggerCopy(`@${dispTag} Hey! I found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`, 'Root Whisper')}
+                          className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                          title="Whisper on Root Community"
+                        >
+                          <Users className="w-3 h-3 text-emerald-400" />
+                          <span>Root Whisper</span>
+                        </button>
+
+                        {/* Discord Whisper */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const dTag = req.discordName || matchedMember?.discordName || dispTag;
+                            triggerCopy(`@${dTag} Hey! I found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`, 'Discord Whisper');
+                          }}
+                          className="px-2 py-1 rounded bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/80 text-indigo-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                          title="Whisper on Discord"
+                        >
+                          <MessageSquare className="w-3 h-3 text-indigo-400" />
+                          <span>Discord Whisper</span>
+                        </button>
+
+                        {/* In Game Whisper */}
+                        <button
+                          type="button"
+                          onClick={() => triggerCopy(whisperCommand, 'PoE Whisper')}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>In Game Whisper</span>
+                        </button>
+
+                        {!isAcquired ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                              handleMarkFulfilled(req.id, helper);
+                            }}
+                            className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-mono flex items-center gap-1 cursor-pointer font-bold shadow transition-colors"
+                            title="Mark this item as fulfilled by you for this squadmate"
+                          >
+                            <Gift className="w-3 h-3" />
+                            <span>I Found This!</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleCycleStatus(req.id)}
+                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Revert to Need</span>
+                          </button>
+                        )}
+
+                        {canEditOrDeleteWishlist(req) && (
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditLookingForItem(req)}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                              title="Edit request"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLookingForItem(req.id)}
+                              className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                              title="Delete request"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </dialog>
+
+      {/* Edit Wishlist Request Modal */}
+      <dialog
+        ref={editLookingForDialogRef}
+        {...({ closedby: 'any' } as any)}
+        className="w-[94vw] sm:w-full sm:max-w-lg rounded-2xl border border-slate-700 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/70 m-auto overflow-hidden"
+      >
+        {editingLookingForItem && (
+          <form onSubmit={handleSaveEditLookingForItem} className="flex flex-col">
+            <div className="p-4 border-b border-slate-800 bg-slate-800/60 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider">
+                  Edit Wishlist Request
+                </span>
+                <h2 className="text-base font-bold text-white mt-0.5">
+                  {editingLookingForItem.itemName}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  editLookingForDialogRef.current?.close();
+                  setEditingLookingForItem(null);
+                }}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 overflow-y-auto max-h-[75vh]">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Item Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editItemName}
+                  onChange={(e) => setEditItemName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                  placeholder="Item Name (e.g. Cloak of Flame)"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Category</label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+                  >
+                    <option value="Unique">Unique</option>
+                    <option value="Vaal Gem">Vaal Gem</option>
+                    <option value="Transfigured Gem">Transfigured Gem</option>
+                    <option value="Gem">Skill, Support Gem</option>
+                    <option value="Div Card">Div Card</option>
+                    <option value="Base / Crafting">Base, Crafting</option>
+                    <option value="Cluster Jewel">Cluster Jewel</option>
+                    <option value="Oil / Enchant">Oil, Enchant</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
+                  >
+                    <option value="NEED">NEED (High Priority)</option>
+                    <option value="SECOND CHAR">SECOND CHAR</option>
+                    <option value="LOW PRIO">LOW PRIO</option>
+                    <option value="HAVE">HAVE (Acquired)</option>
+                  </select>
+                </div>
+              </div>
+
+              {editStatus === 'HAVE' && (
+                <div className="space-y-1 p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800/60">
+                  <label className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Fulfilled By (Helper Credit)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFulfilledBy}
+                    onChange={(e) => setEditFulfilledBy(e.target.value)}
+                    className="w-full bg-slate-950 border border-emerald-700/60 rounded-lg px-3 py-1.5 text-xs text-emerald-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="e.g. @Chuyo or Self Found"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Requester Tag</label>
+                  <input
+                    type="text"
+                    value={editDisplay}
+                    onChange={(e) => setEditDisplay(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                    placeholder="App Tag (e.g. Leuie)"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Character IGN</label>
+                  <input
+                    type="text"
+                    value={editChar}
+                    onChange={(e) => setEditChar(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                    placeholder="In Game Character IGN"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Notes</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                  placeholder="Notes (rolls, socket colors, corruption goals, etc.)"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (editingLookingForItem) {
+                    handleDeleteLookingForItem(editingLookingForItem.id);
+                    editLookingForDialogRef.current?.close();
+                    setEditingLookingForItem(null);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Request</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    editLookingForDialogRef.current?.close();
+                    setEditingLookingForItem(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </dialog>
+    </div>
+  );
+};
