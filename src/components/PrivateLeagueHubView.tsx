@@ -293,11 +293,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   useEffect(() => {
     if (initialSessionId) {
-      setActiveSessionId(initialSessionId);
-    } else {
-      setActiveSessionId(selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
+      const matched = allLeagueSessions.find((s) => s.id === initialSessionId);
+      if (matched && (matched.game || 'poe1') === selectedGame) {
+        setActiveSessionId(initialSessionId);
+        return;
+      }
     }
-  }, [selectedGame, initialSessionId]);
+    setActiveSessionId(selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
+  }, [selectedGame, initialSessionId, allLeagueSessions]);
 
   const currentSession = allLeagueSessions.find((s: ActiveLeagueSession) => s.id === activeSessionId) || allLeagueSessions[0] || ACTIVE_LEAGUE_SESSIONS[0];
   const isReadOnlyLeague = Boolean(currentSession.isReadOnlyArchive);
@@ -1622,11 +1625,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               onChange={(e) => setActiveSessionId(e.target.value)}
               className="bg-slate-800/90 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-slate-600 max-w-[150px] sm:max-w-none truncate"
             >
-              {allLeagueSessions.map((sess) => (
-                <option key={sess.id} value={sess.id}>
-                  {sess.name} ({sess.version}) {sess.isReadOnlyArchive ? '• Archived' : sess.isActive ? '• Active' : '• Upcoming'}
-                </option>
-              ))}
+              {allLeagueSessions
+                .filter((sess) => (sess.game || 'poe1') === (selectedGame || 'poe1'))
+                .filter((sess) => !sess.isReadOnlyArchive || sess.id === activeSessionId)
+                .map((sess) => (
+                  <option key={sess.id} value={sess.id}>
+                    {sess.name} ({sess.version}) {sess.isReadOnlyArchive ? '(Archived)' : sess.isActive ? '(Active)' : '(Upcoming)'}
+                  </option>
+                ))}
             </select>
 
             {onNavigateLeagues && (

@@ -175,6 +175,15 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSelectGame = (game: 'poe1' | 'poe2') => {
+    setSelectedGame(game);
+    if (game === 'poe2' && selectedLeagueSessionId === 'poe1-330-umbra') {
+      setSelectedLeagueSessionId('poe2-ea-ancients');
+    } else if (game === 'poe1' && selectedLeagueSessionId === 'poe2-ea-ancients') {
+      setSelectedLeagueSessionId('poe1-330-umbra');
+    }
+  };
+
   // User Account & League Registration state with Dynamic Tagging
   const [userAccount, setUserAccount] = useState<UserAccount | null>(() => {
     try {
@@ -418,7 +427,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={handleSelectTab}
         selectedGame={selectedGame}
-        setSelectedGame={setSelectedGame}
+        setSelectedGame={handleSelectGame}
         openSearch={() => setIsSearchOpen(true)}
         trackerStats={trackerStats}
         userAccount={userAccount}
@@ -464,6 +473,8 @@ export const App: React.FC = () => {
         {(activeTab === 'private_league_hub' || activeTab === 'private_leagues') && (
           <PrivateLeaguesDirectoryView
             userAccount={userAccount}
+            selectedGame={selectedGame}
+            onSelectGame={handleSelectGame}
             onSelectLeague={(sessionId) => {
               setSelectedLeagueSessionId(sessionId);
               setActiveTab('single_league');

@@ -18,19 +18,37 @@ interface PrivateLeaguesDirectoryViewProps {
   userAccount: UserAccount | null;
   onSelectLeague: (sessionId: string) => void;
   onOpenAuthModal?: () => void;
+  selectedGame?: 'poe1' | 'poe2';
+  onSelectGame?: (game: 'poe1' | 'poe2') => void;
 }
 
 export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewProps> = ({
   userAccount,
   onSelectLeague,
-  onOpenAuthModal
+  onOpenAuthModal,
+  selectedGame = 'poe1',
+  onSelectGame
 }) => {
-  const [filter, setFilter] = useState<'all' | 'active' | 'upcoming' | 'archive'>('all');
+  const [activeGame, setActiveGame] = useState<'poe1' | 'poe2'>(selectedGame);
+  const [filter, setFilter] = useState<'active' | 'upcoming' | 'archive'>('active');
   const [copiedLeagueId, setCopiedLeagueId] = useState<string | null>(null);
   const [leagues, setLeagues] = useState<ActiveLeagueSession[]>(() => {
     const custom = getStoredCustomLeagues();
     return [...ACTIVE_LEAGUE_SESSIONS, ...custom];
   });
+
+  useEffect(() => {
+    if (selectedGame) {
+      setActiveGame(selectedGame);
+    }
+  }, [selectedGame]);
+
+  const handleGameSwitch = (nextGame: 'poe1' | 'poe2') => {
+    setActiveGame(nextGame);
+    if (onSelectGame) {
+      onSelectGame(nextGame);
+    }
+  };
 
   const createDialogRef = useRef<HTMLDialogElement>(null);
   const modalTitleId = useId();
@@ -61,6 +79,14 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
 
   const handleOpenCreateModal = () => {
     setFormError(null);
+    setGame(activeGame);
+    if (activeGame === 'poe1') {
+      setExpansion('Coven of Umbra');
+      setVersion('3.30');
+    } else {
+      setExpansion('Return of the Ancients');
+      setVersion('0.5');
+    }
     createDialogRef.current?.showModal();
   };
 
@@ -117,11 +143,17 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
     onSelectLeague(newLeagueId);
   };
 
-  const filteredLeagues = leagues.filter((l) => {
+  const gameLeagues = leagues.filter((l) => (l.game || 'poe1') === activeGame);
+
+  const activeCount = gameLeagues.filter((l) => l.isActive && !l.isReadOnlyArchive).length;
+  const upcomingCount = gameLeagues.filter((l) => !l.isActive && !l.isReadOnlyArchive).length;
+  const archiveCount = gameLeagues.filter((l) => l.isReadOnlyArchive).length;
+
+  const filteredLeagues = gameLeagues.filter((l) => {
     if (filter === 'active') return l.isActive && !l.isReadOnlyArchive;
     if (filter === 'upcoming') return !l.isActive && !l.isReadOnlyArchive;
     if (filter === 'archive') return l.isReadOnlyArchive;
-    return true;
+    return l.isActive && !l.isReadOnlyArchive;
   });
 
   return (
@@ -171,18 +203,18 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-slate-800/80">
           <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
             <div className="text-[11px] font-mono text-slate-400">Total Leagues</div>
-            <div className="text-xl font-bold font-orbitron text-white mt-0.5">{leagues.length}</div>
+            <div className="text-xl font-bold font-orbitron text-white mt-0.5">{gameLeagues.length}</div>
           </div>
           <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
             <div className="text-[11px] font-mono text-emerald-400">Active Seasons</div>
             <div className="text-xl font-bold font-orbitron text-emerald-300 mt-0.5">
-              {leagues.filter((l) => l.isActive && !l.isReadOnlyArchive).length}
+              {activeCount}
             </div>
           </div>
           <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
             <div className="text-[11px] font-mono text-indigo-400">Historical Archives</div>
             <div className="text-xl font-bold font-orbitron text-indigo-300 mt-0.5">
-              {leagues.filter((l) => l.isReadOnlyArchive).length}
+              {archiveCount}
             </div>
           </div>
           <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
@@ -192,57 +224,88 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              filter === 'all'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            All Leagues ({leagues.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('active')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              filter === 'active'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Active ({leagues.filter((l) => l.isActive && !l.isReadOnlyArchive).length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('upcoming')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              filter === 'upcoming'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Upcoming ({leagues.filter((l) => !l.isActive && !l.isReadOnlyArchive).length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('archive')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              filter === 'archive'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Archives ({leagues.filter((l) => l.isReadOnlyArchive).length})
-          </button>
+      {/* Filter Tabs and Game Selector */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        {/* Game Switcher: PoE 1 vs PoE 2 */}
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => handleGameSwitch('poe1')}
+              className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+                activeGame === 'poe1'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Path of Exile 1</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                activeGame === 'poe1' ? 'bg-indigo-700/60 text-indigo-200' : 'bg-slate-800 text-slate-500'
+              }`}>
+                {leagues.filter((l) => (l.game || 'poe1') === 'poe1' && l.isActive && !l.isReadOnlyArchive).length} Active
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGameSwitch('poe2')}
+              className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+                activeGame === 'poe2'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Path of Exile 2</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                activeGame === 'poe2' ? 'bg-cyan-700/60 text-cyan-200' : 'bg-slate-800 text-slate-500'
+              }`}>
+                {leagues.filter((l) => (l.game || 'poe1') === 'poe2' && l.isActive && !l.isReadOnlyArchive).length} Active
+              </span>
+            </button>
+          </div>
         </div>
 
-        <div className="text-xs text-slate-400 font-mono">
-          Showing {filteredLeagues.length} {filteredLeagues.length === 1 ? 'league' : 'leagues'}
+        {/* Status Filter Tabs (Active Seasons Default, Archives Hidden by Default) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setFilter('active')}
+              className={`px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                filter === 'active'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Active Seasons ({activeCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('upcoming')}
+              className={`px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                filter === 'upcoming'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Upcoming ({upcomingCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('archive')}
+              className={`px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                filter === 'archive'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Past Archives ({archiveCount})
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 font-mono">
+            Showing {filteredLeagues.length} {filteredLeagues.length === 1 ? 'league' : 'leagues'}
+          </div>
         </div>
       </div>
 
@@ -372,6 +435,32 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
           );
         })}
       </div>
+
+      {filteredLeagues.length === 0 && (
+        <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 space-y-3">
+          <div className="text-slate-400 text-sm">
+            No {filter === 'active' ? 'active' : filter === 'upcoming' ? 'upcoming' : 'archived'} private leagues found for {activeGame === 'poe1' ? 'Path of Exile 1' : 'Path of Exile 2'}.
+          </div>
+          {filter === 'active' && upcomingCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilter('upcoming')}
+              className="text-xs font-mono text-cyan-400 hover:underline cursor-pointer"
+            >
+              View {upcomingCount} upcoming launch instead →
+            </button>
+          )}
+          {filter === 'active' && archiveCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilter('archive')}
+              className="text-xs font-mono text-indigo-400 hover:underline cursor-pointer block mx-auto"
+            >
+              View {archiveCount} historical archives →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* CREATE PRIVATE LEAGUE MODAL                                               */}
