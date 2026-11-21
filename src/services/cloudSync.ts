@@ -433,3 +433,46 @@ export async function saveCloudProfile(profile: ExileProfile): Promise<boolean> 
     return false;
   }
 }
+
+export interface CloudAuthResult {
+  success: boolean;
+  userAccount?: any;
+  rosterEntry?: any;
+  error?: string;
+}
+
+export async function cloudAuthRegister(payload: {
+  username: string;
+  email?: string;
+  password: string;
+  userAccount: any;
+  rosterEntry: any;
+}): Promise<CloudAuthResult> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'Registration failed' };
+    return { success: true, userAccount: data.userAccount, rosterEntry: data.rosterEntry };
+  } catch {
+    return { success: false, error: 'Network error' };
+  }
+}
+
+export async function cloudAuthLogin(identifier: string, password: string): Promise<CloudAuthResult> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'Invalid credentials' };
+    return { success: true, userAccount: data.userAccount, rosterEntry: data.rosterEntry };
+  } catch {
+    return { success: false, error: 'Network error' };
+  }
+}

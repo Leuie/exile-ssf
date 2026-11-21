@@ -332,6 +332,60 @@ function injectMetaIntoHtml(html: string, meta: PageMeta, pageUrl: string): stri
     .replace(/<meta name="twitter:description" content="[^"]*" \/>/i, `<meta name="twitter:description" content="${safeDesc}" />`);
 }
 
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function fromHex(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+async function computeSha256Hex(str: string): Promise<string> {
+  const data = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return toHex(hash);
+}
+
+async function hashPasswordPBKDF2(password: string, existingSaltHex?: string): Promise<string> {
+  const salt = existingSaltHex ? fromHex(existingSaltHex) : crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = existingSaltHex || toHex(salt.buffer as ArrayBuffer);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: salt as any, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    256
+  );
+  return `pbkdf2:${saltHex}:${toHex(derived)}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<{ valid: boolean; needsUpgrade: boolean }> {
+  if (!storedHash) return { valid: false, needsUpgrade: false };
+  if (storedHash.startsWith('pbkdf2:')) {
+    const parts = storedHash.split(':');
+    if (parts.length !== 3) return { valid: false, needsUpgrade: false };
+    const candidate = await hashPasswordPBKDF2(password, parts[1]);
+    return { valid: candidate === storedHash, needsUpgrade: false };
+  }
+  // Legacy SHA-256 compatibility with automatic upgrade to PBKDF2
+  const sha = await computeSha256Hex(password);
+  if (sha === storedHash) {
+    return { valid: true, needsUpgrade: true };
+  }
+  return { valid: false, needsUpgrade: false };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -931,6 +985,114 @@ export default {
             .bind(handleLower, JSON.stringify({ ...profile, updatedAtIso: now }), now)
             .run();
           return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/auth/register (Cloudflare D1 PBKDF2 Registration)
+      if (url.pathname === '/api/auth/register' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const username = String(body.username || '').trim();
+          const email = body.email ? String(body.email).trim() : '';
+          const password = String(body.password || '');
+          const userAccount = body.userAccount;
+          const rosterEntry = body.rosterEntry;
+
+          if (!username || !userAccount) {
+            return new Response(JSON.stringify({ error: 'Missing username or account profile' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+
+          const userLower = username.toLowerCase();
+          const emailLower = email ? email.toLowerCase() : null;
+          const passwordHash = password ? await hashPasswordPBKDF2(password) : '';
+
+          const record = {
+            username,
+            email: email || undefined,
+            passwordHash,
+            userAccount: { ...userAccount, passwordHash },
+            rosterEntry
+          };
+
+          await db
+            .prepare('INSERT OR REPLACE INTO accounts (username_lower, email_lower, data, updated_at) VALUES (?, ?, ?, ?)')
+            .bind(userLower, emailLower, JSON.stringify(record), now)
+            .run();
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              userAccount: record.userAccount,
+              rosterEntry: record.rosterEntry
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/auth/login (Cloudflare D1 PBKDF2 Verification)
+      if (url.pathname === '/api/auth/login' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const identifier = String(body.identifier || body.username || '').trim().toLowerCase();
+          const password = String(body.password || '');
+
+          if (!identifier || !password) {
+            return new Response(JSON.stringify({ error: 'Please provide username and password.' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+
+          const row = await db
+            .prepare('SELECT username_lower, email_lower, data FROM accounts WHERE username_lower = ? OR email_lower = ?')
+            .bind(identifier, identifier)
+            .first();
+
+          if (!row?.data) {
+            return new Response(JSON.stringify({ error: 'Account not found. Check your username or register.' }), {
+              status: 401,
+              headers: CORS_HEADERS
+            });
+          }
+
+          const record = JSON.parse(row.data);
+          const storedHash = record.passwordHash || record.userAccount?.passwordHash || '';
+          const check = await verifyPassword(password, storedHash);
+
+          if (!check.valid) {
+            return new Response(JSON.stringify({ error: 'Incorrect password. Please try again.' }), {
+              status: 401,
+              headers: CORS_HEADERS
+            });
+          }
+
+          // Transparently upgrade legacy SHA-256 hashes to PBKDF2 in D1
+          if (check.needsUpgrade) {
+            const upgradedHash = await hashPasswordPBKDF2(password);
+            record.passwordHash = upgradedHash;
+            if (record.userAccount) record.userAccount.passwordHash = upgradedHash;
+            await db
+              .prepare('UPDATE accounts SET data = ?, updated_at = ? WHERE username_lower = ?')
+              .bind(JSON.stringify(record), now, row.username_lower)
+              .run();
+          }
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              userAccount: record.userAccount,
+              rosterEntry: record.rosterEntry
+            }),
+            { headers: CORS_HEADERS }
+          );
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }

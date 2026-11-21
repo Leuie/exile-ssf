@@ -17,6 +17,7 @@ export interface AlumniTabProps {
   triggerCopy: (text: string, label: string) => void;
   handleOpenResetModal: () => void;
   handleToggleNudge: (id: string) => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 export const AlumniTab: React.FC<AlumniTabProps> = ({
@@ -24,7 +25,8 @@ export const AlumniTab: React.FC<AlumniTabProps> = ({
   activeLeagueInfo,
   triggerCopy,
   handleOpenResetModal,
-  handleToggleNudge
+  handleToggleNudge,
+  onOpenProfile
 }) => {
   const [alumniSearch, setAlumniSearch] = useState<string>('');
   const [alumniFilter, setAlumniFilter] = useState<'all' | 'not_nudged' | 'nudged' | 'veteran'>('all');
@@ -156,7 +158,7 @@ export const AlumniTab: React.FC<AlumniTabProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold text-xs text-slate-100 flex items-center gap-1.5">
-                      <span>@{alumnus.displayName}</span>
+                      <button type="button" onClick={() => onOpenProfile?.(alumnus.displayName)} className="hover:text-indigo-300 hover:underline cursor-pointer">@{alumnus.displayName}</button>
                       {alumnus.totalLeaguesCount >= 3 && (
                         <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
                           Veteran ({alumnus.totalLeaguesCount} Leagues)

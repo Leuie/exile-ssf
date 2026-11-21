@@ -60,6 +60,7 @@ export interface BountiesAndHonorsTabProps {
   setCopyNotice: (notice: string | null) => void;
   fireConfetti: () => void;
   onJumpToWishlist: (itemName: string) => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 const BOUNTY_PRESETS = [
@@ -90,7 +91,8 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   triggerCopy,
   setCopyNotice,
   fireConfetti,
-  onJumpToWishlist
+  onJumpToWishlist,
+  onOpenProfile
 }) => {
   const [subView, setSubView] = useState<'bounties' | 'carries' | 'ledger' | 'achievements'>('bounties');
   const [showPostServiceForm, setShowPostServiceForm] = useState<boolean>(false);
@@ -793,7 +795,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                         </div>
                       </div>
                       <div className="text-xs text-slate-400 mt-1">
-                        Requested by <span className="text-slate-200 font-semibold">@{item.displayName || item.characterName}</span>
+                        Requested by <button type="button" onClick={() => onOpenProfile?.(item.displayName || item.characterName)} className="text-slate-200 hover:text-indigo-300 hover:underline font-semibold cursor-pointer">@{item.displayName || item.characterName}</button>
                         {item.characterName && (
                           <span className="text-[11px] font-mono text-slate-500 ml-1">({item.characterName})</span>
                         )}
@@ -983,7 +985,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                       </div>
                       <h3 className="text-sm font-bold text-white">{svc.title}</h3>
                       <div className="text-xs text-slate-400 font-mono">
-                        Provider: <span className="text-slate-200 font-semibold">@{svc.providerDisplayName}</span> ({svc.providerCharacterName})
+                        Provider: <button type="button" onClick={() => onOpenProfile?.(svc.providerDisplayName)} className="text-slate-200 hover:text-indigo-300 hover:underline font-semibold cursor-pointer">@{svc.providerDisplayName}</button> ({svc.providerCharacterName})
                       </div>
                       <div className="text-[11px] font-mono text-emerald-300">Fee: {svc.fee}</div>
                       {svc.atlasFocus && (
@@ -1056,7 +1058,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 {vouches.slice(0, 12).map((v) => (
                   <div key={v.id} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-xs space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-emerald-300">@{v.providerDisplayName}</span>
+                      <button type="button" onClick={() => onOpenProfile?.(v.providerDisplayName)} className="font-bold text-emerald-300 hover:text-indigo-300 hover:underline cursor-pointer">@{v.providerDisplayName}</button>
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
                         {v.category}
                       </span>
@@ -1110,7 +1112,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                         {hero.wishesCount} {hero.wishesCount === 1 ? 'Wish' : 'Wishes'}
                       </span>
                     </div>
-                    <div className="font-bold text-sm text-white truncate">@{hero.helper}</div>
+                    <button type="button" onClick={() => onOpenProfile?.(hero.helper)} className="font-bold text-sm text-white hover:text-indigo-300 hover:underline truncate cursor-pointer text-left">@{hero.helper}</button>
                     <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
                       <span className="text-amber-300">{hero.bountiesClaimed} Bounties</span>
                       <span>•</span>
@@ -1170,12 +1172,14 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                           <div className="text-[10px] font-mono text-slate-500">{item.category}</div>
                         </td>
                         <td className="p-3">
-                          <span className="font-medium text-slate-200">@{item.displayName || item.characterName}</span>
+                          <button type="button" onClick={() => onOpenProfile?.(item.displayName || item.characterName)} className="font-medium text-slate-200 hover:text-indigo-300 hover:underline cursor-pointer">@{item.displayName || item.characterName}</button>
                         </td>
                         <td className="p-3">
-                          <span className="font-mono text-emerald-300 font-semibold">
-                            {item.fulfilledBy ? `@${item.fulfilledBy}` : 'Self Found'}
-                          </span>
+                          {item.fulfilledBy && item.fulfilledBy.toLowerCase() !== 'self found' ? (
+                            <button type="button" onClick={() => onOpenProfile?.(item.fulfilledBy!)} className="font-mono text-emerald-300 hover:text-indigo-300 hover:underline font-semibold cursor-pointer">@{item.fulfilledBy}</button>
+                          ) : (
+                            <span className="font-mono text-slate-400">Self Found</span>
+                          )}
                         </td>
                         <td className="p-3">
                           {item.bountyOffer ? (

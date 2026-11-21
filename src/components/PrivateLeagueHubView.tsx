@@ -1411,6 +1411,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             onOpenBountiesPage={() => handleSelectTab('bounties')}
             initialSearchQuery={wishlistJumpQuery}
             onClearInitialSearch={() => setWishlistJumpQuery(null)}
+            onOpenProfile={onOpenProfile}
           />
         )}
 
@@ -1434,6 +1435,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             triggerCopy={triggerCopy}
             setCopyNotice={setCopyNotice}
             fireConfetti={fireConfetti}
+            onOpenProfile={onOpenProfile}
             onJumpToWishlist={(itemName) => {
               setWishlistJumpQuery(itemName);
               handleSelectTab('looking_for');
@@ -1476,6 +1478,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             triggerCopy={triggerCopy}
             handleOpenResetModal={handleOpenResetModal}
             handleToggleNudge={handleToggleNudge}
+            onOpenProfile={onOpenProfile}
           />
         )}
         </Suspense>

@@ -98,6 +98,18 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   // Multi Character Add Form State
   const [showAddCharForm, setShowAddCharForm] = useState<boolean>(false);
   const [isSyncingLadder, setIsSyncingLadder] = useState<boolean>(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const confirmDialogRef = useRef<HTMLDialogElement>(null);
+
+  const openDarkConfirm = (title: string, message: string, confirmLabel: string, onConfirm: () => void | Promise<void>) => {
+    setConfirmModal({ title, message, confirmLabel, onConfirm });
+    setTimeout(() => confirmDialogRef.current?.showModal(), 10);
+  };
   const [newCharName, setNewCharName] = useState<string>('');
   const [newCharAsc, setNewCharAsc] = useState<string>(currentAscendancyCatalog[0]?.name || 'Slayer');
   const [newCharBuild, setNewCharBuild] = useState<string>('');
@@ -153,36 +165,35 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     }, 10);
   };
 
-  const handleAdminRemoveRosterMember = async (targetMember: LeagueRosterMember) => {
+  const handleAdminRemoveRosterMember = (targetMember: LeagueRosterMember) => {
     if (!isCurrentUserAdmin) {
       triggerCopy('', 'Permission denied: Only league admins can remove exiles');
       return;
     }
-    const confirmDelete = window.confirm(
-      `Are you sure you want to remove @${targetMember.displayName} (${targetMember.characterName || targetMember.poeAccountName}) from the league roster?`
+    openDarkConfirm(
+      'Remove Exile From League Roster',
+      `Are you sure you want to remove @${targetMember.displayName} (${targetMember.characterName || targetMember.poeAccountName}) from the league roster?`,
+      'Remove Exile',
+      async () => {
+        const memberKey = targetMember.id || targetMember.displayName;
+        await deleteCloudRosterMember(activeSessionId, memberKey);
+        setRoster((prev) => {
+          const next = prev.filter(
+            (m) => m.id !== targetMember.id && m.displayName.toLowerCase() !== targetMember.displayName.toLowerCase()
+          );
+          try {
+            localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+        if (selectedPlayerModal && (selectedPlayerModal.id === targetMember.id || selectedPlayerModal.displayName === targetMember.displayName)) {
+          playerProfileDialogRef.current?.close();
+          setSelectedPlayerModal(null);
+        }
+        setCopyNotice(`Removed @${targetMember.displayName} from the league roster.`);
+        setTimeout(() => setCopyNotice(null), 3500);
+      }
     );
-    if (!confirmDelete) return;
-
-    const memberKey = targetMember.id || targetMember.displayName;
-    await deleteCloudRosterMember(activeSessionId, memberKey);
-
-    setRoster((prev) => {
-      const next = prev.filter(
-        (m) => m.id !== targetMember.id && m.displayName.toLowerCase() !== targetMember.displayName.toLowerCase()
-      );
-      try {
-        localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-
-    if (selectedPlayerModal && (selectedPlayerModal.id === targetMember.id || selectedPlayerModal.displayName === targetMember.displayName)) {
-      playerProfileDialogRef.current?.close();
-      setSelectedPlayerModal(null);
-    }
-
-    setCopyNotice(`Removed @${targetMember.displayName} from the league roster.`);
-    setTimeout(() => setCopyNotice(null), 3500);
   };
 
   const persistUpdatedMember = (updatedMember: LeagueRosterMember) => {
@@ -270,31 +281,34 @@ export const RosterTab: React.FC<RosterTabProps> = ({
 
     const target = existingChars.find((c) => c.id === charId);
     if (!target) return;
-    if (!window.confirm(`Remove character "${target.characterName}" from @${selectedPlayerModal.displayName}'s slot?`)) {
-      return;
-    }
+    openDarkConfirm(
+      'Remove Alt Character',
+      `Remove character "${target.characterName}" from @${selectedPlayerModal.displayName}'s account slot?`,
+      'Remove Character',
+      () => {
+        const remaining = existingChars.filter((c) => c.id !== charId);
+        const stillHasMain = remaining.some((c) => c.isMain);
+        const normalized = stillHasMain
+          ? remaining
+          : remaining.map((c, idx) => ({ ...c, isMain: idx === 0 }));
+        const mainChar = normalized.find((c) => c.isMain) || normalized[0];
 
-    const remaining = existingChars.filter((c) => c.id !== charId);
-    const stillHasMain = remaining.some((c) => c.isMain);
-    const normalized = stillHasMain
-      ? remaining
-      : remaining.map((c, idx) => ({ ...c, isMain: idx === 0 }));
-    const mainChar = normalized.find((c) => c.isMain) || normalized[0];
+        const updatedMember: LeagueRosterMember = {
+          ...selectedPlayerModal,
+          characterName: mainChar.characterName,
+          ascendancy: mainChar.ascendancy,
+          className: mainChar.className || selectedPlayerModal.className,
+          buildName: mainChar.buildName,
+          level: mainChar.level,
+          pobUrl: mainChar.pobUrl || '',
+          characters: normalized
+        };
 
-    const updatedMember: LeagueRosterMember = {
-      ...selectedPlayerModal,
-      characterName: mainChar.characterName,
-      ascendancy: mainChar.ascendancy,
-      className: mainChar.className || selectedPlayerModal.className,
-      buildName: mainChar.buildName,
-      level: mainChar.level,
-      pobUrl: mainChar.pobUrl || '',
-      characters: normalized
-    };
-
-    persistUpdatedMember(updatedMember);
-    setCopyNotice(`Removed character ${target.characterName}.`);
-    setTimeout(() => setCopyNotice(null), 2500);
+        persistUpdatedMember(updatedMember);
+        setCopyNotice(`Removed character ${target.characterName}.`);
+        setTimeout(() => setCopyNotice(null), 2500);
+      }
+    );
   };
 
   const handleSyncOfficialLadder = async () => {
@@ -607,7 +621,17 @@ export const RosterTab: React.FC<RosterTabProps> = ({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-200 group-hover:text-white">
-                    <span>@{member.displayName}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenProfile?.(member.displayName);
+                      }}
+                      className="hover:text-indigo-300 hover:underline cursor-pointer"
+                      title={`Open @${member.displayName}'s Exile Profile Page`}
+                    >
+                      @{member.displayName}
+                    </button>
                     {isMe && (
                       <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-mono">
                         My Exile
@@ -1245,6 +1269,59 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                 )}
               </div>
             )}
+          </div>
+        )}
+      </dialog>
+      {/* Native Dark Confirmation Modal */}
+      <dialog
+        ref={confirmDialogRef}
+        {...({ closedby: 'any' } as any)}
+        className="w-[94vw] sm:w-full sm:max-w-md rounded-2xl border border-rose-500/40 bg-slate-900 text-slate-200 p-0 shadow-2xl backdrop:bg-black/75 m-auto overflow-hidden"
+      >
+        {confirmModal && (
+          <div className="flex flex-col">
+            <div className="p-4 border-b border-slate-800 bg-rose-950/30 flex items-center justify-between">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-300">
+                {confirmModal.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmDialogRef.current?.close();
+                  setConfirmModal(null);
+                }}
+                className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 text-xs text-slate-300 leading-relaxed">
+              {confirmModal.message}
+            </div>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  confirmDialogRef.current?.close();
+                  setConfirmModal(null);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const fn = confirmModal.onConfirm;
+                  confirmDialogRef.current?.close();
+                  setConfirmModal(null);
+                  await fn();
+                }}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow"
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
           </div>
         )}
       </dialog>

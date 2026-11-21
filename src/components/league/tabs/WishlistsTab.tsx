@@ -97,6 +97,7 @@ export interface WishlistsTabProps {
   onOpenBountiesPage?: () => void;
   initialSearchQuery?: string | null;
   onClearInitialSearch?: () => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 export const WishlistsTab: React.FC<WishlistsTabProps> = ({
@@ -112,7 +113,8 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   findMember,
   onOpenBountiesPage,
   initialSearchQuery,
-  onClearInitialSearch
+  onClearInitialSearch,
+  onOpenProfile
 }) => {
   const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table'>('item');
   const [lookingForSearch, setLookingForSearch] = useState<string>('');
@@ -671,7 +673,14 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                 title={`Fulfilled: ${h.items.join(', ')}`}
               >
                 <span className="text-amber-400 font-bold">#{hIdx + 1}</span>
-                <span className="text-slate-200">@{h.helper}</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenProfile?.(h.helper)}
+                  className="text-slate-200 hover:text-indigo-300 hover:underline cursor-pointer"
+                  title={`View @${h.helper}'s Exile Profile`}
+                >
+                  @{h.helper}
+                </button>
                 <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
                   {h.count} {h.count === 1 ? 'Wish' : 'Wishes'}
                 </span>
@@ -1163,16 +1172,22 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                               : `@${entry.displayName}`)
                           : (entry.discordName || entry.characterName);
                         return (
-                          <span
+                          <button
                             key={eIdx}
-                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenProfile?.(entry.displayName || entry.characterName);
+                            }}
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border cursor-pointer hover:underline ${
                               entry.status === 'HAVE'
                                 ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
-                                : 'bg-slate-800/90 text-slate-300 border-slate-700/50'
+                                : 'bg-slate-800/90 text-slate-300 border-slate-700/50 hover:border-indigo-500/50'
                             }`}
+                            title="Open Exile Profile Page"
                           >
                             {tagLabel}
-                          </span>
+                          </button>
                         );
                       })}
                       {itemGroup.entries.length > 3 && (

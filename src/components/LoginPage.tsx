@@ -10,6 +10,7 @@ import {
 import type { UserAccount, LeagueRosterMember } from '../types';
 import { computeSHA256 } from '../utils/crypto';
 import { fireConfetti } from '../utils/confetti';
+import { cloudAuthLogin } from '../services/cloudSync';
 
 interface LoginPageProps {
   onLoginSuccess: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
@@ -217,6 +218,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsProcessing(true);
 
     try {
+      const cloudRes = await cloudAuthLogin(userClean, appPassword);
+      if (cloudRes.success && cloudRes.userAccount) {
+        setIsProcessing(false);
+        onLoginSuccess(cloudRes.userAccount, cloudRes.rosterEntry);
+        fireConfetti();
+        return;
+      }
       const pHash = await computeSHA256(appPassword);
       const storedRaw = localStorage.getItem('poe_clean330_accounts');
       const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
