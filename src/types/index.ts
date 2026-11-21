@@ -235,6 +235,36 @@ export interface LeagueRosterMember {
   isOnline?: boolean;
 }
 
+export type WishlistItemCategory =
+  | 'Unique'
+  | 'Base / Crafting'
+  | 'Flask / Tincture'
+  | 'Jewel'
+  | 'Cluster Jewel'
+  | 'Gem'
+  | 'Vaal Gem'
+  | 'Transfigured Gem'
+  | 'Awakened Gem'
+  | 'Map'
+  | 'Fragment / Boss'
+  | 'Scarab'
+  | 'Memory / Invitation'
+  | 'Currency'
+  | 'Essence'
+  | 'Fossil / Resonator'
+  | 'Catalyst'
+  | 'Oil / Enchant'
+  | 'Delirium Orb'
+  | 'Harvest / Beast'
+  | 'Thread of Creation'
+  | 'Div Card'
+  | 'Heist'
+  | 'Expedition'
+  | 'Tattoo / Omen'
+  | 'Sanctum / Ultimatum'
+  | 'Corpse / Allflame'
+  | 'Other';
+
 export interface LookingForItem {
   id: string;
   characterName: string;
@@ -243,7 +273,7 @@ export interface LookingForItem {
   discordName?: string;
   poeAccountName?: string;
   itemName: string;
-  category: 'Unique' | 'Gem' | 'Vaal Gem' | 'Transfigured Gem' | 'Div Card' | 'Cluster Jewel' | 'Base / Crafting' | 'Oil / Enchant';
+  category: WishlistItemCategory;
   status: ItemNeedStatus;
   notes: string;
   poeWikiUrl: string;

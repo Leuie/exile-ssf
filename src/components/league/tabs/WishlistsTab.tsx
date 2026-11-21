@@ -16,8 +16,67 @@ import {
   Users,
   X
 } from 'lucide-react';
-import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember } from '../../../types';
+import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory } from '../../../types';
 import { saveCloudWishlistItem, deleteCloudWishlistItem } from '../../../services/cloudSync';
+
+export const WISHLIST_CATEGORY_GROUPS: {
+  group: string;
+  options: { value: WishlistItemCategory; label: string; filterLabel?: string }[];
+}[] = [
+  {
+    group: 'Gear and Equipment',
+    options: [
+      { value: 'Unique', label: 'Unique Item' },
+      { value: 'Base / Crafting', label: 'Crafting Base (Fractured, Influenced, Synth)' },
+      { value: 'Flask / Tincture', label: 'Flask, Tincture, Charm' },
+      { value: 'Jewel', label: 'Jewel (Base, Abyss, Timeless, Forbidden)' },
+      { value: 'Cluster Jewel', label: 'Cluster Jewel' }
+    ]
+  },
+  {
+    group: 'Skill and Support Gems',
+    options: [
+      { value: 'Gem', label: 'Skill, Support Gem', filterLabel: 'All Gems' },
+      { value: 'Vaal Gem', label: 'Vaal Skill Gem' },
+      { value: 'Transfigured Gem', label: 'Transfigured Gem' },
+      { value: 'Awakened Gem', label: 'Awakened Support Gem' }
+    ]
+  },
+  {
+    group: 'Maps, Fragments, and Bosses',
+    options: [
+      { value: 'Fragment / Boss', label: 'Boss Fragment (Shaper, Elder, Maven, Uber)' },
+      { value: 'Map', label: 'Map (Guardian, T17, Unique, Blighted)' },
+      { value: 'Scarab', label: 'Scarab' },
+      { value: 'Memory / Invitation', label: 'Invitation, Atlas Memory, Reliquary Key' }
+    ]
+  },
+  {
+    group: 'Currency and Crafting Materials',
+    options: [
+      { value: 'Currency', label: 'Currency (Orbs, Eldritch, Chisels)' },
+      { value: 'Essence', label: 'Essence' },
+      { value: 'Fossil / Resonator', label: 'Delve Fossil, Resonator' },
+      { value: 'Catalyst', label: 'Catalyst' },
+      { value: 'Oil / Enchant', label: 'Blight Oil, Enchant, Tempering Orb' },
+      { value: 'Delirium Orb', label: 'Delirium Orb, Simulacrum Splinter' },
+      { value: 'Harvest / Beast', label: 'Harvest Lifeforce, Itemised Beast' }
+    ]
+  },
+  {
+    group: 'League Mechanics and Specialty',
+    options: [
+      { value: 'Thread of Creation', label: 'Thread of Creation (3.30 Umbra)' },
+      { value: 'Div Card', label: 'Divination Card' },
+      { value: 'Heist', label: 'Heist (Contract, Blueprint, Rogue Gear)' },
+      { value: 'Expedition', label: 'Expedition (Logbook, Artifact, Reroll)' },
+      { value: 'Tattoo / Omen', label: 'Tattoo, Omen, Rune, Soul Core' },
+      { value: 'Sanctum / Ultimatum', label: 'Sanctum Tome, Relic, Ultimatum' },
+      { value: 'Corpse / Allflame', label: 'Allflame Ember, Coffin, Graft' },
+      { value: 'Other', label: 'Other, Miscellaneous' }
+    ]
+  }
+];
 
 export interface WishlistsTabProps {
   activeSessionId: string;
@@ -128,7 +187,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         lookingForCategoryFilter === 'All' ||
         entry.category === lookingForCategoryFilter ||
         (lookingForCategoryFilter === 'Gem' &&
-          (entry.category === 'Gem' || entry.category === 'Vaal Gem' || entry.category === 'Transfigured Gem'));
+          (entry.category === 'Gem' || entry.category === 'Vaal Gem' || entry.category === 'Transfigured Gem' || entry.category === 'Awakened Gem'));
       const matchStatus =
         lookingForStatusFilter === 'All' ||
         (lookingForStatusFilter === 'HAVE'
@@ -153,7 +212,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         lookingForCategoryFilter === 'All' ||
         item.category === lookingForCategoryFilter ||
         (lookingForCategoryFilter === 'Gem' &&
-          (item.category === 'Gem' || item.category === 'Vaal Gem' || item.category === 'Transfigured Gem'));
+          (item.category === 'Gem' || item.category === 'Vaal Gem' || item.category === 'Transfigured Gem' || item.category === 'Awakened Gem'));
 
       const matchStatus =
         lookingForStatusFilter === 'All' || item.status === lookingForStatusFilter;
@@ -550,15 +609,16 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
             onChange={(e) => setLookingForCategoryFilter(e.target.value)}
             className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700 cursor-pointer"
           >
-            <option value="All">All Categories</option>
-            <option value="Unique">Unique</option>
-            <option value="Vaal Gem">Vaal Gem</option>
-            <option value="Transfigured Gem">Transfigured Gem</option>
-            <option value="Gem">All Gems</option>
-            <option value="Div Card">Div Card</option>
-            <option value="Base / Crafting">Base, Crafting</option>
-            <option value="Cluster Jewel">Cluster Jewel</option>
-            <option value="Oil / Enchant">Oil, Enchant</option>
+            <option value="All" className="bg-slate-900 text-slate-200">All Categories</option>
+            {WISHLIST_CATEGORY_GROUPS.map((grp) => (
+              <optgroup key={grp.group} label={grp.group} className="bg-slate-950 text-slate-400">
+                {grp.options.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                    {opt.filterLabel || opt.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           </select>
 
           {/* Status Filter */}
@@ -670,14 +730,15 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                 onChange={(e) => setNewLfCat(e.target.value as any)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
               >
-                <option value="Unique">Unique</option>
-                <option value="Vaal Gem">Vaal Gem</option>
-                <option value="Transfigured Gem">Transfigured Gem</option>
-                <option value="Gem">Skill, Support Gem</option>
-                <option value="Div Card">Div Card</option>
-                <option value="Base / Crafting">Base, Crafting</option>
-                <option value="Cluster Jewel">Cluster Jewel</option>
-                <option value="Oil / Enchant">Oil, Enchant</option>
+                {WISHLIST_CATEGORY_GROUPS.map((grp) => (
+                  <optgroup key={grp.group} label={grp.group} className="bg-slate-950 text-slate-400">
+                    {grp.options.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
 
@@ -1367,14 +1428,15 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                     onChange={(e) => setEditCategory(e.target.value as any)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer"
                   >
-                    <option value="Unique">Unique</option>
-                    <option value="Vaal Gem">Vaal Gem</option>
-                    <option value="Transfigured Gem">Transfigured Gem</option>
-                    <option value="Gem">Skill, Support Gem</option>
-                    <option value="Div Card">Div Card</option>
-                    <option value="Base / Crafting">Base, Crafting</option>
-                    <option value="Cluster Jewel">Cluster Jewel</option>
-                    <option value="Oil / Enchant">Oil, Enchant</option>
+                    {WISHLIST_CATEGORY_GROUPS.map((grp) => (
+                      <optgroup key={grp.group} label={grp.group} className="bg-slate-950 text-slate-400">
+                        {grp.options.map((opt) => (
+                          <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
 
