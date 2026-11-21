@@ -12,9 +12,30 @@ import {
   Users,
   MessageSquare,
   Globe,
+  Plus,
+  Star,
   X
 } from 'lucide-react';
-import type { LeagueRosterMember, UserAccount, LookingForItem } from '../../../types';
+import type { LeagueRosterMember, LeagueCharacter, UserAccount, LookingForItem } from '../../../types';
+
+export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter[] {
+  if (member.characters && member.characters.length > 0) {
+    return member.characters;
+  }
+  return [
+    {
+      id: `char-main-${member.id}`,
+      characterName: member.characterName || member.displayName,
+      ascendancy: member.ascendancy || 'Unassigned',
+      className: member.className || 'Exile',
+      buildName: member.buildName || 'Undecided Starter',
+      level: member.level || 1,
+      pobUrl: member.pobUrl || '',
+      notes: member.notes || '',
+      isMain: true
+    }
+  ];
+}
 import { saveCloudRosterMember, deleteCloudRosterMember } from '../../../services/cloudSync';
 
 export interface RosterTabProps {
@@ -71,8 +92,17 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   const [modalEditPob, setModalEditPob] = useState<string>('');
   const [modalEditNotes, setModalEditNotes] = useState<string>('');
 
+  // Multi Character Add Form State
+  const [showAddCharForm, setShowAddCharForm] = useState<boolean>(false);
+  const [newCharName, setNewCharName] = useState<string>('');
+  const [newCharAsc, setNewCharAsc] = useState<string>(currentAscendancyCatalog[0]?.name || 'Slayer');
+  const [newCharBuild, setNewCharBuild] = useState<string>('');
+  const [newCharLevel, setNewCharLevel] = useState<number>(1);
+  const [newCharPob, setNewCharPob] = useState<string>('');
+
   const filteredRoster = roster.filter((member) => {
     const searchLow = rosterSearch.toLowerCase();
+    const memberChars = getMemberCharacters(member);
     const matchSearch =
       !rosterSearch ||
       member.displayName.toLowerCase().includes(searchLow) ||
@@ -82,10 +112,18 @@ export const RosterTab: React.FC<RosterTabProps> = ({
       (member.steamName && member.steamName.toLowerCase().includes(searchLow)) ||
       member.buildName.toLowerCase().includes(searchLow) ||
       member.ascendancy.toLowerCase().includes(searchLow) ||
-      member.atlasContent.some((c) => c.toLowerCase().includes(searchLow));
+      member.atlasContent.some((c) => c.toLowerCase().includes(searchLow)) ||
+      memberChars.some(
+        (ch) =>
+          ch.characterName.toLowerCase().includes(searchLow) ||
+          ch.buildName.toLowerCase().includes(searchLow) ||
+          ch.ascendancy.toLowerCase().includes(searchLow)
+      );
 
     const matchAsc =
-      rosterAscendancyFilter === 'All' || member.ascendancy === rosterAscendancyFilter;
+      rosterAscendancyFilter === 'All' ||
+      member.ascendancy === rosterAscendancyFilter ||
+      memberChars.some((ch) => ch.ascendancy === rosterAscendancyFilter);
     const matchLaunch =
       rosterLaunchFilter === 'All' || member.availableAtLaunch === rosterLaunchFilter;
 
@@ -95,6 +133,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   const handleOpenPlayerModal = (member: LeagueRosterMember, startEditing: boolean = false) => {
     setSelectedPlayerModal(member);
     setIsEditingProfileModal(startEditing);
+    setShowAddCharForm(false);
     setModalEditDisplayName(member.displayName || '');
     setModalEditPoeAccount(member.poeAccountName || '');
     setModalEditCharName(member.characterName || '');
@@ -142,6 +181,118 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     setTimeout(() => setCopyNotice(null), 3500);
   };
 
+  const persistUpdatedMember = (updatedMember: LeagueRosterMember) => {
+    setSelectedPlayerModal(updatedMember);
+    saveCloudRosterMember(activeSessionId, updatedMember);
+    setRoster((prev) => {
+      const next = prev.map((m) =>
+        m.id === updatedMember.id ? updatedMember : m
+      );
+      try {
+        localStorage.setItem('poe_clean330_roster', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleAddAltCharacter = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlayerModal || !newCharName.trim()) return;
+
+    const existingChars = getMemberCharacters(selectedPlayerModal);
+    const matchedNewAsc = currentAscendancyCatalog.find((a) => a.name === newCharAsc);
+    const newChar: LeagueCharacter = {
+      id: `char-${Date.now()}`,
+      characterName: newCharName.trim(),
+      ascendancy: newCharAsc,
+      className: matchedNewAsc ? matchedNewAsc.baseClass : 'Exile',
+      buildName: newCharBuild.trim() || 'Alt Build',
+      level: Number(newCharLevel) || 1,
+      pobUrl: newCharPob.trim() || '',
+      isMain: false
+    };
+
+    const updatedMember: LeagueRosterMember = {
+      ...selectedPlayerModal,
+      characters: [...existingChars, newChar]
+    };
+
+    persistUpdatedMember(updatedMember);
+    setNewCharName('');
+    setNewCharBuild('');
+    setNewCharLevel(1);
+    setNewCharPob('');
+    setShowAddCharForm(false);
+    fireConfetti();
+    setCopyNotice(`Added character ${newChar.characterName} to @${selectedPlayerModal.displayName}'s account slot!`);
+    setTimeout(() => setCopyNotice(null), 3000);
+  };
+
+  const handleSetMainCharacter = (charId: string) => {
+    if (!selectedPlayerModal) return;
+    const existingChars = getMemberCharacters(selectedPlayerModal);
+    const target = existingChars.find((c) => c.id === charId);
+    if (!target) return;
+
+    const nextChars = existingChars.map((c) => ({
+      ...c,
+      isMain: c.id === charId
+    }));
+
+    const updatedMember: LeagueRosterMember = {
+      ...selectedPlayerModal,
+      characterName: target.characterName,
+      ascendancy: target.ascendancy,
+      className: target.className || selectedPlayerModal.className,
+      buildName: target.buildName,
+      level: target.level,
+      pobUrl: target.pobUrl || selectedPlayerModal.pobUrl,
+      characters: nextChars
+    };
+
+    persistUpdatedMember(updatedMember);
+    setCopyNotice(`Set ${target.characterName} as primary display character!`);
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const handleRemoveAltCharacter = (charId: string) => {
+    if (!selectedPlayerModal) return;
+    const existingChars = getMemberCharacters(selectedPlayerModal);
+    if (existingChars.length <= 1) {
+      setCopyNotice('Each account slot must keep at least 1 character.');
+      setTimeout(() => setCopyNotice(null), 2500);
+      return;
+    }
+
+    const target = existingChars.find((c) => c.id === charId);
+    if (!target) return;
+    if (!window.confirm(`Remove character "${target.characterName}" from @${selectedPlayerModal.displayName}'s slot?`)) {
+      return;
+    }
+
+    const remaining = existingChars.filter((c) => c.id !== charId);
+    const stillHasMain = remaining.some((c) => c.isMain);
+    const normalized = stillHasMain
+      ? remaining
+      : remaining.map((c, idx) => ({ ...c, isMain: idx === 0 }));
+    const mainChar = normalized.find((c) => c.isMain) || normalized[0];
+
+    const updatedMember: LeagueRosterMember = {
+      ...selectedPlayerModal,
+      characterName: mainChar.characterName,
+      ascendancy: mainChar.ascendancy,
+      className: mainChar.className || selectedPlayerModal.className,
+      buildName: mainChar.buildName,
+      level: mainChar.level,
+      pobUrl: mainChar.pobUrl || '',
+      characters: normalized
+    };
+
+    persistUpdatedMember(updatedMember);
+    setCopyNotice(`Removed character ${target.characterName}.`);
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
   const handleSaveModalCharacterDetails = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlayerModal) return;
@@ -167,7 +318,27 @@ export const RosterTab: React.FC<RosterTabProps> = ({
       level: Number(modalEditLevel) || 1,
       buildName: modalEditBuild.trim() || 'Undecided Starter',
       pobUrl: modalEditPob.trim() || undefined,
-      notes: modalEditNotes.trim()
+      notes: modalEditNotes.trim(),
+      characters: (() => {
+        const existing = getMemberCharacters(selectedPlayerModal);
+        const mainIdx = existing.findIndex((c) => c.isMain);
+        const idxToUpdate = mainIdx >= 0 ? mainIdx : 0;
+        return existing.map((c, i) =>
+          i === idxToUpdate
+            ? {
+                ...c,
+                characterName: modalEditCharName.trim() || selectedPlayerModal.characterName,
+                ascendancy: modalEditAsc,
+                className: resolvedClass,
+                level: Number(modalEditLevel) || 1,
+                buildName: modalEditBuild.trim() || 'Undecided Starter',
+                pobUrl: modalEditPob.trim(),
+                notes: modalEditNotes.trim(),
+                isMain: true
+              }
+            : c
+        );
+      })()
     };
 
     // Update selectedPlayerModal immediately so modal shows new info
@@ -348,13 +519,34 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                   </span>
                 </div>
 
-                <div className="text-[11px] font-mono text-slate-400">
-                  {member.ascendancy} • Lvl {member.level}
+                <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-slate-400">
+                  <span>{member.ascendancy} • Lvl {member.level}</span>
+                  {getMemberCharacters(member).length > 1 && (
+                    <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-bold">
+                      {getMemberCharacters(member).length} Chars
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-xs text-slate-300 truncate">
                   {member.buildName}
                 </div>
+
+                {getMemberCharacters(member).length > 1 && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {getMemberCharacters(member)
+                      .filter((c) => !c.isMain)
+                      .map((alt) => (
+                        <span
+                          key={alt.id}
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-950/90 text-indigo-300 border border-indigo-500/30 truncate max-w-full"
+                          title={`Alt: ${alt.characterName} (${alt.ascendancy} Lvl ${alt.level}) - ${alt.buildName}`}
+                        >
+                          Alt: {alt.characterName} ({alt.ascendancy} {alt.level})
+                        </span>
+                      ))}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-1 pt-1">
                   {member.atlasContent.map((mech, mIdx) => (
@@ -636,28 +828,209 @@ export const RosterTab: React.FC<RosterTabProps> = ({
               </form>
             ) : (
               <div className="p-4 overflow-y-auto space-y-3 text-xs">
-                {/* Build info */}
-                <div className="p-3 rounded-lg border border-slate-800 bg-slate-950/70 space-y-1.5">
-                  <div className="flex items-center justify-between font-mono">
-                    <span className="text-slate-100 font-semibold">{selectedPlayerModal.ascendancy} ({selectedPlayerModal.className})</span>
-                    <span className="text-slate-400">Lvl {selectedPlayerModal.level}</span>
-                  </div>
-                  <div className="text-slate-300">Build: {selectedPlayerModal.buildName}</div>
-                  {selectedPlayerModal.pobUrl && (
-                    <a
-                      href={selectedPlayerModal.pobUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-slate-400 hover:text-white font-mono text-[11px]"
-                    >
-                      <span>pobb.in</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
-                  {selectedPlayerModal.notes && (
-                    <p className="text-slate-400 pt-1 text-[11px]">"{selectedPlayerModal.notes}"</p>
-                  )}
-                </div>
+                {/* Characters on This Account Slot */}
+                {(() => {
+                  const slotChars = getMemberCharacters(selectedPlayerModal);
+                  const canManageSlot = Boolean(
+                    isCurrentUserAdmin ||
+                    (userAccount && (
+                      (selectedPlayerModal.id && userAccount.id === selectedPlayerModal.id) ||
+                      userAccount.displayName.toLowerCase() === selectedPlayerModal.displayName.toLowerCase()
+                    ))
+                  );
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-slate-400 uppercase text-[11px]">
+                          Characters on Account Slot ({slotChars.length})
+                        </span>
+                        {canManageSlot && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAddCharForm((v) => !v)}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>{showAddCharForm ? 'Close Form' : 'Add Character'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {showAddCharForm && canManageSlot && (
+                        <form
+                          onSubmit={handleAddAltCharacter}
+                          className="p-3 rounded-xl border border-indigo-500/40 bg-indigo-950/20 space-y-2.5"
+                        >
+                          <div className="text-[11px] font-bold text-indigo-300">
+                            Register Another Character Under @{selectedPlayerModal.displayName} (Uses Same Account Slot)
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Character IGN *</label>
+                              <input
+                                type="text"
+                                required
+                                value={newCharName}
+                                onChange={(e) => setNewCharName(e.target.value)}
+                                placeholder="e.g. UmbraBossKiller"
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Ascendancy</label>
+                              <select
+                                value={newCharAsc}
+                                onChange={(e) => setNewCharAsc(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                              >
+                                {currentAscendancyCatalog.map((a) => (
+                                  <option key={a.name} value={a.name}>
+                                    {a.name} ({a.baseClass})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="sm:col-span-2">
+                              <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Build Name *</label>
+                              <input
+                                type="text"
+                                required
+                                value={newCharBuild}
+                                onChange={(e) => setNewCharBuild(e.target.value)}
+                                placeholder="e.g. Archmage Ice Nova Hierophant"
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Level</label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={newCharLevel}
+                                onChange={(e) => setNewCharLevel(Number(e.target.value))}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-mono text-slate-400 block mb-0.5">pobb.in URL (Optional)</label>
+                            <input
+                              type="text"
+                              value={newCharPob}
+                              onChange={(e) => setNewCharPob(e.target.value)}
+                              placeholder="https://pobb.in/..."
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowAddCharForm(false)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer"
+                            >
+                              Save Character
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      <div className="space-y-2">
+                        {slotChars.map((ch) => {
+                          const charWishCount = lookingForItems.filter(
+                            (it) =>
+                              it.status !== 'HAVE' &&
+                              it.characterName.toLowerCase() === ch.characterName.toLowerCase()
+                          ).length;
+
+                          return (
+                            <div
+                              key={ch.id}
+                              className={`p-3 rounded-lg border space-y-1.5 ${
+                                ch.isMain
+                                  ? 'border-indigo-500/40 bg-slate-950/80'
+                                  : 'border-slate-800 bg-slate-950/50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 font-mono">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-white font-bold">{ch.characterName}</span>
+                                  {ch.isMain && (
+                                    <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-bold">
+                                      MAIN
+                                    </span>
+                                  )}
+                                  {charWishCount > 0 && (
+                                    <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px]">
+                                      {charWishCount} {charWishCount === 1 ? 'Need' : 'Needs'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-slate-400">
+                                  {ch.ascendancy} • Lvl {ch.level}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-slate-300">Build: {ch.buildName}</div>
+                                <div className="flex items-center gap-1.5">
+                                  {ch.pobUrl && (
+                                    <a
+                                      href={ch.pobUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-mono text-[10px]"
+                                    >
+                                      <span>PoB</span>
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                  )}
+                                  {canManageSlot && !ch.isMain && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetMainCharacter(ch.id)}
+                                      className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-200 text-[10px] font-mono flex items-center gap-0.5 cursor-pointer"
+                                      title="Set as primary display character"
+                                    >
+                                      <Star className="w-2.5 h-2.5" />
+                                      <span>Main</span>
+                                    </button>
+                                  )}
+                                  {canManageSlot && slotChars.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveAltCharacter(ch.id)}
+                                      className="p-1 rounded bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer"
+                                      title="Remove character"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {selectedPlayerModal.notes && (
+                        <p className="text-slate-400 pt-1 text-[11px] italic">"{selectedPlayerModal.notes}"</p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Items Wanted */}
                 <div className="space-y-1.5">
@@ -672,8 +1045,15 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                           key={idx}
                           className="p-2 rounded border border-slate-800 bg-slate-950/40 flex items-center justify-between text-xs"
                         >
-                          <span className="text-slate-200">{item.itemName}</span>
-                          <span className="font-mono text-[10px] text-slate-400">{item.status}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-slate-200 truncate">{item.itemName}</span>
+                            {item.characterName && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700 font-mono text-[10px] flex-shrink-0">
+                                {item.characterName}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-mono text-[10px] text-slate-400 flex-shrink-0">{item.status}</span>
                         </div>
                       ))}
                   </div>

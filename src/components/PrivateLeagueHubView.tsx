@@ -1330,6 +1330,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           <WishlistsTab
             activeSessionId={activeSessionId}
             lookingForItems={lookingForItems}
+            roster={roster}
             setLookingForItems={setLookingForItems}
             userAccount={userAccount}
             isCurrentUserAdmin={isCurrentUserAdmin}

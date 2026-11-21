@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory } from '../../../types';
 import { saveCloudWishlistItem, deleteCloudWishlistItem } from '../../../services/cloudSync';
+import { getMemberCharacters } from './RosterTab';
 
 export const WISHLIST_CATEGORY_GROUPS: {
   group: string;
@@ -83,6 +84,7 @@ export const WISHLIST_CATEGORY_GROUPS: {
 export interface WishlistsTabProps {
   activeSessionId: string;
   lookingForItems: LookingForItem[];
+  roster?: LeagueRosterMember[];
   setLookingForItems: React.Dispatch<React.SetStateAction<LookingForItem[]>>;
   userAccount?: UserAccount | null;
   isCurrentUserAdmin: boolean;
@@ -98,6 +100,7 @@ export interface WishlistsTabProps {
 export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   activeSessionId,
   lookingForItems,
+  roster = [],
   setLookingForItems,
   userAccount,
   isCurrentUserAdmin,
@@ -113,6 +116,71 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [lookingForSearch, setLookingForSearch] = useState<string>('');
   const [lookingForCategoryFilter, setLookingForCategoryFilter] = useState<string>('All');
   const [lookingForStatusFilter, setLookingForStatusFilter] = useState<string>('All');
+  const [onlyMyNeeds, setOnlyMyNeeds] = useState<boolean>(false);
+  const [selectedCharFilter, setSelectedCharFilter] = useState<string>('All');
+  const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
+
+  const myRosterEntry = React.useMemo(() => {
+    if (!userAccount) return undefined;
+    return roster.find(
+      (m) =>
+        (userAccount.id && m.id === userAccount.id) ||
+        (userAccount.displayName && m.displayName.toLowerCase() === userAccount.displayName.toLowerCase()) ||
+        (userAccount.poeAccountName && m.poeAccountName && m.poeAccountName.toLowerCase() === userAccount.poeAccountName.toLowerCase())
+    );
+  }, [roster, userAccount]);
+
+  const myCharacters = React.useMemo(() => {
+    const list: { characterName: string; ascendancy: string; buildName: string; level: number; isMain?: boolean }[] = [];
+    const seen = new Set<string>();
+    if (myRosterEntry) {
+      for (const ch of getMemberCharacters(myRosterEntry)) {
+        const key = ch.characterName.trim().toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          list.push({
+            characterName: ch.characterName.trim(),
+            ascendancy: ch.ascendancy,
+            buildName: ch.buildName,
+            level: ch.level,
+            isMain: ch.isMain
+          });
+        }
+      }
+    }
+    if (userAccount?.characterName) {
+      const key = userAccount.characterName.trim().toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push({
+          characterName: userAccount.characterName.trim(),
+          ascendancy: userAccount.ascendancy || 'Exile',
+          buildName: userAccount.buildName || 'Main Build',
+          level: userAccount.level || 1,
+          isMain: true
+        });
+      }
+    }
+    return list;
+  }, [myRosterEntry, userAccount]);
+
+  const isMyEntry = (item: LookingForItem): boolean => {
+    if (!userAccount) return false;
+    const matchDisp = Boolean(
+      userAccount.displayName &&
+      item.displayName &&
+      item.displayName.toLowerCase() === userAccount.displayName.toLowerCase()
+    );
+    const matchAcc = Boolean(
+      userAccount.poeAccountName &&
+      item.poeAccountName &&
+      item.poeAccountName.toLowerCase() === userAccount.poeAccountName.toLowerCase()
+    );
+    const matchChar = myCharacters.some(
+      (c) => c.characterName.toLowerCase() === item.characterName.toLowerCase()
+    );
+    return matchDisp || matchAcc || matchChar;
+  };
   const [selectedInspectItemName, setSelectedInspectItemName] = useState<string | null>(null);
 
   const itemInspectDialogRef = useRef<HTMLDialogElement>(null);
@@ -213,9 +281,13 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         (lookingForStatusFilter === 'HAVE'
           ? entry.entries.some((e) => e.status === 'HAVE')
           : entry.entries.some((e) => e.status === lookingForStatusFilter));
-      return matchText && matchCat && matchStatus;
+      const matchMine = !onlyMyNeeds || entry.entries.some((e) => isMyEntry(e));
+      const matchChar =
+        selectedCharFilter === 'All' ||
+        entry.entries.some((e) => e.characterName.toLowerCase() === selectedCharFilter.toLowerCase());
+      return matchText && matchCat && matchStatus && matchMine && matchChar;
     });
-  }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter]);
+  }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter, onlyMyNeeds, selectedCharFilter, userAccount, myCharacters]);
 
   const filteredLookingForItems = React.useMemo(() => {
     const list = lookingForItems.filter((item) => {
@@ -727,6 +799,88 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         </div>
       </div>
 
+      {/* At a Glance: My Characters Quick Filter Strip */}
+      {userAccount && (
+        <div className="px-3.5 py-2.5 rounded-xl border border-indigo-500/25 bg-indigo-950/15 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-mono uppercase text-indigo-300 font-bold mr-1">
+              Farm View:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyMyNeeds(false);
+                setSelectedCharFilter('All');
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors cursor-pointer ${
+                !onlyMyNeeds && selectedCharFilter === 'All'
+                  ? 'bg-slate-800 text-white border border-slate-600 font-semibold'
+                  : 'bg-slate-900/60 text-slate-400 border border-slate-800 hover:text-slate-200'
+              }`}
+            >
+              All Squad
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyMyNeeds(true);
+                setSelectedCharFilter('All');
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors cursor-pointer ${
+                onlyMyNeeds && selectedCharFilter === 'All'
+                  ? 'bg-indigo-600 text-white border border-indigo-400 font-semibold shadow-sm'
+                  : 'bg-slate-900/60 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-950/60'
+              }`}
+            >
+              My Needs ({lookingForItems.filter((it) => it.status !== 'HAVE' && isMyEntry(it)).length})
+            </button>
+
+            {myCharacters.length > 0 && (
+              <>
+                <span className="text-slate-700 mx-0.5">|</span>
+                {myCharacters.map((ch) => {
+                  const openCount = lookingForItems.filter(
+                    (it) =>
+                      it.status !== 'HAVE' &&
+                      it.characterName.toLowerCase() === ch.characterName.toLowerCase()
+                  ).length;
+                  const isSelected = selectedCharFilter.toLowerCase() === ch.characterName.toLowerCase();
+                  return (
+                    <button
+                      key={ch.characterName}
+                      type="button"
+                      onClick={() => {
+                        setOnlyMyNeeds(true);
+                        setSelectedCharFilter(isSelected ? 'All' : ch.characterName);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                          : 'bg-slate-950/70 text-slate-300 border border-slate-800 hover:border-amber-500/40 hover:text-white'
+                      }`}
+                      title={`${ch.characterName}: ${ch.ascendancy} Lvl ${ch.level} (${ch.buildName})`}
+                    >
+                      <span>{ch.characterName}</span>
+                      <span
+                        className={`text-[10px] px-1 rounded ${
+                          isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                        }`}
+                      >
+                        {openCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          <span className="text-[10px] font-mono text-slate-400">
+            Add alts in Roster Directory to filter by character
+          </span>
+        </div>
+      )}
+
       {/* Add Wanted Item Form */}
       {showAddLookingForModal && (
         <form
@@ -792,15 +946,53 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 block mb-1">In Game Character IGN *</label>
-              <input
-                type="text"
-                required
-                placeholder="Your character IGN"
-                value={newLfChar}
-                onChange={(e) => setNewLfChar(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 font-mono"
-              />
+              <label className="text-xs text-slate-400 block mb-1">For Character (IGN) *</label>
+              {myCharacters.length > 0 && !useCustomNewChar ? (
+                <select
+                  value={myCharacters.some((c) => c.characterName === newLfChar) ? newLfChar : myCharacters[0].characterName}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setUseCustomNewChar(true);
+                      setNewLfChar('');
+                    } else {
+                      setNewLfChar(e.target.value);
+                    }
+                  }}
+                  className="w-full bg-slate-950 border border-indigo-500/40 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-400 font-mono cursor-pointer"
+                >
+                  {myCharacters.map((ch) => (
+                    <option key={ch.characterName} value={ch.characterName} className="bg-slate-900 text-slate-200">
+                      {ch.characterName} ({ch.ascendancy} • Lvl {ch.level})
+                    </option>
+                  ))}
+                  <option value="__custom__" className="bg-slate-900 text-amber-300">
+                    + Type Another Character IGN...
+                  </option>
+                </select>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Your character IGN"
+                    value={newLfChar}
+                    onChange={(e) => setNewLfChar(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 font-mono"
+                  />
+                  {myCharacters.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseCustomNewChar(false);
+                        setNewLfChar(myCharacters[0].characterName);
+                      }}
+                      className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-indigo-300 cursor-pointer whitespace-nowrap"
+                    >
+                      My Chars
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -951,7 +1143,11 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                     {/* Requesting player tags */}
                     <div className="flex flex-wrap gap-1 pt-1">
                       {itemGroup.entries.slice(0, 3).map((entry, eIdx) => {
-                        const tagLabel = entry.displayName ? `@${entry.displayName}` : (entry.discordName || entry.characterName);
+                        const tagLabel = entry.displayName
+                          ? (entry.characterName && entry.characterName.toLowerCase() !== entry.displayName.toLowerCase()
+                              ? `@${entry.displayName} • ${entry.characterName}`
+                              : `@${entry.displayName}`)
+                          : (entry.discordName || entry.characterName);
                         return (
                           <span
                             key={eIdx}
@@ -1572,14 +1768,32 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Character IGN</label>
+                  <label className="text-xs font-semibold text-slate-300">For Character (IGN)</label>
                   <input
                     type="text"
                     value={editChar}
                     onChange={(e) => setEditChar(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 font-mono"
                     placeholder="In Game Character IGN"
                   />
+                  {myCharacters.length > 1 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {myCharacters.map((ch) => (
+                        <button
+                          key={ch.characterName}
+                          type="button"
+                          onClick={() => setEditChar(ch.characterName)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer ${
+                            editChar.toLowerCase() === ch.characterName.toLowerCase()
+                              ? 'bg-indigo-600 text-white border-indigo-400'
+                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {ch.characterName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

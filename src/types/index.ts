@@ -233,6 +233,19 @@ export interface LeagueRosterMember {
   inviteStatus: 'Accepted' | 'Invited' | 'Pending Invite';
   isSupporterHeart?: boolean;
   isOnline?: boolean;
+  characters?: LeagueCharacter[]; // Multiple characters tracked under this single account slot
+}
+
+export interface LeagueCharacter {
+  id: string;
+  characterName: string;
+  ascendancy: string;
+  className?: string;
+  buildName: string;
+  level: number;
+  pobUrl?: string;
+  notes?: string;
+  isMain?: boolean;
 }
 
 export type WishlistItemCategory =

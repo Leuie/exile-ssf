@@ -27,6 +27,7 @@ import type {
 } from '../../../types';
 import { saveCloudWishlistItem } from '../../../services/cloudSync';
 import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
+import { getMemberCharacters } from './RosterTab';
 import {
   evaluateAndPersistAchievements,
   getPlayerStorageKey,
@@ -82,6 +83,17 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   const [bountyCat, setBountyCat] = useState<WishlistItemCategory>('Unique');
   const [bountyOfferText, setBountyOfferText] = useState<string>('');
   const [bountyNotes, setBountyNotes] = useState<string>('');
+  const [bountyTargetChar, setBountyTargetChar] = useState<string>(userAccount?.characterName || '');
+
+  const myBountyChars = useMemo(() => {
+    if (!userAccount) return [];
+    const entry = roster.find(
+      (m) =>
+        (userAccount.id && m.id === userAccount.id) ||
+        (userAccount.displayName && m.displayName.toLowerCase() === userAccount.displayName.toLowerCase())
+    );
+    return entry ? getMemberCharacters(entry) : [];
+  }, [roster, userAccount]);
 
   // Evaluate Persistent Achievements
   const achievementEval = useMemo(
@@ -270,7 +282,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
     const cleanName = bountyItemName.trim();
     const newItem: LookingForItem = {
       id: `lf-${Date.now()}`,
-      characterName: userAccount?.characterName || 'MyExile',
+      characterName: bountyTargetChar.trim() || myBountyChars[0]?.characterName || userAccount?.characterName || 'MyExile',
       displayName: userAccount?.displayName || userAccount?.characterName || 'Squad Member',
       preferredContact: userAccount?.preferredContact || 'app',
       discordName: userAccount?.discordName || '',
@@ -510,6 +522,23 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-amber-500/40 text-xs text-amber-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
               />
             </div>
+
+            {myBountyChars.length > 0 && (
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">For Character</label>
+                <select
+                  value={bountyTargetChar || myBountyChars[0].characterName}
+                  onChange={(e) => setBountyTargetChar(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-indigo-500/40 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-400 cursor-pointer"
+                >
+                  {myBountyChars.map((ch) => (
+                    <option key={ch.id} value={ch.characterName} className="bg-slate-900 text-slate-200">
+                      {ch.characterName} ({ch.ascendancy})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-[11px] font-mono text-slate-300 block mb-1">Notes or Roll Requirements</label>
