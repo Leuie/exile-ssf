@@ -13,6 +13,7 @@ import {
 import type { UserAccount, LeagueRosterMember } from '../types';
 import { computeSHA256, ADMIN_KEY_SHA256 } from '../utils/crypto';
 import { fireConfetti } from '../utils/confetti';
+import { AdminHostToolsPanel } from './league/widgets/AdminHostToolsPanel';
 
 interface AdminPortalPageProps {
   userAccount: UserAccount | null;
@@ -454,6 +455,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Live League Health, Custom Host Awards, and Root Webhook Configuration */}
+      {isLeuieAdmin && <AdminHostToolsPanel />}
     </div>
   );
 };

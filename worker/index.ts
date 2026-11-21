@@ -5,6 +5,8 @@ export interface Env {
   EXILE_DB?: any;
   EXILE_KV?: any;
   ASSETS?: any;
+  ROOT_WEBHOOK_URL?: string;
+  WEBHOOK_URL?: string;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -539,8 +541,239 @@ async function verifyPassword(password: string, storedHash: string): Promise<{ v
   return { valid: false, needsUpgrade: false };
 }
 
+
+interface WebhookConfig {
+  url: string;
+  enabled: boolean;
+  events: string[];
+}
+
+const DEFAULT_WEBHOOK_EVENTS = [
+  'bounty_listed',
+  'item_fulfilled',
+  'boss_rota',
+  'league_first',
+  'achievement_earned',
+  'roster_join'
+];
+
+async function getWebhookConfig(env: Env, db: any): Promise<WebhookConfig> {
+  try {
+    const row = await db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind('global:webhook').first();
+    if (row?.data) {
+      const parsed = JSON.parse(row.data);
+      return {
+        url: String(parsed.url || env.ROOT_WEBHOOK_URL || env.WEBHOOK_URL || '').trim(),
+        enabled: parsed.enabled !== false,
+        events: Array.isArray(parsed.events) ? parsed.events : DEFAULT_WEBHOOK_EVENTS
+      };
+    }
+  } catch {}
+  const fallbackUrl = String(env.ROOT_WEBHOOK_URL || env.WEBHOOK_URL || '').trim();
+  return {
+    url: fallbackUrl,
+    enabled: Boolean(fallbackUrl),
+    events: DEFAULT_WEBHOOK_EVENTS
+  };
+}
+
+async function dispatchWebhookAlert(env: Env, db: any, leagueId: string, event: any): Promise<boolean> {
+  try {
+    const cfg = await getWebhookConfig(env, db);
+    if (!cfg.enabled || !cfg.url) return false;
+    if (!cfg.events.includes(event.type)) return false;
+
+    const leagueLabel = resolveLeagueDisplayName(leagueId);
+    const feedUrl = `https://exilessf.app/league/${encodeURIComponent(leagueId)}/feed`;
+    const typeLabels: Record<string, string> = {
+      bounty_listed: '💰 NEW BOUNTY',
+      item_fulfilled: '🎁 SQUAD DROP FULFILLED',
+      boss_rota: '🔥 BOSS ROTA OPEN',
+      league_first: '🏆 LEAGUE FIRST CLAIMED',
+      achievement_earned: '🏅 ACHIEVEMENT UNLOCKED',
+      roster_join: '⚔️ NEW EXILE JOINED',
+      character_posted: '⚡ CHARACTER MILESTONE'
+    };
+    const badge = typeLabels[event.type] || '📣 LEAGUE ACTIVITY';
+    const contentLine = `**${badge}** | **@${event.actorHandle}**: ${event.title}${event.detail ? `\n> ${event.detail}` : ''}\n${feedUrl}`;
+
+    const res = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'Exile SSF Bot',
+        content: contentLine,
+        embeds: [
+          {
+            title: `${badge} • ${leagueLabel}`,
+            description: `**@${event.actorHandle}** — ${event.title}${event.detail ? `\n${event.detail}` : ''}`,
+            url: feedUrl,
+            color: event.type === 'bounty_listed' ? 15844367 : event.type === 'item_fulfilled' ? 3066993 : 6513905,
+            timestamp: event.createdAtIso || new Date().toISOString()
+          }
+        ]
+      })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function runScheduledLadderSync(env: Env): Promise<void> {
+  if (!env.EXILE_DB) return;
+  const db = env.EXILE_DB;
+  await ensureD1Schema(db);
+  await seedHonorAndUmbraWitchToD1(db);
+
+  const leagueId = 'poe1-330-umbra';
+  const officialName = resolveOfficialLadderName(leagueId);
+  const ladderUrl = `https://api.pathofexile.com/ladders/${encodeURIComponent(officialName)}?limit=200`;
+
+  try {
+    const res = await fetch(ladderUrl, {
+      headers: {
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'application/json'
+      }
+    });
+    if (!res.ok) return;
+    const payload = (await res.json()) as any;
+    const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+    if (entries.length === 0) return;
+
+    const now = new Date().toISOString();
+    // Refresh 5 min KV cache too
+    if (env.EXILE_KV) {
+      const normalized = entries.map((e: any) => ({
+        rank: Number(e.rank) || 0,
+        characterName: String(e.character?.name || ''),
+        accountName: String(e.account?.name || ''),
+        ascendancy: String(e.character?.class || ''),
+        level: Number(e.character?.level) || 1,
+        experience: Number(e.character?.experience) || 0,
+        dead: Boolean(e.dead),
+        online: Boolean(e.online)
+      }));
+      await env.EXILE_KV.put(
+        `ladder:${leagueId}:${officialName.toLowerCase()}`,
+        JSON.stringify({ status: 'ok', leagueName: officialName, total: entries.length, syncedAtIso: now, entries: normalized }),
+        { expirationTtl: 600 }
+      );
+    }
+
+    const rosterRes = await db.prepare('SELECT id, display_name_lower, data FROM roster WHERE league_id = ?').bind(leagueId).all();
+    const rosterRows = rosterRes.results || [];
+    const batch: any[] = [];
+    const milestoneEvents: any[] = [];
+
+    for (const row of rosterRows) {
+      const member = JSON.parse(row.data);
+      const poeAcc = String(member.poeAccountName || '').trim().toLowerCase();
+      const poeBase = poeAcc.split('#')[0];
+      if (!poeBase) continue;
+
+      const matchedEntries = entries.filter((e: any) => {
+        const acc = String(e.account?.name || '').trim().toLowerCase();
+        return acc === poeAcc || acc.split('#')[0] === poeBase;
+      });
+      if (matchedEntries.length === 0) continue;
+
+      const existingChars: any[] = Array.isArray(member.characters) && member.characters.length > 0
+        ? [...member.characters]
+        : [{
+            id: `char-main-${member.id}`,
+            characterName: member.characterName || member.displayName,
+            ascendancy: member.ascendancy || 'Unassigned',
+            className: member.className || 'Exile',
+            buildName: member.buildName || 'Starter',
+            level: Number(member.level) || 1,
+            isMain: true
+          }];
+
+      let changed = false;
+      for (const e of matchedEntries) {
+        const cName = String(e.character?.name || '').trim();
+        const cLvl = Number(e.character?.level) || 1;
+        const cAsc = String(e.character?.class || '').trim();
+        if (!cName) continue;
+
+        const idx = existingChars.findIndex((c) => String(c.characterName || '').trim().toLowerCase() === cName.toLowerCase());
+        if (idx >= 0) {
+          const prevLvl = Number(existingChars[idx].level) || 1;
+          if (cLvl !== prevLvl || (cAsc && existingChars[idx].ascendancy !== cAsc)) {
+            existingChars[idx] = { ...existingChars[idx], level: cLvl, ascendancy: cAsc || existingChars[idx].ascendancy };
+            changed = true;
+          }
+        } else {
+          existingChars.push({
+            id: `char-ladder-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            characterName: cName,
+            ascendancy: cAsc || 'Exile',
+            className: cAsc || 'Exile',
+            buildName: `${cAsc || 'Exile'} (Ladder Synced)`,
+            level: cLvl,
+            isMain: false
+          });
+          changed = true;
+        }
+
+        // Check Level 90, 95, 100 Milestones (deduplicated by deterministic feed ID)
+        for (const milestone of [90, 95, 100]) {
+          if (cLvl >= milestone) {
+            const evId = `milestone_lvl_${milestone}_${cName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+            const exists = await db.prepare('SELECT id FROM activity_feed WHERE id = ?').bind(evId).first();
+            if (!exists) {
+              const ev = {
+                id: evId,
+                leagueId,
+                type: milestone === 100 ? 'league_first' : 'character_posted',
+                actorHandle: member.displayName,
+                actorCharacter: cName,
+                title: `Reached Level ${milestone} on ${cName} (${cAsc})!`,
+                detail: 'Auto detected by 10 minute Background PoE Ladder Sync',
+                targetTab: 'roster',
+                createdAtIso: now
+              };
+              batch.push(
+                db.prepare('INSERT OR IGNORE INTO activity_feed (id, league_id, data, created_at) VALUES (?, ?, ?, ?)')
+                  .bind(evId, leagueId, JSON.stringify(ev), now)
+              );
+              milestoneEvents.push(ev);
+            }
+          }
+        }
+      }
+
+      if (changed) {
+        const topChar = [...existingChars].sort((a, b) => (Number(b.level) || 0) - (Number(a.level) || 0))[0];
+        const updatedMember = {
+          ...member,
+          level: Math.max(Number(member.level) || 1, Number(topChar?.level) || 1),
+          characters: existingChars
+        };
+        batch.push(
+          db.prepare('INSERT OR REPLACE INTO roster (id, league_id, display_name_lower, data, updated_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(row.id, leagueId, row.display_name_lower, JSON.stringify(updatedMember), now)
+        );
+      }
+    }
+
+    if (batch.length > 0) {
+      await db.batch(batch);
+    }
+    for (const ev of milestoneEvents) {
+      await dispatchWebhookAlert(env, db, leagueId, ev);
+    }
+  } catch {}
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async scheduled(_controller: any, env: Env, ctx: any): Promise<void> {
+    ctx?.waitUntil ? ctx.waitUntil(runScheduledLadderSync(env)) : await runScheduledLadderSync(env);
+  },
+
+  async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -808,6 +1041,54 @@ export default {
           return new Response(JSON.stringify({ status: 'connected', feedback: list.length > 0 ? list : null }), {
             headers: CORS_HEADERS
           });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+
+      // GET /api/admin/webhook
+      if (url.pathname === '/api/admin/webhook' && request.method === 'GET') {
+        try {
+          const cfg = await getWebhookConfig(env, db);
+          return new Response(JSON.stringify({ status: 'ok', config: cfg }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/admin/webhook
+      if (url.pathname === '/api/admin/webhook' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const cfg: WebhookConfig = {
+            url: String(body.url || '').trim(),
+            enabled: body.enabled !== false,
+            events: Array.isArray(body.events) ? body.events : DEFAULT_WEBHOOK_EVENTS
+          };
+          await db
+            .prepare('INSERT OR REPLACE INTO league_meta (league_id, data, updated_at) VALUES (?, ?, ?)')
+            .bind('global:webhook', JSON.stringify(cfg), now)
+            .run();
+          return new Response(JSON.stringify({ success: true, config: cfg }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/admin/test-webhook
+      if (url.pathname === '/api/admin/test-webhook' && request.method === 'POST') {
+        try {
+          const ok = await dispatchWebhookAlert(env, db, leagueId, {
+            id: `test_${Date.now()}`,
+            leagueId,
+            type: 'bounty_listed',
+            actorHandle: 'Leuie',
+            title: 'Root Webhook Push Alerts are LIVE on Exile SSF!',
+            detail: 'Bounties, Squad Drops, Boss Rotas, League Firsts, and Ladder Level 90/95/100 milestones will now push automatically.',
+            createdAtIso: now
+          });
+          return new Response(JSON.stringify({ success: ok }), { status: ok ? 200 : 400, headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
@@ -1369,10 +1650,16 @@ export default {
             return new Response(JSON.stringify({ error: 'Missing feed event payload' }), { status: 400, headers: CORS_HEADERS });
           }
           const createdAt = event.createdAtIso || now;
+          const existingFeedRow = await db.prepare('SELECT id FROM activity_feed WHERE id = ?').bind(String(event.id)).first();
+          const savedEvent = { ...event, createdAtIso: createdAt };
           await db
             .prepare('INSERT OR REPLACE INTO activity_feed (id, league_id, data, created_at) VALUES (?, ?, ?, ?)')
-            .bind(String(event.id), targetLeague, JSON.stringify({ ...event, createdAtIso: createdAt }), createdAt)
+            .bind(String(event.id), targetLeague, JSON.stringify(savedEvent), createdAt)
             .run();
+          if (!existingFeedRow) {
+            const p = dispatchWebhookAlert(env, db, targetLeague, savedEvent);
+            if (ctx?.waitUntil) ctx.waitUntil(p);
+          }
           return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });

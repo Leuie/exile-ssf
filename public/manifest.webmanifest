@@ -1,0 +1,25 @@
+{
+  "name": "Exile SSF: Path of Exile Compendium & GSF Hub",
+  "short_name": "Exile SSF",
+  "description": "Second monitor Path of Exile 1 & 2 Solo Self Found compendium and Group Self Found private league portal.",
+  "start_url": "/league/poe1-330-umbra",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090c11",
+  "theme_color": "#090c11",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

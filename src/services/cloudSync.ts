@@ -579,3 +579,47 @@ export async function saveCloudFeedEvent(
     return false;
   }
 }
+
+export interface WebhookConfigPayload {
+  url: string;
+  enabled: boolean;
+  events: string[];
+}
+
+export async function fetchWebhookConfig(): Promise<WebhookConfigPayload | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/admin/webhook?_t=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store'
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.config || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWebhookConfig(config: WebhookConfigPayload): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/admin/webhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function sendTestWebhookAlert(leagueId: string = 'poe1-330-umbra'): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/admin/test-webhook?league=${encodeURIComponent(leagueId)}`, {
+      method: 'POST'
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

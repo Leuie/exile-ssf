@@ -89,7 +89,8 @@ import {
   fetchCloudProfile,
   saveCloudProfile
 } from '../services/cloudSync';
-import { getLeagueJoinAchievementDef, formatLeagueLabel } from '../utils/achievements';
+import { getLeagueJoinAchievementDef, formatLeagueLabel, HONOR_PER_RECEIPT_CONFIRMED } from '../utils/achievements';
+import { NotificationBell } from './league/widgets/NotificationBell';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 
 interface PrivateLeagueHubViewProps {
@@ -1420,6 +1421,62 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <ShieldCheck className={`w-3.5 h-3.5 ${isCurrentUserAdmin ? 'text-amber-400' : 'text-slate-500'}`} />
               <span>{isCurrentUserAdmin ? 'Admin Mode' : 'Admin'}</span>
             </button>
+
+            {/* Personal Notification Bell (Pending Receipts, Vouches, Replies) */}
+            <NotificationBell
+              userAccount={userAccount}
+              lookingForItems={lookingForItems}
+              stashDrops={stashDrops}
+              activityFeed={activityFeed}
+              vouches={playerVouches}
+              onOpenProfile={onOpenProfile}
+              onNavigateTab={(tab) => handleSelectTab(tab)}
+              onConfirmReceipt={(item) => {
+                if (item.receiptConfirmed) return;
+                const nowIso = new Date().toISOString();
+                const updated: LookingForItem = {
+                  ...item,
+                  receiptConfirmed: true,
+                  receiptConfirmedAtIso: nowIso,
+                  bountyStatus: item.bountyOffer ? 'PAID' : item.bountyStatus,
+                  bountyPaidAtIso: item.bountyOffer ? nowIso : item.bountyPaidAtIso
+                };
+                setLookingForItems((prev) => prev.map((it) => (it.id === item.id ? updated : it)));
+                saveCloudWishlistItem(activeSessionId, updated);
+                fireConfetti();
+                const cleanFinder = (item.fulfilledBy || '').replace(/^@/, '').trim();
+                const requesterTag = item.displayName || item.characterName || 'Squadmate';
+                if (cleanFinder && cleanFinder.toLowerCase() !== 'self found') {
+                  saveCloudAchievementProfile(cleanFinder.toLowerCase(), {
+                    unlockedIds: {},
+                    lifetimeFulfilledCount: 0,
+                    lifetimeBountiesClaimed: 0,
+                    lifetimeBountiesPaid: item.bountyOffer ? 1 : 0,
+                    leaguesParticipated: [activeSessionId],
+                    honorLog: [
+                      {
+                        id: `honor-receipt-${item.id}`,
+                        points: HONOR_PER_RECEIPT_CONFIRMED,
+                        reason: `Delivery Confirmed by @${requesterTag} for "${item.itemName}" (Coop Delivery Bonus)`,
+                        where: `${formatLeagueLabel(activeSessionId)} • Delivery Confirmed`,
+                        timestampIso: nowIso,
+                        kind: 'receipt_confirmed'
+                      }
+                    ]
+                  });
+                  emitFeedEvent({
+                    type: 'item_fulfilled',
+                    actorHandle: requesterTag,
+                    targetHandle: cleanFinder,
+                    title: `Confirmed receipt of "${item.itemName}" from @${cleanFinder}`,
+                    detail: `+${HONOR_PER_RECEIPT_CONFIRMED} Bonus Honor Points awarded to @${cleanFinder}!`,
+                    targetTab: 'looking_for'
+                  });
+                  setCopyNotice(`Confirmed! +${HONOR_PER_RECEIPT_CONFIRMED} Bonus Honor Points awarded to @${cleanFinder}.`);
+                  setTimeout(() => setCopyNotice(null), 3500);
+                }
+              }}
+            />
 
             {/* User Account / Profile action */}
             <button
