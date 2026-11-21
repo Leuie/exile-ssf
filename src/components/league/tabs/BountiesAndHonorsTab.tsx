@@ -23,15 +23,15 @@ import type {
   CommunityGuide,
   UserAccount,
   WishlistItemCategory,
-  AchievementCategory
+  AchievementCategory,
+  PersistentAchievementProfile
 } from '../../../types';
-import { saveCloudWishlistItem } from '../../../services/cloudSync';
+import { saveCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
 import { WISHLIST_CATEGORY_GROUPS } from './WishlistsTab';
 import { getMemberCharacters } from './RosterTab';
 import {
-  evaluateAndPersistAchievements,
-  getPlayerStorageKey,
-  saveAchievementProfile
+  evaluateCloudAchievements,
+  getPlayerCloudKey
 } from '../../../utils/achievements';
 
 export interface BountiesAndHonorsTabProps {
@@ -41,6 +41,8 @@ export interface BountiesAndHonorsTabProps {
   roster: LeagueRosterMember[];
   alumniList: LeagueParticipantAlumnus[];
   guides: CommunityGuide[];
+  cloudAchievements: Record<string, PersistentAchievementProfile>;
+  setCloudAchievements: React.Dispatch<React.SetStateAction<Record<string, PersistentAchievementProfile>>>;
   userAccount?: UserAccount | null;
   isCurrentUserAdmin: boolean;
   triggerCopy: (text: string, label: string) => void;
@@ -66,6 +68,8 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
   roster,
   alumniList,
   guides,
+  cloudAchievements,
+  setCloudAchievements,
   userAccount,
   isCurrentUserAdmin,
   triggerCopy,
@@ -95,37 +99,47 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
     return entry ? getMemberCharacters(entry) : [];
   }, [roster, userAccount]);
 
-  // Evaluate Persistent Achievements
+  // Evaluate Cloud Persisted Achievements (Cloudflare KV)
   const achievementEval = useMemo(
     () =>
-      evaluateAndPersistAchievements({
+      evaluateCloudAchievements({
         activeSessionId,
         userAccount,
+        cloudAchievements,
         lookingForItems,
         roster,
         alumniList,
         guides
       }),
-    [activeSessionId, userAccount, lookingForItems, roster, alumniList, guides]
+    [activeSessionId, userAccount, cloudAchievements, lookingForItems, roster, alumniList, guides]
   );
 
-  const [equippedTitle, setEquippedTitle] = useState<string | undefined>(
-    achievementEval.profile.equippedTitle
-  );
-
+  // Sync newly unlocked honors or updated lifetime counters to Cloudflare KV
   useEffect(() => {
-    setEquippedTitle(achievementEval.profile.equippedTitle);
-  }, [achievementEval.profile.equippedTitle]);
+    if (!achievementEval.hasCloudChanges || !achievementEval.playerKey) return;
+    const key = achievementEval.playerKey;
+    const nextProf = achievementEval.profile;
+    setCloudAchievements((prev) => ({ ...prev, [key]: nextProf }));
+    saveCloudAchievementProfile(key, nextProf);
+  }, [achievementEval.hasCloudChanges, achievementEval.playerKey, achievementEval.profile, setCloudAchievements]);
+
+  const equippedTitle = achievementEval.profile.equippedTitle;
 
   const handleEquipTitle = (title: string) => {
-    const playerKey = getPlayerStorageKey(userAccount);
+    const playerKey = getPlayerCloudKey(userAccount);
+    if (!playerKey) {
+      setCopyNotice('Sign in or link your account to equip a cloud saved Legacy Title.');
+      setTimeout(() => setCopyNotice(null), 2500);
+      return;
+    }
     const nextTitle = equippedTitle === title ? undefined : title;
-    setEquippedTitle(nextTitle);
-    saveAchievementProfile(playerKey, {
+    const updatedProfile: PersistentAchievementProfile = {
       ...achievementEval.profile,
       equippedTitle: nextTitle
-    });
-    setCopyNotice(nextTitle ? `Equipped Legacy Title: ${nextTitle}` : 'Cleared equipped Legacy Title');
+    };
+    setCloudAchievements((prev) => ({ ...prev, [playerKey]: updatedProfile }));
+    saveCloudAchievementProfile(playerKey, updatedProfile);
+    setCopyNotice(nextTitle ? `Equipped Legacy Title: ${nextTitle} (Cloud Synced)` : 'Cleared equipped Legacy Title');
     setTimeout(() => setCopyNotice(null), 2500);
   };
 
@@ -248,9 +262,6 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
 
     const nextList = lookingForItems.map((it) => (it.id === item.id ? updatedItem : it));
     setLookingForItems(nextList);
-    try {
-      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(nextList));
-    } catch {}
     saveCloudWishlistItem(activeSessionId, updatedItem);
     fireConfetti();
     setCopyNotice(`Bounty claimed for ${item.itemName}! Coordinate delivery with @${item.displayName || item.characterName}.`);
@@ -266,9 +277,6 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
 
     const nextList = lookingForItems.map((it) => (it.id === item.id ? updatedItem : it));
     setLookingForItems(nextList);
-    try {
-      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(nextList));
-    } catch {}
     saveCloudWishlistItem(activeSessionId, updatedItem);
     fireConfetti();
     setCopyNotice(`Confirmed receipt and settled ${item.bountyOffer} bounty for @${item.fulfilledBy}!`);
@@ -299,9 +307,6 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
 
     const nextList = [newItem, ...lookingForItems];
     setLookingForItems(nextList);
-    try {
-      localStorage.setItem('poe_clean330_looking_for', JSON.stringify(nextList));
-    } catch {}
     saveCloudWishlistItem(activeSessionId, newItem);
 
     setBountyItemName('');
@@ -878,7 +883,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 <span>Persistent App Achievements (Carries Over Across Seasons)</span>
               </div>
               <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                Honors unlocked in Ravenwatch private leagues persist on your Exile SSF profile across future expansions. Unlock rare and pinnacle titles by fulfilling squad wishes, hunting bounties, and returning for new NOIR seasons.
+                Honors unlocked in Ravenwatch private leagues are saved directly in Cloudflare KV cloud storage across all devices and carry over across every future private league season. Unlock rare and pinnacle titles by fulfilling squad wishes, hunting bounties, and returning for new NOIR seasons.
               </p>
             </div>
 

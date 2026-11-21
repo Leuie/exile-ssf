@@ -2,7 +2,10 @@ import type {
   LookingForItem,
   LeagueRosterMember,
   FoundUniqueVaultItem,
-  CommunityGuide
+  CommunityGuide,
+  PersistentAchievementProfile,
+  LeagueParticipantAlumnus,
+  SiteFeedbackItem
 } from '../types';
 
 export interface CloudLeagueDataResponse {
@@ -11,6 +14,8 @@ export interface CloudLeagueDataResponse {
   roster?: LeagueRosterMember[] | null;
   vault?: FoundUniqueVaultItem[] | null;
   guides?: CommunityGuide[] | null;
+  achievements?: Record<string, PersistentAchievementProfile> | null;
+  alumni?: LeagueParticipantAlumnus[] | null;
   lastSynced?: string;
   message?: string;
 }
@@ -42,7 +47,6 @@ export async function fetchCloudLeagueData(
     const data: CloudLeagueDataResponse = await res.json();
     return data;
   } catch {
-    // Network or server unreachable: return null to let local storage handle seamlessly
     return null;
   }
 }
@@ -105,9 +109,12 @@ export async function deleteCloudRosterMember(
   memberId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/roster/${encodeURIComponent(memberId)}?league=${encodeURIComponent(leagueId)}`, {
-      method: 'DELETE'
-    });
+    const res = await fetch(
+      `${getApiBase()}/api/roster/${encodeURIComponent(memberId)}?league=${encodeURIComponent(leagueId)}`,
+      {
+        method: 'DELETE'
+      }
+    );
     return res.ok;
   } catch {
     return false;
@@ -143,6 +150,77 @@ export async function saveCloudGuide(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ leagueId, guide })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveCloudAchievementProfile(
+  playerKey: string,
+  profile: PersistentAchievementProfile
+): Promise<PersistentAchievementProfile | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/achievements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ playerKey, profile })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.profile || profile;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCloudAlumniList(
+  alumni: LeagueParticipantAlumnus[]
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/alumni`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ alumni })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchCloudFeedback(): Promise<SiteFeedbackItem[] | null> {
+  try {
+    const timestamp = Date.now();
+    const res = await fetch(`${getApiBase()}/api/feedback?_t=${timestamp}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.feedback) ? data.feedback : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCloudFeedbackItem(item: SiteFeedbackItem): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ item })
     });
     return res.ok;
   } catch {

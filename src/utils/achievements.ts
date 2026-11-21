@@ -129,8 +129,6 @@ export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   }
 ];
 
-const STORAGE_KEY = 'exile_ssf_persistent_achievements_v1';
-
 const EMPTY_PROFILE: PersistentAchievementProfile = {
   unlockedIds: {},
   equippedTitle: undefined,
@@ -140,44 +138,13 @@ const EMPTY_PROFILE: PersistentAchievementProfile = {
   leaguesParticipated: []
 };
 
-export function getPlayerStorageKey(userAccount?: UserAccount | null): string {
+export function getPlayerCloudKey(userAccount?: UserAccount | null): string {
   const raw =
     userAccount?.poeAccountName ||
     userAccount?.displayName ||
     userAccount?.characterName ||
-    'guest';
+    '';
   return raw.trim().toLowerCase();
-}
-
-export function loadAchievementProfile(playerKey: string): PersistentAchievementProfile {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...EMPTY_PROFILE, unlockedIds: {}, leaguesParticipated: [] };
-    const store = JSON.parse(raw) as Record<string, PersistentAchievementProfile>;
-    const existing = store[playerKey];
-    if (!existing) return { ...EMPTY_PROFILE, unlockedIds: {}, leaguesParticipated: [] };
-    return {
-      unlockedIds: { ...(existing.unlockedIds || {}) },
-      equippedTitle: existing.equippedTitle,
-      lifetimeFulfilledCount: Number(existing.lifetimeFulfilledCount) || 0,
-      lifetimeBountiesClaimed: Number(existing.lifetimeBountiesClaimed) || 0,
-      lifetimeBountiesPaid: Number(existing.lifetimeBountiesPaid) || 0,
-      leaguesParticipated: Array.isArray(existing.leaguesParticipated) ? [...existing.leaguesParticipated] : []
-    };
-  } catch {
-    return { ...EMPTY_PROFILE, unlockedIds: {}, leaguesParticipated: [] };
-  }
-}
-
-export function saveAchievementProfile(playerKey: string, profile: PersistentAchievementProfile): void {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const store: Record<string, PersistentAchievementProfile> = raw ? JSON.parse(raw) : {};
-    store[playerKey] = profile;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // Ignore storage quota errors cleanly
-  }
 }
 
 export interface EvaluatedAchievement {
@@ -190,26 +157,36 @@ export interface EvaluatedAchievement {
 }
 
 export interface AchievementEvaluationResult {
+  playerKey: string;
   profile: PersistentAchievementProfile;
   achievements: EvaluatedAchievement[];
   totalPoints: number;
   maxPoints: number;
   unlockedCount: number;
-  newlyUnlockedIds: string[];
+  hasCloudChanges: boolean;
   availableTitles: string[];
 }
 
-export function evaluateAndPersistAchievements(params: {
+export function evaluateCloudAchievements(params: {
   activeSessionId: string;
   userAccount?: UserAccount | null;
+  cloudAchievements: Record<string, PersistentAchievementProfile>;
   lookingForItems: LookingForItem[];
   roster: LeagueRosterMember[];
   alumniList: LeagueParticipantAlumnus[];
   guides: CommunityGuide[];
 }): AchievementEvaluationResult {
-  const { activeSessionId, userAccount, lookingForItems, roster, alumniList, guides } = params;
-  const playerKey = getPlayerStorageKey(userAccount);
-  const stored = loadAchievementProfile(playerKey);
+  const { activeSessionId, userAccount, cloudAchievements, lookingForItems, roster, alumniList, guides } = params;
+  const playerKey = getPlayerCloudKey(userAccount);
+  const existingCloud = (playerKey && cloudAchievements[playerKey]) || EMPTY_PROFILE;
+  const stored: PersistentAchievementProfile = {
+    unlockedIds: { ...(existingCloud.unlockedIds || {}) },
+    equippedTitle: existingCloud.equippedTitle,
+    lifetimeFulfilledCount: Number(existingCloud.lifetimeFulfilledCount) || 0,
+    lifetimeBountiesClaimed: Number(existingCloud.lifetimeBountiesClaimed) || 0,
+    lifetimeBountiesPaid: Number(existingCloud.lifetimeBountiesPaid) || 0,
+    leaguesParticipated: Array.isArray(existingCloud.leaguesParticipated) ? [...existingCloud.leaguesParticipated] : []
+  };
 
   const matchIdentity = (val?: string): boolean => {
     if (!val || !userAccount) return false;
@@ -221,7 +198,6 @@ export function evaluateAndPersistAchievements(params: {
     );
   };
 
-  // Current league fulfillment counts by this player (excluding Self Found)
   const sessionFulfilled = lookingForItems.filter(
     (it) =>
       it.status === 'HAVE' &&
@@ -234,7 +210,6 @@ export function evaluateAndPersistAchievements(params: {
     (it) => Boolean(it.bountyOffer && it.bountyOffer.trim())
   ).length;
 
-  // Current league items posted by this player
   const myPostedItems = lookingForItems.filter(
     (it) =>
       matchIdentity(it.displayName) ||
@@ -245,7 +220,6 @@ export function evaluateAndPersistAchievements(params: {
   const myPostedBounties = myPostedItems.filter((it) => Boolean(it.bountyOffer && it.bountyOffer.trim())).length;
   const sessionBountiesPaid = myPostedItems.filter((it) => it.bountyStatus === 'PAID').length;
 
-  // Active roster membership
   const onActiveRoster = roster.some(
     (m) =>
       matchIdentity(m.displayName) ||
@@ -253,7 +227,6 @@ export function evaluateAndPersistAchievements(params: {
       matchIdentity(m.poeAccountName)
   );
 
-  // Historical alumni record
   const alumniRecord = alumniList.find(
     (a) => matchIdentity(a.displayName) || matchIdentity(a.poeAccountName)
   );
@@ -270,10 +243,8 @@ export function evaluateAndPersistAchievements(params: {
     (alumniRecord?.totalLeaguesCount || 0) + (onActiveRoster ? 1 : 0)
   );
 
-  // Guides authored
   const guidesAuthored = guides.filter((g) => matchIdentity(g.authorName)).length;
 
-  // Merge with persistent lifetime counters so progress never regresses across seasons
   const lifetimeFulfilledCount = Math.max(stored.lifetimeFulfilledCount, sessionFulfilled.length);
   const lifetimeBountiesClaimed = Math.max(stored.lifetimeBountiesClaimed, sessionBountiesClaimed);
   const lifetimeBountiesPaid = Math.max(stored.lifetimeBountiesPaid, sessionBountiesPaid);
@@ -294,7 +265,7 @@ export function evaluateAndPersistAchievements(params: {
   };
 
   const nextUnlocked = { ...stored.unlockedIds };
-  const newlyUnlockedIds: string[] = [];
+  let newlyUnlocked = false;
   const nowIso = new Date().toISOString();
 
   const evaluated: EvaluatedAchievement[] = ACHIEVEMENT_CATALOG.map((def) => {
@@ -304,7 +275,7 @@ export function evaluateAndPersistAchievements(params: {
 
     if (unlocked && !previouslyUnlocked) {
       nextUnlocked[def.id] = nowIso;
-      newlyUnlockedIds.push(def.id);
+      newlyUnlocked = true;
     }
 
     const displayCurrent = unlocked ? Math.max(rawCurrent, def.target) : rawCurrent;
@@ -329,16 +300,14 @@ export function evaluateAndPersistAchievements(params: {
     leaguesParticipated: Array.from(leaguesSet)
   };
 
-  // Persist updates if anything changed
-  if (
-    newlyUnlockedIds.length > 0 ||
-    nextProfile.lifetimeFulfilledCount !== stored.lifetimeFulfilledCount ||
-    nextProfile.lifetimeBountiesClaimed !== stored.lifetimeBountiesClaimed ||
-    nextProfile.lifetimeBountiesPaid !== stored.lifetimeBountiesPaid ||
-    nextProfile.leaguesParticipated.length !== stored.leaguesParticipated.length
-  ) {
-    saveAchievementProfile(playerKey, nextProfile);
-  }
+  const hasCloudChanges = Boolean(
+    playerKey &&
+    (newlyUnlocked ||
+      nextProfile.lifetimeFulfilledCount !== stored.lifetimeFulfilledCount ||
+      nextProfile.lifetimeBountiesClaimed !== stored.lifetimeBountiesClaimed ||
+      nextProfile.lifetimeBountiesPaid !== stored.lifetimeBountiesPaid ||
+      nextProfile.leaguesParticipated.length !== stored.leaguesParticipated.length)
+  );
 
   const totalPoints = evaluated.reduce((acc, a) => acc + (a.unlocked ? a.definition.points : 0), 0);
   const maxPoints = ACHIEVEMENT_CATALOG.reduce((acc, d) => acc + d.points, 0);
@@ -348,12 +317,13 @@ export function evaluateAndPersistAchievements(params: {
     .map((a) => a.definition.rewardTitle as string);
 
   return {
+    playerKey,
     profile: nextProfile,
     achievements: evaluated,
     totalPoints,
     maxPoints,
     unlockedCount,
-    newlyUnlockedIds,
+    hasCloudChanges,
     availableTitles
   };
 }

@@ -10,6 +10,7 @@ import {
 import { INITIAL_SITE_FEEDBACK } from '../data/privateLeagueData';
 import type { SiteFeedbackItem, FeedbackCategory, UserAccount } from '../types';
 import { fireConfetti } from '../utils/confetti';
+import { fetchCloudFeedback, saveCloudFeedbackItem } from '../services/cloudSync';
 
 interface FeedbackViewProps {
   userAccount?: UserAccount | null;
@@ -21,21 +22,18 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
   onOpenAuthModal
 }) => {
   void onOpenAuthModal;
-  // Feedback items state synced to localStorage
-  const [feedbackList, setFeedbackList] = useState<SiteFeedbackItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('poe_site_feedback');
-      return saved ? JSON.parse(saved) : INITIAL_SITE_FEEDBACK;
-    } catch {
-      return INITIAL_SITE_FEEDBACK;
-    }
-  });
+  // Feedback items state synced via Cloudflare KV
+  const [feedbackList, setFeedbackList] = useState<SiteFeedbackItem[]>(INITIAL_SITE_FEEDBACK);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('poe_site_feedback', JSON.stringify(feedbackList));
-    } catch {}
-  }, [feedbackList]);
+    let cancelled = false;
+    fetchCloudFeedback().then((items) => {
+      if (!cancelled && items && items.length > 0) {
+        setFeedbackList(items);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -79,22 +77,20 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
 
   const handleUpvote = (id: string) => {
     const isUpvoted = upvotedIds.includes(id);
+    const target = feedbackList.find((item) => item.id === id);
+    if (!target) return;
+    const updatedItem: SiteFeedbackItem = {
+      ...target,
+      upvotes: isUpvoted ? Math.max(0, target.upvotes - 1) : target.upvotes + 1
+    };
     if (!isUpvoted) {
       fireConfetti();
       setUpvotedIds([...upvotedIds, id]);
-      setFeedbackList((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, upvotes: item.upvotes + 1 } : item
-        )
-      );
     } else {
       setUpvotedIds(upvotedIds.filter((itemId) => itemId !== id));
-      setFeedbackList((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, upvotes: Math.max(0, item.upvotes - 1) } : item
-        )
-      );
     }
+    setFeedbackList((prev) => prev.map((item) => (item.id === id ? updatedItem : item)));
+    saveCloudFeedbackItem(updatedItem);
   };
 
   const handleSubmitFeedback = (e: React.FormEvent) => {
@@ -117,6 +113,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
     };
 
     setFeedbackList([newItem, ...feedbackList]);
+    saveCloudFeedbackItem(newItem);
     setUpvotedIds([...upvotedIds, newItem.id]);
     setNewTitle('');
     setNewDesc('');

@@ -46,7 +46,8 @@ import type {
   LookingForItem,
   CommunityGuide,
   UserAccount,
-  PastPrivateLeague
+  PastPrivateLeague,
+  PersistentAchievementProfile
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import { LeagueContentManagerModal, type ManagerSectionType } from './LeagueContentManagerModal';
@@ -63,7 +64,8 @@ import {
   fetchCloudLeagueData,
   saveCloudWishlistItem,
   saveCloudRosterMember,
-  saveCloudGuide
+  saveCloudGuide,
+  saveCloudAlumniList
 } from '../services/cloudSync';
 
 interface PrivateLeagueHubViewProps {
@@ -298,6 +300,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
   // Cloudflare KV Cloud Sync State & Periodic Listener
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'syncing' | 'idle' | 'offline'>('idle');
+  const [cloudAchievements, setCloudAchievements] = useState<Record<string, PersistentAchievementProfile>>({});
 
   useEffect(() => {
     let isCancelled = false;
@@ -318,6 +321,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         }
         if (data.guides && Array.isArray(data.guides) && data.guides.length > 0) {
           setGuides(data.guides);
+        }
+        if (data.achievements && typeof data.achievements === 'object') {
+          setCloudAchievements(data.achievements);
+        }
+        if (data.alumni && Array.isArray(data.alumni) && data.alumni.length > 0) {
+          setAlumniList(data.alumni);
         }
       }
     };
@@ -597,20 +606,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
 
   // Alumni & Veterans State
-  const [alumniList, setAlumniList] = useState<LeagueParticipantAlumnus[]>(() => {
-    try {
-      const saved = localStorage.getItem('poe_noir_alumni');
-      return saved ? JSON.parse(saved) : NOIR_ALUMNI_PARTICIPANTS;
-    } catch {
-      return NOIR_ALUMNI_PARTICIPANTS;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('poe_noir_alumni', JSON.stringify(alumniList));
-    } catch {}
-  }, [alumniList]);
+  const [alumniList, setAlumniList] = useState<LeagueParticipantAlumnus[]>(NOIR_ALUMNI_PARTICIPANTS);
 
   // Alumni Search & Filter State
 
@@ -655,6 +651,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           });
         }
       }
+      saveCloudAlumniList(updatedAlumni);
       return updatedAlumni;
     });
 
@@ -676,20 +673,20 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   };
 
   const handleToggleNudge = (alumnusId: string) => {
-    setAlumniList((prev: LeagueParticipantAlumnus[]) =>
-      prev.map((a: LeagueParticipantAlumnus) => {
-        if (a.id === alumnusId) {
-          const nextVal = !a.nudgedForCurrentLeague;
-          if (nextVal) fireConfetti();
-          return {
-            ...a,
-            nudgedForCurrentLeague: nextVal,
-            nudgedTimestamp: nextVal ? 'Just now' : undefined
-          };
-        }
-        return a;
-      })
-    );
+    const nextAlumni = alumniList.map((a: LeagueParticipantAlumnus) => {
+      if (a.id === alumnusId) {
+        const nextVal = !a.nudgedForCurrentLeague;
+        if (nextVal) fireConfetti();
+        return {
+          ...a,
+          nudgedForCurrentLeague: nextVal,
+          nudgedTimestamp: nextVal ? 'Just now' : undefined
+        };
+      }
+      return a;
+    });
+    setAlumniList(nextAlumni);
+    saveCloudAlumniList(nextAlumni);
   };
 
   // Synchronize userAccount if logged in
@@ -1353,6 +1350,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             roster={roster}
             alumniList={alumniList}
             guides={guides}
+            cloudAchievements={cloudAchievements}
+            setCloudAchievements={setCloudAchievements}
             userAccount={userAccount}
             isCurrentUserAdmin={isCurrentUserAdmin}
             triggerCopy={triggerCopy}

@@ -41,11 +41,13 @@ export default {
       // Fast single round trip endpoint to fetch all league records
       if (url.pathname === '/api/data' && request.method === 'GET') {
         try {
-          const [wishlistRaw, rosterRaw, vaultRaw, guidesRaw] = await Promise.all([
+          const [wishlistRaw, rosterRaw, vaultRaw, guidesRaw, achievementsRaw, alumniRaw] = await Promise.all([
             env.EXILE_KV.get(`league:${leagueId}:wishlist`),
             env.EXILE_KV.get(`league:${leagueId}:roster`),
             env.EXILE_KV.get(`league:${leagueId}:vault`),
-            env.EXILE_KV.get(`league:${leagueId}:guides`)
+            env.EXILE_KV.get(`league:${leagueId}:guides`),
+            env.EXILE_KV.get('global:achievements'),
+            env.EXILE_KV.get('global:alumni')
           ]);
 
           return new Response(
@@ -55,6 +57,8 @@ export default {
               roster: rosterRaw ? JSON.parse(rosterRaw) : null,
               vault: vaultRaw ? JSON.parse(vaultRaw) : null,
               guides: guidesRaw ? JSON.parse(guidesRaw) : null,
+              achievements: achievementsRaw ? JSON.parse(achievementsRaw) : {},
+              alumni: alumniRaw ? JSON.parse(alumniRaw) : null,
               lastSynced: new Date().toISOString()
             }),
             { headers: CORS_HEADERS }
@@ -246,6 +250,136 @@ export default {
             list[existingIdx] = guide;
           } else {
             list.unshift(guide);
+          }
+
+          await env.EXILE_KV.put(key, JSON.stringify(list));
+          return new Response(JSON.stringify({ success: true, count: list.length }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/achievements
+      // Merges player achievement profile into global:achievements in Cloudflare KV
+      if (url.pathname === '/api/achievements' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const playerKey = String(body.playerKey || '').trim().toLowerCase();
+          const incoming = body.profile;
+          if (!playerKey || !incoming) {
+            return new Response(JSON.stringify({ error: 'Missing playerKey or profile payload' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+
+          const key = 'global:achievements';
+          const raw = await env.EXILE_KV.get(key);
+          const store: Record<string, any> = raw ? JSON.parse(raw) : {};
+          const prev = store[playerKey] || {
+            unlockedIds: {},
+            lifetimeFulfilledCount: 0,
+            lifetimeBountiesClaimed: 0,
+            lifetimeBountiesPaid: 0,
+            leaguesParticipated: []
+          };
+
+          const mergedLeagues = Array.from(
+            new Set([
+              ...(Array.isArray(prev.leaguesParticipated) ? prev.leaguesParticipated : []),
+              ...(Array.isArray(incoming.leaguesParticipated) ? incoming.leaguesParticipated : [])
+            ])
+          );
+
+          store[playerKey] = {
+            unlockedIds: { ...(prev.unlockedIds || {}), ...(incoming.unlockedIds || {}) },
+            equippedTitle: incoming.equippedTitle !== undefined ? incoming.equippedTitle : prev.equippedTitle,
+            lifetimeFulfilledCount: Math.max(Number(prev.lifetimeFulfilledCount) || 0, Number(incoming.lifetimeFulfilledCount) || 0),
+            lifetimeBountiesClaimed: Math.max(Number(prev.lifetimeBountiesClaimed) || 0, Number(incoming.lifetimeBountiesClaimed) || 0),
+            lifetimeBountiesPaid: Math.max(Number(prev.lifetimeBountiesPaid) || 0, Number(incoming.lifetimeBountiesPaid) || 0),
+            leaguesParticipated: mergedLeagues
+          };
+
+          await env.EXILE_KV.put(key, JSON.stringify(store));
+          return new Response(JSON.stringify({ success: true, profile: store[playerKey] }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/alumni
+      // Persists global NOIR alumni directory in Cloudflare KV
+      if (url.pathname === '/api/alumni' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          if (!Array.isArray(body.alumni)) {
+            return new Response(JSON.stringify({ error: 'Missing alumni array payload' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+
+          await env.EXILE_KV.put('global:alumni', JSON.stringify(body.alumni));
+          return new Response(JSON.stringify({ success: true, count: body.alumni.length }), {
+            headers: CORS_HEADERS
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // GET /api/feedback
+      if (url.pathname === '/api/feedback' && request.method === 'GET') {
+        try {
+          const raw = await env.EXILE_KV.get('global:feedback');
+          return new Response(
+            JSON.stringify({
+              status: 'connected',
+              feedback: raw ? JSON.parse(raw) : null
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/feedback
+      if (url.pathname === '/api/feedback' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const item = body.item;
+          if (!item || !item.id) {
+            return new Response(JSON.stringify({ error: 'Missing feedback item payload' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+
+          const key = 'global:feedback';
+          const raw = await env.EXILE_KV.get(key);
+          let list: any[] = raw ? JSON.parse(raw) : [];
+          const existingIdx = list.findIndex((f: any) => f.id === item.id);
+          if (existingIdx >= 0) {
+            list[existingIdx] = item;
+          } else {
+            list.unshift(item);
           }
 
           await env.EXILE_KV.put(key, JSON.stringify(list));
