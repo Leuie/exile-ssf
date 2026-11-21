@@ -16,7 +16,6 @@ import {
   MessageSquare,
   History,
   HelpCircle,
-  FolderLock,
   ChevronDown,
   ChevronUp,
   ThumbsUp,
@@ -50,7 +49,6 @@ import {
   ASCENDANCY_CATALOG,
   getInitialLeagueRoster,
   INITIAL_LOOKING_FOR_ITEMS,
-  INITIAL_FOUND_VAULT_ITEMS,
   INITIAL_COMMUNITY_GUIDES,
   SYNDICATE_CHEAT_SHEET,
   HEIST_CHEAT_SHEET,
@@ -65,7 +63,6 @@ import type {
   ActiveLeagueSession,
   LeagueRosterMember,
   LookingForItem,
-  FoundUniqueVaultItem,
   CommunityGuide,
   ItemNeedStatus,
   UserAccount,
@@ -80,7 +77,6 @@ import {
   saveCloudWishlistItem,
   deleteCloudWishlistItem,
   saveCloudRosterMember,
-  saveCloudVaultItem,
   saveCloudGuide
 } from '../services/cloudSync';
 
@@ -217,16 +213,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }
   });
 
-  // Vault Found Items State
-  const [vaultItems, setVaultItems] = useState<FoundUniqueVaultItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('poe_clean330_vault');
-      return saved ? JSON.parse(saved) : INITIAL_FOUND_VAULT_ITEMS;
-    } catch {
-      return INITIAL_FOUND_VAULT_ITEMS;
-    }
-  });
-
   // Community Guides State
   const [guides, setGuides] = useState<CommunityGuide[]>(() => {
     try {
@@ -258,12 +244,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       localStorage.setItem('poe_clean330_looking_for', JSON.stringify(lookingForItems));
     } catch {}
   }, [lookingForItems]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('poe_clean330_vault', JSON.stringify(vaultItems));
-    } catch {}
-  }, [vaultItems]);
 
   useEffect(() => {
     try {
@@ -775,7 +755,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     // 2. Reset active roster to clean host only
     setRoster(getInitialLeagueRoster());
     setLookingForItems([]);
-    setVaultItems([]);
 
     try {
       localStorage.removeItem('poe_clean330_roster');
@@ -1693,57 +1672,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     return map;
   }, [filteredLookingForItems]);
 
-  // Vault State
-  const [showAddVaultModal, setShowAddVaultModal] = useState<boolean>(false);
-  const [vItemName, setVItemName] = useState<string>('');
-  const [vLoc, setVLoc] = useState<'Guild Tab 1 (Uniques)' | 'Guild Tab 2 (Bases & Gems)' | 'Whisper Finder' | 'Admin Hold Tab'>('Guild Tab 1 (Uniques)');
-  const [vSockets, setVSockets] = useState<string>('');
-  const [vNotes, setVNotes] = useState<string>('');
-
-  const handleAddVaultItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vItemName.trim()) return;
-
-    const newItem: FoundUniqueVaultItem = {
-      id: `vault-${Date.now()}`,
-      itemName: vItemName.trim(),
-      category: 'Unique',
-      finderCharacter: userAccount?.characterName || 'Leuie_Umbra',
-      finderDiscord: userAccount?.discordName || '@leuie',
-      location: vLoc,
-      socketsOrRoll: vSockets.trim() || 'Clean / Unidentified',
-      notes: vNotes.trim() || 'Deposited in Guild Stash',
-      status: 'Available',
-      postedAt: 'Just now',
-      poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(vItemName.trim().replace(/ /g, '_'))}`,
-      poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(vItemName.trim())}`
-    };
-
-    setVaultItems([newItem, ...vaultItems]);
-    saveCloudVaultItem(activeSessionId, newItem);
-    setVItemName('');
-    setVSockets('');
-    setVNotes('');
-    setShowAddVaultModal(false);
-    fireConfetti();
-  };
-
-  const handleClaimVaultItem = (itemId: string) => {
-    setVaultItems((prev) =>
-      prev.map((it) => {
-        if (it.id === itemId) {
-          const isClaimed = it.status === 'Claimed / Traded';
-          if (!isClaimed) fireConfetti();
-          return {
-            ...it,
-            status: isClaimed ? 'Available' : 'Claimed / Traded',
-            claimedBy: isClaimed ? undefined : (userAccount?.characterName || 'League Member')
-          };
-        }
-        return it;
-      })
-    );
-  };
 
   // Cheat Sheets Sub tabs
   type CheatSubTab = 'syndicate' | 'heist' | 'delve' | 'incursion' | 'maps';
