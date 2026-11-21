@@ -405,9 +405,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         if (data.roster && Array.isArray(data.roster) && data.roster.length > 0) {
           setRoster(data.roster);
         }
-        if (data.vault && Array.isArray(data.vault)) {
-          setVaultItems(data.vault);
-        }
         if (data.guides && Array.isArray(data.guides) && data.guides.length > 0) {
           setGuides(data.guides);
         }
@@ -415,10 +412,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     };
 
     syncFromCloud();
-    const timer = setInterval(syncFromCloud, 20000);
+    const timer = setInterval(syncFromCloud, 8000);
+
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncFromCloud();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
     return () => {
       isCancelled = true;
       clearInterval(timer);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
     };
   }, [activeSessionId]);
 

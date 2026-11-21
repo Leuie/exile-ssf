@@ -25,10 +25,13 @@ export async function fetchCloudLeagueData(
   leagueId: string = 'poe1-330-umbra'
 ): Promise<CloudLeagueDataResponse | null> {
   try {
-    const res = await fetch(`${getApiBase()}/api/data?league=${encodeURIComponent(leagueId)}`, {
+    const timestamp = Date.now();
+    const res = await fetch(`${getApiBase()}/api/data?league=${encodeURIComponent(leagueId)}&_t=${timestamp}`, {
       method: 'GET',
+      cache: 'no-store',
       headers: {
-        Accept: 'application/json'
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache'
       }
     });
 
