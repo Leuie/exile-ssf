@@ -1,0 +1,714 @@
+import React, { useState, useEffect } from 'react';
+import {
+  ArrowLeft,
+  Award,
+  Coins,
+  Copy,
+  Edit3,
+  ExternalLink,
+  Globe,
+  MessageSquare,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Swords,
+  Trophy,
+  Users,
+  X
+} from 'lucide-react';
+import type { ExileProfile, UserAccount } from '../types';
+import {
+  fetchCloudProfile,
+  saveCloudProfile,
+  type CloudExileProfileResponse
+} from '../services/cloudSync';
+import { getMemberCharacters } from './league/tabs/RosterTab';
+import { ACHIEVEMENT_CATALOG } from '../utils/achievements';
+import { fireConfetti } from '../utils/confetti';
+
+export interface ExileProfilePageProps {
+  handle: string;
+  userAccount?: UserAccount | null;
+  onBack: () => void;
+  onNavigateLeague?: (leagueId: string, subTab?: string) => void;
+}
+
+export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
+  handle,
+  userAccount,
+  onBack,
+  onNavigateLeague
+}) => {
+  const [data, setData] = useState<CloudExileProfileResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [avatarError, setAvatarError] = useState<boolean>(false);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
+
+  // Inline Profile Editor State
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string>('');
+  const [editBio, setEditBio] = useState<string>('');
+  const [editTimezone, setEditTimezone] = useState<string>('');
+  const [editPoeAccount, setEditPoeAccount] = useState<string>('');
+  const [editPoeUrl, setEditPoeUrl] = useState<string>('');
+  const [editDiscord, setEditDiscord] = useState<string>('');
+  const [editTwitch, setEditTwitch] = useState<string>('');
+  const [editFavClass, setEditFavClass] = useState<string>('');
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const cleanHandle = handle.trim().replace(/^@/, '');
+
+  useEffect(() => {
+    document.title = `@${cleanHandle} | Exile Profile | Exile SSF`;
+    let cancelled = false;
+    setLoading(true);
+    setAvatarError(false);
+
+    fetchCloudProfile(cleanHandle).then((res) => {
+      if (!cancelled) {
+        setData(res);
+        if (res?.profile) {
+          setEditAvatarUrl(res.profile.avatarUrl || '');
+          setEditBio(res.profile.bio || '');
+          setEditTimezone(res.profile.timezone || '');
+          setEditPoeAccount(res.profile.poeAccountName || '');
+          setEditPoeUrl(res.profile.poeProfileUrl || '');
+          setEditDiscord(res.profile.discordHandle || '');
+          setEditTwitch(res.profile.twitchUrl || '');
+          setEditFavClass(res.profile.favoriteClass || '');
+        }
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cleanHandle]);
+
+  const triggerCopy = (text: string, label: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopyNotice(`Copied ${label} to clipboard!`);
+    setTimeout(() => setCopyNotice(null), 2500);
+  };
+
+  const canEdit = Boolean(
+    userAccount &&
+      (userAccount.isAdmin ||
+        userAccount.displayName.toLowerCase() === 'leuie' ||
+        userAccount.displayName.toLowerCase() === cleanHandle.toLowerCase() ||
+        (data?.profile?.handle &&
+          userAccount.displayName.toLowerCase() === data.profile.handle.toLowerCase()))
+  );
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!data?.profile) return;
+    setSaving(true);
+
+    const updated: ExileProfile = {
+      ...data.profile,
+      avatarUrl: editAvatarUrl.trim() || undefined,
+      bio: editBio.trim() || undefined,
+      timezone: editTimezone.trim() || undefined,
+      poeAccountName: editPoeAccount.trim() || undefined,
+      poeProfileUrl:
+        editPoeUrl.trim() ||
+        (editPoeAccount.trim()
+          ? `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(editPoeAccount.trim().split('#')[0])}`
+          : undefined),
+      discordHandle: editDiscord.trim() || undefined,
+      twitchUrl: editTwitch.trim() || undefined,
+      favoriteClass: editFavClass.trim() || undefined
+    };
+
+    const ok = await saveCloudProfile(updated);
+    setSaving(false);
+    if (ok) {
+      setData({ ...data, profile: updated });
+      setAvatarError(false);
+      setIsEditing(false);
+      fireConfetti();
+      setCopyNotice('Exile profile saved to Cloudflare D1!');
+      setTimeout(() => setCopyNotice(null), 3000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center text-xs font-mono text-slate-400">
+        Loading Exile Profile for @{cleanHandle}...
+      </div>
+    );
+  }
+
+  const profile: ExileProfile = data?.profile || {
+    handle: cleanHandle,
+    uid: 'EXILE-NEW'
+  };
+
+  const rosterEntries = data?.rosterEntries || [];
+  const allCharacters = rosterEntries.flatMap((entry) =>
+    getMemberCharacters(entry.member).map((ch) => ({
+      ...ch,
+      leagueId: entry.leagueId
+    }))
+  );
+
+  const openWishes = (data?.wishes || []).filter((w) => w.status !== 'HAVE');
+  const openBounties = openWishes.filter((w) => w.bountyOffer && w.bountyOffer.trim());
+  const fulfilledByMe = data?.fulfilledByMe || [];
+  const services = data?.services || [];
+  const vouches = data?.vouches || [];
+  const achProfile = data?.achievementProfile;
+  const unlockedIds = achProfile?.unlockedIds || {};
+  const unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a) => Boolean(unlockedIds[a.id]));
+  const totalHonorPoints = unlockedAchievements.reduce((sum, a) => sum + a.points, 0);
+
+  const primaryIgn = allCharacters[0]?.characterName || profile.handle;
+  const profileShareUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/exile/${encodeURIComponent(profile.handle.toLowerCase())}`
+      : `https://exilessf.app/exile/${encodeURIComponent(profile.handle.toLowerCase())}`;
+
+  const tierStyles: Record<string, string> = {
+    Common: 'bg-slate-800 text-slate-300 border-slate-700',
+    Rare: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+    Unique: 'bg-orange-500/15 text-orange-300 border-orange-500/40',
+    Pinnacle: 'bg-purple-500/15 text-purple-300 border-purple-500/40'
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-5 pb-10">
+      {/* Toast Notice */}
+      {copyNotice && (
+        <div className="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-2xl border border-emerald-400">
+          {copyNotice}
+        </div>
+      )}
+
+      {/* Top Return Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to League Hub</span>
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => triggerCopy(profileShareUrl, 'Exile Profile Link')}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-indigo-300 flex items-center gap-1.5 cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Share Profile Link</span>
+          </button>
+
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsEditing((v) => !v)}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>{isEditing ? 'Close Editor' : 'Edit Profile'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Hero Profile Banner */}
+      <div className="p-5 sm:p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-indigo-950/30 to-slate-900 shadow-xl space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-start sm:items-center gap-4">
+            {/* Avatar Frame (Linked External Image or Monogram Fallback) */}
+            <div className="w-20 h-20 rounded-2xl border-2 border-indigo-500/50 bg-slate-950 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-lg">
+              {profile.avatarUrl && !avatarError ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={`@${profile.handle} avatar`}
+                  onError={() => setAvatarError(true)}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-2xl font-orbitron font-bold text-indigo-300 uppercase">
+                  {profile.handle.slice(0, 2)}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-white">@{profile.handle}</h1>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  {profile.uid}
+                </span>
+                {achProfile?.equippedTitle && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold">
+                    ★ {achProfile.equippedTitle}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                {profile.bio || 'Path of Exile Solo Self Found and Group Self Found exile.'}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono">
+                {profile.poeAccountName && (
+                  <span className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-300">
+                    PoE: {profile.poeAccountName}
+                  </span>
+                )}
+                {profile.favoriteClass && (
+                  <span className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-amber-300">
+                    Main Class: {profile.favoriteClass}
+                  </span>
+                )}
+                {profile.timezone && (
+                  <span className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
+                    Timezone: {profile.timezone}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Direct Contact & Official Profile Links */}
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+            {profile.poeProfileUrl && (
+              <a
+                href={profile.poeProfileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Official PoE Profile</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => triggerCopy(`@${primaryIgn} `, 'In Game Whisper')}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Whisper</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => triggerCopy(`@${profile.rootHandle || profile.handle}`, 'Root Tag')}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Root Tag</span>
+            </button>
+            {profile.twitchUrl && (
+              <a
+                href={profile.twitchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-mono flex items-center gap-1.5"
+              >
+                <span>Stream</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Reputation & Stats Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80">
+          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="text-[10px] font-mono uppercase text-amber-400">Verified Vouches</div>
+            <div className="text-lg font-bold text-white mt-0.5">★ {vouches.length}</div>
+            <div className="text-[10px] text-slate-400">Community trust score</div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="text-[10px] font-mono uppercase text-emerald-400">Wishes Fulfilled</div>
+            <div className="text-lg font-bold text-white mt-0.5">
+              {Math.max(fulfilledByMe.length, achProfile?.lifetimeFulfilledCount || 0)}
+            </div>
+            <div className="text-[10px] text-slate-400">Squad drops provided</div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="text-[10px] font-mono uppercase text-indigo-400">Characters Tracked</div>
+            <div className="text-lg font-bold text-white mt-0.5">{allCharacters.length}</div>
+            <div className="text-[10px] text-slate-400">
+              {data?.alumniRecord ? `${data.alumniRecord.totalLeaguesCount} past seasons` : 'Active roster slot'}
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="text-[10px] font-mono uppercase text-purple-400">Honor Score</div>
+            <div className="text-lg font-bold text-white mt-0.5">{totalHonorPoints} pts</div>
+            <div className="text-[10px] text-slate-400">
+              {unlockedAchievements.length} / {ACHIEVEMENT_CATALOG.length} Achievements
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Inline Profile Editor (Owner or Admin) */}
+      {isEditing && canEdit && (
+        <form
+          onSubmit={handleSaveProfile}
+          className="p-5 rounded-2xl border border-indigo-500/40 bg-slate-900/95 space-y-4 shadow-xl"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+              Customize Your Exile Profile (Saved to Cloudflare D1)
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                Linked Avatar Image URL (Imgur, Discord, GitHub, etc.)
+              </label>
+              <input
+                type="url"
+                value={editAvatarUrl}
+                onChange={(e) => setEditAvatarUrl(e.target.value)}
+                placeholder="https://i.imgur.com/your-avatar.png"
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                Official PoE Account Tag
+              </label>
+              <input
+                type="text"
+                value={editPoeAccount}
+                onChange={(e) => setEditPoeAccount(e.target.value)}
+                placeholder="e.g. Leuie#0001"
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                Official PathOfExile.com Profile URL
+              </label>
+              <input
+                type="url"
+                value={editPoeUrl}
+                onChange={(e) => setEditPoeUrl(e.target.value)}
+                placeholder="https://www.pathofexile.com/account/view-profile/..."
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                Favorite Class / Ascendancy
+              </label>
+              <input
+                type="text"
+                value={editFavClass}
+                onChange={(e) => setEditFavClass(e.target.value)}
+                placeholder="e.g. Slayer, Hierophant, Trickster"
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">Timezone / Play Hours</label>
+              <input
+                type="text"
+                value={editTimezone}
+                onChange={(e) => setEditTimezone(e.target.value)}
+                placeholder="e.g. CST Evenings & Weekends"
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                Twitch / YouTube Link (Optional)
+              </label>
+              <input
+                type="url"
+                value={editTwitch}
+                onChange={(e) => setEditTwitch(e.target.value)}
+                placeholder="https://twitch.tv/..."
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="text-xs">
+            <label className="text-[11px] font-mono text-slate-300 block mb-1">Bio / Farming Focus</label>
+            <input
+              type="text"
+              value={editBio}
+              onChange={(e) => setEditBio(e.target.value)}
+              placeholder="e.g. Boss killer & Betrayal crafter happy to help squadmates with Voidstones."
+              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{saving ? 'Saving...' : 'Save Profile'}</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Main 2 Column Hub Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Panel 1: Character Roster */}
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+              <Users className="w-4 h-4" />
+              <span>Character Roster ({allCharacters.length})</span>
+            </div>
+            {onNavigateLeague && (
+              <button
+                type="button"
+                onClick={() => onNavigateLeague('poe1-330-umbra', 'roster')}
+                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+              >
+                Open League Roster →
+              </button>
+            )}
+          </div>
+
+          {allCharacters.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 italic">
+              No active league characters registered yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {allCharacters.map((ch) => (
+                <div
+                  key={`${ch.leagueId}-${ch.id}`}
+                  className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-white">
+                      <span>{ch.characterName}</span>
+                      {ch.isMain && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                          MAIN
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      {ch.ascendancy} • Lvl {ch.level} • {ch.buildName}
+                    </div>
+                  </div>
+                  {ch.pobUrl && (
+                    <a
+                      href={ch.pobUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono text-[10px] flex items-center gap-1"
+                    >
+                      <span>PoB</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Panel 2: Open Wishlists & Active Bounties */}
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+              <Sparkles className="w-4 h-4" />
+              <span>
+                Open Wishlists ({openWishes.length}) {openBounties.length > 0 ? `• ${openBounties.length} Bounties` : ''}
+              </span>
+            </div>
+            {onNavigateLeague && (
+              <button
+                type="button"
+                onClick={() => onNavigateLeague('poe1-330-umbra', 'wishlists')}
+                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+              >
+                Open Wishlists →
+              </button>
+            )}
+          </div>
+
+          {openWishes.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 italic">
+              No open wishlist items currently requested.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {openWishes.map((item) => (
+                <div
+                  key={item.id}
+                  className={`p-3 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+                    item.bountyOffer
+                      ? 'border-amber-500/40 bg-amber-950/15'
+                      : 'border-slate-800 bg-slate-950/60'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold text-white truncate">{item.itemName}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                        {item.category}
+                      </span>
+                      {item.bountyOffer && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                          <Coins className="w-2.5 h-2.5" />
+                          <span>{item.bountyOffer}</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                      For: {item.characterName} {item.notes ? `• ${item.notes}` : ''}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      triggerCopy(
+                        `@${item.characterName} Hey! I found ${item.itemName} from your Exile SSF wishlist!`,
+                        'Drop Whisper'
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] cursor-pointer flex-shrink-0"
+                  >
+                    Whisper
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Panel 3: Boss Carries, Services & Verified Vouches */}
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-emerald-300">
+              <Swords className="w-4 h-4" />
+              <span>Services & Verified Vouches ({vouches.length})</span>
+            </div>
+            {onNavigateLeague && (
+              <button
+                type="button"
+                onClick={() => onNavigateLeague('poe1-330-umbra', 'bounties')}
+                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+              >
+                Open Bounties →
+              </button>
+            )}
+          </div>
+
+          {services.length > 0 && (
+            <div className="space-y-2">
+              {services.map((svc) => (
+                <div key={svc.id} className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-950/15 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">{svc.title}</span>
+                    <span className="text-[10px] font-mono text-emerald-300">{svc.fee}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">{svc.serviceType}{svc.atlasFocus ? ` • ${svc.atlasFocus}` : ''}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {vouches.length === 0 ? (
+            <div className="p-4 text-center text-xs text-slate-500 italic">
+              No verified vouches recorded yet.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {vouches.map((v) => (
+                <div key={v.id} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                      <Star className="w-3 h-3" />
+                      <span>{v.category}</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      {new Date(v.createdAtIso).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="text-slate-200">"{v.comment}"</div>
+                  <div className="text-[10px] font-mono text-slate-500">
+                    Vouched by @{v.voucherDisplayName} ({v.itemOrServiceName})
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Panel 4: Achievements Showcase */}
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-purple-300">
+              <Trophy className="w-4 h-4" />
+              <span>Achievements ({unlockedAchievements.length} / {ACHIEVEMENT_CATALOG.length})</span>
+            </div>
+            <span className="text-[11px] font-mono text-amber-300 font-bold">{totalHonorPoints} Honor Pts</span>
+          </div>
+
+          {unlockedAchievements.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 italic">
+              Achievements unlocked in Exile SSF private leagues will appear here and persist across future expansions.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {unlockedAchievements.map((ach) => (
+                <div
+                  key={ach.id}
+                  className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/15 space-y-1 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-bold text-white flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{ach.title}</span>
+                    </span>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase font-bold ${tierStyles[ach.tier]}`}>
+                      {ach.tier}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 leading-snug">{ach.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

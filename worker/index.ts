@@ -37,6 +37,7 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_services_league ON services(league_id)`,
     `CREATE TABLE IF NOT EXISTS vouches (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, provider_key TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_vouches_league ON vouches(league_id)`,
+    `CREATE TABLE IF NOT EXISTS profiles (handle_lower TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -220,49 +221,58 @@ function resolvePageMeta(url: URL): PageMeta {
 
     if (subTab === 'wishlists' || subTab === 'wishlist' || subTab === 'needs' || subTab === 'looking_for' || subTab === 'looking-for') {
       return {
-        title: `Wishlists & Drop Matcher | ${leagueName} | Exile SSF`,
+        title: `Wishlists | ${leagueName} | Exile SSF`,
         description: `Track wanted uniques, gems, boss fragments, and crafting bases across ${leagueName}. Filter by character for farming sessions and match drops in one click.`
       };
     }
     if (subTab === 'bounties' || subTab === 'bounty' || subTab === 'honors' || subTab === 'achievements' || subTab === 'rewards') {
       return {
-        title: `Bounties, Carries & Honors | ${leagueName} | Exile SSF`,
+        title: `Bounties | ${leagueName} | Exile SSF`,
         description: `Post incentivized finder bounties, browse squad boss carries and vouches, track Fulfillment Heroes, and unlock achievements that carry over across future seasons.`
       };
     }
     if (subTab === 'roster' || subTab === 'roster-directory' || subTab === 'directory') {
       return {
-        title: `Roster Directory | ${leagueName} | Exile SSF`,
+        title: `Roster | ${leagueName} | Exile SSF`,
         description: `View active private league account slots, multi character builds, ascendancies, live ladder levels, and direct contact handles for every exile in ${leagueName}.`
       };
     }
     if (subTab === 'guides' || subTab === 'build-guides' || subTab === 'buildguides') {
       return {
-        title: `Community Build Guides | ${leagueName} | Exile SSF`,
+        title: `Builds | ${leagueName} | Exile SSF`,
         description: `Explore curated SSF league starter and endgame build guides with PoB links, class filters, and one click import of required uniques to your wishlist.`
       };
     }
     if (subTab === 'cheatsheets' || subTab === 'cheat-sheets' || subTab === 'mechanics') {
       return {
-        title: `Mechanic Cheat Sheets (3.30.0d) | ${leagueName} | Exile SSF`,
+        title: `Cheat Sheets | ${leagueName} | Exile SSF`,
         description: `Quick reference tables for 3.30.0d Threads of Creation thresholds, Betrayal Syndicate rewards, Heist Rogues, Delve Fossils, Incursion rooms, and Atlas Maps.`
       };
     }
     if (subTab === 'bench' || subTab === 'bench-stash-guide' || subTab === 'new_player' || subTab === 'stash') {
       return {
-        title: `Bench Unlocks & Stash Tab Guide | ${leagueName} | Exile SSF`,
+        title: `Crafting Bench | ${leagueName} | Exile SSF`,
         description: `Essential crafting bench recipe unlock locations and prioritized stash tab buyer tiers for Solo Self Found and Group Self Found progression.`
       };
     }
     if (subTab === 'alumni' || subTab === 'alumni-directory') {
       return {
-        title: `Alumni Directory | ${leagueName} | Exile SSF`,
+        title: `Alumni | ${leagueName} | Exile SSF`,
         description: `Historical directory of over 100 past private league participants across 5 seasons with preferred contact tags and squad outreach tools.`
       };
     }
     return {
       title: `Command Center | ${leagueName} | Exile SSF`,
       description: `League headquarters for ${leagueName} with live crowdfunding status, countdown timers, 4 step onboarding, community links, archives, and F.A.Q.`
+    };
+  }
+
+  if (path.startsWith('/exile/') || path.startsWith('/player/')) {
+    const rawHandle = decodeURIComponent(path.replace(/^\/(exile|player)\//, '').split('/')[0] || 'Exile');
+    const cleanHandle = rawHandle.replace(/^@/, '');
+    return {
+      title: `@${cleanHandle} | Exile Profile | Exile SSF`,
+      description: `View @${cleanHandle}'s character roster, open wishlists and bounties, boss carry services, verified vouches, and achievements on Exile SSF.`
     };
   }
 
@@ -787,6 +797,142 @@ export default {
             status: 200,
             headers: CORS_HEADERS
           });
+        }
+      }
+
+      // GET /api/profile/:handle (Aggregated Exile Hub from D1 in 1 round trip)
+      if (url.pathname.startsWith('/api/profile/') && request.method === 'GET') {
+        try {
+          const handleRaw = decodeURIComponent(url.pathname.replace('/api/profile/', '').trim()).replace(/^@/, '');
+          const handleLower = handleRaw.toLowerCase();
+          if (!handleLower) {
+            return new Response(JSON.stringify({ error: 'Missing profile handle' }), { status: 400, headers: CORS_HEADERS });
+          }
+
+          const [profRow, rosterRes, wishRes, svcRes, vouchRes, achRes, alumniRes] = await Promise.all([
+            db.prepare('SELECT data FROM profiles WHERE handle_lower = ?').bind(handleLower).first(),
+            db.prepare('SELECT league_id, data FROM roster WHERE display_name_lower = ?').bind(handleLower).all(),
+            db.prepare('SELECT league_id, data FROM wishlists ORDER BY updated_at DESC').all(),
+            db.prepare('SELECT league_id, data FROM services WHERE provider_key = ? ORDER BY updated_at DESC').bind(handleLower).all(),
+            db.prepare('SELECT league_id, data FROM vouches WHERE provider_key = ? ORDER BY created_at DESC').bind(handleLower).all(),
+            db.prepare('SELECT player_key, data FROM achievements').all(),
+            db.prepare('SELECT data FROM alumni').all()
+          ]);
+
+          const customProfile = profRow?.data ? JSON.parse(profRow.data) : null;
+          const rosterEntries = (rosterRes.results || []).map((r: any) => ({
+            leagueId: r.league_id,
+            member: JSON.parse(r.data)
+          }));
+
+          const primaryMember = rosterEntries[0]?.member || null;
+          const poeAccountLower = (customProfile?.poeAccountName || primaryMember?.poeAccountName || '').toLowerCase();
+          const charNamesLower = new Set<string>();
+          for (const entry of rosterEntries) {
+            if (entry.member.characterName) charNamesLower.add(entry.member.characterName.toLowerCase());
+            if (Array.isArray(entry.member.characters)) {
+              for (const ch of entry.member.characters) {
+                if (ch.characterName) charNamesLower.add(ch.characterName.toLowerCase());
+              }
+            }
+          }
+
+          const allWishes = (wishRes.results || []).map((r: any) => JSON.parse(r.data));
+          const myWishes = allWishes.filter((it: any) => {
+            const disp = (it.displayName || '').toLowerCase();
+            const ch = (it.characterName || '').toLowerCase();
+            const acc = (it.poeAccountName || '').toLowerCase();
+            return disp === handleLower || charNamesLower.has(ch) || (poeAccountLower && acc === poeAccountLower);
+          });
+
+          const fulfilledByMe = allWishes.filter((it: any) => {
+            const fb = (it.fulfilledBy || '').toLowerCase();
+            const fba = (it.fulfilledByAccount || '').toLowerCase();
+            return it.status === 'HAVE' && (fb === handleLower || charNamesLower.has(fb) || (poeAccountLower && fba === poeAccountLower));
+          });
+
+          const services = (svcRes.results || []).map((r: any) => JSON.parse(r.data));
+          const vouches = (vouchRes.results || []).map((r: any) => JSON.parse(r.data));
+
+          // Match achievement profile by handle or poeAccountName
+          let achievementProfile = null;
+          for (const row of achRes.results || []) {
+            const pk = String(row.player_key || '').toLowerCase();
+            if (pk === handleLower || (poeAccountLower && pk === poeAccountLower) || charNamesLower.has(pk)) {
+              achievementProfile = JSON.parse(row.data);
+              break;
+            }
+          }
+
+          const alumniMatches = (alumniRes.results || [])
+            .map((r: any) => JSON.parse(r.data))
+            .filter(
+              (a: any) =>
+                (a.displayName || '').toLowerCase() === handleLower ||
+                (poeAccountLower && (a.poeAccountName || '').toLowerCase() === poeAccountLower)
+            );
+
+          // Deterministic unique Exile UID
+          let hash = 0;
+          for (let i = 0; i < handleLower.length; i++) {
+            hash = ((hash << 5) - hash + handleLower.charCodeAt(i)) | 0;
+          }
+          const uid = `EXILE-${Math.abs(hash).toString(36).toUpperCase().slice(0, 6).padStart(4, '0')}`;
+
+          const profile = {
+            handle: customProfile?.handle || primaryMember?.displayName || handleRaw,
+            uid: customProfile?.uid || uid,
+            avatarUrl: customProfile?.avatarUrl || '',
+            bio: customProfile?.bio || primaryMember?.notes || '',
+            timezone: customProfile?.timezone || '',
+            poeAccountName: customProfile?.poeAccountName || primaryMember?.poeAccountName || alumniMatches[0]?.poeAccountName || '',
+            poeProfileUrl:
+              customProfile?.poeProfileUrl ||
+              primaryMember?.poeProfileUrl ||
+              (primaryMember?.poeAccountName
+                ? `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(primaryMember.poeAccountName.split('#')[0])}`
+                : ''),
+            rootHandle: customProfile?.rootHandle || primaryMember?.displayName || handleRaw,
+            discordHandle: customProfile?.discordHandle || primaryMember?.discordName || alumniMatches[0]?.discordName || '',
+            twitchUrl: customProfile?.twitchUrl || '',
+            favoriteClass: customProfile?.favoriteClass || primaryMember?.ascendancy || ''
+          };
+
+          return new Response(
+            JSON.stringify({
+              status: 'ok',
+              profile,
+              rosterEntries,
+              wishes: myWishes,
+              fulfilledByMe,
+              services,
+              vouches,
+              achievementProfile,
+              alumniRecord: alumniMatches[0] || null
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/profile
+      if (url.pathname === '/api/profile' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const profile = body.profile;
+          if (!profile || !profile.handle) {
+            return new Response(JSON.stringify({ error: 'Missing profile payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          const handleLower = String(profile.handle).trim().replace(/^@/, '').toLowerCase();
+          await db
+            .prepare('INSERT OR REPLACE INTO profiles (handle_lower, data, updated_at) VALUES (?, ?, ?)')
+            .bind(handleLower, JSON.stringify({ ...profile, updatedAtIso: now }), now)
+            .run();
+          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 

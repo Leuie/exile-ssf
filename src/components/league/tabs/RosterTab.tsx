@@ -54,6 +54,7 @@ export interface RosterTabProps {
   handleOpenInviteModal: () => void;
   handleOpenJoinModal: () => void;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 export const RosterTab: React.FC<RosterTabProps> = ({
@@ -70,7 +71,8 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   fireConfetti,
   handleOpenInviteModal,
   handleOpenJoinModal,
-  onUpdateUserAccount
+  onUpdateUserAccount,
+  onOpenProfile
 }) => {
   const [rosterSearch, setRosterSearch] = useState<string>('');
   const [rosterAscendancyFilter, setRosterAscendancyFilter] = useState<string>('All');
@@ -715,8 +717,20 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                 <h2 id={playerProfileTitleId} className="text-base font-bold text-white mt-0.5">
                   @{selectedPlayerModal.displayName}
                 </h2>
-                <div className="text-xs text-slate-400 font-mono">
-                  Account: {selectedPlayerModal.poeAccountName} • IGN: {selectedPlayerModal.characterName}
+                <div className="text-xs text-slate-400 font-mono flex flex-wrap items-center gap-2">
+                  <span>Account: {selectedPlayerModal.poeAccountName} • IGN: {selectedPlayerModal.characterName}</span>
+                  {onOpenProfile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playerProfileDialogRef.current?.close();
+                        onOpenProfile(selectedPlayerModal.displayName);
+                      }}
+                      className="px-2 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      Open Full Exile Page →
+                    </button>
+                  )}
                 </div>
               </div>
 

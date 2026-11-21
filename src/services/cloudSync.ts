@@ -10,7 +10,8 @@ import type {
   PastPrivateLeague,
   SquadServiceListing,
   PlayerVouch,
-  OfficialLadderEntry
+  OfficialLadderEntry,
+  ExileProfile
 } from '../types';
 
 export interface CloudLeagueMeta {
@@ -389,5 +390,46 @@ export async function fetchOfficialPoeLadder(
     return await res.json();
   } catch {
     return null;
+  }
+}
+
+export interface CloudExileProfileResponse {
+  status: 'ok' | 'error';
+  profile: ExileProfile;
+  rosterEntries: { leagueId: string; member: LeagueRosterMember }[];
+  wishes: LookingForItem[];
+  fulfilledByMe: LookingForItem[];
+  services: SquadServiceListing[];
+  vouches: PlayerVouch[];
+  achievementProfile: PersistentAchievementProfile | null;
+  alumniRecord: LeagueParticipantAlumnus | null;
+}
+
+export async function fetchCloudProfile(handle: string): Promise<CloudExileProfileResponse | null> {
+  try {
+    const clean = handle.trim().replace(/^@/, '');
+    if (!clean) return null;
+    const res = await fetch(`${getApiBase()}/api/profile/${encodeURIComponent(clean)}?_t=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCloudProfile(profile: ExileProfile): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile })
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

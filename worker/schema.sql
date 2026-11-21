@@ -86,3 +86,9 @@ CREATE TABLE IF NOT EXISTS migrations (
   key TEXT PRIMARY KEY,
   migrated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS profiles (
+  handle_lower TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

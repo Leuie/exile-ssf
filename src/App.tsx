@@ -26,6 +26,7 @@ const RegisterPage = lazy(() => import('./components/RegisterPage').then((m) => 
 const AdminPortalPage = lazy(() => import('./components/AdminPortalPage').then((m) => ({ default: m.AdminPortalPage })));
 const PrivateLeaguesDirectoryView = lazy(() => import('./components/PrivateLeaguesDirectoryView').then((m) => ({ default: m.PrivateLeaguesDirectoryView })));
 const FullGuideReaderView = lazy(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
+const ExileProfilePage = lazy(() => import('./components/ExileProfilePage').then((m) => ({ default: m.ExileProfilePage })));
 
 const PageLoader = (
   <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-slate-400">
@@ -110,6 +111,10 @@ export const App: React.FC = () => {
       }
     } catch {}
 
+    if (path.startsWith('/exile/') || path.startsWith('/player/') || hash.startsWith('exile/') || hash.startsWith('player/')) {
+      return 'exile_profile';
+    }
+
     // Direct route to the Private League Hub directory
     if (
       path === '/privateleaguehub' ||
@@ -146,6 +151,29 @@ export const App: React.FC = () => {
   };
 
   const [currentGuideSlug, setCurrentGuideSlug] = useState<string>(getInitialGuideSlug);
+
+  const getInitialProfileHandle = (): string => {
+    if (typeof window === 'undefined') return '';
+    const path = window.location.pathname.replace(/\/+$/, '');
+    const hash = window.location.hash.replace(/^#\/?/, '').replace(/\/+$/, '');
+    if (path.toLowerCase().startsWith('/exile/')) return decodeURIComponent(path.slice(7).split('/')[0] || '');
+    if (path.toLowerCase().startsWith('/player/')) return decodeURIComponent(path.slice(8).split('/')[0] || '');
+    if (hash.toLowerCase().startsWith('exile/')) return decodeURIComponent(hash.slice(6).split('/')[0] || '');
+    if (hash.toLowerCase().startsWith('player/')) return decodeURIComponent(hash.slice(7).split('/')[0] || '');
+    return '';
+  };
+
+  const [currentProfileHandle, setCurrentProfileHandle] = useState<string>(getInitialProfileHandle);
+
+  const handleOpenProfile = (handle: string) => {
+    const clean = handle.trim().replace(/^@/, '');
+    if (!clean) return;
+    setCurrentProfileHandle(clean);
+    setActiveTab('exile_profile');
+    try {
+      window.history.pushState({}, '', `/exile/${encodeURIComponent(clean.toLowerCase())}`);
+    } catch {}
+  };
 
   // Dedicated Route Detection (/login, /register, /admin)
   const getInitialRoute = (): 'login' | 'register' | 'admin' | '' => {
@@ -528,6 +556,26 @@ export const App: React.FC = () => {
             onOpenAuthModal={handleOpenAuth}
           />
         )}
+        {activeTab === 'exile_profile' && currentProfileHandle && (
+          <ExileProfilePage
+            handle={currentProfileHandle}
+            userAccount={userAccount}
+            onBack={() => {
+              setActiveTab('single_league');
+              try {
+                window.history.pushState({}, '', `/league/${selectedLeagueSessionId}/roster`);
+              } catch {}
+            }}
+            onNavigateLeague={(leagueId, subTab) => {
+              setSelectedLeagueSessionId(leagueId);
+              if (subTab) setSelectedLeagueSubTab(subTab);
+              setActiveTab('single_league');
+              try {
+                window.history.pushState({}, '', `/league/${leagueId}${subTab ? '/' + subTab : ''}`);
+              } catch {}
+            }}
+          />
+        )}
         {(activeTab === 'single_league' || activeTab === 'private_league') && (
           <PrivateLeagueHubView
             selectedGame={selectedGame}
@@ -536,6 +584,7 @@ export const App: React.FC = () => {
             initialSessionId={selectedLeagueSessionId}
             initialSubTab={selectedLeagueSubTab}
             onUpdateUserAccount={handleSaveAccount}
+            onOpenProfile={handleOpenProfile}
             onNavigateLeagues={() => {
               setActiveTab('private_league_hub');
               try {

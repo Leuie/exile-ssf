@@ -83,6 +83,7 @@ interface PrivateLeagueHubViewProps {
   initialSubTab?: string;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onNavigateLeagues?: () => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
@@ -92,7 +93,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   initialSessionId,
   initialSubTab,
   onUpdateUserAccount,
-  onNavigateLeagues
+  onNavigateLeagues,
+  onOpenProfile
 }) => {
   // Horizontal Nav Tabs
   type HubTab = 'overview' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
@@ -174,13 +176,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   useEffect(() => {
     const titles: Record<HubTab, string> = {
       overview: 'Command Center',
-      looking_for: 'Wishlists & Drop Matcher',
-      bounties: 'Bounties & Honors',
-      roster: 'Roster Directory',
-      guides: 'Community Build Guides',
-      cheatsheets: 'Mechanic Cheat Sheets (3.30.0d)',
-      new_player: 'Bench Unlocks & Stash Guide',
-      alumni: 'Alumni Directory'
+      looking_for: 'Wishlists',
+      bounties: 'Bounties',
+      roster: 'Roster',
+      guides: 'Builds',
+      cheatsheets: 'Cheat Sheets',
+      new_player: 'Crafting Bench',
+      alumni: 'Alumni'
     };
     document.title = `${titles[activeTab]} | Exile SSF`;
   }, [activeTab]);
@@ -1302,18 +1304,18 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         <div className="px-3 sm:px-6 flex flex-wrap items-center gap-1.5 sm:gap-2 py-2 border-t border-slate-800/40 bg-slate-950/40">
           {[
             { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
-            { id: 'looking_for' as HubTab, label: 'Wishlists & Needs', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
+            { id: 'looking_for' as HubTab, label: 'Wishlists', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
             {
               id: 'bounties' as HubTab,
-              label: 'Bounties & Honors',
+              label: 'Bounties',
               icon: Trophy,
               badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
               slug: 'bounties'
             },
-            { id: 'roster' as HubTab, label: 'Roster Directory', icon: Users, badge: `${roster.length}`, slug: 'roster' },
-            { id: 'guides' as HubTab, label: 'Build Guides', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
-            { id: 'cheatsheets' as HubTab, label: 'Mechanic Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
-            { id: 'new_player' as HubTab, label: 'Bench & Stash Guide', icon: Compass, badge: null, slug: 'bench' },
+            { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
+            { id: 'guides' as HubTab, label: 'Builds', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
+            { id: 'cheatsheets' as HubTab, label: 'Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
+            { id: 'new_player' as HubTab, label: 'Crafting Bench', icon: Compass, badge: null, slug: 'bench' },
             { id: 'alumni' as HubTab, label: 'Alumni', icon: History, badge: `${alumniList.length}`, slug: 'alumni' }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1389,6 +1391,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             handleOpenInviteModal={handleOpenInviteModal}
             handleOpenJoinModal={handleOpenJoinModal}
             onUpdateUserAccount={onUpdateUserAccount}
+            onOpenProfile={onOpenProfile}
           />
         )}
 

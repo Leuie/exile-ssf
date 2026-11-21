@@ -492,3 +492,18 @@ export interface OfficialLadderEntry {
   ascendancy: string;
   experience: number;
 }
+
+export interface ExileProfile {
+  handle: string;
+  uid: string;
+  avatarUrl?: string;
+  bio?: string;
+  timezone?: string;
+  poeAccountName?: string;
+  poeProfileUrl?: string;
+  rootHandle?: string;
+  discordHandle?: string;
+  twitchUrl?: string;
+  favoriteClass?: string;
+  updatedAtIso?: string;
+}
