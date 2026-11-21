@@ -13,6 +13,8 @@ import {
   Trash2,
   Gift,
   Award,
+  Coins,
+  ArrowUpRight,
   Users,
   X
 } from 'lucide-react';
@@ -88,6 +90,9 @@ export interface WishlistsTabProps {
   setCopyNotice: (notice: string | null) => void;
   fireConfetti: () => void;
   findMember: (charName: string, dispName?: string) => LeagueRosterMember | undefined;
+  onOpenBountiesPage?: () => void;
+  initialSearchQuery?: string | null;
+  onClearInitialSearch?: () => void;
 }
 
 export const WishlistsTab: React.FC<WishlistsTabProps> = ({
@@ -99,7 +104,10 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   triggerCopy,
   setCopyNotice,
   fireConfetti,
-  findMember
+  findMember,
+  onOpenBountiesPage,
+  initialSearchQuery,
+  onClearInitialSearch
 }) => {
   const [lookingForViewMode, setLookingForViewMode] = useState<'item' | 'player' | 'table'>('item');
   const [lookingForSearch, setLookingForSearch] = useState<string>('');
@@ -116,6 +124,8 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [editCategory, setEditCategory] = useState<LookingForItem['category']>('Unique');
   const [editStatus, setEditStatus] = useState<ItemNeedStatus>('NEED');
   const [editNotes, setEditNotes] = useState<string>('');
+  const [editBountyOffer, setEditBountyOffer] = useState<string>('');
+  const [editBountyStatus, setEditBountyStatus] = useState<'OPEN' | 'CLAIMED' | 'PAID'>('OPEN');
   const [editChar, setEditChar] = useState<string>('');
   const [editDisplay, setEditDisplay] = useState<string>('');
   const [editFulfilledBy, setEditFulfilledBy] = useState<string>('');
@@ -129,6 +139,16 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [newLfCat, setNewLfCat] = useState<LookingForItem['category']>('Unique');
   const [newLfStatus, setNewLfStatus] = useState<ItemNeedStatus>('NEED');
   const [newLfNotes, setNewLfNotes] = useState<string>('');
+  const [newLfBounty, setNewLfBounty] = useState<string>('');
+
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setLookingForSearch(initialSearchQuery);
+      setLookingForStatusFilter('All');
+      setLookingForCategoryFilter('All');
+      onClearInitialSearch?.();
+    }
+  }, [initialSearchQuery, onClearInitialSearch]);
 
   const aggregatedItemsMap = React.useMemo(() => {
     const map = new Map<string, {
@@ -512,13 +532,16 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       status: newLfStatus,
       notes: newLfNotes.trim() || 'Any roll acceptable',
       poeWikiUrl: `https://www.poewiki.net/wiki/${encodeURIComponent(newLfItem.trim().replace(/ /g, '_'))}`,
-      poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(newLfItem.trim())}`
+      poeDbUrl: `https://poedb.tw/us/search?q=${encodeURIComponent(newLfItem.trim())}`,
+      bountyOffer: newLfBounty.trim() || undefined,
+      bountyStatus: newLfBounty.trim() ? 'OPEN' : undefined
     };
 
     setLookingForItems([newItem, ...lookingForItems]);
     saveCloudWishlistItem(activeSessionId, newItem);
     setNewLfItem('');
     setNewLfNotes('');
+    setNewLfBounty('');
     setShowAddLookingForModal(false);
     fireConfetti();
   };
@@ -583,6 +606,17 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
             <div className="text-[11px] font-mono text-slate-500 italic">
               Find an exile's wanted item to claim the top provider spot!
             </div>
+          )}
+          {onOpenBountiesPage && (
+            <button
+              type="button"
+              onClick={onOpenBountiesPage}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+            >
+              <Coins className="w-3.5 h-3.5" />
+              <span>Bounty Board & Honors</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       </div>
@@ -781,15 +815,42 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Specific Needs / Rolls / Notes</label>
-            <input
-              type="text"
-              placeholder="e.g. Need high roll or corrupt for +2 proj"
-              value={newLfNotes}
-              onChange={(e) => setNewLfNotes(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Specific Needs / Rolls / Notes</label>
+              <input
+                type="text"
+                placeholder="e.g. Need high roll or corrupt for +2 proj"
+                value={newLfNotes}
+                onChange={(e) => setNewLfNotes(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-amber-300 font-semibold block mb-1">
+                Bounty / Finder Reward (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 8 Divines, 100 Chaos, Boss Carry"
+                value={newLfBounty}
+                onChange={(e) => setNewLfBounty(e.target.value)}
+                className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-2.5 py-1.5 text-xs text-amber-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+              />
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {['1 Divine', '5 Divines', '8 Divines', '50 Chaos', 'Boss Carry'].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setNewLfBounty(p)}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-amber-500/20 text-[10px] font-mono text-slate-300 hover:text-amber-300 border border-slate-700 cursor-pointer"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
@@ -859,6 +920,33 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                     <div className={`font-semibold text-xs group-hover:text-white ${allAcquired ? 'text-emerald-200' : 'text-slate-200'}`}>
                       {itemGroup.itemName}
                     </div>
+
+                    {itemGroup.entries.some((e) => e.bountyOffer && e.bountyOffer.trim()) && (
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {itemGroup.entries
+                          .filter((e) => e.bountyOffer && e.bountyOffer.trim())
+                          .map((bEntry, bIdx) => (
+                            <span
+                              key={bIdx}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                bEntry.bountyStatus === 'PAID'
+                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                              }`}
+                            >
+                              <Coins className="w-2.5 h-2.5" />
+                              <span>
+                                Bounty: {bEntry.bountyOffer}
+                                {bEntry.bountyStatus === 'PAID'
+                                  ? ' (PAID)'
+                                  : bEntry.bountyStatus === 'CLAIMED'
+                                  ? ' (CLAIMED)'
+                                  : ''}
+                              </span>
+                            </span>
+                          ))}
+                      </div>
+                    )}
 
                     {/* Requesting player tags */}
                     <div className="flex flex-wrap gap-1 pt-1">
@@ -1504,6 +1592,33 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
                   placeholder="Notes (rolls, socket colors, corruption goals, etc.)"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-amber-300">Bounty Reward Offer (Optional)</label>
+                  <input
+                    type="text"
+                    value={editBountyOffer}
+                    onChange={(e) => setEditBountyOffer(e.target.value)}
+                    placeholder="e.g. 8 Divines, 100 Chaos, Boss Carry"
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-1.5 text-xs text-amber-200 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Bounty Settlement Status</label>
+                  <select
+                    value={editBountyStatus}
+                    onChange={(e) => setEditBountyStatus(e.target.value as any)}
+                    disabled={!editBountyOffer.trim()}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700 cursor-pointer disabled:opacity-40"
+                  >
+                    <option value="OPEN">OPEN (Active Hunt)</option>
+                    <option value="CLAIMED">CLAIMED (Pending Receipt)</option>
+                    <option value="PAID">PAID (Settled)</option>
+                  </select>
+                </div>
               </div>
             </div>
 

@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   Share2,
   UserPlus,
+  Trophy,
   X
 } from 'lucide-react';
 import {
@@ -57,6 +58,7 @@ import { CheatSheetsTab } from './league/tabs/CheatSheetsTab';
 import { BuildGuidesTab } from './league/tabs/BuildGuidesTab';
 import { BenchGuideTab } from './league/tabs/BenchGuideTab';
 import { AlumniTab } from './league/tabs/AlumniTab';
+import { BountiesAndHonorsTab } from './league/tabs/BountiesAndHonorsTab';
 import {
   fetchCloudLeagueData,
   saveCloudWishlistItem,
@@ -84,11 +86,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onNavigateLeagues
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'looking_for' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
     looking_for: 'wishlists',
+    bounties: 'bounties',
     roster: 'roster',
     guides: 'guides',
     cheatsheets: 'cheatsheets',
@@ -101,6 +104,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     const clean = slug.toLowerCase().trim();
     if (clean === 'command-center' || clean === 'commandcenter' || clean === 'overview') return 'overview';
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
+    if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
     if (clean === 'guides' || clean === 'build-guides' || clean === 'buildguides') return 'guides';
     if (clean === 'cheatsheets' || clean === 'cheat-sheets' || clean === 'mechanics' || clean === 'mechanic-cheat-sheets') return 'cheatsheets';
@@ -132,6 +136,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   };
 
   const [activeTab, setActiveTab] = useState<HubTab>(getInitialTabFromLocation);
+  const [wishlistJumpQuery, setWishlistJumpQuery] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialSubTab) {
@@ -1232,6 +1237,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           {[
             { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
             { id: 'looking_for' as HubTab, label: 'Wishlists & Needs', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
+            {
+              id: 'bounties' as HubTab,
+              label: 'Bounties & Honors',
+              icon: Trophy,
+              badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
+              slug: 'bounties'
+            },
             { id: 'roster' as HubTab, label: 'Roster Directory', icon: Users, badge: `${roster.length}`, slug: 'roster' },
             { id: 'guides' as HubTab, label: 'Build Guides', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
             { id: 'cheatsheets' as HubTab, label: 'Mechanic Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
@@ -1325,6 +1337,30 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             setCopyNotice={setCopyNotice}
             fireConfetti={fireConfetti}
             findMember={findMember}
+            onOpenBountiesPage={() => handleSelectTab('bounties')}
+            initialSearchQuery={wishlistJumpQuery}
+            onClearInitialSearch={() => setWishlistJumpQuery(null)}
+          />
+        )}
+
+        {/* DEDICATED RESOURCE: SQUAD BOUNTY BOARD, FULFILLMENT HEROES, AND PERSISTENT ACHIEVEMENTS */}
+        {activeTab === 'bounties' && (
+          <BountiesAndHonorsTab
+            activeSessionId={activeSessionId}
+            lookingForItems={lookingForItems}
+            setLookingForItems={setLookingForItems}
+            roster={roster}
+            alumniList={alumniList}
+            guides={guides}
+            userAccount={userAccount}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            triggerCopy={triggerCopy}
+            setCopyNotice={setCopyNotice}
+            fireConfetti={fireConfetti}
+            onJumpToWishlist={(itemName) => {
+              setWishlistJumpQuery(itemName);
+              handleSelectTab('looking_for');
+            }}
           />
         )}
 

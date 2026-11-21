@@ -281,6 +281,33 @@ export interface LookingForItem {
   fulfilledBy?: string; // Player tag who fulfilled it or Self Found
   fulfilledByAccount?: string;
   fulfilledAtIso?: string;
+  bountyOffer?: string; // Optional finder incentive (e.g. 8 Divines, 150 Chaos, Boss Carry)
+  bountyStatus?: 'OPEN' | 'CLAIMED' | 'PAID';
+  bountyPaidAtIso?: string;
+}
+
+export type AchievementTier = 'Common' | 'Rare' | 'Unique' | 'Pinnacle';
+
+export type AchievementCategory = 'Bounties & Coop' | 'League Loyalty' | 'Wishlist & Economy' | 'Community & Guides';
+
+export interface AchievementDefinition {
+  id: string;
+  title: string;
+  description: string;
+  category: AchievementCategory;
+  tier: AchievementTier;
+  points: number;
+  rewardTitle?: string;
+  target: number;
+}
+
+export interface PersistentAchievementProfile {
+  unlockedIds: Record<string, string>; // achievementId -> unlockedAtIso
+  equippedTitle?: string;
+  lifetimeFulfilledCount: number;
+  lifetimeBountiesClaimed: number;
+  lifetimeBountiesPaid: number;
+  leaguesParticipated: string[];
 }
 
 export interface FoundUniqueVaultItem {
