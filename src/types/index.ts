@@ -248,6 +248,9 @@ export interface LookingForItem {
   notes: string;
   poeWikiUrl: string;
   poeDbUrl: string;
+  fulfilledBy?: string; // Player tag who fulfilled it or Self Found
+  fulfilledByAccount?: string;
+  fulfilledAtIso?: string;
 }
 
 export interface FoundUniqueVaultItem {

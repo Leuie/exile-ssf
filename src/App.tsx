@@ -38,16 +38,20 @@ export const App: React.FC = () => {
     const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
 
     if (path.startsWith('/league/')) {
-      return path.replace('/league/', '');
+      const parts = path.replace('/league/', '').split('/');
+      return parts[0] || 'poe1-330-umbra';
     }
     if (path.startsWith('/privateleaguehub/') && path !== '/privateleaguehub') {
-      return path.replace('/privateleaguehub/', '');
+      const parts = path.replace('/privateleaguehub/', '').split('/');
+      return parts[0] || 'poe1-330-umbra';
     }
     if (hash.startsWith('league/')) {
-      return hash.replace('league/', '');
+      const parts = hash.replace('league/', '').split('/');
+      return parts[0] || 'poe1-330-umbra';
     }
     if (hash.startsWith('privateleaguehub/') && hash !== 'privateleaguehub') {
-      return hash.replace('privateleaguehub/', '');
+      const parts = hash.replace('privateleaguehub/', '').split('/');
+      return parts[0] || 'poe1-330-umbra';
     }
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -55,6 +59,27 @@ export const App: React.FC = () => {
       if (queryId) return queryId;
     } catch {}
     return 'poe1-330-umbra';
+  };
+
+  const getInitialLeagueSubTab = (): string => {
+    if (typeof window === 'undefined') return '';
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryTab = searchParams.get('tab') || searchParams.get('page');
+      if (queryTab) return queryTab;
+    } catch {}
+
+    if (path.startsWith('/league/')) {
+      const parts = path.replace('/league/', '').split('/');
+      if (parts[1]) return parts[1];
+    }
+    if (hash.startsWith('league/')) {
+      const parts = hash.replace('league/', '').split('/');
+      if (parts[1]) return parts[1];
+    }
+    return '';
   };
 
   const getInitialActiveTab = (): string => {
@@ -96,6 +121,7 @@ export const App: React.FC = () => {
 
   const [selectedGame, setSelectedGame] = useState<'poe1' | 'poe2'>('poe1');
   const [selectedLeagueSessionId, setSelectedLeagueSessionId] = useState<string>(getInitialLeagueId);
+  const [selectedLeagueSubTab, setSelectedLeagueSubTab] = useState<string>(getInitialLeagueSubTab);
   const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -136,6 +162,8 @@ export const App: React.FC = () => {
       setCurrentGuideSlug(slug);
       const leagueId = getInitialLeagueId();
       setSelectedLeagueSessionId(leagueId);
+      const subTab = getInitialLeagueSubTab();
+      setSelectedLeagueSubTab(subTab);
       const tab = getInitialActiveTab();
       if (tab === 'private_league_hub' || tab === 'single_league' || tab === 'home') {
         setActiveTab(tab);
@@ -491,6 +519,7 @@ export const App: React.FC = () => {
             userAccount={userAccount}
             onOpenAuthModal={handleOpenAuth}
             initialSessionId={selectedLeagueSessionId}
+            initialSubTab={selectedLeagueSubTab}
             onUpdateUserAccount={handleSaveAccount}
             onNavigateLeagues={() => {
               setActiveTab('private_league_hub');

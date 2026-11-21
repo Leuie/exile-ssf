@@ -34,6 +34,8 @@ import {
   ArrowUpDown,
   Trash2,
   UserPlus,
+  Gift,
+  Award,
   X
 } from 'lucide-react';
 import {
@@ -87,6 +89,7 @@ interface PrivateLeagueHubViewProps {
   onOpenAuthModal?: () => void;
   selectedGame?: 'poe1' | 'poe2';
   initialSessionId?: string;
+  initialSubTab?: string;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onNavigateLeagues?: () => void;
 }
@@ -96,12 +99,66 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenAuthModal,
   selectedGame = 'poe1',
   initialSessionId,
+  initialSubTab,
   onUpdateUserAccount,
   onNavigateLeagues
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'looking_for' | 'roster' | 'vault' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
-  const [activeTab, setActiveTab] = useState<HubTab>('overview');
+  type HubTab = 'overview' | 'looking_for' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+
+  const TAB_SLUG_MAP: Record<HubTab, string> = {
+    overview: 'command-center',
+    looking_for: 'wishlists',
+    roster: 'roster',
+    guides: 'guides',
+    cheatsheets: 'cheatsheets',
+    new_player: 'bench',
+    alumni: 'alumni'
+  };
+
+  const resolveSlugToTab = (slug?: string): HubTab => {
+    if (!slug) return 'overview';
+    const clean = slug.toLowerCase().trim();
+    if (clean === 'command-center' || clean === 'commandcenter' || clean === 'overview') return 'overview';
+    if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
+    if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
+    if (clean === 'guides' || clean === 'build-guides' || clean === 'buildguides') return 'guides';
+    if (clean === 'cheatsheets' || clean === 'cheat-sheets' || clean === 'mechanics' || clean === 'mechanic-cheat-sheets') return 'cheatsheets';
+    if (clean === 'bench' || clean === 'bench-stash-guide' || clean === 'new_player' || clean === 'new-player' || clean === 'stash') return 'new_player';
+    if (clean === 'alumni' || clean === 'alumni-directory') return 'alumni';
+    return 'overview';
+  };
+
+  const getInitialTabFromLocation = (): HubTab => {
+    if (initialSubTab) return resolveSlugToTab(initialSubTab);
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const queryTab = searchParams.get('tab') || searchParams.get('page');
+        if (queryTab) return resolveSlugToTab(queryTab);
+      } catch {}
+      if (path.startsWith('/league/')) {
+        const parts = path.replace('/league/', '').split('/');
+        if (parts[1]) return resolveSlugToTab(parts[1]);
+      }
+      if (hash.startsWith('league/')) {
+        const parts = hash.replace('league/', '').split('/');
+        if (parts[1]) return resolveSlugToTab(parts[1]);
+      }
+    }
+    return 'overview';
+  };
+
+  const [activeTab, setActiveTab] = useState<HubTab>(getInitialTabFromLocation);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(resolveSlugToTab(initialSubTab));
+    }
+  }, [initialSubTab]);
+
   const [activeReadingGuide, setActiveReadingGuide] = useState<CommunityGuide | null>(null);
 
   // Roster State
@@ -301,6 +358,29 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     }
     setActiveSessionId(selectedGame === 'poe2' ? 'poe2-ea-ancients' : 'poe1-330-umbra');
   }, [selectedGame, initialSessionId, allLeagueSessions]);
+
+  const handleSelectTab = (tab: HubTab) => {
+    setActiveTab(tab);
+    const slug = TAB_SLUG_MAP[tab] || 'command-center';
+    try {
+      const targetUrl = `/league/${activeSessionId}/${slug}`;
+      if (window.location.pathname !== targetUrl) {
+        window.history.pushState({}, '', targetUrl);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    const onLocationSync = () => {
+      setActiveTab(getInitialTabFromLocation());
+    };
+    window.addEventListener('popstate', onLocationSync);
+    window.addEventListener('hashchange', onLocationSync);
+    return () => {
+      window.removeEventListener('popstate', onLocationSync);
+      window.removeEventListener('hashchange', onLocationSync);
+    };
+  }, [activeSessionId]);
 
   const currentSession = allLeagueSessions.find((s: ActiveLeagueSession) => s.id === activeSessionId) || allLeagueSessions[0] || ACTIVE_LEAGUE_SESSIONS[0];
   const isReadOnlyLeague = Boolean(currentSession.isReadOnlyArchive);
@@ -1055,6 +1135,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [editNotes, setEditNotes] = useState<string>('');
   const [editChar, setEditChar] = useState<string>('');
   const [editDisplay, setEditDisplay] = useState<string>('');
+  const [editFulfilledBy, setEditFulfilledBy] = useState<string>('');
   const editLookingForDialogRef = useRef<HTMLDialogElement>(null);
 
   const aggregatedItemsMap = React.useMemo(() => {
@@ -1181,9 +1262,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     };
   }, []);
 
-  const handleCycleStatus = (itemId: string) => {
-    setLookingForItems((prev) =>
-      prev.map((it) => {
+  const handleCycleStatus = (itemId: string, helperTag?: string) => {
+    let targetUpdated: LookingForItem | null = null;
+    setLookingForItems((prev) => {
+      const updated = prev.map((it) => {
         if (it.id === itemId) {
           const nextStatus: ItemNeedStatus =
             it.status === 'NEED'
@@ -1196,12 +1278,77 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           if (nextStatus === 'HAVE') {
             fireConfetti();
           }
-          return { ...it, status: nextStatus };
+          const itemCopy = {
+            ...it,
+            status: nextStatus,
+            fulfilledBy: nextStatus === 'HAVE' 
+              ? (helperTag || (userAccount?.displayName ? `@${userAccount.displayName}` : 'Self Found'))
+              : it.fulfilledBy,
+            fulfilledAtIso: nextStatus === 'HAVE' ? new Date().toISOString() : it.fulfilledAtIso
+          };
+          targetUpdated = itemCopy;
+          return itemCopy;
         }
         return it;
-      })
-    );
+      });
+      try {
+        localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (targetUpdated) {
+      saveCloudWishlistItem(activeSessionId, targetUpdated);
+    }
   };
+
+  const handleMarkFulfilled = (itemId: string, helperTag: string) => {
+    let targetUpdated: LookingForItem | null = null;
+    setLookingForItems((prev) => {
+      const updated = prev.map((it) => {
+        if (it.id === itemId) {
+          fireConfetti();
+          const itemCopy = {
+            ...it,
+            status: 'HAVE' as ItemNeedStatus,
+            fulfilledBy: helperTag,
+            fulfilledAtIso: new Date().toISOString()
+          };
+          targetUpdated = itemCopy;
+          return itemCopy;
+        }
+        return it;
+      });
+      try {
+        localStorage.setItem('poe_clean330_looking_for', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (targetUpdated) {
+      saveCloudWishlistItem(activeSessionId, targetUpdated);
+    }
+    setCopyNotice(`Acquired! Recorded fulfillment by ${helperTag}`);
+    setTimeout(() => setCopyNotice(null), 3500);
+  };
+
+  const helperStats = React.useMemo(() => {
+    const counts = new Map<string, { count: number; items: string[] }>();
+    for (const it of lookingForItems) {
+      if (it.status === 'HAVE' && it.fulfilledBy && it.fulfilledBy !== 'Self Found') {
+        const helper = it.fulfilledBy.replace(/^@/, '').trim();
+        const current = counts.get(helper) || { count: 0, items: [] };
+        current.count += 1;
+        if (!current.items.includes(it.itemName)) {
+          current.items.push(it.itemName);
+        }
+        counts.set(helper, current);
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([helper, stat]) => ({ helper, count: stat.count, items: stat.items }))
+      .sort((a, b) => b.count - a.count);
+  }, [lookingForItems]);
 
   useEffect(() => {
     const dialog = editLookingForDialogRef.current;
@@ -1270,6 +1417,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     setEditNotes(item.notes || '');
     setEditChar(item.characterName || '');
     setEditDisplay(item.displayName || '');
+    setEditFulfilledBy(item.fulfilledBy || '');
     setTimeout(() => {
       editLookingForDialogRef.current?.showModal();
     }, 10);
@@ -1292,6 +1440,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           notes: editNotes.trim(),
           characterName: editChar.trim() || it.characterName,
           displayName: editDisplay.trim() || it.displayName,
+          fulfilledBy: editStatus === 'HAVE' ? (editFulfilledBy.trim() || it.fulfilledBy || 'Self Found') : undefined,
+          fulfilledAtIso: editStatus === 'HAVE' ? (it.fulfilledAtIso || new Date().toISOString()) : undefined,
           poeWikiUrl: `https://www.poewiki.net/wiki/${wikiSlug}`,
           poeDbUrl: `https://poedb.tw/us/${wikiSlug}`
         };
@@ -1644,20 +1794,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       {/* Sleek Subdued Utility Top Bar */}
       <div className="sticky top-0 z-30 w-full bg-slate-900/95 dark:bg-[#0d111a]/95 backdrop-blur-md border-b border-slate-800 shadow-sm">
         
-        {/* Upper Row: League Title & Key Metadata Chips */}
-        <div className="px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="font-poppins font-bold text-xs sm:text-sm tracking-wide text-white truncate max-w-[180px] sm:max-w-none">
-                {currentSession.name}
-              </span>
-
-            {/* League Session Selector */}
+        {/* Row 1: League Selector, Directory Navigation, Share & Status Chips */}
+        <div className="px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse" />
             <select
               value={activeSessionId}
               onChange={(e) => setActiveSessionId(e.target.value)}
-              className="bg-slate-800/90 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-slate-600 max-w-[150px] sm:max-w-none truncate"
+              className="bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-100 focus:outline-none focus:border-slate-500 max-w-[280px] sm:max-w-none truncate cursor-pointer"
+              title="Switch active private league session"
             >
               {allLeagueSessions
                 .filter((sess) => (sess.game || 'poe1') === (selectedGame || 'poe1'))
@@ -1677,7 +1822,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 title="Return to Private League Hub directory"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Private League Hub</span>
+                <span className="hidden sm:inline">Private League Hub</span>
               </button>
             )}
 
@@ -1692,30 +1837,35 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               title="Copy shareable link for this private league"
             >
               <Share2 className="w-3 h-3 text-indigo-400" />
-              <span>Share League</span>
+              <span className="hidden sm:inline">Share</span>
             </button>
+          </div>
 
-            </div>
-            <span className="hidden sm:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
               Patch {currentSession.version}
             </span>
-            <span className="hidden md:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
-              {activeLeagueInfo.fundedDays}/{activeLeagueInfo.targetDays} Days Funded
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+              {activeLeagueInfo.fundedDays} Days Funded
             </span>
-            <span className="hidden lg:inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
-              {roster.length}/{activeLeagueInfo.currentSlots} Slots Filled
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+              {roster.length}/{activeLeagueInfo.currentSlots} Slots
             </span>
             {cloudSyncStatus === 'connected' && (
-              <span className="hidden xl:inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80" title="Connected to Cloudflare KV Database">
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80" title="Connected to Cloudflare KV Database">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span>Cloud Live</span>
               </span>
             )}
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
+        {/* Row 2: In Game Channel, Community Links & Membership Actions */}
+        <div className="px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-900/40">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Quick in game channel copy */}
             <button
+              type="button"
               onClick={() => triggerCopy(activeLeagueInfo.globalChannel, 'In Game Channel')}
               className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Click to copy in game chat command"
@@ -1730,7 +1880,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/80 text-[11px] text-emerald-300 items-center gap-1.5 transition-colors"
+              className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/80 text-[11px] text-emerald-300 flex items-center gap-1.5 transition-colors"
               title="Official GSF Gathering Place on Root"
             >
               <Users className="w-3 h-3 text-emerald-400" />
@@ -1738,30 +1888,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               <ExternalLink className="w-2.5 h-2.5 text-emerald-500" />
             </a>
 
-            {/* Official League */}
-            {activeLeagueInfo.officialLeagueUrl ? (
+            {/* Official League Ladder */}
+            {activeLeagueInfo.officialLeagueUrl && (
               <a
                 href={activeLeagueInfo.officialLeagueUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 items-center gap-1.5 transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 flex items-center gap-1.5 transition-colors"
               >
                 <ShieldCheck className="w-3 h-3 text-amber-400" />
                 <span>Official Ladder</span>
                 <ExternalLink className="w-2.5 h-2.5 text-slate-500" />
               </a>
-            ) : (
-              <button
-                type="button"
-                onClick={handleOpenIngestModal}
-                className="hidden md:flex px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-400 items-center gap-1.5 transition-colors cursor-pointer"
-                title="League link pending official creation by GGG. Click to ingest once live."
-              >
-                <ShieldCheck className="w-3 h-3 text-slate-500" />
-                <span>Ladder (Pending 3.30 Creation)</span>
-              </button>
             )}
+          </div>
 
+          <div className="flex items-center gap-2">
             {/* User Account / Profile action */}
             <button
               onClick={onOpenAuthModal}
@@ -1778,7 +1920,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               title="Direct invite link and share templates"
             >
               <Send className="w-3 h-3" />
-              <span className="hidden sm:inline">Invite</span>
+              <span>Invite</span>
             </button>
 
             {!isCurrentUserOnRoster && (
@@ -1789,7 +1931,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 title="Join this private league roster"
               >
                 <UserPlus className="w-3 h-3" />
-                <span className="hidden sm:inline">Join</span>
+                <span>Join</span>
               </button>
             )}
           </div>
@@ -1816,25 +1958,24 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
         )}
 
-        {/* Lower Row: Full Width Horizontal Navigation Tabs */}
-        <div className="px-2 sm:px-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 touch-pan-x flex-nowrap">
+        {/* Row 3: Responsive Navigation Tabs with Unique Page Navigation */}
+        <div className="px-3 sm:px-6 flex flex-wrap items-center gap-1.5 sm:gap-2 py-2 border-t border-slate-800/40 bg-slate-950/40">
           {[
-            { id: 'overview', label: 'Command Center', icon: Flame, badge: null },
-            { id: 'looking_for', label: 'Wishlists & Needs', icon: Sparkles, badge: `${lookingForItems.length}` },
-            { id: 'roster', label: 'Roster Directory', icon: Users, badge: `${roster.length}` },
-            { id: 'vault', label: 'Guild Stash Vault', icon: FolderLock, badge: `${vaultItems.length}` },
-            { id: 'guides', label: 'Build Guides', icon: BookOpen, badge: `${guides.length}` },
-            { id: 'cheatsheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: null },
-            { id: 'new_player', label: 'Bench & Stash Guide', icon: Compass, badge: null },
-            { id: 'alumni', label: 'Alumni & Outreach', icon: History, badge: `${alumniList.length}` }
+            { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
+            { id: 'looking_for' as HubTab, label: 'Wishlists & Needs', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
+            { id: 'roster' as HubTab, label: 'Roster Directory', icon: Users, badge: `${roster.length}`, slug: 'roster' },
+            { id: 'guides' as HubTab, label: 'Build Guides', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
+            { id: 'cheatsheets' as HubTab, label: 'Mechanic Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
+            { id: 'new_player' as HubTab, label: 'Bench & Stash Guide', icon: Compass, badge: null, slug: 'bench' },
+            { id: 'alumni' as HubTab, label: 'Alumni', icon: History, badge: `${alumniList.length}`, slug: 'alumni' }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as HubTab)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer flex-shrink-0 min-h-[38px] ${
+                onClick={() => handleSelectTab(tab.id)}
+                className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer min-h-[36px] ${
                   isActive
                     ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -2453,14 +2594,19 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     const preferred = req.preferredContact || matchedMember?.preferredContact || 'app';
                     const whisperCommand = `@${req.characterName} Hey! I just found ${inspectedItemData.itemName} for your build in the NOIR Guild Stash!`;
 
+                    const isAcquired = req.status === 'HAVE';
                     return (
                       <div
                         key={rIdx}
-                        className="p-3 rounded-lg border border-slate-800 bg-slate-950/70 space-y-2 text-xs"
+                        className={`p-3 rounded-lg space-y-2 text-xs transition-all ${
+                          isAcquired
+                            ? 'border-2 border-emerald-500 bg-emerald-950/30 shadow-md shadow-emerald-500/10'
+                            : 'border border-slate-800 bg-slate-950/70'
+                        }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <strong className="text-slate-100 font-mono">@{dispTag}</strong>
+                            <strong className={`font-mono ${isAcquired ? 'text-emerald-200' : 'text-slate-100'}`}>@{dispTag}</strong>
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
                               Pref: {preferred === 'app' ? 'Root App' : preferred === 'poe_whisper' ? 'Whisper' : preferred}
                             </span>
@@ -2470,17 +2616,30 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleCycleStatus(req.id)}
-                            className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer font-bold ${
                               req.status === 'NEED'
                                 ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
                                 : req.status === 'HAVE'
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
                                 : 'bg-slate-800 text-slate-400 border-slate-700'
                             }`}
                           >
                             Status: {req.status}
                           </button>
                         </div>
+
+                        {/* Fulfillment attribution */}
+                        {isAcquired && (
+                          <div className="flex items-center justify-between text-[11px] font-mono text-emerald-300 bg-emerald-950/70 p-2 rounded-lg border border-emerald-800/60">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Acquired • Fulfilled by: <strong>{req.fulfilledBy || 'Self Found'}</strong></span>
+                            </div>
+                            {req.fulfilledAtIso && (
+                              <span className="text-slate-400 text-[10px]">{new Date(req.fulfilledAtIso).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        )}
 
                         {req.notes && (
                           <p className="text-[11px] text-slate-400 bg-slate-900 p-2 rounded border border-slate-800/80">
@@ -2524,14 +2683,29 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                             <span>In Game Whisper</span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCycleStatus(req.id)}
-                            className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>{req.status === 'HAVE' ? 'Revert to Need' : 'Mark Stashed'}</span>
-                          </button>
+                          {!isAcquired ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                                handleMarkFulfilled(req.id, helper);
+                              }}
+                              className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-mono flex items-center gap-1 cursor-pointer font-bold shadow transition-colors"
+                              title="Mark this item as fulfilled by you for this squadmate"
+                            >
+                              <Gift className="w-3 h-3" />
+                              <span>I Found This!</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleCycleStatus(req.id)}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Revert to Need</span>
+                            </button>
+                          )}
 
                           {canEditOrDeleteWishlist(req) && (
                             <div className="flex items-center gap-1.5 ml-auto">
@@ -2642,6 +2816,22 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {editStatus === 'HAVE' && (
+                  <div className="space-y-1 p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800/60">
+                    <label className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Fulfilled By (Helper Credit)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editFulfilledBy}
+                      onChange={(e) => setEditFulfilledBy(e.target.value)}
+                      className="w-full bg-slate-950 border border-emerald-700/60 rounded-lg px-3 py-1.5 text-xs text-emerald-200 focus:outline-none focus:border-emerald-500 font-mono"
+                      placeholder="e.g. @Chuyo or Self Found"
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -3556,6 +3746,48 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {/* ============================================================================ */}
         {activeTab === 'looking_for' && (
           <div className="space-y-4">
+            {/* Squad Bounty & Fulfillment Heroes Recognition Banner */}
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center flex-shrink-0">
+                  <Award className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Squad Bounty & Wishlist Fulfillment Heroes</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-bold">
+                      Co-op Rewards
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Fulfill wanted items for squadmates to earn benefactor honors and speed up squad build progression.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {helperStats.length > 0 ? (
+                  helperStats.slice(0, 4).map((h, hIdx) => (
+                    <div
+                      key={h.helper}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-mono"
+                      title={`Fulfilled: ${h.items.join(', ')}`}
+                    >
+                      <span className="text-amber-400 font-bold">#{hIdx + 1}</span>
+                      <span className="text-slate-200">@{h.helper}</span>
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
+                        {h.count} {h.count === 1 ? 'Wish' : 'Wishes'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-[11px] font-mono text-slate-500 italic">
+                    Find an exile's wanted item to claim the top provider spot!
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Unified Search, Filters & View Toggle Bar */}
             <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Search Bar */}
@@ -3760,12 +3992,27 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   {filteredAggregatedItems.map((itemGroup, idx) => {
                     const activeCount = itemGroup.activeNeeds;
                     const hasCriticalNeed = itemGroup.entries.some((e) => e.status === 'NEED');
+                    const allAcquired = itemGroup.entries.length > 0 && itemGroup.entries.every((e) => e.status === 'HAVE');
+                    const someAcquired = itemGroup.entries.some((e) => e.status === 'HAVE');
+                    const fulfilledFinders = Array.from(
+                      new Set(
+                        itemGroup.entries
+                          .filter((e) => e.status === 'HAVE' && e.fulfilledBy)
+                          .map((e) => e.fulfilledBy!)
+                      )
+                    );
 
                     return (
                       <div
                         key={idx}
                         onClick={() => handleOpenItemInspector(itemGroup.itemName)}
-                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-2 group shadow-sm"
+                        className={`p-3.5 rounded-xl transition-all cursor-pointer flex flex-col justify-between space-y-2 group shadow-sm ${
+                          allAcquired
+                            ? 'border-2 border-emerald-500 bg-emerald-950/20 hover:bg-emerald-950/30 hover:border-emerald-400 shadow-emerald-500/10'
+                            : someAcquired
+                            ? 'border border-emerald-500/50 bg-slate-900/80 hover:bg-slate-800/60 hover:border-emerald-500'
+                            : 'border border-slate-800 bg-slate-900/70 hover:bg-slate-800/60 hover:border-slate-700'
+                        }`}
                       >
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
@@ -3773,18 +4020,25 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                               {itemGroup.category}
                             </span>
 
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                                hasCriticalNeed
-                                  ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
-                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
-                              }`}
-                            >
-                              {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
-                            </span>
+                            {allAcquired ? (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                <span>Acquired (HAVE)</span>
+                              </span>
+                            ) : (
+                              <span
+                                className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                                  hasCriticalNeed
+                                    ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                }`}
+                              >
+                                {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
+                              </span>
+                            )}
                           </div>
 
-                          <div className="font-semibold text-xs text-slate-200 group-hover:text-white">
+                          <div className={`font-semibold text-xs group-hover:text-white ${allAcquired ? 'text-emerald-200' : 'text-slate-200'}`}>
                             {itemGroup.itemName}
                           </div>
 
@@ -3795,7 +4049,11 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                               return (
                                 <span
                                   key={eIdx}
-                                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/50"
+                                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                    entry.status === 'HAVE'
+                                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60'
+                                      : 'bg-slate-800/90 text-slate-300 border-slate-700/50'
+                                  }`}
                                 >
                                   {tagLabel}
                                 </span>
@@ -3807,6 +4065,16 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                               </span>
                             )}
                           </div>
+
+                          {/* Fulfillment provider credit */}
+                          {fulfilledFinders.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1 pt-1 text-[10px] font-mono text-emerald-400">
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-800/80 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-emerald-400" />
+                                <span>Found by: {fulfilledFinders.join(', ')}</span>
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
@@ -3841,54 +4109,97 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                       </div>
 
                       <div className="space-y-1.5">
-                        {items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="p-2 rounded-lg border border-slate-800/80 bg-slate-950/60 flex items-center justify-between gap-2 text-xs"
-                          >
-                            <div className="truncate">
-                              <div className="text-slate-200 truncate font-medium">{item.itemName}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
-                            </div>
+                        {items.map((item) => {
+                          const isAcquired = item.status === 'HAVE';
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-2.5 rounded-lg border transition-all text-xs flex flex-col gap-2 ${
+                                isAcquired
+                                  ? 'border-2 border-emerald-500 bg-emerald-950/25 shadow-sm shadow-emerald-500/10'
+                                  : 'border-slate-800/80 bg-slate-950/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="truncate">
+                                  <div className={`truncate font-semibold ${isAcquired ? 'text-emerald-300 flex items-center gap-1.5' : 'text-slate-200'}`}>
+                                    {isAcquired && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                                    <span>{item.itemName}</span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 truncate">{item.notes}</div>
+                                </div>
 
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleCycleStatus(item.id)}
-                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                                  item.status === 'NEED'
-                                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                                    : item.status === 'HAVE'
-                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                                    : 'bg-slate-800 text-slate-400 border-slate-700'
-                                }`}
-                              >
-                                {item.status}
-                              </button>
-
-                              {canEditOrDeleteWishlist(item) && (
-                                <>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
                                   <button
                                     type="button"
-                                    onClick={() => handleStartEditLookingForItem(item)}
-                                    className="p-1 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
-                                    title="Edit request"
+                                    onClick={() => handleCycleStatus(item.id)}
+                                    className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer font-bold ${
+                                      item.status === 'NEED'
+                                        ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                        : item.status === 'HAVE'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                                    }`}
                                   >
-                                    <Edit3 className="w-3 h-3" />
+                                    {item.status}
                                   </button>
+
+                                  {canEditOrDeleteWishlist(item) && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditLookingForItem(item)}
+                                        className="p-1 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Edit request"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteLookingForItem(item.id)}
+                                        className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Delete request"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Fulfillment attribution */}
+                              {isAcquired && (
+                                <div className="flex items-center justify-between pt-1 border-t border-emerald-900/40 text-[10px] font-mono text-emerald-400">
+                                  <div className="flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                                    <span>Fulfilled by: <strong>{item.fulfilledBy || 'Self Found'}</strong></span>
+                                  </div>
+                                  {item.fulfilledAtIso && (
+                                    <span className="text-slate-500">{new Date(item.fulfilledAtIso).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Quick helper action if not acquired */}
+                              {!isAcquired && (
+                                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-800/40">
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteLookingForItem(item.id)}
-                                    className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                                    title="Delete request"
+                                    onClick={() => {
+                                      const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                                      handleMarkFulfilled(item.id, helper);
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Mark this item as fulfilled by you for this squadmate"
                                   >
-                                    <Trash2 className="w-3 h-3" />
+                                    <Gift className="w-3 h-3 text-emerald-400" />
+                                    <span>I Found This!</span>
                                   </button>
-                                </>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -3913,61 +4224,105 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                         <th className="p-2.5">Category</th>
                         <th className="p-2.5">Requester</th>
                         <th className="p-2.5">Status</th>
-                        <th className="p-2.5">Notes</th>
+                        <th className="p-2.5">Notes & Fulfillment</th>
                         <th className="p-2.5 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {filteredLookingForItems.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-800/30">
-                          <td className="p-2.5 font-medium text-slate-200">{item.itemName}</td>
-                          <td className="p-2.5 text-slate-400 font-mono text-[11px]">{item.category}</td>
-                          <td className="p-2.5 font-mono text-slate-300">@{item.displayName || item.characterName}</td>
-                          <td className="p-2.5">
-                            <button
-                              type="button"
-                              onClick={() => handleCycleStatus(item.id)}
-                              className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 cursor-pointer"
-                            >
-                              {item.status}
-                            </button>
-                          </td>
-                          <td className="p-2.5 text-slate-400">{item.notes}</td>
-                          <td className="p-2.5 text-right">
-                            <div className="flex items-center justify-end gap-2">
+                      {filteredLookingForItems.map((item) => {
+                        const isAcquired = item.status === 'HAVE';
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`transition-colors ${
+                              isAcquired
+                                ? 'bg-emerald-950/20 border-l-4 border-l-emerald-500 hover:bg-emerald-950/30'
+                                : 'hover:bg-slate-800/30'
+                            }`}
+                          >
+                            <td className="p-2.5 font-medium text-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                {isAcquired && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                                <span className={isAcquired ? 'text-emerald-300 font-semibold' : ''}>{item.itemName}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-slate-400 font-mono text-[11px]">{item.category}</td>
+                            <td className="p-2.5 font-mono text-slate-300">@{item.displayName || item.characterName}</td>
+                            <td className="p-2.5">
                               <button
                                 type="button"
-                                onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
-                                className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                                onClick={() => handleCycleStatus(item.id)}
+                                className={`font-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer font-bold transition-colors ${
+                                  item.status === 'HAVE'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                                    : item.status === 'NEED'
+                                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
                               >
-                                Whisper
+                                {item.status}
                               </button>
-                              {canEditOrDeleteWishlist(item) && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditLookingForItem(item)}
-                                    className="text-[11px] font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                                    title="Edit request"
-                                  >
-                                    <Edit3 className="w-3 h-3" />
-                                    <span>Edit</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteLookingForItem(item.id)}
-                                    className="text-[11px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
-                                    title="Delete request"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    <span>Delete</span>
-                                  </button>
-                                </>
+                            </td>
+                            <td className="p-2.5 text-slate-400">
+                              {isAcquired ? (
+                                <div className="flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
+                                  <Sparkles className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                                  <span>Fulfilled by: <strong>{item.fulfilledBy || 'Self Found'}</strong></span>
+                                </div>
+                              ) : (
+                                item.notes
                               )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {!isAcquired && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const helper = userAccount?.displayName ? `@${userAccount.displayName}` : 'Guild Helper';
+                                      handleMarkFulfilled(item.id, helper);
+                                    }}
+                                    className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                                    title="Mark this item as fulfilled by you for this squadmate"
+                                  >
+                                    <Gift className="w-3 h-3" />
+                                    <span>Found It</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy(`@${item.characterName} Hey, I found ${item.itemName} for you!`, 'PoE Whisper')}
+                                  className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                                >
+                                  Whisper
+                                </button>
+                                {canEditOrDeleteWishlist(item) && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditLookingForItem(item)}
+                                      className="text-[11px] font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                                      title="Edit request"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      <span>Edit</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteLookingForItem(item.id)}
+                                      className="text-[11px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                                      title="Delete request"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>Delete</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -3979,117 +4334,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ============================================================================ */}
-        {/* TAB 5: VAULT (GUILD STASH) */}
-        {/* ============================================================================ */}
-        {activeTab === 'vault' && (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between gap-3">
-              <div className="text-xs text-slate-400">
-                Log and browse items deposited in NOIR Guild Stash tabs.
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddVaultModal(true)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Log Unique to Vault</span>
-              </button>
-            </div>
-
-            {/* Add Vault Item Modal */}
-            {showAddVaultModal && (
-              <form
-                onSubmit={handleAddVaultItem}
-                className="p-4 rounded-xl border border-slate-700 bg-slate-900/95 space-y-3"
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="font-semibold text-xs text-white">Deposit to Guild Vault</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddVaultModal(false)}
-                    className="text-xs text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Item Name (e.g. Inpulsa's Broken Heart)"
-                    value={vItemName}
-                    onChange={(e) => setVItemName(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
-                  />
-                  <select
-                    value={vLoc}
-                    onChange={(e) => setVLoc(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
-                  >
-                    <option value="Guild Tab 1 (Uniques)">Guild Tab 1 (Uniques)</option>
-                    <option value="Guild Tab 2 (Bases & Gems)">Guild Tab 2 (Bases & Gems)</option>
-                    <option value="Whisper Finder">Whisper Finder</option>
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Sockets or rolls (e.g. 6 socket, clean)"
-                    value={vSockets}
-                    onChange={(e) => setVSockets(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="submit"
-                    className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer"
-                  >
-                    Deposit
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Vault Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {vaultItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                      {item.location}
-                    </span>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
-                      item.status === 'Available' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  <div className="font-semibold text-xs text-slate-200">{item.itemName}</div>
-                  <div className="text-[11px] text-slate-400">{item.socketsOrRoll}</div>
-
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-mono">Found by {item.finderCharacter}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleClaimVaultItem(item.id)}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
-                    >
-                      {item.status === 'Available' ? 'Claim' : 'Revert'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -4996,7 +5240,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                   <div className="text-white font-semibold">What will happen:</div>
                   <div>• Active roster exiles archived to Alumni Directory</div>
                   <div>• Wishlists & Needs reset to 0 items</div>
-                  <div>• Guild Stash Vault reset to 0 items</div>
                   <div>• Active sheet initialized with Host Leuie only</div>
                 </div>
 
