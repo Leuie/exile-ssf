@@ -850,6 +850,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         });
       }
       setBrowserJsonInput('');
+      setSetupOpen(false);
     } catch {
       setStatusNotice({ type: 'err', text: 'Invalid JSON. Make sure you copied the entire JSON response from pathofexile.com.' });
     }
@@ -904,6 +905,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             setBeforeSnapshot({ at: nowTime, items: snapItems });
             setCheckpoints([{ at: nowTime, totalItems: 0, totalChaos: 0 }]);
             setStatusNotice({ type: 'ok', text: `Before Snapshot locked at ${nowTime} (${data.totalItemCount} items). Go blast maps!` });
+            setSetupOpen(false);
           } else {
             const resultingDrops = mode === 'after' && beforeSnapshot ? computeSnapshotDiff(beforeSnapshot.items, snapItems) : snapItems;
             setActiveDrops(resultingDrops);
@@ -914,6 +916,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
               type: 'ok',
               text: `Synced at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
             });
+            setSetupOpen(false);
           }
         }
       } catch (err: any) {
