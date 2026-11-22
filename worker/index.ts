@@ -1676,6 +1676,153 @@ export default {
         }
       }
 
+      // GET /api/farming/ninja-prices?league=auto|Standard|Hardcore|<LeagueName> (60 min KV cache)
+      if (url.pathname === '/api/farming/ninja-prices' && request.method === 'GET') {
+        try {
+          const requestedLeague = String(url.searchParams.get('league') || 'auto').trim();
+          const forceRefresh = url.searchParams.get('refresh') === '1';
+
+          let targetLeague = requestedLeague;
+          if (!targetLeague || targetLeague.toLowerCase() === 'auto') {
+            try {
+              const idxRes = await fetch('https://poe.ninja/api/data/getindexstate', {
+                headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)', Accept: 'application/json' }
+              });
+              if (idxRes.ok) {
+                const idxData: any = await idxRes.json();
+                const leagues = Array.isArray(idxData?.economyLeagues) ? idxData.economyLeagues : [];
+                const activeSoftcore = leagues.find(
+                  (l: any) =>
+                    l?.name &&
+                    !/^(standard|hardcore|ruthless)/i.test(String(l.name)) &&
+                    !/hardcore/i.test(String(l.name))
+                );
+                targetLeague = activeSoftcore?.name || leagues[0]?.name || 'Standard';
+              } else {
+                targetLeague = 'Standard';
+              }
+            } catch {
+              targetLeague = 'Standard';
+            }
+          }
+
+          const cacheKey = `farming:ninja_prices:v1:${targetLeague.toLowerCase()}`;
+          if (!forceRefresh && env.EXILE_KV) {
+            const cached = await env.EXILE_KV.get(cacheKey);
+            if (cached) return new Response(cached, { headers: CORS_HEADERS });
+          }
+
+          const ninjaHeaders = {
+            'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+            Accept: 'application/json'
+          };
+
+          const currencyTypes = ['Currency', 'Fragment'];
+          const itemTypes = [
+            'Scarab',
+            'UniqueWeapon',
+            'UniqueArmour',
+            'UniqueAccessory',
+            'UniqueFlask',
+            'UniqueJewel',
+            'DivinationCard',
+            'Essence',
+            'Fossil',
+            'Oil',
+            'SkillGem',
+            'Tattoo',
+            'Omen',
+            'UniqueMap'
+          ];
+
+          const fetches: Promise<{ kind: 'currency' | 'item'; type: string; data: any }>[] = [
+            ...currencyTypes.map(async (type) => {
+              const r = await fetch(
+                `https://poe.ninja/api/data/currencyoverview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`,
+                { headers: ninjaHeaders }
+              );
+              return { kind: 'currency' as const, type, data: r.ok ? await r.json() : null };
+            }),
+            ...itemTypes.map(async (type) => {
+              const r = await fetch(
+                `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`,
+                { headers: ninjaHeaders }
+              );
+              return { kind: 'item' as const, type, data: r.ok ? await r.json() : null };
+            })
+          ];
+
+          const results = await Promise.allSettled(fetches);
+          const prices: Record<string, number> = { 'chaos orb': 1 };
+          let divineChaos = 150;
+
+          for (const settled of results) {
+            if (settled.status !== 'fulfilled' || !settled.value?.data) continue;
+            const { kind, type, data } = settled.value;
+            const lines = Array.isArray(data?.lines) ? data.lines : [];
+
+            if (kind === 'currency') {
+              for (const line of lines) {
+                const name = String(line?.currencyTypeName || '').trim().toLowerCase();
+                const val = Number(line?.chaosEquivalent || 0);
+                if (!name || val <= 0) continue;
+                prices[name] = Math.round(val * 100) / 100;
+                if (name === 'divine orb') divineChaos = Math.max(10, Math.round(val));
+              }
+            } else if (type === 'SkillGem') {
+              for (const line of lines) {
+                const name = String(line?.name || '').trim().toLowerCase();
+                const val = Number(line?.chaosValue || 0);
+                if (!name || val <= 0) continue;
+                const lvl = Number(line?.gemLevel || 1);
+                const qual = Number(line?.gemQuality || 0);
+                const corr = line?.corrupted ? 1 : 0;
+                const exactKey = `gem::${name}::l${lvl}::q${qual}::c${corr}`;
+                if (!prices[exactKey] || val > prices[exactKey]) {
+                  prices[exactKey] = Math.round(val * 100) / 100;
+                }
+                // Keep a clean baseline fallback for level 1/0 uncorrupted
+                if (!prices[name] || (lvl <= 1 && qual === 0 && corr === 0)) {
+                  prices[name] = Math.round(val * 100) / 100;
+                }
+              }
+            } else {
+              for (const line of lines) {
+                const name = String(line?.name || '').trim().toLowerCase();
+                const val = Number(line?.chaosValue || 0);
+                if (!name || val <= 0) continue;
+                // Keep highest value for 6 link vs base unless already set lower; prefer non-6L base if links < 5
+                const links = Number(line?.links || 0);
+                if (links >= 5 && prices[name]) continue;
+                if (!prices[name] || links < 5) {
+                  prices[name] = Math.round(val * 100) / 100;
+                }
+              }
+            }
+          }
+
+          const payloadStr = JSON.stringify({
+            status: 'ok',
+            league: targetLeague,
+            divineChaos,
+            itemCount: Object.keys(prices).length,
+            syncedAtIso: now,
+            prices
+          });
+
+          if (env.EXILE_KV && Object.keys(prices).length > 20) {
+            await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 3600 });
+          }
+
+          return new Response(payloadStr, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Failed to fetch poe.ninja prices.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
       // GET /api/farming/sessions?handle=...
       if (url.pathname === '/api/farming/sessions' && request.method === 'GET') {
         try {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles,
   Trophy,
@@ -21,7 +21,11 @@ import {
   ShieldAlert,
   KeyRound,
   Layers,
-  ArrowUpDown
+  ArrowUpDown,
+  TrendingUp,
+  Timer,
+  Share2,
+  Users
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 import type { UserAccount, LookingForItem } from '../types';
@@ -60,6 +64,14 @@ interface TrackedDropItem {
   tabName: string;
 }
 
+type ItemTier = 'S' | 'A' | 'B' | 'C';
+
+interface EnrichedDropItem extends TrackedDropItem {
+  chaosEach: number;
+  totalChaos: number;
+  tier: ItemTier;
+}
+
 interface SavedFarmingSession {
   id: string;
   handle: string;
@@ -69,11 +81,31 @@ interface SavedFarmingSession {
   mapsRun: number;
   durationMinutes: number;
   deaths: number;
+  totalChaos?: number;
   createdAtIso: string;
   items: TrackedDropItem[];
 }
 
-type SortMode = 'bracket' | 'qty_desc' | 'gem_level' | 'gem_quality' | 'ilvl_desc' | 'alpha';
+interface SyncCheckpoint {
+  at: string;
+  totalItems: number;
+  totalChaos: number;
+}
+
+interface LeagueOption {
+  id: string;
+  name: string;
+  game: 'poe1' | 'poe2';
+}
+
+type SortMode = 'value_desc' | 'bracket' | 'qty_desc' | 'gem_level' | 'gem_quality' | 'ilvl_desc' | 'alpha';
+
+const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v1';
+
+const DEFAULT_LEAGUES: LeagueOption[] = [
+  { id: 'poe1-330-umbra', name: 'Ravenwatch Covens of Umbra GSF (PL87651)', game: 'poe1' },
+  { id: 'poe2-ea-ancients', name: 'PoE 2 Early Access Private League', game: 'poe2' }
+];
 
 const CATEGORY_ORDER = [
   'Uniques',
@@ -123,6 +155,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Gear & Jewels': 'from-slate-400 to-slate-300'
 };
 
+const TIER_STYLES: Record<ItemTier, string> = {
+  S: 'bg-amber-500/25 border-amber-400/70 text-amber-200 shadow-sm shadow-amber-500/20',
+  A: 'bg-purple-500/20 border-purple-400/60 text-purple-200',
+  B: 'bg-sky-500/20 border-sky-400/50 text-sky-200',
+  C: 'bg-slate-800/80 border-slate-700 text-slate-400'
+};
+
 function computeSnapshotDiff(before: TrackedDropItem[], after: TrackedDropItem[]): TrackedDropItem[] {
   const beforeMap = new Map<string, number>();
   for (const it of before) {
@@ -136,32 +175,94 @@ function computeSnapshotDiff(before: TrackedDropItem[], after: TrackedDropItem[]
       diff.push({ ...it, quantity: gained });
     }
   }
-  return diff.sort((a, b) => {
-    if (a.category === 'Uniques' && b.category !== 'Uniques') return -1;
-    if (b.category === 'Uniques' && a.category !== 'Uniques') return 1;
-    return b.quantity - a.quantity;
-  });
+  return diff;
+}
+
+function lookupNinjaPrice(item: TrackedDropItem, prices: Record<string, number>): number {
+  const shortLow = item.shortName.trim().toLowerCase();
+  const baseLow = item.baseType.trim().toLowerCase();
+
+  if (item.category === 'Gems') {
+    const lvl = item.gemLevel || 1;
+    const qual = item.gemQuality || 0;
+    const corr = item.corrupted ? 1 : 0;
+    const exactGem = prices[`gem::${shortLow}::l${lvl}::q${qual}::c${corr}`];
+    if (exactGem) return exactGem;
+    // Also check nearest quality bucket (20% or 0%)
+    const q20 = qual >= 18 ? prices[`gem::${shortLow}::l${lvl}::q20::c${corr}`] : 0;
+    if (q20) return q20;
+    if (prices[shortLow]) return prices[shortLow];
+    return 0;
+  }
+
+  if (prices[shortLow]) return prices[shortLow];
+  if (baseLow && prices[baseLow]) return prices[baseLow];
+  return 0;
+}
+
+function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number): ItemTier {
+  const sThreshold = Math.max(100, divineChaos * 0.9);
+  if (chaosEach >= sThreshold || totalChaos >= sThreshold) return 'S';
+  if (chaosEach >= 30 || totalChaos >= 50) return 'A';
+  if (chaosEach >= 5 || totalChaos >= 12) return 'B';
+  return 'C';
+}
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   selectedGame = 'poe1',
   userAccount
 }) => {
-  const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
-  const [wishlistItems, setWishlistItems] = useState<LookingForItem[]>([]);
+  // Load safe saved preferences (never stores POESESSID)
+  const savedPrefs = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
 
-  // Stash API Connection State (POESESSID stays in browser memory only, never stored on server)
-  const [accountName, setAccountName] = useState<string>(userAccount?.poeAccountName || '');
-  const [leagueName, setLeagueName] = useState<string>('Ravenwatch Covens of Umbra GSF (PL87651)');
+  const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
+  const [leagueOptions, setLeagueOptions] = useState<LeagueOption[]>(DEFAULT_LEAGUES);
+  const [linkedLeagueId, setLinkedLeagueId] = useState<string>(savedPrefs.linkedLeagueId || 'poe1-330-umbra');
+  const [wishlistItems, setWishlistItems] = useState<LookingForItem[]>([]);
+  const [claimedWishIds, setClaimedWishIds] = useState<Record<string, boolean>>({});
+  const [sharedStashKeys, setSharedStashKeys] = useState<Record<string, boolean>>({});
+
+  // poe.ninja Pricing State
+  const [ninjaLeagueParam, setNinjaLeagueParam] = useState<string>('auto');
+  const [ninjaResolvedLeague, setNinjaResolvedLeague] = useState<string>('');
+  const [divineChaos, setDivineChaos] = useState<number>(150);
+  const [ninjaPrices, setNinjaPrices] = useState<Record<string, number>>({ 'chaos orb': 1 });
+  const [loadingNinja, setLoadingNinja] = useState<boolean>(false);
+
+  // Stash API Connection State (POESESSID stays in browser memory only)
+  const [accountName, setAccountName] = useState<string>(savedPrefs.accountName || userAccount?.poeAccountName || '');
+  const [leagueName, setLeagueName] = useState<string>(
+    savedPrefs.leagueName || 'Ravenwatch Covens of Umbra GSF (PL87651)'
+  );
   const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
   const [poesessid, setPoesessid] = useState<string>('');
   const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(false);
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>([]);
-  const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>([]);
+  const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>(
+    Array.isArray(savedPrefs.selectedTabIndices) ? savedPrefs.selectedTabIndices : []
+  );
   const [loadingTabs, setLoadingTabs] = useState<boolean>(false);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
   const [statusNotice, setStatusNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  // Auto Sync Timer (0 = Off, 15, 30, 60 minutes)
+  const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(0);
+  const [secondsUntilSync, setSecondsUntilSync] = useState<number>(0);
+  const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>([]);
 
   // Active Session State
   const [sessionTitle, setSessionTitle] = useState<string>('T16 Mapping & Dump Session');
@@ -177,10 +278,11 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [manualCategory, setManualCategory] = useState<string>('Uniques');
   const [manualQty, setManualQty] = useState<number>(1);
 
-  // Advanced Loot Filtering, Sub-Brackets & Sorting
+  // Advanced Loot Filtering, Tiers, Sub-Brackets & Sorting
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [subFilter, setSubFilter] = useState<string>('All');
-  const [sortMode, setSortMode] = useState<SortMode>('bracket');
+  const [tierFilter, setTierFilter] = useState<'All' | ItemTier>('All');
+  const [sortMode, setSortMode] = useState<SortMode>('value_desc');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Saved Sessions History
@@ -193,15 +295,71 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     document.title = 'Farming & Drop Tracker | Exile SSF';
   }, []);
 
+  // Persist non-sensitive preferences locally
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PREFS_STORAGE_KEY,
+        JSON.stringify({
+          accountName,
+          leagueName,
+          linkedLeagueId,
+          selectedTabIndices
+        })
+      );
+    } catch {}
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices]);
+
+  // Load live poe.ninja prices
+  const loadNinjaPrices = useCallback(async (targetLeague: string, forceRefresh = false) => {
+    setLoadingNinja(true);
+    try {
+      const res = await fetch(
+        `/api/farming/ninja-prices?league=${encodeURIComponent(targetLeague)}${forceRefresh ? '&refresh=1' : ''}`,
+        { credentials: 'include' }
+      );
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data?.prices && typeof data.prices === 'object') {
+          setNinjaPrices(data.prices);
+          setNinjaResolvedLeague(String(data.league || targetLeague));
+          if (Number(data.divineChaos) > 0) setDivineChaos(Number(data.divineChaos));
+        }
+      }
+    } catch {}
+    setLoadingNinja(false);
+  }, []);
+
+  useEffect(() => {
+    loadNinjaPrices(ninjaLeagueParam, false);
+  }, [ninjaLeagueParam, loadNinjaPrices]);
+
+  // Load linked Private League wishlists, custom leagues, and user's saved sessions
   useEffect(() => {
     let cancelled = false;
     const loadContext = async () => {
       try {
-        const dataRes = await fetch('/api/data?leagueId=poe1-330-umbra', { credentials: 'include' });
+        const dataRes = await fetch(`/api/data?leagueId=${encodeURIComponent(linkedLeagueId)}`, {
+          credentials: 'include'
+        });
         if (dataRes.ok && !cancelled) {
           const data: any = await dataRes.json();
           if (Array.isArray(data?.lookingForItems)) {
             setWishlistItems(data.lookingForItems);
+          }
+          if (Array.isArray(data?.customLeagues) && data.customLeagues.length > 0) {
+            const customOpts: LeagueOption[] = data.customLeagues
+              .filter((c: any) => c?.id && c?.name)
+              .map((c: any) => ({
+                id: String(c.id),
+                name: String(c.name),
+                game: c.game === 'poe2' ? 'poe2' : 'poe1'
+              }));
+            const merged = [...DEFAULT_LEAGUES];
+            for (const opt of customOpts) {
+              if (!merged.some((m) => m.id === opt.id)) merged.push(opt);
+            }
+            setLeagueOptions(merged);
           }
         }
       } catch {}
@@ -224,13 +382,37 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [normalizedHandle]);
+  }, [linkedLeagueId, normalizedHandle]);
+
+  // Enrich drops with live poe.ninja Chaos value & S/A/B/C tier
+  const enrichedDrops = useMemo<EnrichedDropItem[]>(() => {
+    return activeDrops.map((it) => {
+      const chaosEach = lookupNinjaPrice(it, ninjaPrices);
+      const totalChaos = Math.round(chaosEach * it.quantity * 10) / 10;
+      const tier = resolveTier(chaosEach, totalChaos, divineChaos);
+      return { ...it, chaosEach, totalChaos, tier };
+    });
+  }, [activeDrops, ninjaPrices, divineChaos]);
+
+  const totalSessionChaos = useMemo(
+    () => Math.round(enrichedDrops.reduce((sum, it) => sum + it.totalChaos, 0) * 10) / 10,
+    [enrichedDrops]
+  );
+  const totalSessionDivines = divineChaos > 0 ? totalSessionChaos / divineChaos : 0;
+  const chaosPerHour = durationMinutes > 0 ? Math.round((totalSessionChaos / durationMinutes) * 60) : 0;
+  const divPerHour = divineChaos > 0 ? (chaosPerHour / divineChaos).toFixed(2) : '0.00';
+
+  const tierCounts = useMemo(() => {
+    const counts: Record<ItemTier, number> = { S: 0, A: 0, B: 0, C: 0 };
+    for (const it of enrichedDrops) counts[it.tier] += 1;
+    return counts;
+  }, [enrichedDrops]);
 
   const wishlistMatches = useMemo(() => {
     const openWishes = wishlistItems.filter((w) => w.status !== 'HAVE');
-    if (openWishes.length === 0 || activeDrops.length === 0) return [];
-    const matches: { drop: TrackedDropItem; wish: LookingForItem }[] = [];
-    for (const drop of activeDrops) {
+    if (openWishes.length === 0 || enrichedDrops.length === 0) return [];
+    const matches: { drop: EnrichedDropItem; wish: LookingForItem }[] = [];
+    for (const drop of enrichedDrops) {
       const dropLow = drop.shortName.toLowerCase();
       const dropFull = drop.name.toLowerCase();
       for (const wish of openWishes) {
@@ -241,16 +423,94 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       }
     }
     return matches;
-  }, [wishlistItems, activeDrops]);
+  }, [wishlistItems, enrichedDrops]);
+
+  const handleSelectLinkedLeague = (newId: string) => {
+    setLinkedLeagueId(newId);
+    const opt = leagueOptions.find((l) => l.id === newId);
+    if (opt) {
+      setLeagueName(opt.name);
+      setGame(opt.game);
+    }
+  };
+
+  const handleClaimWishlistMatch = async (wish: LookingForItem) => {
+    const finder = userAccount?.displayName || userAccount?.characterName || 'Squad Exile';
+    const updated: LookingForItem = {
+      ...wish,
+      status: 'HAVE',
+      fulfilledBy: finder,
+      fulfilledAtIso: new Date().toISOString()
+    };
+    setClaimedWishIds((prev) => ({ ...prev, [wish.id]: true }));
+    try {
+      await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ leagueId: linkedLeagueId, item: updated })
+      });
+      await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId: linkedLeagueId,
+          event: {
+            id: `feed-farm-${Date.now()}`,
+            type: 'item_fulfilled',
+            actorHandle: finder,
+            title: `Found ${wish.itemName} for @${wish.displayName || wish.characterName}`,
+            detail: 'Detected automatically via Farming & Drop Tracker dump tab scan.',
+            createdAtIso: new Date().toISOString()
+          }
+        })
+      });
+      setStatusNotice({
+        type: 'ok',
+        text: `Marked "${wish.itemName}" found for @${wish.displayName || wish.characterName} and posted to the league feed!`
+      });
+    } catch {
+      setStatusNotice({ type: 'err', text: 'Could not update league wishlist right now.' });
+    }
+  };
+
+  const handleShareToFreeStash = async (item: EnrichedDropItem) => {
+    const donor = userAccount?.displayName || userAccount?.characterName || 'Squad Exile';
+    setSharedStashKeys((prev) => ({ ...prev, [item.key]: true }));
+    try {
+      await fetch('/api/stash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId: linkedLeagueId,
+          drop: {
+            id: `stash-${Date.now()}`,
+            itemName: item.shortName,
+            category: item.category === 'Uniques' ? 'Unique' : 'Other',
+            donorHandle: donor,
+            notes: `Dropped during ${sessionTitle}${item.chaosEach > 0 ? ` (poe.ninja ~${item.chaosEach}c, Tier ${item.tier})` : ''}`,
+            status: 'AVAILABLE',
+            createdAtIso: new Date().toISOString()
+          }
+        })
+      });
+      setStatusNotice({
+        type: 'ok',
+        text: `Shared "${item.shortName}" to your Private League Free Stash Feed!`
+      });
+    } catch {
+      setStatusNotice({ type: 'err', text: 'Could not share item to Free Stash right now.' });
+    }
+  };
 
   const handleSelectCategory = (cat: string) => {
     setCategoryFilter(cat);
     if (cat === 'Gems') {
       setSubFilter('All Gems');
-      setSortMode('gem_level');
     } else if (cat === 'Gear & Jewels') {
       setSubFilter('All Equipment');
-      setSortMode('bracket');
     } else {
       setSubFilter('All');
     }
@@ -347,67 +607,98 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     });
   };
 
-  const runSnapshot = async (mode: 'before' | 'after' | 'inspect') => {
-    if (selectedTabIndices.length === 0) {
-      setStatusNotice({ type: 'err', text: 'Select at least one Dump Tab first.' });
-      return;
-    }
-    setSnapshotting(true);
-    setStatusNotice(null);
-    try {
-      const tabNames: Record<number, string> = {};
-      for (const t of stashTabs) tabNames[t.index] = t.name;
+  const runSnapshot = useCallback(
+    async (mode: 'before' | 'after' | 'inspect') => {
+      if (selectedTabIndices.length === 0) {
+        setStatusNotice({ type: 'err', text: 'Select at least one Dump Tab first.' });
+        return;
+      }
+      if (!accountName.trim() || !poesessid.trim() || !acceptedRiskDisclaimer) {
+        setStatusNotice({ type: 'err', text: 'Confirm disclaimer, Account Name, and POESESSID first.' });
+        return;
+      }
+      setSnapshotting(true);
+      setStatusNotice(null);
+      try {
+        const tabNames: Record<number, string> = {};
+        for (const t of stashTabs) tabNames[t.index] = t.name;
 
-      const res = await fetch('/api/farming/stash-snapshot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          accountName: accountName.trim(),
-          league: leagueName.trim(),
-          realm: 'pc',
-          poesessid: poesessid.trim(),
-          tabIndices: selectedTabIndices,
-          tabNames
-        })
-      });
-      const data: any = await res.json();
-      if (!res.ok || data.error) {
-        setStatusNotice({ type: 'err', text: data.error || 'Snapshot failed.' });
-      } else {
-        const snapItems: TrackedDropItem[] = data.items || [];
-        if (mode === 'before') {
-          setBeforeSnapshot({ at: new Date().toLocaleTimeString(), items: snapItems });
-          setStatusNotice({
-            type: 'ok',
-            text: `Before Snapshot captured (${data.totalItemCount} total items across ${selectedTabIndices.length} tabs). Go blast maps and dump loot!`
-          });
-        } else if (mode === 'after') {
-          if (!beforeSnapshot) {
-            setActiveDrops(snapItems);
-            setStatusNotice({ type: 'ok', text: `Captured ${snapItems.length} unique item stacks from selected tabs.` });
-          } else {
-            const diffed = computeSnapshotDiff(beforeSnapshot.items, snapItems);
-            setActiveDrops(diffed);
-            const totalNew = diffed.reduce((sum, x) => sum + x.quantity, 0);
+        const res = await fetch('/api/farming/stash-snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            accountName: accountName.trim(),
+            league: leagueName.trim(),
+            realm: 'pc',
+            poesessid: poesessid.trim(),
+            tabIndices: selectedTabIndices,
+            tabNames
+          })
+        });
+        const data: any = await res.json();
+        if (!res.ok || data.error) {
+          setStatusNotice({ type: 'err', text: data.error || 'Snapshot failed.' });
+        } else {
+          const snapItems: TrackedDropItem[] = data.items || [];
+          const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          if (mode === 'before') {
+            setBeforeSnapshot({ at: nowTime, items: snapItems });
+            setCheckpoints([{ at: nowTime, totalItems: 0, totalChaos: 0 }]);
             setStatusNotice({
               type: 'ok',
-              text: `Session Diff complete: +${totalNew} new items dropped across ${diffed.length} distinct stacks!`
+              text: `Before Snapshot captured (${data.totalItemCount} total items across ${selectedTabIndices.length} tabs). Go blast maps and dump loot!`
+            });
+          } else {
+            const resultingDrops = mode === 'after' && beforeSnapshot ? computeSnapshotDiff(beforeSnapshot.items, snapItems) : snapItems;
+            setActiveDrops(resultingDrops);
+            const estChaos = Math.round(
+              resultingDrops.reduce((sum, it) => sum + lookupNinjaPrice(it, ninjaPrices) * it.quantity, 0)
+            );
+            const totalCount = resultingDrops.reduce((sum, x) => sum + x.quantity, 0);
+            setCheckpoints((prev) => [...prev.slice(-11), { at: nowTime, totalItems: totalCount, totalChaos: estChaos }]);
+            setStatusNotice({
+              type: 'ok',
+              text:
+                mode === 'after' && beforeSnapshot
+                  ? `Session Diff updated at ${nowTime}: +${totalCount} drops (~${estChaos.toLocaleString()}c on poe.ninja)!`
+                  : `Dump Tab Scan complete at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
             });
           }
-        } else {
-          setActiveDrops(snapItems);
-          setStatusNotice({
-            type: 'ok',
-            text: `Dump Tab Scan complete: ${data.totalItemCount} items parsed across ${snapItems.length} distinct stacks.`
-          });
         }
+      } catch (err: any) {
+        setStatusNotice({ type: 'err', text: err.message || 'Snapshot request failed.' });
       }
-    } catch (err: any) {
-      setStatusNotice({ type: 'err', text: err.message || 'Snapshot request failed.' });
+      setSnapshotting(false);
+    },
+    [selectedTabIndices, accountName, leagueName, poesessid, acceptedRiskDisclaimer, stashTabs, beforeSnapshot, ninjaPrices]
+  );
+
+  // Keep latest runSnapshot ref for the interval timer
+  const runSnapshotRef = useRef(runSnapshot);
+  runSnapshotRef.current = runSnapshot;
+  const hasBeforeRef = useRef(Boolean(beforeSnapshot));
+  hasBeforeRef.current = Boolean(beforeSnapshot);
+
+  // Auto Sync Countdown Timer (15m / 30m / 60m)
+  useEffect(() => {
+    if (autoSyncMinutes <= 0) {
+      setSecondsUntilSync(0);
+      return;
     }
-    setSnapshotting(false);
-  };
+    setSecondsUntilSync(autoSyncMinutes * 60);
+    const interval = setInterval(() => {
+      setSecondsUntilSync((prev) => {
+        if (prev <= 1) {
+          runSnapshotRef.current(hasBeforeRef.current ? 'after' : 'inspect');
+          return autoSyncMinutes * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [autoSyncMinutes]);
 
   const handleClientTxtUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -624,6 +915,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       mapsRun,
       durationMinutes,
       deaths,
+      totalChaos: totalSessionChaos,
       createdAtIso: new Date().toISOString(),
       items: activeDrops
     };
@@ -653,45 +945,63 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   };
 
   const categoryBreakdown = useMemo(() => {
-    const counts = new Map<string, number>();
-    let total = 0;
-    for (const it of activeDrops) {
-      counts.set(it.category, (counts.get(it.category) || 0) + it.quantity);
-      total += it.quantity;
+    const counts = new Map<string, { count: number; chaos: number }>();
+    let totalChaosAll = 0;
+    let totalCountAll = 0;
+    for (const it of enrichedDrops) {
+      const prev = counts.get(it.category) || { count: 0, chaos: 0 };
+      prev.count += it.quantity;
+      prev.chaos += it.totalChaos;
+      counts.set(it.category, prev);
+      totalChaosAll += it.totalChaos;
+      totalCountAll += it.quantity;
     }
-    return CATEGORY_ORDER.map((cat) => ({
-      category: cat,
-      count: counts.get(cat) || 0,
-      pct: total > 0 ? Math.round(((counts.get(cat) || 0) / total) * 100) : 0
-    })).filter((c) => c.count > 0);
-  }, [activeDrops]);
+    return CATEGORY_ORDER.map((cat) => {
+      const row = counts.get(cat) || { count: 0, chaos: 0 };
+      const pct =
+        totalChaosAll > 0
+          ? Math.round((row.chaos / totalChaosAll) * 100)
+          : totalCountAll > 0
+          ? Math.round((row.count / totalCountAll) * 100)
+          : 0;
+      return {
+        category: cat,
+        count: row.count,
+        chaos: Math.round(row.chaos),
+        pct
+      };
+    }).filter((c) => c.count > 0);
+  }, [enrichedDrops]);
 
-  const uniqueDrops = useMemo(
-    () => activeDrops.filter((d) => d.category === 'Uniques'),
-    [activeDrops]
+  const topDropsShowcase = useMemo(
+    () =>
+      [...enrichedDrops]
+        .filter((d) => d.tier === 'S' || d.tier === 'A' || d.category === 'Uniques')
+        .sort((a, b) => b.totalChaos - a.totalChaos || b.chaosEach - a.chaosEach)
+        .slice(0, 16),
+    [enrichedDrops]
   );
 
-  // Dynamic Sub-Filter Pills based on selected main category
   const activeSubFilterOptions = useMemo(() => {
     if (categoryFilter === 'Gems') return GEM_SUBFILTERS;
     if (categoryFilter === 'Gear & Jewels') return EQUIPMENT_BRACKETS;
     if (categoryFilter === 'All') return [];
     const presentSubs = Array.from(
       new Set(
-        activeDrops
+        enrichedDrops
           .filter((d) => d.category === categoryFilter && d.subCategory)
           .map((d) => d.subCategory!)
       )
     ).sort();
     return presentSubs.length > 1 ? ['All', ...presentSubs] : [];
-  }, [categoryFilter, activeDrops]);
+  }, [categoryFilter, enrichedDrops]);
 
   const filteredAndSortedDrops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const filtered = activeDrops.filter((d) => {
+    const filtered = enrichedDrops.filter((d) => {
       if (categoryFilter !== 'All' && d.category !== categoryFilter) return false;
+      if (tierFilter !== 'All' && d.tier !== tierFilter) return false;
 
-      // Gem sub-filters
       if (categoryFilter === 'Gems' && subFilter !== 'All Gems') {
         if (subFilter === 'Vaal' && !d.isVaal) return false;
         if (subFilter === 'Transfigured' && !d.isTransfigured) return false;
@@ -713,28 +1023,27 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     });
 
     return [...filtered].sort((a, b) => {
-      if (sortMode === 'qty_desc') return b.quantity - a.quantity || a.shortName.localeCompare(b.shortName);
+      if (sortMode === 'value_desc') return b.totalChaos - a.totalChaos || b.chaosEach - a.chaosEach || b.quantity - a.quantity;
+      if (sortMode === 'qty_desc') return b.quantity - a.quantity || b.totalChaos - a.totalChaos;
       if (sortMode === 'alpha') return a.shortName.localeCompare(b.shortName);
-      if (sortMode === 'ilvl_desc') return (b.ilvl || 0) - (a.ilvl || 0) || b.quantity - a.quantity;
+      if (sortMode === 'ilvl_desc') return (b.ilvl || 0) - (a.ilvl || 0) || b.totalChaos - a.totalChaos;
       if (sortMode === 'gem_level') {
-        return (b.gemLevel || 0) - (a.gemLevel || 0) || (b.gemQuality || 0) - (a.gemQuality || 0) || a.shortName.localeCompare(b.shortName);
+        return (b.gemLevel || 0) - (a.gemLevel || 0) || (b.gemQuality || 0) - (a.gemQuality || 0) || b.totalChaos - a.totalChaos;
       }
       if (sortMode === 'gem_quality') {
-        return (b.gemQuality || 0) - (a.gemQuality || 0) || (b.gemLevel || 0) - (a.gemLevel || 0) || a.shortName.localeCompare(b.shortName);
+        return (b.gemQuality || 0) - (a.gemQuality || 0) || (b.gemLevel || 0) - (a.gemLevel || 0) || b.totalChaos - a.totalChaos;
       }
-      // Default: 'bracket' — sort cleanly by Category -> SubCategory Bracket -> Quantity
       const catA = CATEGORY_ORDER.indexOf(a.category);
       const catB = CATEGORY_ORDER.indexOf(b.category);
       if (catA !== catB) return catA - catB;
       const subCmp = (a.subCategory || '').localeCompare(b.subCategory || '');
       if (subCmp !== 0) return subCmp;
-      return b.quantity - a.quantity;
+      return b.totalChaos - a.totalChaos || b.quantity - a.quantity;
     });
-  }, [activeDrops, categoryFilter, subFilter, sortMode, searchQuery]);
+  }, [enrichedDrops, categoryFilter, tierFilter, subFilter, sortMode, searchQuery]);
 
-  // Group items by SubCategory Bracket when sorted by bracket
   const groupedByBracket = useMemo(() => {
-    const map = new Map<string, TrackedDropItem[]>();
+    const map = new Map<string, EnrichedDropItem[]>();
     for (const it of filteredAndSortedDrops) {
       const bracketTitle =
         categoryFilter === 'All'
@@ -747,56 +1056,111 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     return Array.from(map.entries());
   }, [filteredAndSortedDrops, categoryFilter]);
 
-  const totalItemsDropped = activeDrops.reduce((s, x) => s + x.quantity, 0);
+  const totalItemsDropped = enrichedDrops.reduce((s, x) => s + x.quantity, 0);
   const mapsPerHour = durationMinutes > 0 && mapsRun > 0 ? ((mapsRun / durationMinutes) * 60).toFixed(1) : '0.0';
 
   return (
     <div className="w-full space-y-6 pb-20 font-sans text-slate-200">
       {/* Header Bar */}
-      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/35 to-[#0e1320] p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-poe font-bold text-white flex items-center gap-2">
-              <Package className="w-5 h-5 text-amber-400" />
-              <span>Farming & Drop Tracker</span>
-            </h1>
-            <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300">
-              Open Community Tool
-            </span>
-            <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
-              Bracket & Gem Sorting
-            </span>
+      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/35 to-[#0e1320] p-5 space-y-4 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-poe font-bold text-white flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-400" />
+                <span>Farming & Drop Tracker</span>
+              </h1>
+              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                poe.ninja S/A/B/C Tiering
+              </span>
+              {ninjaResolvedLeague && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
+                  {ninjaResolvedLeague}: 1 Div = {divineChaos}c
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 max-w-2xl">
+              Auto pull your dump tabs every 30 minutes, tier every drop by live poe.ninja value (S, A, B, C), sort Gems and Equipment into defense brackets, and match drops directly to your Private League wishlists.
+            </p>
           </div>
-          <p className="text-xs text-slate-400 max-w-2xl">
-            Roll a batch of maps, dump your loot into stash tabs, and inspect every drop sorted cleanly into defense brackets (Armour, Evasion, Energy Shield, Hybrid), Gem tiers (Vaal, Transfigured, Level, Quality), and squad wishlist matches.
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+            {/* Game Switcher */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-indigo-500/25 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setGame('poe1')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  game === 'poe1'
+                    ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
+                    : 'text-slate-400 border border-transparent hover:text-white'
+                }`}
+              >
+                <Flame className={`w-3.5 h-3.5 ${game === 'poe1' ? 'text-amber-300' : 'text-slate-500'}`} />
+                <span>PoE 1</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGame('poe2')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  game === 'poe2'
+                    ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
+                    : 'text-slate-400 border border-transparent hover:text-white'
+                }`}
+              >
+                <Hammer className={`w-3.5 h-3.5 ${game === 'poe2' ? 'text-amber-300' : 'text-slate-500'}`} />
+                <span>PoE 2</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-indigo-500/25 text-xs font-bold self-start lg:self-center">
-          <button
-            type="button"
-            onClick={() => setGame('poe1')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-              game === 'poe1'
-                ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
-                : 'text-slate-400 border border-transparent hover:text-white'
-            }`}
-          >
-            <Flame className={`w-3.5 h-3.5 ${game === 'poe1' ? 'text-amber-300' : 'text-slate-500'}`} />
-            <span>Path of Exile 1</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setGame('poe2')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-              game === 'poe2'
-                ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
-                : 'text-slate-400 border border-transparent hover:text-white'
-            }`}
-          >
-            <Hammer className={`w-3.5 h-3.5 ${game === 'poe2' ? 'text-amber-300' : 'text-slate-500'}`} />
-            <span>Path of Exile 2</span>
-          </button>
+        {/* Linked Private League + poe.ninja Economy Reference Strip */}
+        <div className="pt-3 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              Linked Private League:
+            </span>
+            <select
+              value={linkedLeagueId}
+              onChange={(e) => handleSelectLinkedLeague(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer"
+            >
+              {leagueOptions.map((lg) => (
+                <option key={lg.id} value={lg.id}>
+                  {lg.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-emerald-400 font-mono">
+              ({wishlistItems.filter((w) => w.status !== 'HAVE').length} open squad wishlists synced)
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono uppercase text-slate-400">poe.ninja Reference:</span>
+            <select
+              value={ninjaLeagueParam}
+              onChange={(e) => setNinjaLeagueParam(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value="auto">Current Challenge League</option>
+              <option value="Standard">Standard</option>
+              <option value="Hardcore">Hardcore</option>
+            </select>
+            <button
+              type="button"
+              disabled={loadingNinja}
+              onClick={() => loadNinjaPrices(ninjaLeagueParam, true)}
+              title="Refresh poe.ninja pricing dictionary"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 text-amber-400 ${loadingNinja ? 'animate-spin' : ''}`} />
+              <span>Sync Prices</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -827,26 +1191,46 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         </div>
       )}
 
-      {/* Squad Wishlist Match Alert */}
+      {/* Squad Wishlist Match Alert with Direct Claim & Notify Action */}
       {wishlistMatches.length > 0 && (
-        <div className="p-4 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 space-y-2 shadow-lg">
+        <div className="p-4 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 space-y-2.5 shadow-lg">
           <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-amber-300">
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span>Squad Wishlist Drop Match Detected ({wishlistMatches.length})</span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {wishlistMatches.map((m, idx) => (
-              <div
-                key={idx}
-                className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-amber-400/40 text-xs text-white flex items-center gap-2"
-              >
-                <span className="font-bold text-orange-300">{m.drop.shortName}</span>
-                <span className="text-slate-400">needed by</span>
-                <span className="font-mono font-bold text-emerald-300">
-                  @{m.wish.displayName || m.wish.characterName}
-                </span>
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-2.5">
+            {wishlistMatches.map((m, idx) => {
+              const isClaimed = !!claimedWishIds[m.wish.id];
+              return (
+                <div
+                  key={idx}
+                  className="px-3.5 py-2 rounded-xl bg-slate-950/90 border border-amber-400/40 text-xs text-white flex flex-wrap items-center gap-2.5"
+                >
+                  <span className="font-bold text-orange-300">{m.drop.shortName}</span>
+                  <span className="text-slate-400">needed by</span>
+                  <span className="font-mono font-bold text-emerald-300">
+                    @{m.wish.displayName || m.wish.characterName}
+                  </span>
+                  {m.wish.bountyOffer && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-200 font-mono text-[10px]">
+                      Bounty: {m.wish.bountyOffer}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isClaimed}
+                    onClick={() => handleClaimWishlistMatch(m.wish)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                      isClaimed
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
+                  >
+                    {isClaimed ? 'Claimed & Notified' : 'Mark Found & Notify'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -858,10 +1242,10 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase text-indigo-300">
                 <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                <span>{game === 'poe1' ? 'PoE 1 Dump Tab Snapshot Engine' : 'PoE 2 Stash API Status'}</span>
+                <span>{game === 'poe1' ? 'PoE 1 Dump Tab Snapshot & Auto Pull Engine' : 'PoE 2 Stash API Status'}</span>
               </div>
               <h2 className="text-base font-poe font-bold text-white">
-                {game === 'poe1' ? 'Live Stash Tab Scanner & Session Diff' : 'PoE 2 Automated Stash Sync (Awaiting GGG OAuth)'}
+                {game === 'poe1' ? 'Live Stash Tab Scanner & 30m Auto Sync' : 'PoE 2 Automated Stash Sync (Awaiting GGG OAuth)'}
               </h2>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 flex items-center gap-1">
@@ -873,7 +1257,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           {game === 'poe2' ? (
             <div className="p-4 rounded-xl bg-slate-950/75 border border-slate-800 text-xs text-slate-300 leading-relaxed space-y-2">
               <p>
-                Grinding Gear Games has not opened the public Stash Tab API for Path of Exile 2 yet. Once GGG enables OAuth Stash access for PoE 2, this Dump Tab Diff engine will unlock automatically.
+                Grinding Gear Games has not opened the public Stash Tab API for Path of Exile 2 yet. Once GGG enables OAuth Stash access for PoE 2, this Dump Tab Diff & Auto Pull engine will unlock automatically.
               </p>
               <p className="text-amber-300 font-semibold">
                 In the meantime, use the Client.txt Map Speed Parser and Clipboard Drop Logger on the right to track your PoE 2 Waystone sessions with zero credentials!
@@ -893,7 +1277,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                       <strong>What is POESESSID?</strong> It is your live authenticated session cookie for <code>pathofexile.com</code>. Anyone who possesses an active POESESSID can access your website account (forum posts, messages, and private stash tabs). <strong>Never share it in Discord, streams, or screenshots.</strong>
                     </p>
                     <p className="text-slate-300 leading-relaxed">
-                      <strong>Disclaimer:</strong> Grinding Gear Games currently has new OAuth application registrations paused. Providing your POESESSID here is <strong>100% optional and strictly at your own discretion</strong>. Exile SSF never stores your POESESSID in any database, KV cache, or server log: it stays in your browser memory only and is discarded immediately after each read. Sign out and back into <code>pathofexile.com</code> anytime to rotate your session cookie, or use the zero credential Client.txt and Clipboard tools on the right instead.
+                      <strong>Disclaimer:</strong> Grinding Gear Games currently has new OAuth application registrations paused. Providing your POESESSID here is <strong>100% optional and strictly at your own discretion</strong>. Exile SSF never stores your POESESSID in any database, KV cache, or server log: it stays in your browser memory only and is discarded immediately after each read. Sign out and back into <code>pathofexile.com</code> anytime to rotate your session cookie.
                     </p>
                   </div>
                 </div>
@@ -984,12 +1368,12 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                 </div>
               )}
 
-              {/* Stash Tab Picker Pills */}
+              {/* Stash Tab Picker + Auto Sync Timer */}
               {stashTabs.length > 0 && (
                 <div className="space-y-3 pt-2 border-t border-slate-800">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-mono text-[11px] uppercase text-slate-400">
-                      Select Dump Tabs to Track ({selectedTabIndices.length}/8 selected):
+                      Select Dump Tabs ({selectedTabIndices.length}/8):
                     </span>
                     {beforeSnapshot && (
                       <span className="text-[11px] font-mono text-emerald-400">
@@ -998,7 +1382,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
                     {stashTabs.map((tab) => {
                       const active = selectedTabIndices.includes(tab.index);
                       const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
@@ -1020,36 +1404,59 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                     })}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={snapshotting}
-                      onClick={() => runSnapshot('before')}
-                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-sky-400" />
-                      <span>1. Before Snapshot</span>
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={snapshotting}
+                        onClick={() => runSnapshot('before')}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-sky-400" />
+                        <span>1. Before</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={snapshotting || !beforeSnapshot}
-                      onClick={() => runSnapshot('after')}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                    >
-                      <GitCompare className="w-3.5 h-3.5" />
-                      <span>2. After Snapshot & Diff</span>
-                    </button>
+                      <button
+                        type="button"
+                        disabled={snapshotting || !beforeSnapshot}
+                        onClick={() => runSnapshot('after')}
+                        className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                      >
+                        <GitCompare className="w-3.5 h-3.5" />
+                        <span>2. Diff Now</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={snapshotting}
-                      onClick={() => runSnapshot('inspect')}
-                      className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>Scan Selected Dump Tabs Now</span>
-                    </button>
+                      <button
+                        type="button"
+                        disabled={snapshotting}
+                        onClick={() => runSnapshot('inspect')}
+                        className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Scan Now</span>
+                      </button>
+                    </div>
+
+                    {/* Auto Pull Interval Selector */}
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-indigo-500/35 text-xs">
+                      <Timer className={`w-3.5 h-3.5 ${autoSyncMinutes > 0 ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+                      <span className="text-[10px] font-mono uppercase text-slate-400">Auto Pull:</span>
+                      <select
+                        value={autoSyncMinutes}
+                        onChange={(e) => setAutoSyncMinutes(Number(e.target.value))}
+                        className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
+                      >
+                        <option value={0} className="bg-slate-950">Off</option>
+                        <option value={15} className="bg-slate-950">Every 15m</option>
+                        <option value={30} className="bg-slate-950">Every 30m</option>
+                        <option value={60} className="bg-slate-950">Every 60m</option>
+                      </select>
+                      {autoSyncMinutes > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
+                          {formatCountdown(secondsUntilSync)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1122,7 +1529,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                     setClipboardText(pasted);
                   }
                 }}
-                placeholder="Paste Ctrl+C item tooltip (auto detects Vaal/Quality/Armour/ES)..."
+                placeholder="Paste Ctrl+C item tooltip (auto tiers via poe.ninja)..."
                 className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
               />
               <button
@@ -1168,21 +1575,52 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
               </button>
             </form>
           </div>
+
+          {/* 30m Auto Pull Checkpoints Strip */}
+          {checkpoints.length > 1 && (
+            <div className="pt-2 border-t border-slate-800 space-y-1.5">
+              <div className="text-[10px] font-mono uppercase text-indigo-300">Auto Pull Interval Checkpoints</div>
+              <div className="flex flex-wrap gap-1.5">
+                {checkpoints.map((cp, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300"
+                  >
+                    {cp.at}: <strong className="text-amber-300">{cp.totalChaos.toLocaleString()}c</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
       {/* KPI Metrics Strip + Save Session Bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800">
-          <div className="text-[10px] font-mono uppercase text-amber-400">Total Loot Parsed</div>
-          <div className="text-2xl font-mono font-bold text-white mt-0.5">{totalItemsDropped.toLocaleString()}</div>
-          <div className="text-[11px] text-slate-400">{activeDrops.length} distinct entries</div>
+        <div className="p-4 rounded-2xl bg-slate-900/85 border border-amber-500/30">
+          <div className="text-[10px] font-mono uppercase text-amber-400">poe.ninja Benchmark Value</div>
+          <div className="text-2xl font-mono font-bold text-amber-300 mt-0.5">
+            {totalSessionDivines >= 1
+              ? `${totalSessionDivines.toFixed(2)} Div`
+              : `${totalSessionChaos.toLocaleString()}c`}
+          </div>
+          <div className="text-[11px] text-slate-400">
+            {totalSessionChaos.toLocaleString()}c total • {divPerHour} Div/hr ({chaosPerHour}c/hr)
+          </div>
         </div>
+
         <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800">
-          <div className="text-[10px] font-mono uppercase text-orange-400">Unique Drops</div>
-          <div className="text-2xl font-mono font-bold text-orange-300 mt-0.5">{uniqueDrops.length}</div>
-          <div className="text-[11px] text-slate-400">Auto matched vs squad wishlists</div>
+          <div className="text-[10px] font-mono uppercase text-purple-400">S & A Tier Highlights</div>
+          <div className="text-2xl font-mono font-bold text-white mt-0.5">
+            <span className="text-amber-300">{tierCounts.S} S</span>{' '}
+            <span className="text-slate-600 text-base">/</span>{' '}
+            <span className="text-purple-300">{tierCounts.A} A</span>
+          </div>
+          <div className="text-[11px] text-slate-400">
+            {totalItemsDropped.toLocaleString()} total drops ({enrichedDrops.length} stacks)
+          </div>
         </div>
+
         <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800">
           <div className="text-[10px] font-mono uppercase text-emerald-400">Mapping Pace</div>
           <div className="text-2xl font-mono font-bold text-emerald-300 mt-0.5">{mapsPerHour} / hr</div>
@@ -1190,6 +1628,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             {mapsRun} maps in {durationMinutes}m ({deaths} deaths)
           </div>
         </div>
+
         <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800 flex flex-col justify-between gap-2">
           <input
             type="text"
@@ -1209,18 +1648,19 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         </div>
       </div>
 
-      {/* Visual Loot Breakdown + Unique Showcase */}
-      {activeDrops.length > 0 && (
+      {/* Visual Loot Breakdown + S/A Tier & Unique Highlights Showcase */}
+      {enrichedDrops.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-3.5">
-            <h3 className="text-sm font-poe font-bold text-white">Loot Category Distribution</h3>
+            <h3 className="text-sm font-poe font-bold text-white">Value & Drop Distribution</h3>
             <div className="space-y-3">
               {categoryBreakdown.map((row) => (
                 <div key={row.category} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-200">{row.category}</span>
                     <span className="font-mono text-slate-400">
-                      {row.count.toLocaleString()} ({row.pct}%)
+                      {row.chaos > 0 ? `${row.chaos.toLocaleString()}c • ` : ''}
+                      {row.count.toLocaleString()} drops ({row.pct}%)
                     </span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
@@ -1234,42 +1674,69 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             </div>
           </div>
 
-          <div className="lg:col-span-7 rounded-2xl border border-orange-500/30 bg-slate-900/85 p-5 space-y-3.5">
-            <h3 className="text-sm font-poe font-bold text-orange-300 flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-orange-400" />
-              <span>Unique Drops Showcase ({uniqueDrops.length})</span>
+          <div className="lg:col-span-7 rounded-2xl border border-amber-500/30 bg-slate-900/85 p-5 space-y-3.5">
+            <h3 className="text-sm font-poe font-bold text-amber-300 flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span>S & A Tier Jackpots & Unique Showcase ({topDropsShowcase.length})</span>
             </h3>
-            {uniqueDrops.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">No Uniques in this session yet.</div>
+            {topDropsShowcase.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No S/A Tier hits or Uniques in this session yet.
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
-                {uniqueDrops.map((u) => (
-                  <div
-                    key={u.key}
-                    className="p-3 rounded-xl bg-orange-950/20 border border-orange-500/30 flex items-center gap-3"
-                  >
-                    {u.icon ? (
-                      <img src={u.icon} alt={u.shortName} className="w-9 h-9 object-contain shrink-0" />
-                    ) : (
-                      <div className="w-9 h-9 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-300 font-bold text-xs shrink-0">
-                        U
+                {topDropsShowcase.map((u) => {
+                  const isShared = !!sharedStashKeys[u.key];
+                  return (
+                    <div
+                      key={u.key}
+                      className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-between gap-2.5"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {u.icon ? (
+                          <img src={u.icon} alt={u.shortName} className="w-9 h-9 object-contain shrink-0" />
+                        ) : (
+                          <span
+                            className={`w-8 h-8 rounded-lg border flex items-center justify-center font-mono font-bold text-xs shrink-0 ${TIER_STYLES[u.tier]}`}
+                          >
+                            {u.tier}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-amber-200 truncate">{u.shortName}</div>
+                          <div className="text-[11px] font-mono text-slate-400 truncate">
+                            Tier {u.tier} • {u.totalChaos > 0 ? `${u.totalChaos.toLocaleString()}c` : u.subCategory}
+                            {u.quantity > 1 ? ` (×${u.quantity})` : ''}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-orange-200 truncate">{u.shortName}</div>
-                      <div className="text-[11px] text-slate-400 truncate">
-                        {u.subCategory || u.baseType} {u.quantity > 1 ? `×${u.quantity}` : ''}
-                      </div>
+
+                      {u.category === 'Uniques' && (
+                        <button
+                          type="button"
+                          disabled={isShared}
+                          onClick={() => handleShareToFreeStash(u)}
+                          title="Offer this spare Unique to your Private League Free Stash"
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
+                            isShared
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-slate-800 hover:bg-indigo-600 text-slate-200 border border-slate-700'
+                          }`}
+                        >
+                          <Share2 className="w-3 h-3" />
+                          <span>{isShared ? 'Shared' : 'Stash'}</span>
+                        </button>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Advanced Bracketed & Sortable Loot Inventory */}
+      {/* Advanced Tiered, Bracketed & Sortable Loot Inventory */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-4">
         {/* Primary Category Filter Ribbon + Sort Selector + Search */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-800 pb-3">
@@ -1298,6 +1765,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                 onChange={(e) => setSortMode(e.target.value as SortMode)}
                 className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
               >
+                <option value="value_desc" className="bg-slate-950">poe.ninja Value (High to Low)</option>
                 <option value="bracket" className="bg-slate-950">Group by Bracket / Subtype</option>
                 <option value="qty_desc" className="bg-slate-950">Quantity (High to Low)</option>
                 <option value="gem_level" className="bg-slate-950">Gem Level (High to Low)</option>
@@ -1320,57 +1788,95 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           </div>
         </div>
 
-        {/* Dynamic Sub-Bracket Filter Pills (Gems: Vaal/Transfigured/Level/Quality; Gear: Armour/Evasion/ES/Hybrid/Weapons/Jewellery) */}
-        {activeSubFilterOptions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pb-1">
-            <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">
-              {categoryFilter === 'Gems' ? 'Gem Filter:' : 'Bracket:'}
-            </span>
-            {activeSubFilterOptions.map((opt) => (
+        {/* poe.ninja Tier Filter Bar + Dynamic Sub-Bracket Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">poe.ninja Tier:</span>
+            {(['All', 'S', 'A', 'B', 'C'] as const).map((tier) => (
               <button
-                key={opt}
+                key={tier}
                 type="button"
-                onClick={() => setSubFilter(opt)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
-                  subFilter === opt
-                    ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                onClick={() => setTierFilter(tier)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                  tierFilter === tier
+                    ? tier === 'All'
+                      ? 'bg-indigo-600/30 border-indigo-400/60 text-white'
+                      : TIER_STYLES[tier]
                     : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                {opt}
+                {tier === 'All' ? 'All Tiers' : `Tier ${tier} (${tierCounts[tier]})`}
               </button>
             ))}
           </div>
-        )}
+
+          {activeSubFilterOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">
+                {categoryFilter === 'Gems' ? 'Gem Filter:' : 'Bracket:'}
+              </span>
+              {activeSubFilterOptions.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setSubFilter(opt)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                    subFilter === opt
+                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                      : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {filteredAndSortedDrops.length === 0 ? (
           <div className="py-10 text-center text-xs text-slate-400">
-            Scan your Dump Tabs above, paste a Ctrl+C item, or adjust your bracket filters to view drops.
+            Scan your Dump Tabs above, paste a Ctrl+C item, or adjust your Tier and Bracket filters to view drops.
           </div>
         ) : sortMode === 'bracket' ? (
-          <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">
-            {groupedByBracket.map(([bracketName, items]) => (
-              <div key={bracketName} className="space-y-2.5">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
-                    {bracketName}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400">
-                    {items.reduce((s, x) => s + x.quantity, 0)} total ({items.length} entries)
-                  </span>
+          <div className="space-y-5 max-h-[620px] overflow-y-auto pr-1">
+            {groupedByBracket.map(([bracketName, items]) => {
+              const bracketChaos = Math.round(items.reduce((s, x) => s + x.totalChaos, 0));
+              return (
+                <div key={bracketName} className="space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+                      {bracketName}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                      {bracketChaos > 0 ? `${bracketChaos.toLocaleString()}c • ` : ''}
+                      {items.reduce((s, x) => s + x.quantity, 0)} drops ({items.length} stacks)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    {items.map((it) => (
+                      <DropItemCard
+                        key={it.key}
+                        item={it}
+                        divineChaos={divineChaos}
+                        isShared={!!sharedStashKeys[it.key]}
+                        onShareFreeStash={it.category === 'Uniques' ? () => handleShareToFreeStash(it) : undefined}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                  {items.map((it) => (
-                    <DropItemCard key={it.key} item={it} />
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[600px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[620px] overflow-y-auto pr-1">
             {filteredAndSortedDrops.map((it) => (
-              <DropItemCard key={it.key} item={it} />
+              <DropItemCard
+                key={it.key}
+                item={it}
+                divineChaos={divineChaos}
+                isShared={!!sharedStashKeys[it.key]}
+                onShareFreeStash={it.category === 'Uniques' ? () => handleShareToFreeStash(it) : undefined}
+              />
             ))}
           </div>
         )}
@@ -1404,7 +1910,8 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                   <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2">
                     <Clock className="w-3 h-3" />
                     <span>
-                      {s.mapsRun} maps • {s.items?.length || 0} drops • {new Date(s.createdAtIso).toLocaleDateString()}
+                      {s.mapsRun} maps • {s.totalChaos ? `${Math.round(s.totalChaos).toLocaleString()}c • ` : ''}
+                      {s.items?.length || 0} stacks • {new Date(s.createdAtIso).toLocaleDateString()}
                     </span>
                   </div>
                 </button>
@@ -1425,9 +1932,29 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   );
 };
 
-const DropItemCard: React.FC<{ item: TrackedDropItem }> = ({ item }) => {
+const DropItemCard: React.FC<{
+  item: EnrichedDropItem;
+  divineChaos: number;
+  isShared?: boolean;
+  onShareFreeStash?: () => void;
+}> = ({ item, divineChaos, isShared, onShareFreeStash }) => {
+  const valueLabel =
+    item.totalChaos >= divineChaos && divineChaos > 0
+      ? `${(item.totalChaos / divineChaos).toFixed(2)} Div`
+      : item.totalChaos > 0
+      ? `${item.totalChaos.toLocaleString()}c`
+      : '';
+
   return (
-    <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between gap-3">
+    <div
+      className={`p-3 rounded-xl bg-slate-950/85 border transition-colors flex items-center justify-between gap-2.5 ${
+        item.tier === 'S'
+          ? 'border-amber-400/60 shadow-sm shadow-amber-500/10'
+          : item.tier === 'A'
+          ? 'border-purple-500/45'
+          : 'border-slate-800 hover:border-slate-700'
+      }`}
+    >
       <div className="flex items-center gap-2.5 min-w-0">
         {item.icon ? (
           <img src={item.icon} alt={item.shortName} className="w-8 h-8 object-contain shrink-0" />
@@ -1437,16 +1964,23 @@ const DropItemCard: React.FC<{ item: TrackedDropItem }> = ({ item }) => {
           </div>
         )}
         <div className="min-w-0 space-y-1">
-          <div
-            className={`text-xs font-bold truncate ${
-              item.category === 'Uniques'
-                ? 'text-orange-300'
-                : item.category === 'Gems'
-                ? 'text-teal-300'
-                : 'text-white'
-            }`}
-          >
-            {item.shortName}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border shrink-0 ${TIER_STYLES[item.tier]}`}
+            >
+              {item.tier}
+            </span>
+            <span
+              className={`text-xs font-bold truncate ${
+                item.category === 'Uniques'
+                  ? 'text-orange-300'
+                  : item.category === 'Gems'
+                  ? 'text-teal-300'
+                  : 'text-white'
+              }`}
+            >
+              {item.shortName}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-1">
@@ -1494,9 +2028,33 @@ const DropItemCard: React.FC<{ item: TrackedDropItem }> = ({ item }) => {
         </div>
       </div>
 
-      <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 font-mono text-xs font-bold text-amber-300 shrink-0">
-        ×{item.quantity}
-      </span>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-1">
+          {valueLabel && (
+            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 font-mono text-[10px] font-bold text-amber-300">
+              {valueLabel}
+            </span>
+          )}
+          <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 font-mono text-xs font-bold text-white">
+            ×{item.quantity}
+          </span>
+        </div>
+
+        {onShareFreeStash && (
+          <button
+            type="button"
+            disabled={isShared}
+            onClick={onShareFreeStash}
+            className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer ${
+              isShared
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : 'bg-slate-800 hover:bg-indigo-600 text-slate-300'
+            }`}
+          >
+            {isShared ? 'Shared' : '+ Free Stash'}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
