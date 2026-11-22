@@ -1063,7 +1063,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
 
             {scopedSessions.length === 0 ? (
               <div className="p-5 text-center text-xs text-slate-500 italic">
-                No farming sessions saved yet for this game filter. Save a session on the Farming & Drops page to populate your lifetime productivity stats and Unique Trophy Case!
+                No farming sessions saved yet for this game filter. Save a session on the Asset Tracker page to populate your lifetime productivity stats and Unique Trophy Case!
               </div>
             ) : (
               <div className="space-y-4">

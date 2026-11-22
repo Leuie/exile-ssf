@@ -32,7 +32,7 @@ const OffensesView = lazyWithRetry(() => import('./components/OffensesView').the
 const BuildsHubView = lazyWithRetry(() => import('./components/BuildsHubView').then((m) => ({ default: m.BuildsHubView })));
 const PatchNotesView = lazyWithRetry(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
 const PoERegexStudioView = lazyWithRetry(() => import('./components/PoERegexStudioView').then((m) => ({ default: m.PoERegexStudioView })));
-const FarmingTrackerView = lazyWithRetry(() => import('./components/FarmingTrackerView').then((m) => ({ default: m.FarmingTrackerView })));
+const AssetTrackerView = lazyWithRetry(() => import('./components/AssetTrackerView').then((m) => ({ default: m.AssetTrackerView })));
 const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const LabyrinthGuideView = lazyWithRetry(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
@@ -168,8 +168,8 @@ export const App: React.FC = () => {
     if (path === '/regex' || path === '/regex-studio' || hash === 'regex') {
       return 'regex_studio';
     }
-    if (path === '/farming' || path === '/drops' || path === '/wealth' || hash === 'farming') {
-      return 'farming_tracker';
+    if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth' || hash === 'assets' || hash === 'farming') {
+      return 'asset_tracker';
     }
     if (path === '/privacy' || path === '/privacy-policy' || hash === 'privacy') {
       return 'privacy';
@@ -288,8 +288,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/crafting-bench');
         } else if (tab === 'regex_studio') {
           window.history.pushState({}, '', '/regex');
-        } else if (tab === 'farming_tracker') {
-          window.history.pushState({}, '', '/farming');
+        } else if (tab === 'asset_tracker') {
+          window.history.pushState({}, '', '/assets');
         } else if (tab === 'privacy') {
           window.history.pushState({}, '', '/privacy');
         } else if (tab === 'home') {
@@ -560,8 +560,8 @@ export const App: React.FC = () => {
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'patch_notes' && <PatchNotesView initialGame={selectedGame} />}
         {activeTab === 'regex_studio' && <PoERegexStudioView selectedGame={selectedGame} userAccount={userAccount} />}
-        {activeTab === 'farming_tracker' && (
-          <FarmingTrackerView
+        {activeTab === 'asset_tracker' && (
+          <AssetTrackerView
             selectedGame={selectedGame}
             userAccount={userAccount}
             onOpenAuthModal={handleOpenAuth}

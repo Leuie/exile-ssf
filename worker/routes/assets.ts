@@ -1,6 +1,6 @@
-// Modular Farming, Stash Snapshot, poe.ninja Pricing, and Cloud Stash Routes for Exile SSF
+// Modular Asset Tracker, Stash Snapshot, poe.ninja Pricing, and Cloud Stash Routes for Exile SSF
 
-export interface FarmingRouteContext {
+export interface AssetRouteContext {
   url: URL;
   request: Request;
   env: any;
@@ -11,7 +11,7 @@ export interface FarmingRouteContext {
   readVerifiedSession: (request: Request, env: any) => Promise<{ handle: string; isAdmin: boolean } | null>;
 }
 
-export async function handleFarmingRoutes(ctx: FarmingRouteContext): Promise<Response | null> {
+export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Response | null> {
   const { url, request, env, now, corsHeaders, initD1Schema, resolveOfficialLadderName, readVerifiedSession } = ctx;
 
   // POST /api/farming/detect-leagues (Stateless GGG character league detector; never stores POESESSID)

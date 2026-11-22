@@ -1,4 +1,4 @@
-import { handleFarmingRoutes } from './routes/farming';
+import { handleAssetRoutes } from './routes/assets';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
 
@@ -1070,9 +1070,9 @@ export default {
         }
       }
 
-      // Delegate modular Farming & Drop Tracker routes
+      // Delegate modular Asset Tracker routes
       if (url.pathname.startsWith('/api/farming/')) {
-        const farmingRes = await handleFarmingRoutes({
+        const assetRes = await handleAssetRoutes({
           url,
           request,
           env,
@@ -1082,7 +1082,7 @@ export default {
           resolveOfficialLadderName,
           readVerifiedSession
         });
-        if (farmingRes) return farmingRes;
+        if (assetRes) return assetRes;
       }
 
 

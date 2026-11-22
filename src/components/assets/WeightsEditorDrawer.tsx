@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { CATEGORY_ORDER, DEFAULT_SSF_WEIGHTS, type SsfWeightsConfig } from './farmingEngine';
+import { CATEGORY_ORDER, DEFAULT_SSF_WEIGHTS, type SsfWeightsConfig } from './assetEngine';
 
 interface WeightsEditorDrawerProps {
   ssfWeights: SsfWeightsConfig;

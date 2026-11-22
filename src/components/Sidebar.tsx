@@ -147,7 +147,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
-        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Live' },
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
@@ -194,7 +194,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
-        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Live' },
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }

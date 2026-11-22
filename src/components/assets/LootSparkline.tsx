@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatValue, type SyncCheckpoint } from './farmingEngine';
+import { formatValue, type SyncCheckpoint } from './assetEngine';
 
 interface LootSparklineProps {
   checkpoints: SyncCheckpoint[];

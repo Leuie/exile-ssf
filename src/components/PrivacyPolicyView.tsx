@@ -81,7 +81,7 @@ export const PrivacyPolicyView: React.FC = () => {
             <span>5. Data Control, Deletion & Affiliation Notice</span>
           </h2>
           <p className="text-slate-300">
-            You can clear your saved farming sessions and cloud stash state directly from the Farming & Drops toolbar at any time. To request full account or data removal, submit a request via the <strong>Feedback & Needs</strong> page while signed in.
+            You can clear your saved farming sessions and cloud stash state directly from the Asset Tracker toolbar at any time. To request full account or data removal, submit a request via the <strong>Feedback & Needs</strong> page while signed in.
           </p>
           <p className="text-xs text-slate-400 pt-1">
             Exile SSF is an independent fan project and is not affiliated with or endorsed by Grinding Gear Games. Path of Exile and all related assets are trademarks of Grinding Gear Games.

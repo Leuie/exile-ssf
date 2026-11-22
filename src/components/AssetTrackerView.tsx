@@ -77,17 +77,17 @@ import {
   type StashTabMeta,
   type SyncCheckpoint,
   type TrackedDropItem
-} from './farming/farmingEngine';
-import { WeightsEditorDrawer } from './farming/WeightsEditorDrawer';
-import { LootSparkline } from './farming/LootSparkline';
+} from './assets/assetEngine';
+import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
+import { LootSparkline } from './assets/LootSparkline';
 
-interface FarmingTrackerViewProps {
+interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
 }
 
-export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
+export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   selectedGame = 'poe1',
   userAccount
 }) => {
@@ -135,6 +135,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [chimeEnabled, setChimeEnabled] = useState<boolean>(true);
   const [desktopAlertsEnabled, setDesktopAlertsEnabled] = useState<boolean>(false);
   const [showWeightsEditor, setShowWeightsEditor] = useState<boolean>(false);
+  const [showAboutTracker, setShowAboutTracker] = useState<boolean>(false);
   const [ssfWeights, setSsfWeights] = useState<SsfWeightsConfig>(() => {
     try {
       const raw = localStorage.getItem(WEIGHTS_STORAGE_KEY);
@@ -236,7 +237,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const normalizedHandle = (userAccount?.displayName || '').trim().replace(/^@/, '').toLowerCase();
 
   useEffect(() => {
-    document.title = 'Farming & Drop Tracker | Exile SSF';
+    document.title = 'Asset Tracker | Exile SSF';
   }, []);
 
   useEffect(() => {
@@ -1260,12 +1261,25 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   return (
     <div className="w-full space-y-4 pb-16 font-sans text-slate-200">
       {/* Compact Command Header */}
-      <header className="rounded-2xl border border-slate-800 bg-[#0d111a] px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0d111a] via-indigo-950/25 to-[#0d111a] px-4 py-3.5 space-y-2.5 shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-lg sm:text-xl font-poe font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white tracking-tight flex items-center gap-2">
             <Package className="w-5 h-5 text-amber-400" />
-            <span>Farming & Drops</span>
+            <span>Asset Tracker</span>
           </h1>
+          <button
+            type="button"
+            onClick={() => setShowAboutTracker((v) => !v)}
+            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+              showAboutTracker
+                ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
+            }`}
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>{showAboutTracker ? 'Hide Guide' : 'What Is This?'}</span>
+          </button>
 
           <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-bold">
             <button
@@ -1420,6 +1434,34 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             <span>{focusMode ? 'Exit Focus' : 'Focus Mode'}</span>
           </button>
         </div>
+        </div>
+
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Visualize your stash net worth, diff <strong className="text-slate-200">Before vs After</strong> farming sessions, measure real maps per hour, and compare Atlas strategies using live <strong className="text-indigo-300">poe.ninja</strong> prices or customizable <strong className="text-amber-300">SSF Utility</strong> crafting weights.
+        </p>
+
+        {showAboutTracker && (
+          <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-amber-400">1. What Asset Tracker Is</div>
+              <p className="text-slate-300 leading-relaxed">
+                A live stash valuation and session telemetry workspace built for Solo Self Found and Group Self Found exiles. Switch seamlessly between trade market values (<strong className="text-white">poe.ninja</strong>) and customizable <strong className="text-white">SSF Utility</strong> weights tailored to crafting value.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-sky-400">2. What It Does</div>
+              <p className="text-slate-300 leading-relaxed">
+                Snapshots up to 15 dump and specialty tabs (via stateless <code className="text-amber-200">POESESSID</code> or Direct Browser JSON), diffs loot gained between <strong className="text-white">Before</strong> and <strong className="text-white">Sync</strong>, watches your local <code className="text-emerald-300">Client.txt</code> for automatic map pace, and highlights <strong className="text-emerald-300">Squad Wishlist</strong> drops.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. How It Helps You Improve</div>
+              <p className="text-slate-300 leading-relaxed">
+                Tag each run with your Atlas strategy to compare <strong className="text-white">Div/hr</strong>, <strong className="text-white">Pts/hr</strong>, and <strong className="text-white">Maps/hr</strong> in the Stats leaderboard, spot wasted downtime on your wealth sparkline, save your stash to the cloud, and grow your lifetime <strong className="text-white">Exile Profile Trophy Case</strong>.
+              </p>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Clear Unmistakable DEMO Banner when viewing Sample Data */}
