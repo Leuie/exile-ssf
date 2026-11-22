@@ -154,7 +154,7 @@ interface NavGroup {
     {
       title: 'Tools',
       items: [
-        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
         { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
@@ -203,7 +203,7 @@ interface NavGroup {
     {
       title: 'Tools',
       items: [
-        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
         { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
