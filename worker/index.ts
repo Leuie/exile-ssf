@@ -384,6 +384,31 @@ async function seedLeuieAvatarToD1(db: any): Promise<void> {
       db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(tagMigKey, now)
     ]);
   }
+
+  // One time migration: reset fake seeded upvotes and ratings on guides in D1
+  const guideResetKey = 'seed:reset_fake_guide_stats:v1';
+  const existingGuideReset = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(guideResetKey).first();
+  if (!existingGuideReset) {
+    const now = new Date().toISOString();
+    const guideRows = await db.prepare('SELECT id, league_id, data FROM guides').all();
+    const stmts: any[] = [];
+    for (const row of (guideRows.results || []) as any[]) {
+      try {
+        const parsed = JSON.parse(String(row.data || '{}'));
+        parsed.upvotes = 0;
+        parsed.starterRating = 0;
+        if (['guide-1', 'guide-2', 'guide-3', 'guide-4', 'guide-5'].includes(String(row.id))) {
+          parsed.isSsfStarter = true;
+        }
+        stmts.push(
+          db.prepare('UPDATE guides SET data = ?, updated_at = ? WHERE id = ? AND league_id = ?')
+            .bind(JSON.stringify(parsed), now, row.id, row.league_id)
+        );
+      } catch {}
+    }
+    stmts.push(db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(guideResetKey, now));
+    if (stmts.length > 0) await db.batch(stmts);
+  }
 }
 
 
@@ -1343,6 +1368,158 @@ export default {
           return new Response(payloadStr, { headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // GET /api/builds/external?game=poe1|poe2&refresh=0|1 (Live Mobalytics & Maxroll Build Guide Puller + 60 Min KV Cache)
+      if (url.pathname === '/api/builds/external' && request.method === 'GET') {
+        try {
+          const gameParam = (url.searchParams.get('game') || 'poe1').toLowerCase() === 'poe2' ? 'poe2' : 'poe1';
+          const forceRefresh = url.searchParams.get('refresh') === '1';
+          const cacheKey = `builds:external:v1:${gameParam}`;
+
+          if (!forceRefresh && env.EXILE_KV) {
+            const cached = await env.EXILE_KV.get(cacheKey);
+            if (cached) return new Response(cached, { headers: CORS_HEADERS });
+          }
+
+          const mobalyticsUrl = gameParam === 'poe2' ? 'https://mobalytics.gg/poe-2/builds' : 'https://mobalytics.gg/poe/builds';
+          const maxrollUrl = gameParam === 'poe2' ? 'https://maxroll.gg/poe2/build-guides' : 'https://maxroll.gg/poe/category/build-guides';
+
+          const knownAscendancies =
+            gameParam === 'poe2'
+              ? ['Stormweaver', 'Chronomancer', 'Infernalist', 'Blood Mage', 'Lich', 'Deadeye', 'Pathfinder', 'Titan', 'Warbringer', 'Smith of Kitava', 'Invoker', 'Acolyte of Chayula', 'Witchhunter', 'Gemling Legionnaire', 'Tactician', 'Amazon', 'Ritualist']
+              : ['Elementalist', 'Necromancer', 'Occultist', 'Hierophant', 'Inquisitor', 'Guardian', 'Slayer', 'Gladiator', 'Champion', 'Deadeye', 'Pathfinder', 'Warden', 'Juggernaut', 'Berserker', 'Chieftain', 'Trickster', 'Assassin', 'Saboteur', 'Ascendant'];
+
+          const detectAscendancy = (text: string): string => {
+            const low = text.toLowerCase();
+            return knownAscendancies.find((a) => low.includes(a.toLowerCase())) || (gameParam === 'poe2' ? 'PoE 2 Build' : 'PoE 1 Build');
+          };
+
+          const slugToTitle = (slug: string): string =>
+            slug
+              .replace(/[-_]+/g, ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+              .replace(/\bPoe\s*2\b/gi, 'PoE 2')
+              .replace(/\bPoe\b/gi, 'PoE')
+              .replace(/\bSsf\b/gi, 'SSF')
+              .replace(/\bRf\b/gi, 'RF')
+              .replace(/\bSrs\b/gi, 'SRS')
+              .replace(/\bEa\b/gi, 'EA')
+              .replace(/\bDd\b/gi, 'DD')
+              .replace(/\bLs\b/gi, 'LS')
+              .replace(/\bLa\b/gi, 'LA')
+              .trim();
+
+          const fetchHeaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml'
+          };
+
+          const pullFromSource = async (
+            source: 'Mobalytics' | 'Maxroll',
+            targetUrl: string,
+            linkRegex: RegExp,
+            baseOrigin: string
+          ) => {
+            const items: any[] = [];
+            try {
+              const res = await fetch(targetUrl, { headers: fetchHeaders });
+              if (!res.ok) return { status: `http_${res.status}`, items };
+              const html = await res.text();
+              const seen = new Set<string>();
+              let m: RegExpExecArray | null;
+              while ((m = linkRegex.exec(html)) !== null && items.length < 24) {
+                const hrefPath = m[1];
+                const slug = m[2];
+                if (!slug || slug.length < 4 || /^(tier-list|leveling|endgame|category|page|author|tag|search|create)$/i.test(slug)) continue;
+                const fullUrl = hrefPath.startsWith('http') ? hrefPath : `${baseOrigin}${hrefPath}`;
+                if (seen.has(fullUrl)) continue;
+                seen.add(fullUrl);
+
+                // Look for an anchor text or nearby heading for a clean title
+                const after = html.slice(m.index, m.index + 320);
+                const textMatch = after.match(/>([^<]{8,110})<\/(?:a|h2|h3|span|div)>/i);
+                const rawTitle = textMatch ? textMatch[1].replace(/&amp;/g, '&').replace(/&#039;|&#x27;/g, "'").replace(/\s+/g, ' ').trim() : '';
+                const cleanTitle = rawTitle && !/^(view|read|guide|build|learn more|click)/i.test(rawTitle) ? rawTitle : slugToTitle(slug);
+                const combined = `${cleanTitle} ${slug}`.toLowerCase();
+                const isSsfStarter = /(starter|ssf|league-start|leaguestart|leveling|budget)/i.test(combined);
+                const ascendancy = detectAscendancy(combined);
+
+                items.push({
+                  id: `ext-${source.toLowerCase()}-${gameParam}-${slug.slice(0, 48)}`,
+                  title: cleanTitle,
+                  authorName: source,
+                  authorDiscord: source,
+                  className: ascendancy,
+                  ascendancy,
+                  playstyle: isSsfStarter ? 'External SSF & League Starter Guide' : `External ${source} Build Guide`,
+                  starterRating: 0,
+                  isSsfStarter,
+                  pobCodeOrUrl: fullUrl,
+                  videoOrForumUrl: fullUrl,
+                  levelingNotes: `Pulled live from ${source} (${gameParam === 'poe2' ? 'Path of Exile 2' : 'Path of Exile 1'}). Open the official ${source} guide page for full passive trees, gem links, and gear progression.`,
+                  endgameNotes: `Full endgame scaling, crafting priorities, and patch updates maintained on ${source}.`,
+                  requiredUniques: [],
+                  atlasFocus: [],
+                  upvotes: 0,
+                  createdAt: `Pulled from ${source}`,
+                  game: gameParam,
+                  isExternalLinkOnly: true,
+                  creatorName: source,
+                  creatorChannelUrl: targetUrl,
+                  creatorPlatform: source,
+                  tags: [gameParam === 'poe2' ? '0.5' : '3.30', source, ...(isSsfStarter ? ['SSF Starter'] : [])]
+                });
+              }
+              return { status: items.length > 0 ? 'ok' : 'empty', items };
+            } catch {
+              return { status: 'error', items };
+            }
+          };
+
+          const mobalyticsPattern =
+            gameParam === 'poe2'
+              ? /href="(\/poe-2\/builds\/([a-z0-9][a-z0-9-]{3,120}))"/gi
+              : /href="(\/poe\/builds\/([a-z0-9][a-z0-9-]{3,120}))"/gi;
+          const maxrollPattern =
+            gameParam === 'poe2'
+              ? /href="(https:\/\/maxroll\.gg\/poe2\/build-guides\/([a-z0-9][a-z0-9-]{3,120})|\/poe2\/build-guides\/([a-z0-9][a-z0-9-]{3,120}))"/gi
+              : /href="(https:\/\/maxroll\.gg\/poe\/build-guides\/([a-z0-9][a-z0-9-]{3,120})|\/poe\/build-guides\/([a-z0-9][a-z0-9-]{3,120}))"/gi;
+
+          const normalizeMaxrollRegex =
+            gameParam === 'poe2'
+              ? /href="((?:https:\/\/maxroll\.gg)?\/poe2\/build-guides\/([a-z0-9][a-z0-9-]{3,120}))"/gi
+              : /href="((?:https:\/\/maxroll\.gg)?\/poe\/build-guides\/([a-z0-9][a-z0-9-]{3,120}))"/gi;
+          void maxrollPattern;
+
+          const [mobRes, maxRes] = await Promise.all([
+            pullFromSource('Mobalytics', mobalyticsUrl, mobalyticsPattern, 'https://mobalytics.gg'),
+            pullFromSource('Maxroll', maxrollUrl, normalizeMaxrollRegex, 'https://maxroll.gg')
+          ]);
+
+          const combinedGuides = [...mobRes.items, ...maxRes.items];
+          const payloadStr = JSON.stringify({
+            status: 'ok',
+            game: gameParam,
+            syncedAtIso: now,
+            sources: {
+              mobalytics: { status: mobRes.status, count: mobRes.items.length, url: mobalyticsUrl },
+              maxroll: { status: maxRes.status, count: maxRes.items.length, url: maxrollUrl }
+            },
+            guides: combinedGuides
+          });
+
+          if (env.EXILE_KV && combinedGuides.length > 0) {
+            await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 3600 });
+          }
+
+          return new Response(payloadStr, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'External build pull failed.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
         }
       }
 

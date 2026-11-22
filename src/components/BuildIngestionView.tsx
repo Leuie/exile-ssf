@@ -49,13 +49,15 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
   const [creatorName, setCreatorName] = useState<string>('');
   const [creatorChannelUrl, setCreatorChannelUrl] = useState<string>('');
   const [creatorWebsiteUrl, setCreatorWebsiteUrl] = useState<string>('');
-  const [creatorPlatform, setCreatorPlatform] = useState<'YouTube' | 'Maxroll' | 'Twitch' | 'Forum' | 'Community'>('YouTube');
+  const [creatorPlatform, setCreatorPlatform] = useState<'YouTube' | 'Maxroll' | 'Mobalytics' | 'Twitch' | 'Forum' | 'Community'>('Mobalytics');
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [externalGuideUrl, setExternalGuideUrl] = useState<string>('');
   const [className, setClassName] = useState<string>('Witch');
   const [ascendancy, setAscendancy] = useState<string>('Elementalist');
   const [playstyle, setPlaystyle] = useState<string>('Ignite Proliferation / Speed Mapper');
-  const [starterRating, setStarterRating] = useState<number>(9.5);
+  const [starterRating, setStarterRating] = useState<number>(0);
+  const [isSsfStarter, setIsSsfStarter] = useState<boolean>(true);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [levelingNotes, setLevelingNotes] = useState<string>('');
   const [endgameNotes, setEndgameNotes] = useState<string>('');
   const [requiredUniques, setRequiredUniques] = useState<string>('');
@@ -69,7 +71,19 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
   
   const handleIngestGuide = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setValidationError('Build title is required.');
+      return;
+    }
+    if (guideType === 'interactive' && (levelingNotes.trim().length < 40 || endgameNotes.trim().length < 40)) {
+      setValidationError('Minimum guide detail required: include at least 40 characters of Leveling Notes and 40 characters of Endgame & Crafting Notes.');
+      return;
+    }
+    if (guideType === 'external' && (!externalGuideUrl.trim().startsWith('http') || levelingNotes.trim().length < 25)) {
+      setValidationError('External guides require a valid Mobalytics, Maxroll, or forum URL plus a short progression summary (25+ chars).');
+      return;
+    }
+    setValidationError(null);
 
     const newGuide: CommunityGuide = {
       id: `guide-${Date.now()}`,
@@ -86,7 +100,8 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
       endgameNotes: endgameNotes.trim() || 'Scale gem levels, cluster jewels, and defensive layers into red maps.',
       requiredUniques: requiredUniques.split(',').map((u) => u.trim()).filter(Boolean),
       atlasFocus: atlasFocus.split(',').map((a) => a.trim()).filter(Boolean),
-      upvotes: 1,
+      upvotes: 0,
+      isSsfStarter,
       createdAt: 'Just now',
       game: targetGame,
       isExternalLinkOnly: guideType === 'external',
@@ -266,6 +281,7 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
                   >
                     <option value="YouTube">YouTube</option>
                     <option value="Twitch">Twitch</option>
+                    <option value="Mobalytics">Mobalytics</option>
                     <option value="Maxroll">Maxroll</option>
                     <option value="Forum">Official PoE Forum</option>
                     <option value="Community">Website / Blog</option>
@@ -471,6 +487,22 @@ export const BuildIngestionView: React.FC<BuildIngestionViewProps> = ({
                 </>
               )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none pt-1">
+              <input
+                type="checkbox"
+                checked={isSsfStarter}
+                onChange={(e) => setIsSsfStarter(e.target.checked)}
+                className="rounded border-slate-700 bg-slate-950 text-emerald-500"
+              />
+              <span>Denote as verified <strong className="text-emerald-300">SSF League Starter</strong></span>
+            </label>
+
+            {validationError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-200 font-medium">
+                {validationError}
+              </div>
+            )}
 
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
               <span className="text-[11px] font-mono text-slate-500">

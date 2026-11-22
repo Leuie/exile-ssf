@@ -379,6 +379,8 @@ export interface CommunityGuide {
   tags?: string[];
   slug?: string;
   fullGuideMarkdown?: string;
+  isSsfStarter?: boolean;
+  uniqueDependency?: string;
 }
 
 export type FeedbackCategory = 'feature_request' | 'website_improvement' | 'private_league_tool' | 'bug_report' | 'build_guide_request';

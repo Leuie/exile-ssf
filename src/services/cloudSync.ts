@@ -729,3 +729,31 @@ export async function fetchOfficialPatchThread(
     return null;
   }
 }
+
+
+export interface ExternalBuildsResponse {
+  status: string;
+  game: 'poe1' | 'poe2';
+  syncedAtIso: string;
+  sources: {
+    mobalytics: { status: string; count: number; url: string };
+    maxroll: { status: string; count: number; url: string };
+  };
+  guides: CommunityGuide[];
+}
+
+export async function fetchExternalBuildGuides(
+  game: 'poe1' | 'poe2',
+  forceRefresh: boolean = false
+): Promise<ExternalBuildsResponse | null> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/builds/external?game=${game}${forceRefresh ? '&refresh=1' : ''}&_t=${Date.now()}`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}

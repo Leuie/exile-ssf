@@ -893,7 +893,7 @@ export const FullGuideReaderView: React.FC<FullGuideReaderViewProps> = ({
               <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-slate-400 pt-2 border-t border-slate-800">
                 <div>Author: <strong className="text-slate-200">@{activeGuide.authorName}</strong></div>
                 <div>Playstyle: <strong className="text-slate-200">{activeGuide.playstyle}</strong></div>
-                <div>Rating: <strong className="text-emerald-400">{activeGuide.starterRating}/10</strong></div>
+                <div>Rating: <strong className="text-emerald-400">{activeGuide.starterRating > 0 ? `${activeGuide.starterRating}/10` : 'Unrated'}</strong></div>
                 <div>Status: <strong className="text-indigo-400">{activeGuide.createdAt}</strong></div>
               </div>
             </div>
