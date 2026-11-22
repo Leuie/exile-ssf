@@ -33,7 +33,10 @@ import {
   ExternalLink,
   EyeOff,
   Send,
-  Pencil
+  Pencil,
+  Copy,
+  Check,
+  FolderOpen
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 import { buildXlsxBlob, triggerFileDownload, type SheetDefinition } from '../utils/spreadsheetEngine';
@@ -438,6 +441,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const clientFileHandleRef = useRef<any>(null);
   const [watchingClientTxt, setWatchingClientTxt] = useState<boolean>(false);
   const [lastZoneName, setLastZoneName] = useState<string>('');
+  const [copiedPathId, setCopiedPathId] = useState<string | null>(null);
 
   // Active Session State
   const [sessionTitle, setSessionTitle] = useState<string>('T16 Mapping & Dump Session');
@@ -1951,6 +1955,55 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                       <Upload className="w-3 h-3" /> One Time Read
                       <input type="file" accept=".txt,.log" onChange={handleClientTxtUpload} className="hidden" />
                     </label>
+                  </div>
+                </div>
+
+                {/* Steam & Standalone Client.txt Folder Path Helper */}
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-slate-400">
+                    <FolderOpen className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>Where is Client.txt? Copy a folder path, paste into the File Picker address bar, and press Enter:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {(game === 'poe2'
+                      ? [
+                          { id: 'p2-steam', label: 'Steam (PoE 2)', path: '%ProgramFiles(x86)%\\Steam\\steamapps\\common\\Path of Exile 2\\logs\\' },
+                          { id: 'p2-ggg', label: 'Standalone (PoE 2)', path: '%ProgramFiles(x86)%\\Grinding Gear Games\\Path of Exile 2\\logs\\' }
+                        ]
+                      : [
+                          { id: 'p1-steam', label: 'Steam (PoE 1)', path: '%ProgramFiles(x86)%\\Steam\\steamapps\\common\\Path of Exile\\logs\\' },
+                          { id: 'p1-ggg', label: 'Standalone (PoE 1)', path: '%ProgramFiles(x86)%\\Grinding Gear Games\\Path of Exile\\logs\\' }
+                        ]
+                    ).map((entry) => {
+                      const isCopied = copiedPathId === entry.id;
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(entry.path);
+                            setCopiedPathId(entry.id);
+                            setTimeout(() => setCopiedPathId(null), 2000);
+                          }}
+                          title={`Copy ${entry.label} folder path`}
+                          className={`px-2.5 py-1.5 rounded-lg border text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                            isCopied
+                              ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200'
+                              : 'bg-slate-900/90 border-slate-800 hover:border-amber-400/50 text-slate-300'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-bold text-amber-300">{entry.label}</div>
+                            <code className="block text-[10px] font-mono text-slate-400 truncate">{entry.path}</code>
+                          </div>
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
