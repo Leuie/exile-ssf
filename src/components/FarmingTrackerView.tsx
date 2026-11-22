@@ -365,44 +365,62 @@ function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number)
 
 function computeSsfUtilityPoints(item: TrackedDropItem, chaosEach: number, isWishlistMatch: boolean): number {
   const low = `${item.shortName} ${item.baseType}`.toLowerCase();
-  let pts = 3; // Default SSF sustain baseline
+  let pts = 0;
 
-  if (BULK_NOISE_REGEX.test(item.shortName.trim())) {
-    pts = 0.5;
+  // 1. Micro-stackables that drop in hundreds/thousands MUST stay fractional
+  if (low.includes("rogue's marker")) {
+    pts = 0.002;
+  } else if (low.includes('crystallised lifeforce')) {
+    pts = 0.025;
+  } else if (low.includes('splinter') || low.includes('artifact')) {
+    pts = chaosEach > 0 ? Math.min(chaosEach, 0.5) : 0.15;
   } else if (
-    /(mirror of kalandra|hinekora|fracturing orb|divine orb|veiled orb|sacred orb|awakener's orb)/i.test(low) ||
-    item.isAwakened ||
-    (item.category === 'Gems' && (item.gemLevel || 0) >= 21) ||
-    chaosEach >= 120
+    BULK_NOISE_REGEX.test(item.shortName.trim()) ||
+    /\b(shard|fragment of|scroll)\b/i.test(low)
   ) {
-    pts = 100;
-  } else if (
-    /(deafening essence|shrieking essence|exalted orb|orb of annulment|regal orb|eldritch ichor|eldritch ember|orb of conflict|tainted|fossil|resonator)/i.test(low) ||
-    item.isTransfigured ||
-    (item.isVaal && (item.gemLevel || 0) >= 20) ||
-    (item.category === 'Gear & Jewels' && item.ilvl >= 84) ||
-    chaosEach >= 25
-  ) {
-    pts = 40;
-  } else if (
-    item.category === 'Uniques' ||
-    item.category === 'Scarabs & Fragments' ||
-    item.category === 'Maps & League Keys' ||
-    /(chisel|gemcutter|bauble|instilling|enkindling|unmaking|horizon|vaal orb|oil|catalyst|tattoo|runegraft|omen|divination)/i.test(low) ||
-    chaosEach >= 4
-  ) {
-    pts = 15;
-  } else if (
-    /(chaos orb|alchemy|scouring|regret|fusing|jeweller|chromatic|alteration|blessed|chance|binding)/i.test(low)
-  ) {
+    pts = 0.01;
+  } else if (/\b(orb of alteration|jeweller's orb|chromatic orb)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 0.15);
+  } else if (/\b(orb of fusing|orb of alchemy|orb of scouring|orb of chance|orb of binding|blessed orb)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 0.4);
+  } else if (/\b(lesser eldritch)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 1.5);
+  } else if (/\b(greater eldritch)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 4);
+  } else if (/\b(grand eldritch)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 12);
+  } else if (/\b(exceptional eldritch)\b/i.test(low)) {
+    pts = Math.max(chaosEach, 40);
+  } else if (/\b(regal orb|vaal orb|cartographer's chisel|orb of unmaking|orb of horizons|orb of regret|instilling orb|enkindling orb|glassblower's bauble)\b/i.test(low)) {
+    pts = Math.max(chaosEach * 1.25, 1.5);
+  } else if (chaosEach > 0) {
+    // Anchor directly to poe.ninja Chaos value (1 Chaos = 1.0 SSF pt), with a modest SSF crafting/atlas boost
+    const isSsfStaple =
+      item.category === 'Essences & Crafting' ||
+      item.category === 'Scarabs & Fragments' ||
+      item.category === 'Maps & League Keys' ||
+      item.isTransfigured ||
+      item.isAwakened;
+    pts = Math.round(chaosEach * (isSsfStaple ? 1.2 : 1.0) * 100) / 100;
+  } else if (item.category === 'Uniques') {
+    pts = 5;
+  } else if (item.category === 'Gems') {
+    pts = item.isAwakened ? 80 : item.isTransfigured ? 20 : (item.gemLevel || 0) >= 20 ? 10 : 1;
+  } else if (item.category === 'Maps & League Keys') {
+    pts = 2;
+  } else if (item.category === 'Gear & Jewels' && item.ilvl >= 84) {
     pts = 3;
+  } else {
+    pts = 0.25;
   }
 
-  return isWishlistMatch ? pts + 50 : pts;
+  // Squad Wishlist Match gets a real +100 pt priority boost (never inflated by stack size)
+  return isWishlistMatch ? pts + 100 : pts;
 }
 
 function formatSsfPoints(pts: number): string {
   if (pts <= 0) return '0 pts';
+  if (pts < 0.1) return `${pts.toFixed(3)} pts`;
   if (pts < 10) return `${pts.toFixed(1)} pts`;
   return `${Math.round(pts).toLocaleString()} pts`;
 }
@@ -459,7 +477,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [setupTab, setSetupTab] = useState<'api' | 'json' | 'manual'>('api');
   const [wealthMode, setWealthMode] = useState<'total' | 'hourly'>('total');
   const [valueSystem, setValueSystem] = useState<'ninja' | 'ssf'>(
-    savedPrefs.valueSystem === 'ninja' ? 'ninja' : 'ssf'
+    savedPrefs.valueSystem === 'ssf' ? 'ssf' : 'ninja'
   );
   const [breakdownMode, setBreakdownMode] = useState<'divines' | 'percent'>('divines');
   const [railTab, setRailTab] = useState<'tabs' | 'snapshots' | 'strategies'>('tabs');
