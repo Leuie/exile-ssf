@@ -1,4 +1,5 @@
 import { handleAssetRoutes } from './routes/assets';
+import { resolvePageMeta, injectMetaIntoHtml } from './routes/seo';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
 
@@ -42,9 +43,6 @@ function buildCorsHeaders(request?: Request): Record<string, string> {
     ...BASE_SECURITY_HEADERS
   };
 }
-
-// Keep CORS_HEADERS alias for existing routes, updated per request in fetch()
-let CORS_HEADERS: Record<string, string> = buildCorsHeaders();
 
 const SERVER_ADMIN_SHA256 = '5fa6bba1018db3415c42db05cc93959d8f58a68dfea692677bd15f2a868bc05d';
 
@@ -561,202 +559,11 @@ async function migrateKvToD1ForLeague(env: Env, leagueId: string): Promise<void>
   }
 }
 
-interface PageMeta {
-  title: string;
-  description: string;
-}
-
-function escapeHtmlAttr(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function resolveLeagueDisplayName(leagueId: string): string {
-  const clean = leagueId.toLowerCase().trim();
-  if (clean === 'poe1-330-umbra') return 'Ravenwatch Covens of Umbra GSF (3.30)';
-  if (clean === 'poe2-05-ancients') return 'Ravenwatch Return of the Ancients GSF (0.5)';
-  return 'Exile SSF Private League';
-}
-
 function resolveOfficialLadderName(leagueId: string, customName?: string | null): string {
   if (customName && customName.trim()) return customName.trim();
   const clean = leagueId.toLowerCase().trim();
   if (clean === 'poe1-330-umbra') return 'Ravenwatch Covens of Umbra GSF (PL87651)';
   return leagueId;
-}
-
-function resolvePageMeta(url: URL): PageMeta {
-  const path = url.pathname.toLowerCase().replace(/\/+$/, '') || '/';
-  const queryTab = (url.searchParams.get('tab') || url.searchParams.get('page') || '').toLowerCase().trim();
-
-  if (path.startsWith('/league/')) {
-    const parts = path.replace('/league/', '').split('/').filter(Boolean);
-    const leagueId = parts[0] || 'poe1-330-umbra';
-    const subTab = parts[1] || queryTab || 'command-center';
-    const leagueName = resolveLeagueDisplayName(leagueId);
-
-    if (subTab === 'wishlists' || subTab === 'wishlist' || subTab === 'needs' || subTab === 'looking_for' || subTab === 'looking-for') {
-      return {
-        title: `Wishlists | ${leagueName} | Exile SSF`,
-        description: `Track wanted uniques, gems, boss fragments, and crafting bases across ${leagueName}. Filter by character for farming sessions and match drops in one click.`
-      };
-    }
-    if (subTab === 'bounties' || subTab === 'bounty' || subTab === 'honors' || subTab === 'achievements' || subTab === 'rewards') {
-      return {
-        title: `Bounties | ${leagueName} | Exile SSF`,
-        description: `Post incentivized finder bounties, browse squad boss carries and vouches, track Fulfillment Heroes, and unlock achievements that carry over across future seasons.`
-      };
-    }
-    if (subTab === 'roster' || subTab === 'roster-directory' || subTab === 'directory') {
-      return {
-        title: `Roster | ${leagueName} | Exile SSF`,
-        description: `View active private league account slots, multi character builds, ascendancies, live ladder levels, and direct contact handles for every exile in ${leagueName}.`
-      };
-    }
-    if (subTab === 'guides' || subTab === 'build-guides' || subTab === 'buildguides') {
-      return {
-        title: `Builds | ${leagueName} | Exile SSF`,
-        description: `Explore curated SSF league starter and endgame build guides with PoB links, class filters, and one click import of required uniques to your wishlist.`
-      };
-    }
-    if (subTab === 'cheatsheets' || subTab === 'cheat-sheets' || subTab === 'mechanics') {
-      return {
-        title: `Cheat Sheets | ${leagueName} | Exile SSF`,
-        description: `Quick reference tables for 3.30.0d Threads of Creation thresholds, Betrayal Syndicate rewards, Heist Rogues, Delve Fossils, Incursion rooms, and Atlas Maps.`
-      };
-    }
-    if (subTab === 'bench' || subTab === 'bench-stash-guide' || subTab === 'new_player' || subTab === 'stash') {
-      return {
-        title: `Crafting Bench | ${leagueName} | Exile SSF`,
-        description: `Essential crafting bench recipe unlock locations and prioritized stash tab buyer tiers for Solo Self Found and Group Self Found progression.`
-      };
-    }
-    if (subTab === 'feed' || subTab === 'activity' || subTab === 'wall') {
-      return {
-        title: `League Feed | ${leagueName} | Exile SSF`,
-        description: `Live activity wall for ${leagueName} tracking new exiles, characters, wishlist drops, bounties, fulfillments, build guides, and achievements.`
-      };
-    }
-    if (subTab === 'alumni' || subTab === 'alumni-directory') {
-      return {
-        title: `Alumni | ${leagueName} | Exile SSF`,
-        description: `Historical directory of over 100 past private league participants across 5 seasons with preferred contact tags and squad outreach tools.`
-      };
-    }
-    return {
-      title: `Command Center | ${leagueName} | Exile SSF`,
-      description: `League headquarters for ${leagueName} with live crowdfunding status, countdown timers, 4 step onboarding, community links, archives, and F.A.Q.`
-    };
-  }
-
-  if (path.startsWith('/exile/') || path.startsWith('/player/')) {
-    const rawHandle = decodeURIComponent(path.replace(/^\/(exile|player)\//, '').split('/')[0] || 'Exile');
-    const cleanHandle = rawHandle.replace(/^@/, '');
-    return {
-      title: `@${cleanHandle} | Exile Profile | Exile SSF`,
-      description: `View @${cleanHandle}'s character roster, open wishlists and bounties, boss carry services, verified vouches, and achievements on Exile SSF.`
-    };
-  }
-
-  if (path === '/privateleaguehub' || path === '/privateleagues') {
-    return {
-      title: 'Private League Directory | Exile SSF',
-      description: 'Browse active and upcoming Group Self Found private leagues for Path of Exile 1 and Path of Exile 2, or launch a new community league.'
-    };
-  }
-
-  if (path.startsWith('/guide/')) {
-    return {
-      title: 'Build Guide Reader | Exile SSF',
-      description: 'Full interactive Path of Exile SSF build guide with leveling progression, endgame gearing, PoB links, and one click wishlist unique import.'
-    };
-  }
-
-  if (path === '/login') {
-    return {
-      title: 'Sign In | Exile SSF',
-      description: 'Sign in to your Exile SSF account to sync characters, wishlists, item bounties, and achievements across private league seasons.'
-    };
-  }
-
-  if (path === '/register') {
-    return {
-      title: 'Register Account | Exile SSF',
-      description: 'Create your Exile SSF profile to join private leagues, register multiple characters, post wanted items, and track achievements.'
-    };
-  }
-
-  if (path === '/patch-notes' || path === '/patchnotes') {
-    return {
-      title: 'Official Patch Notes (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Full width Path of Exile 1 and Path of Exile 2 official patch notes pulled live from Grinding Gear Games with instant keyword search and direct official links.'
-    };
-  }
-
-  if (path === '/builds' || path === '/build-hub') {
-    return {
-      title: 'SSF & GSF Builds Hub (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Browse Path of Exile 1 and Path of Exile 2 community guides, verified SSF league starters, PoB Build Doctor diagnostics, and guide ingestion filtered by game and patch.'
-    };
-  }
-
-  if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth') {
-    return {
-      title: 'Asset Tracker (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Visualize your stash net worth, compare Before vs After farming runs, track 18 canonical tabs, and match squad wishlists with live poe.ninja prices and SSF Utility weights.'
-    };
-  }
-
-  if (path === '/maps' || path === '/map-tracker') {
-    return {
-      title: 'Map Tracker & XP/hr Telemetry (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Realtime Client.txt mapping telemetry, per map duration, hideout downtime tracking, live GGG experience XP/hr polling, and Atlas strategy analytics.'
-    };
-  }
-
-  if (path === '/regex' || path === '/regex-studio') {
-    return {
-      title: 'Regex Studio (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Build and cloud sync Path of Exile 1 and Path of Exile 2 vendor, map mod, and item filter regex presets with auto generated build safe map filters.'
-    };
-  }
-
-  if (path === '/privacy' || path === '/privacy-policy') {
-    return {
-      title: 'Privacy Policy | Exile SSF',
-      description: 'How Exile SSF handles Cloudflare D1 cloud data, stateless POESESSID stash syncs, local Client.txt parsing, and signed session cookies.'
-    };
-  }
-
-  if (path === '/admin') {
-    return {
-      title: 'League Admin Portal | Exile SSF',
-      description: 'Host administration tools for managing private league rosters, ownership assignments, resource links, and seasonal resets.'
-    };
-  }
-
-  return {
-    title: 'Exile SSF | Path of Exile 1 & 2 Compendium and GSF Portal',
-    description: 'All in one Solo Self Found compendium and Group Self Found private league hub for Path of Exile 1 (3.30.0d) and Path of Exile 2 (0.5).'
-  };
-}
-
-function injectMetaIntoHtml(html: string, meta: PageMeta, pageUrl: string): string {
-  const safeTitle = escapeHtmlAttr(meta.title);
-  const safeDesc = escapeHtmlAttr(meta.description);
-  const safeUrl = escapeHtmlAttr(pageUrl);
-
-  return html
-    .replace(/<title>[^<]*<\/title>/i, `<title>${safeTitle}</title>`)
-    .replace(/<meta name="description" content="[^"]*" \/>/i, `<meta name="description" content="${safeDesc}" />`)
-    .replace(/<meta property="og:title" content="[^"]*" \/>/i, `<meta property="og:title" content="${safeTitle}" />`)
-    .replace(/<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${safeDesc}" />`)
-    .replace(/<meta property="og:url" content="[^"]*" \/>/i, `<meta property="og:url" content="${safeUrl}" />`)
-    .replace(/<meta name="twitter:title" content="[^"]*" \/>/i, `<meta name="twitter:title" content="${safeTitle}" />`)
-    .replace(/<meta name="twitter:description" content="[^"]*" \/>/i, `<meta name="twitter:description" content="${safeDesc}" />`);
 }
 
 function toHex(buffer: ArrayBuffer): string {
@@ -1046,7 +853,11 @@ export default {
   },
 
   async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
-    CORS_HEADERS = buildCorsHeaders(request);
+    const CORS_HEADERS = buildCorsHeaders(request);
+    const PUBLIC_CACHE_HEADERS = {
+      ...CORS_HEADERS,
+      'Cache-Control': 'public, max-age=900, stale-while-revalidate=1800'
+    };
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -1157,7 +968,7 @@ export default {
           if (!forceRefresh && env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
             if (cached) {
-              return new Response(cached, { headers: CORS_HEADERS });
+              return new Response(cached, { headers: PUBLIC_CACHE_HEADERS });
             }
           }
 
@@ -1421,7 +1232,7 @@ export default {
 
           if (!forceRefresh && env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
-            if (cached) return new Response(cached, { headers: CORS_HEADERS });
+            if (cached) return new Response(cached, { headers: PUBLIC_CACHE_HEADERS });
           }
 
           const mobalyticsUrl = gameParam === 'poe2' ? 'https://mobalytics.gg/poe-2/builds' : 'https://mobalytics.gg/poe/builds';

@@ -16,6 +16,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-22-audit',
+    version: 'v3.30.6',
+    title: 'Site Wide Audit Upgrades: Wishlist Autocomplete, Fixed .xlsx Export, Caching & PoE 2 Presets',
+    dateEst: 'Nov 22, 2026 • 4:30 PM EST',
+    summary: 'Migrated poe.ninja economy APIs to live /poe1/api/economy routes, fixed Export Live League Workbook (.xlsx), added live 3,541 item autocomplete with icon previews on Wishlists, hardened Worker CORS scoping, and trimmed unused font & dead component overhead.',
+    changes: [
+      { tag: 'Added', text: 'Live 3,541 item autocomplete with official web.poecdn.com artwork previews inside the Add Wanted Item modal on Wishlists.' },
+      { tag: 'Added', text: 'Dedicated PoE 2 mapping strategy presets (Waystones T1 to T15, Tower + Tablet Farm, Breach + Delirium, Trial of Sekhemas / Chaos, Pinnacle Bossing) in Map Tracker.' },
+      { tag: 'Added', text: 'Modular OpenGraph SEO route handler (worker/routes/seo.ts) covering /maps, /sabrewulf, /feedback, /league/:id/mechanics, and /league/:id/hall-of-fame.' },
+      { tag: 'Improved', text: 'Added lightweight ?scope=icons API mode, 30 minute sessionStorage caching on Wishlists, and public edge Cache Control headers on read only endpoints to cut Wishlist load transfer by ~65%.' },
+      { tag: 'Improved', text: 'Replaced module level mutable CORS_HEADERS in worker/index.ts with request scoped headers to eliminate edge concurrency bleed, and removed unused Orbitron and Poppins Google Fonts.' },
+      { tag: 'Fixed', text: 'Fixed Export Live League Workbook (.xlsx) by stripping invalid XML control characters, adding ZIP store fallback if deflate fails, delaying blob URL revocation, and displaying explicit download status banners.' },
+      { tag: 'Fixed', text: 'Migrated poe.ninja API fetches to /poe1/api/data/index-state and /poe1/api/economy endpoints (restoring 10,381 Covens prices and 3,541 item icons) and deduplicated FARM VIEW character filter chips.' },
+      { tag: 'Removed', text: 'Removed redundant Squad Bounty & Wishlist Fulfillment Heroes banner from Wishlists and deleted 4 orphaned legacy component files.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-22-changelog',
     version: 'v3.30.5',
     title: 'Changelog & Feedback Hub Redesign & Complete Release History',

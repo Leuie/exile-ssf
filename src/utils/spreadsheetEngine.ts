@@ -34,6 +34,8 @@ function crc32(bytes: Uint8Array): number {
 
 function escapeXml(val: unknown): string {
   return String(val ?? '')
+    // Strip illegal XML 1.0 control characters so Excel & Google Sheets never reject the sheet
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -151,7 +153,18 @@ function createZipBlob(files: { path: string; content: string }[]): Blob {
   for (const f of files) {
     const nameBytes = enc.encode(f.path);
     const rawBytes = enc.encode(f.content);
-    const compBytes = deflateRaw(rawBytes);
+    let compBytes: Uint8Array = rawBytes;
+    let compressionMethod = 0; // 0 = store, 8 = deflate
+    try {
+      const deflated = deflateRaw(rawBytes);
+      if (deflated && deflated.length > 0) {
+        compBytes = deflated;
+        compressionMethod = 8;
+      }
+    } catch {
+      compBytes = rawBytes;
+      compressionMethod = 0;
+    }
     const crc = crc32(rawBytes);
 
     const localHeader = new Uint8Array(30 + nameBytes.length);
@@ -159,7 +172,7 @@ function createZipBlob(files: { path: string; content: string }[]): Blob {
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(4, 20, true);
     lv.setUint16(6, 0, true);
-    lv.setUint16(8, 8, true); // deflate
+    lv.setUint16(8, compressionMethod, true);
     lv.setUint16(10, 0, true);
     lv.setUint16(12, 0, true);
     lv.setUint32(14, crc, true);
@@ -177,7 +190,7 @@ function createZipBlob(files: { path: string; content: string }[]): Blob {
     cv.setUint16(4, 20, true);
     cv.setUint16(6, 20, true);
     cv.setUint16(8, 0, true);
-    cv.setUint16(10, 8, true);
+    cv.setUint16(10, compressionMethod, true);
     cv.setUint16(12, 0, true);
     cv.setUint16(14, 0, true);
     cv.setUint32(16, crc, true);
@@ -289,10 +302,16 @@ export function triggerFileDownload(blob: Blob, filename: string): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  setTimeout(() => {
+    try {
+      a.remove();
+    } catch {}
+    URL.revokeObjectURL(url);
+  }, 10000);
 }
 
 // ============================================================================
@@ -308,8 +327,23 @@ export function exportLeagueToXlsx(params: {
   roster: LeagueRosterMember[];
   wishlist: LookingForItem[];
   leagueFirsts?: LeagueFirstMilestone[];
-}): void {
-  const { leagueId, leagueName, patchVersion, officialLeagueUrl, globalChannel, roster, wishlist, leagueFirsts = [] } = params;
+}): { filename: string; sizeBytes: number; tabCount: number } {
+  const leagueId = String(params.leagueId || 'league');
+  const leagueName = String(params.leagueName || 'Exile SSF League');
+  const patchVersion = String(params.patchVersion || '3.30');
+  const officialLeagueUrl = params.officialLeagueUrl;
+  const globalChannel = params.globalChannel;
+  const roster = Array.isArray(params.roster) ? params.roster : [];
+  const wishlist = Array.isArray(params.wishlist) ? params.wishlist : [];
+  const leagueFirsts = Array.isArray(params.leagueFirsts) ? params.leagueFirsts : [];
+
+  const safeMemberChars = (m: LeagueRosterMember) => {
+    try {
+      return getMemberCharacters(m) || [];
+    } catch {
+      return [];
+    }
+  };
 
   const overviewSheet: SheetDefinition = {
     name: 'League Overview',
@@ -324,9 +358,9 @@ export function exportLeagueToXlsx(params: {
       ['Live Feed Link', `https://exilessf.app/league/${leagueId}/feed`],
       ['In Game Global Channel', globalChannel || '/global 5712'],
       ['Active Roster Slots', roster.length],
-      ['Total Tracked Characters', roster.reduce((sum, m) => sum + getMemberCharacters(m).length, 0)],
-      ['Open Squad Wishes', wishlist.filter((w) => w.status !== 'HAVE').length],
-      ['Fulfilled Squad Drops', wishlist.filter((w) => w.status === 'HAVE').length],
+      ['Total Tracked Characters', roster.reduce((sum, m) => sum + safeMemberChars(m).length, 0)],
+      ['Open Squad Wishes', wishlist.filter((w) => w?.status !== 'HAVE').length],
+      ['Fulfilled Squad Drops', wishlist.filter((w) => w?.status === 'HAVE').length],
       ['Exported Timestamp', new Date().toLocaleString()]
     ]
   };
@@ -351,35 +385,35 @@ export function exportLeagueToXlsx(params: {
     ],
     colWidths: [8, 18, 22, 18, 15, 20, 16, 8, 28, 34, 28, 18, 30, 34],
     rows: roster.map((m, idx) => [
-      m.slotNumber || idx + 1,
-      m.displayName,
-      m.poeAccountName || '',
-      m.availableAtLaunch || 'Yes',
-      m.inviteStatus || 'Accepted',
-      m.characterName || '',
-      m.ascendancy || '',
-      Number(m.level) || 1,
-      m.buildName || '',
-      m.pobUrl || '',
-      (m.atlasContent || []).join(', '),
-      m.discordName || m.displayName,
-      m.notes || '',
-      `https://exilessf.app/exile/${encodeURIComponent(m.displayName)}`
+      m?.slotNumber || idx + 1,
+      m?.displayName || `Exile ${idx + 1}`,
+      m?.poeAccountName || '',
+      m?.availableAtLaunch || 'Yes',
+      m?.inviteStatus || 'Accepted',
+      m?.characterName || '',
+      m?.ascendancy || '',
+      Number(m?.level) || 1,
+      m?.buildName || '',
+      m?.pobUrl || '',
+      Array.isArray(m?.atlasContent) ? m.atlasContent.join(', ') : String(m?.atlasContent || ''),
+      m?.discordName || m?.displayName || '',
+      m?.notes || '',
+      `https://exilessf.app/exile/${encodeURIComponent(m?.displayName || '')}`
     ])
   };
 
   const charRows: (string | number)[][] = [];
   for (const m of roster) {
-    for (const ch of getMemberCharacters(m)) {
+    for (const ch of safeMemberChars(m)) {
       charRows.push([
-        m.displayName,
-        m.poeAccountName || '',
-        ch.characterName,
-        ch.isMain ? 'Main' : 'Alt',
-        ch.ascendancy,
-        Number(ch.level) || 1,
-        ch.buildName || '',
-        ch.pobUrl || ''
+        m?.displayName || '',
+        m?.poeAccountName || '',
+        ch?.characterName || '',
+        ch?.isMain ? 'Main' : 'Alt',
+        ch?.ascendancy || '',
+        Number(ch?.level) || 1,
+        ch?.buildName || '',
+        ch?.pobUrl || ''
       ]);
     }
   }
@@ -396,15 +430,15 @@ export function exportLeagueToXlsx(params: {
     headers: ['Item Name', 'Category', 'Requested By', 'For Character', 'Status', 'Bounty Offer', 'Found By', 'Receipt Confirmed', 'Notes'],
     colWidths: [28, 18, 18, 20, 14, 18, 18, 18, 36],
     rows: wishlist.map((w) => [
-      w.itemName,
-      w.category,
-      w.displayName || w.characterName,
-      w.characterName,
-      w.status,
-      w.bountyOffer || '',
-      w.fulfilledBy || '',
-      w.receiptConfirmed || w.bountyStatus === 'PAID' ? 'Yes' : 'No',
-      w.notes || ''
+      w?.itemName || '',
+      w?.category || '',
+      w?.displayName || w?.characterName || '',
+      w?.characterName || '',
+      w?.status || 'NEED',
+      w?.bountyOffer || '',
+      w?.fulfilledBy || '',
+      w?.receiptConfirmed || w?.bountyStatus === 'PAID' ? 'Yes' : 'No',
+      w?.notes || ''
     ])
   };
 
@@ -413,17 +447,20 @@ export function exportLeagueToXlsx(params: {
     headers: ['Milestone', 'Winner Tag', 'Character IGN', 'Date Achieved', 'Notes'],
     colWidths: [28, 18, 22, 22, 36],
     rows: leagueFirsts.map((f) => [
-      f.title,
-      f.winnerDisplayName,
-      f.winnerCharacterName || '',
-      f.achievedAtIso ? new Date(f.achievedAtIso).toLocaleDateString() : '',
-      f.proofNote || ''
+      f?.title || '',
+      f?.winnerDisplayName || '',
+      f?.winnerCharacterName || '',
+      f?.achievedAtIso ? new Date(f.achievedAtIso).toLocaleDateString() : '',
+      f?.proofNote || ''
     ])
   };
 
-  const blob = buildXlsxBlob([overviewSheet, rosterSheet, charsSheet, wishSheet, firstsSheet]);
+  const sheets = [overviewSheet, rosterSheet, charsSheet, wishSheet, firstsSheet];
+  const blob = buildXlsxBlob(sheets);
   const safeSlug = leagueName.replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Exile SSF League';
-  triggerFileDownload(blob, `${safeSlug} Export.xlsx`);
+  const filename = `${safeSlug} Export.xlsx`;
+  triggerFileDownload(blob, filename);
+  return { filename, sizeBytes: blob.size, tabCount: sheets.length };
 }
 
 export function downloadStarterSheetTemplate(): void {

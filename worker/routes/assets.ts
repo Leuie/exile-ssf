@@ -518,12 +518,17 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
-  // GET /api/farming/ninja-prices?league=auto|Standard|Hardcore (60 min KV cache)
+  // GET /api/farming/ninja-prices?league=auto|Standard|Hardcore&scope=all|icons (60 min KV cache + 30 min browser cache)
   if (url.pathname === '/api/farming/ninja-prices' && request.method === 'GET') {
     try {
       const requestedLeague = String(url.searchParams.get('league') || 'auto').trim();
+      const scope = String(url.searchParams.get('scope') || 'all').trim().toLowerCase();
       const forceRefresh = url.searchParams.get('refresh') === '1';
       const ninjaHeaders = { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)', Accept: 'application/json' };
+      const cacheableHeaders = {
+        ...corsHeaders,
+        'Cache-Control': 'public, max-age=1800, stale-while-revalidate=3600'
+      };
 
       let targetLeague = requestedLeague;
       if (!targetLeague || targetLeague.toLowerCase() === 'auto') {
@@ -545,9 +550,30 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       }
 
       const cacheKey = `farming:ninja_prices:v3:${targetLeague.toLowerCase()}`;
+      const iconsCacheKey = `farming:ninja_icons:v3:${targetLeague.toLowerCase()}`;
       if (!forceRefresh && env.EXILE_KV) {
+        if (scope === 'icons') {
+          const cachedIcons = await env.EXILE_KV.get(iconsCacheKey);
+          if (cachedIcons) return new Response(cachedIcons, { headers: cacheableHeaders });
+        }
         const cached = await env.EXILE_KV.get(cacheKey);
-        if (cached) return new Response(cached, { headers: corsHeaders });
+        if (cached) {
+          if (scope === 'icons') {
+            try {
+              const parsed = JSON.parse(cached);
+              const iconsPayload = JSON.stringify({
+                status: 'ok',
+                league: parsed.league || targetLeague,
+                iconCount: Object.keys(parsed.icons || {}).length,
+                syncedAtIso: parsed.syncedAtIso || now,
+                icons: parsed.icons || {}
+              });
+              await env.EXILE_KV.put(iconsCacheKey, iconsPayload, { expirationTtl: 3600 });
+              return new Response(iconsPayload, { headers: cacheableHeaders });
+            } catch {}
+          }
+          return new Response(cached, { headers: cacheableHeaders });
+        }
       }
 
       const normalizeIconUrl = (raw: any): string => {
@@ -652,10 +678,12 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       }
 
       const payloadStr = JSON.stringify({ status: 'ok', league: targetLeague, divineChaos, itemCount: Object.keys(prices).length, iconCount: Object.keys(icons).length, syncedAtIso: now, prices, icons });
+      const iconsPayloadStr = JSON.stringify({ status: 'ok', league: targetLeague, iconCount: Object.keys(icons).length, syncedAtIso: now, icons });
       if (env.EXILE_KV && Object.keys(prices).length > 20) {
         await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 3600 });
+        await env.EXILE_KV.put(iconsCacheKey, iconsPayloadStr, { expirationTtl: 3600 });
       }
-      return new Response(payloadStr, { headers: corsHeaders });
+      return new Response(scope === 'icons' ? iconsPayloadStr : payloadStr, { headers: cacheableHeaders });
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || 'Failed to fetch poe.ninja prices.' }), { status: 500, headers: corsHeaders });
     }

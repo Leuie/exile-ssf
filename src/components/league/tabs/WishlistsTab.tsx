@@ -14,7 +14,6 @@ import {
   Gift,
   Award,
   Coins,
-  ArrowUpRight,
   Users,
   Filter,
   X
@@ -140,15 +139,40 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
   const [showLootFilterModal, setShowLootFilterModal] = useState<boolean>(false);
   const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string; points?: number; label?: string } | null>(null);
-  const [itemIcons, setItemIcons] = useState<Record<string, string>>({});
+  const [itemIcons, setItemIcons] = useState<Record<string, string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('exile_ssf_item_icons_v3');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.ts && Date.now() - parsed.ts < 30 * 60 * 1000 && parsed?.icons && typeof parsed.icons === 'object') {
+          return parsed.icons;
+        }
+      }
+    } catch {}
+    return {};
+  });
+  const [showItemAutocomplete, setShowItemAutocomplete] = useState<boolean>(false);
+
+  void onOpenBountiesPage;
+
+  const normalizeCharKey = (name: string): string =>
+    String(name || '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
 
   React.useEffect(() => {
+    if (Object.keys(itemIcons).length > 100) return;
     let cancelled = false;
-    fetch('/api/farming/ninja-prices?league=auto')
+    fetch('/api/farming/ninja-prices?league=auto&scope=icons')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (!cancelled && data?.icons && typeof data.icons === 'object') {
           setItemIcons(data.icons);
+          try {
+            sessionStorage.setItem('exile_ssf_item_icons_v3', JSON.stringify({ ts: Date.now(), icons: data.icons }));
+          } catch {}
         }
       })
       .catch(() => {});
@@ -191,11 +215,11 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
     const seen = new Set<string>();
     if (myRosterEntry) {
       for (const ch of getMemberCharacters(myRosterEntry)) {
-        const key = ch.characterName.trim().toLowerCase();
+        const key = normalizeCharKey(ch.characterName);
         if (key && !seen.has(key)) {
           seen.add(key);
           list.push({
-            characterName: ch.characterName.trim(),
+            characterName: ch.characterName.replace(/\s+/g, ' ').trim(),
             ascendancy: ch.ascendancy,
             buildName: ch.buildName,
             level: ch.level,
@@ -205,11 +229,11 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       }
     }
     if (userAccount?.characterName) {
-      const key = userAccount.characterName.trim().toLowerCase();
+      const key = normalizeCharKey(userAccount.characterName);
       if (key && !seen.has(key)) {
         seen.add(key);
         list.push({
-          characterName: userAccount.characterName.trim(),
+          characterName: userAccount.characterName.replace(/\s+/g, ' ').trim(),
           ascendancy: userAccount.ascendancy || 'Exile',
           buildName: userAccount.buildName || 'Main Build',
           level: userAccount.level || 1,
@@ -233,7 +257,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       item.poeAccountName.toLowerCase() === userAccount.poeAccountName.toLowerCase()
     );
     const matchChar = myCharacters.some(
-      (c) => c.characterName.toLowerCase() === item.characterName.toLowerCase()
+      (c) => normalizeCharKey(c.characterName) === normalizeCharKey(item.characterName)
     );
     return matchDisp || matchAcc || matchChar;
   };
@@ -264,6 +288,27 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [newLfStatus, setNewLfStatus] = useState<ItemNeedStatus>('NEED');
   const [newLfNotes, setNewLfNotes] = useState<string>('');
   const [newLfBounty, setNewLfBounty] = useState<string>('');
+
+  const itemSuggestions = React.useMemo(() => {
+    const q = newLfItem.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const keys = Object.keys(itemIcons);
+    if (keys.length === 0) return [];
+    const startsWith: { name: string; icon: string }[] = [];
+    const contains: { name: string; icon: string }[] = [];
+    for (const k of keys) {
+      if (k.startsWith(q)) {
+        startsWith.push({ name: k, icon: itemIcons[k] });
+      } else if (k.includes(q)) {
+        contains.push({ name: k, icon: itemIcons[k] });
+      }
+      if (startsWith.length >= 8 && contains.length >= 8) break;
+    }
+    return [...startsWith, ...contains].slice(0, 8).map((entry) => ({
+      displayName: entry.name.replace(/\b\w/g, (ch) => ch.toUpperCase()),
+      icon: entry.icon
+    }));
+  }, [newLfItem, itemIcons]);
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -340,7 +385,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
       const matchMine = !onlyMyNeeds || entry.entries.some((e) => isMyEntry(e));
       const matchChar =
         selectedCharFilter === 'All' ||
-        entry.entries.some((e) => e.characterName.toLowerCase() === selectedCharFilter.toLowerCase());
+        entry.entries.some((e) => normalizeCharKey(e.characterName) === normalizeCharKey(selectedCharFilter));
       return matchText && matchCat && matchStatus && matchMine && matchChar;
     });
   }, [aggregatedItemsMap, lookingForSearch, lookingForCategoryFilter, lookingForStatusFilter, onlyMyNeeds, selectedCharFilter, userAccount, myCharacters]);
@@ -626,24 +671,6 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
     }
   };
 
-  const helperStats = React.useMemo(() => {
-    const counts = new Map<string, { count: number; items: string[] }>();
-    for (const it of lookingForItems) {
-      if (it.status === 'HAVE' && it.fulfilledBy && it.fulfilledBy !== 'Self Found') {
-        const helper = it.fulfilledBy.replace(/^@/, '').trim();
-        const current = counts.get(helper) || { count: 0, items: [] };
-        current.count += 1;
-        if (!current.items.includes(it.itemName)) {
-          current.items.push(it.itemName);
-        }
-        counts.set(helper, current);
-      }
-    }
-    return Array.from(counts.entries())
-      .map(([helper, stat]) => ({ helper, count: stat.count, items: stat.items }))
-      .sort((a, b) => b.count - a.count);
-  }, [lookingForItems]);
-
   useEffect(() => {
     const dialog = editLookingForDialogRef.current;
     if (!dialog) return;
@@ -854,66 +881,6 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Squad Bounty & Fulfillment Heroes Recognition Banner */}
-      <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center flex-shrink-0">
-            <Award className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-white flex items-center gap-2">
-              <span>Squad Bounty & Wishlist Fulfillment Heroes</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-bold">
-                Co-op Rewards
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-400">
-              Fulfill wanted items for squadmates to earn benefactor honors and speed up squad build progression.
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {helperStats.length > 0 ? (
-            helperStats.slice(0, 4).map((h, hIdx) => (
-              <div
-                key={h.helper}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-mono"
-                title={`Fulfilled: ${h.items.join(', ')}`}
-              >
-                <span className="text-amber-400 font-bold">#{hIdx + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => onOpenProfile?.(h.helper)}
-                  className="text-slate-200 hover:text-indigo-300 hover:underline cursor-pointer"
-                  title={`View @${h.helper}'s Exile Profile`}
-                >
-                  @{h.helper}
-                </button>
-                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                  {h.count} {h.count === 1 ? 'Wish' : 'Wishes'}
-                </span>
-              </div>
-            ))
-          ) : (
-            <div className="text-[11px] font-mono text-slate-500 italic">
-              Find an exile's wanted item to claim the top provider spot!
-            </div>
-          )}
-          {onOpenBountiesPage && (
-            <button
-              type="button"
-              onClick={onOpenBountiesPage}
-              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
-            >
-              <Coins className="w-3.5 h-3.5" />
-              <span>Bounty Board & Honors</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Unified Search, Filters & View Toggle Bar */}
       <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search Bar */}
@@ -1094,9 +1061,9 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                   const openCount = lookingForItems.filter(
                     (it) =>
                       it.status !== 'HAVE' &&
-                      it.characterName.toLowerCase() === ch.characterName.toLowerCase()
+                      normalizeCharKey(it.characterName) === normalizeCharKey(ch.characterName)
                   ).length;
-                  const isSelected = selectedCharFilter.toLowerCase() === ch.characterName.toLowerCase();
+                  const isSelected = normalizeCharKey(selectedCharFilter) === normalizeCharKey(ch.characterName);
                   return (
                     <button
                       key={ch.characterName}
@@ -1151,30 +1118,63 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
+            <div className="relative">
               <label className="text-xs text-slate-400 block mb-1">Item Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Cloak of Flame"
-                value={newLfItem}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw.includes('Item Class:') || raw.includes('Rarity:')) {
-                    const parsed = parsePoeClipboardTooltip(raw);
-                    if (parsed) {
-                      setNewLfItem(parsed.itemName);
-                      setNewLfCat(parsed.category);
-                      if (parsed.mods.length > 0 && !newLfNotes) {
-                        setNewLfNotes(parsed.mods.slice(0, 2).join(' | '));
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  placeholder="e.g. Aegis Aurora, Cloak of Flame..."
+                  value={newLfItem}
+                  onFocus={() => setShowItemAutocomplete(true)}
+                  onBlur={() => setTimeout(() => setShowItemAutocomplete(false), 180)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw.includes('Item Class:') || raw.includes('Rarity:')) {
+                      const parsed = parsePoeClipboardTooltip(raw);
+                      if (parsed) {
+                        setNewLfItem(parsed.itemName);
+                        setNewLfCat(parsed.category);
+                        if (parsed.mods.length > 0 && !newLfNotes) {
+                          setNewLfNotes(parsed.mods.slice(0, 2).join(' | '));
+                        }
+                        setShowItemAutocomplete(false);
+                        return;
                       }
-                      return;
                     }
-                  }
-                  setNewLfItem(raw);
-                }}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-700"
-              />
+                    setNewLfItem(raw);
+                    setShowItemAutocomplete(true);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 pr-9 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+                {lookupItemIcon(newLfItem) && (
+                  <img
+                    src={lookupItemIcon(newLfItem)!}
+                    alt=""
+                    className="w-6 h-6 object-contain absolute right-1.5 pointer-events-none"
+                  />
+                )}
+              </div>
+              {showItemAutocomplete && itemSuggestions.length > 0 && (
+                <div className="absolute z-40 left-0 right-0 mt-1 rounded-xl border border-slate-700 bg-[#0b0f18] shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/70">
+                  {itemSuggestions.map((s) => (
+                    <button
+                      key={s.displayName}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setNewLfItem(s.displayName);
+                        setShowItemAutocomplete(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-slate-200 hover:bg-indigo-600/20 hover:text-white cursor-pointer"
+                    >
+                      <img src={s.icon} alt="" className="w-5 h-5 object-contain shrink-0" />
+                      <span className="truncate font-medium">{s.displayName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>

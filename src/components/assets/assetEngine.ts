@@ -100,8 +100,19 @@ export const STRATEGY_PRESETS = [
   'Breach + Scarabs',
   'Harvest + Expedition',
   'T17 Scarab Farm',
-  'Tier 15 Waystones',
   'Heist / Delve / Sanctum'
+];
+
+export const POE2_STRATEGY_PRESETS = [
+  'Campaign (Acts 1 to 3 + Cruel)',
+  'Waystones T1 to T5',
+  'Waystones T6 to T10',
+  'Waystones T11 to T15',
+  'Tower + Precursor Tablet Farm',
+  'Breach + Delirium',
+  'Ritual + Expedition',
+  'Trial of Sekhemas / Chaos',
+  'Pinnacle Bossing'
 ];
 
 export const CATEGORY_ORDER = [

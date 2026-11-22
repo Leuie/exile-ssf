@@ -27,7 +27,8 @@ import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
 import {
   POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
-  STRATEGY_PRESETS
+  STRATEGY_PRESETS,
+  POE2_STRATEGY_PRESETS
 } from './assets/assetEngine';
 import {
   MapAnalyticsCharts,
@@ -112,6 +113,13 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [strategyTag, setStrategyTag] = useState<string>('Alch & Go Red Maps');
+  const activeStrategyPresets = game === 'poe2' ? POE2_STRATEGY_PRESETS : STRATEGY_PRESETS;
+
+  useEffect(() => {
+    if (!activeStrategyPresets.includes(strategyTag)) {
+      setStrategyTag(game === 'poe2' ? 'Waystones T11 to T15' : 'Alch & Go Red Maps');
+    }
+  }, [game]);
   const [sessionTitle, setSessionTitle] = useState<string>('Mapping Session');
   const [runs, setRuns] = useState<ParsedAreaRun[]>([]);
   const [deathTimestamps, setDeathTimestamps] = useState<number[]>([]);
@@ -848,7 +856,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
               onChange={(e) => setStrategyTag(e.target.value)}
               className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer"
             >
-              {STRATEGY_PRESETS.map((st) => (
+              {activeStrategyPresets.map((st) => (
                 <option key={st} value={st} className="bg-slate-950">{st}</option>
               ))}
             </select>

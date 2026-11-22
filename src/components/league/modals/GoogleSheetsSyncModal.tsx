@@ -180,6 +180,18 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-5">
+          {error && activeMode === 'export' && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-xs text-rose-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{error}</span>
+            </div>
+          )}
+          {successMsg && activeMode === 'export' && (
+            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-xs text-emerald-200 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>{successMsg}</span>
+            </div>
+          )}
           {activeMode === 'export' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Full League Export Card */}
@@ -199,18 +211,27 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    exportLeagueToXlsx({
-                      leagueId,
-                      leagueName,
-                      patchVersion,
-                      officialLeagueUrl,
-                      globalChannel,
-                      roster,
-                      wishlist,
-                      leagueFirsts
-                    })
-                  }
+                  onClick={() => {
+                    setError(null);
+                    setSuccessMsg(null);
+                    try {
+                      const res = exportLeagueToXlsx({
+                        leagueId,
+                        leagueName,
+                        patchVersion,
+                        officialLeagueUrl,
+                        globalChannel,
+                        roster,
+                        wishlist,
+                        leagueFirsts
+                      });
+                      setSuccessMsg(
+                        `Downloaded "${res.filename}" (${res.tabCount} tabs, ${Math.max(1, Math.round(res.sizeBytes / 1024))} KB).`
+                      );
+                    } catch (err: any) {
+                      setError(err?.message || 'Could not generate the .xlsx workbook. Check browser download permissions.');
+                    }
+                  }}
                   className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow"
                 >
                   <FileDown className="w-4 h-4" />
@@ -235,7 +256,16 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={downloadStarterSheetTemplate}
+                  onClick={() => {
+                    setError(null);
+                    setSuccessMsg(null);
+                    try {
+                      downloadStarterSheetTemplate();
+                      setSuccessMsg('Downloaded "Exile SSF Private League Starter Sheet.xlsx".');
+                    } catch (err: any) {
+                      setError(err?.message || 'Could not download Starter Sheet template.');
+                    }
+                  }}
                   className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow"
                 >
                   <Download className="w-4 h-4" />
