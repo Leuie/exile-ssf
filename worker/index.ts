@@ -1060,12 +1060,33 @@ export default {
       }
 
 
+      // Helper: Parse GGG forum date strings (rendered in UTC for unauthenticated requests) into ISO
+      const parseGggForumDateToIso = (raw: string): string | null => {
+        const cleaned = raw
+          .replace(/^on\s+/i, '')
+          .replace(/&nbsp;/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!cleaned) return null;
+        if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(cleaned)) {
+          const t = Date.parse(cleaned);
+          return Number.isNaN(t) ? null : new Date(t).toISOString();
+        }
+        const m = cleaned.match(
+          /([A-Z][a-z]{2,8}\s+\d{1,2},?\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)/i
+        );
+        const candidate = m ? m[1].replace(/,/g, '') : cleaned.replace(/,/g, '');
+        const hasTz = /(?:UTC|GMT|NZDT|NZST|EST|EDT|PST|PDT|Z|[+-]\d{2}:?\d{2})$/i.test(candidate);
+        const parsed = Date.parse(hasTz ? candidate : `${candidate} UTC`);
+        return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+      };
+
       // GET /api/patch-notes?game=poe1|poe2 (Live GGG Forum Auto Pull + 30 Min KV Cache + Resilient Fallback)
       if (url.pathname === '/api/patch-notes' && request.method === 'GET') {
         try {
           const gameParam = (url.searchParams.get('game') || 'poe1').toLowerCase() === 'poe2' ? 'poe2' : 'poe1';
           const forceRefresh = url.searchParams.get('refresh') === '1';
-          const cacheKey = `patchnotes:list:v2:${gameParam}`;
+          const cacheKey = `patchnotes:list:v3:${gameParam}`;
 
           if (!forceRefresh && env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
@@ -1138,11 +1159,22 @@ export default {
                   .trim();
                 if (!tid || seen.has(tid) || !rawTitle || rawTitle.toLowerCase() === 'last post') continue;
                 seen.add(tid);
+
+                // Extract post_date timestamp immediately following this thread link in GGG forum HTML
+                const sliceAfter = html.slice(m.index, m.index + 950);
+                const dateMatch =
+                  sliceAfter.match(/<span[^>]*class="[^"]*post_date[^"]*"[^>]*>([^<]{6,60})<\/span>/i) ||
+                  sliceAfter.match(/<time[^>]*datetime="([^"]+)"/i) ||
+                  sliceAfter.match(/on\s+([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)/i);
+                const rawDateText = dateMatch ? dateMatch[1].replace(/^,\s*/, '').trim() : '';
+                const postedAtIso = rawDateText ? parseGggForumDateToIso(rawDateText) : null;
+
                 entries.push({
                   id: tid,
                   title: rawTitle,
                   officialUrl: `https://www.pathofexile.com/forum/view-thread/${tid}`,
-                  postedAt: 'Official GGG Post',
+                  postedAt: rawDateText || 'Official GGG Post',
+                  postedAtIso,
                   game: gameParam
                 });
               }
@@ -1188,7 +1220,7 @@ export default {
             );
           }
 
-          const cacheKey = `patchnotes:thread:v2:${threadId}`;
+          const cacheKey = `patchnotes:thread:v3:${threadId}`;
           if (env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
             if (cached) return new Response(cached, { headers: CORS_HEADERS });
@@ -1219,6 +1251,19 @@ export default {
           }
 
           const html = await res.text();
+          // Extract post creation date and optional last edited timestamp from the first post
+          const postDateMatch =
+            html.match(/<span[^>]*class="[^"]*post_date[^"]*"[^>]*>([^<]{6,60})<\/span>/i) ||
+            html.match(/<time[^>]*datetime="([^"]+)"/i);
+          const postedAtRaw = postDateMatch ? postDateMatch[1].replace(/^,\s*/, '').trim() : null;
+          const postedAtIso = postedAtRaw ? parseGggForumDateToIso(postedAtRaw) : null;
+
+          const editedMatch = html.match(/<div[^>]*class="[^"]*last_edited_by[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+          const editedText = editedMatch ? editedMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+          const editedDateMatch = editedText.match(/on\s+([A-Z][a-z]{2,8}\s+\d{1,2},?\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)/i);
+          const editedAtRaw = editedDateMatch ? editedDateMatch[1].trim() : null;
+          const editedAtIso = editedAtRaw ? parseGggForumDateToIso(editedAtRaw) : null;
+
           // Isolate the first forum post body inside content-container (avoiding outer page wrapper)
           const postContainerMatch = html.match(
             /<td[^>]*class="[^"]*content-container[^"]*"[^>]*>[\s\S]*?<div class="content">([\s\S]*?)<\/div>\s*(?:<div class="(?:last_edited_by|signature|clear)|<\/div>\s*<\/td>)/i
@@ -1276,6 +1321,10 @@ export default {
             status: blocks.length > 0 ? 'ok' : 'unavailable',
             officialUrl: threadUrl,
             syncedAtIso: now,
+            postedAtIso,
+            postedAtRaw,
+            editedAtIso,
+            editedAtRaw,
             blocks:
               blocks.length > 0
                 ? blocks.slice(0, 600)

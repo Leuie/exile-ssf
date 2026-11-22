@@ -1665,17 +1665,38 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
               {stashTabs.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-mono uppercase text-slate-400">
-                    Select Dump & Specialty Tabs ({selectedTabIndices.length}/15 selected):
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase text-slate-400">
+                    <span>Select Dump & Specialty Tabs ({selectedTabIndices.length}/15 selected):</span>
+                    {stashTabs.some((t) => t.type === 'UniqueStash' || t.type === 'MapStash') && (
+                      <span className="text-amber-300/90 normal-case">
+                        Note: GGG web API returns 0 items for Unique Collection & Map Stash tabs
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
                     {stashTabs.map((tab) => {
                       const active = selectedTabIndices.includes(tab.index);
                       const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
+                      const isApiEmptySpecialty = tab.type === 'UniqueStash' || tab.type === 'MapStash';
                       return (
-                        <button key={tab.id} type="button" onClick={() => toggleTabIndex(tab.index)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => toggleTabIndex(tab.index)}
+                          title={
+                            isApiEmptySpecialty
+                              ? "GGG's web API returns 0 items for Unique Collection and Map Stash tabs. Track uniques or maps in a regular or quad tab instead."
+                              : tab.name
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                        >
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
                           <span>{tab.name}</span>
+                          {isApiEmptySpecialty && (
+                            <span className="px-1 py-0.2 rounded bg-amber-500/20 border border-amber-500/40 text-[9px] font-mono text-amber-300">
+                              API 0
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -1840,10 +1861,29 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                   const tabBg = `rgba(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b}, ${isActive ? 0.35 : 0.14})`;
                   const tabBorder = `rgba(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b}, ${isActive ? 0.85 : 0.35})`;
                   const tabItemsCount = enrichedDrops.filter((d) => d.tabName === tab.name).length;
+                  const isApiEmptySpecialty = tab.type === 'UniqueStash' || tab.type === 'MapStash';
                   return (
-                    <button key={tab.id} type="button" onClick={() => setActiveTabFilter(isActive ? 'ALL' : tab.name)} style={{ backgroundColor: tabBg, borderColor: tabBorder }} className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-white border flex items-center justify-between gap-2 transition-all hover:brightness-125 cursor-pointer">
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTabFilter(isActive ? 'ALL' : tab.name)}
+                      style={{ backgroundColor: tabBg, borderColor: tabBorder }}
+                      title={
+                        isApiEmptySpecialty && tabItemsCount === 0
+                          ? "GGG's web API returns 0 items for Unique Collection and Map Stash tabs."
+                          : tab.name
+                      }
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-white border flex items-center justify-between gap-2 transition-all hover:brightness-125 cursor-pointer"
+                    >
                       <span className="truncate">{tab.name}</span>
-                      <span className="text-[10px] font-mono opacity-80">{tabItemsCount}</span>
+                      <span className="flex items-center gap-1 shrink-0">
+                        {isApiEmptySpecialty && tabItemsCount === 0 && (
+                          <span className="px-1 rounded bg-amber-500/25 border border-amber-400/40 text-[9px] font-mono text-amber-200">
+                            API
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono opacity-80">{tabItemsCount}</span>
+                      </span>
                     </button>
                   );
                 })}
@@ -1976,20 +2016,57 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           )}
 
           {filteredAndSortedDrops.length === 0 ? (
-            <div className="py-14 px-6 text-center space-y-3">
-              <Layers className="w-8 h-8 text-slate-600 mx-auto" />
-              <div className="text-sm font-bold text-slate-200">No Stash Data Loaded Yet</div>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Connect your Dump Tabs in Setup above, paste a Direct Browser JSON snapshot, or preview the dashboard with clearly labeled sample DEMO data.
-              </p>
-              <button
-                type="button"
-                onClick={handleLoadDemoData}
-                className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold cursor-pointer"
-              >
-                Load Sample DEMO Data (Preview Only)
-              </button>
-            </div>
+            enrichedDrops.length === 0 ? (
+              <div className="py-14 px-6 text-center space-y-3">
+                <Layers className="w-8 h-8 text-slate-600 mx-auto" />
+                <div className="text-sm font-bold text-slate-200">No Stash Data Loaded Yet</div>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Connect your Dump Tabs in Setup above, paste a Direct Browser JSON snapshot, or preview the dashboard with clearly labeled sample DEMO data.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleLoadDemoData}
+                  className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold cursor-pointer"
+                >
+                  Load Sample DEMO Data (Preview Only)
+                </button>
+              </div>
+            ) : (() => {
+              const activeRailTab = railTabsList.find((t) => t.name === activeTabFilter);
+              const isApiEmptySpecialty =
+                activeRailTab && (activeRailTab.type === 'UniqueStash' || activeRailTab.type === 'MapStash');
+              return (
+                <div className="py-14 px-6 text-center space-y-3">
+                  <Layers className={`w-8 h-8 mx-auto ${isApiEmptySpecialty ? 'text-amber-400' : 'text-slate-600'}`} />
+                  <div className="text-sm font-bold text-slate-200">
+                    {isApiEmptySpecialty
+                      ? `"${activeTabFilter}" Is a GGG Nested Collection Tab`
+                      : activeTabFilter !== 'ALL'
+                      ? `No Items Found in "${activeTabFilter}"`
+                      : 'No Items Match Your Current Filters'}
+                  </div>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    {isApiEmptySpecialty
+                      ? "Grinding Gear Games' web stash API returns 0 items for Unique Collection and Map Stash tabs. Uncheck this tab in Edit synced tabs to free a slot, and keep tracked uniques or maps in a normal or quad tab."
+                      : 'Try switching back to All Synced Tabs or clearing your search, tier, or Hide Noise filters.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTabFilter('ALL');
+                      setSearchQuery('');
+                      setTierFilter('All');
+                      setCategoryFilter('All');
+                      setSubFilter('All');
+                      setHideBulkNoise(false);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/35 border border-indigo-400/50 text-indigo-200 text-xs font-bold cursor-pointer"
+                  >
+                    Show All Synced Tabs ({enrichedDrops.length})
+                  </button>
+                </div>
+              );
+            })()
           ) : viewMode === 'table' ? (
             <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
               <table className="w-full text-left border-collapse text-xs">

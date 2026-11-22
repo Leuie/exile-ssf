@@ -672,6 +672,7 @@ export interface OfficialPatchNoteEntry {
   title: string;
   officialUrl: string;
   postedAt: string;
+  postedAtIso?: string | null;
   game: 'poe1' | 'poe2';
 }
 
@@ -707,7 +708,16 @@ export async function fetchOfficialPatchNotes(
 
 export async function fetchOfficialPatchThread(
   threadId: string
-): Promise<{ status: string; officialUrl?: string; blocks: PatchNoteBlock[] } | null> {
+): Promise<{
+  status: string;
+  officialUrl?: string;
+  syncedAtIso?: string;
+  postedAtIso?: string | null;
+  postedAtRaw?: string | null;
+  editedAtIso?: string | null;
+  editedAtRaw?: string | null;
+  blocks: PatchNoteBlock[];
+} | null> {
   try {
     const res = await fetch(
       `${getApiBase()}/api/patch-notes/thread?id=${encodeURIComponent(threadId)}`,

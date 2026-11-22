@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Layers,
   Flame,
-  Hammer
+  Hammer,
+  Clock
 } from 'lucide-react';
 import {
   fetchOfficialPatchNotes,
@@ -79,6 +80,42 @@ function classifyPatchEntry(entry: OfficialPatchNoteEntry): ClassifiedPatch {
   };
 }
 
+function formatEstDateTime(iso?: string | null, fallback?: string): string {
+  if (!iso) return fallback || 'Official GGG Post';
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return fallback || 'Official GGG Post';
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    }).format(dt);
+  } catch {
+    return dt.toUTCString();
+  }
+}
+
+function formatEstShortDate(iso?: string | null): string | null {
+  if (!iso) return null;
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(dt);
+  } catch {
+    return null;
+  }
+}
+
 export const PatchNotesView: React.FC<PatchNotesViewProps> = ({ initialGame = 'poe1' }) => {
   const [game, setGame] = useState<'poe1' | 'poe2'>(initialGame);
   const [entries, setEntries] = useState<OfficialPatchNoteEntry[]>([]);
@@ -88,6 +125,8 @@ export const PatchNotesView: React.FC<PatchNotesViewProps> = ({ initialGame = 'p
 
   const [selectedEntry, setSelectedEntry] = useState<ClassifiedPatch | null>(null);
   const [blocks, setBlocks] = useState<PatchNoteBlock[]>([]);
+  const [threadPostedAtIso, setThreadPostedAtIso] = useState<string | null>(null);
+  const [threadEditedAtIso, setThreadEditedAtIso] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
@@ -191,13 +230,19 @@ export const PatchNotesView: React.FC<PatchNotesViewProps> = ({ initialGame = 'p
   useEffect(() => {
     if (!selectedEntry) {
       setBlocks([]);
+      setThreadPostedAtIso(null);
+      setThreadEditedAtIso(null);
       return;
     }
     let cancelled = false;
     setLoadingThread(true);
+    setThreadPostedAtIso(selectedEntry.postedAtIso || null);
+    setThreadEditedAtIso(null);
     fetchOfficialPatchThread(selectedEntry.id).then((res) => {
       if (!cancelled) {
         setBlocks(res?.blocks || []);
+        if (res?.postedAtIso) setThreadPostedAtIso(res.postedAtIso);
+        if (res?.editedAtIso) setThreadEditedAtIso(res.editedAtIso);
         setLoadingThread(false);
       }
     });
@@ -459,7 +504,14 @@ export const PatchNotesView: React.FC<PatchNotesViewProps> = ({ initialGame = 'p
                                       {item.title}
                                     </span>
                                   </div>
-                                  {renderKindBadge(item.kind)}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {formatEstShortDate(item.postedAtIso) && (
+                                      <span className="hidden sm:inline text-[10px] font-mono text-slate-400">
+                                        {formatEstShortDate(item.postedAtIso)} ET
+                                      </span>
+                                    )}
+                                    {renderKindBadge(item.kind)}
+                                  </div>
                                 </button>
                               );
                             })}
@@ -520,7 +572,17 @@ export const PatchNotesView: React.FC<PatchNotesViewProps> = ({ initialGame = 'p
                   {game === 'poe2' ? 'Path of Exile 2' : 'Path of Exile 1'}
                 </span>
                 {renderKindBadge(selectedEntry.kind)}
-                <span className="text-[11px] font-mono text-slate-400">{selectedEntry.postedAt}</span>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700/80 text-[11px] font-mono text-sky-300">
+                  <Clock className="w-3 h-3 text-sky-400 shrink-0" />
+                  <span>
+                    Posted: {formatEstDateTime(threadPostedAtIso || selectedEntry.postedAtIso, selectedEntry.postedAt)}
+                  </span>
+                </span>
+                {threadEditedAtIso && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/35 text-[11px] font-mono text-emerald-300">
+                    <span>Updated: {formatEstDateTime(threadEditedAtIso)}</span>
+                  </span>
+                )}
               </div>
               <h2 className="text-lg sm:text-xl font-black text-white">{selectedEntry.title}</h2>
             </div>

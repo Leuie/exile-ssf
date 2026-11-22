@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MessageSquarePlus,
   Flame, 
@@ -23,7 +23,8 @@ import {
   Filter,
   Package,
   Home as HomeIcon,
-  UserCheck
+  UserCheck,
+  Clock
 } from "lucide-react";
 
 interface SidebarProps {
@@ -81,6 +82,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return false;
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
+  const [clockNow, setClockNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(new Date()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const formatZoneClock = (date: Date, timeZone?: string) => {
+    try {
+      const timeStr = new Intl.DateTimeFormat('en-US', {
+        ...(timeZone ? { timeZone } : {}),
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(date);
+      const parts = new Intl.DateTimeFormat('en-US', {
+        ...(timeZone ? { timeZone } : {}),
+        timeZoneName: 'short'
+      }).formatToParts(date);
+      const tzAbbr = parts.find((p) => p.type === 'timeZoneName')?.value || (timeZone ? 'NZT' : 'LOCAL');
+      return { timeStr, tzAbbr };
+    } catch {
+      return { timeStr: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), tzAbbr: timeZone ? 'NZT' : 'LOCAL' };
+    }
+  };
+
+  const gggClock = formatZoneClock(clockNow, 'Pacific/Auckland');
+  const localClock = formatZoneClock(clockNow);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     'Progression & Maps': true,
     'Mechanics & Recipes': true,
@@ -384,16 +412,36 @@ interface NavGroup {
               </nav>
             </div>
 
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <button
-                onClick={() => handleNavClick('about')}
-                className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
-                <span>About</span>
-              </button>
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+              {/* Mobile Dual Timezone Strip: GGG NZT & Local */}
+              <div className="grid grid-cols-2 gap-1.5 p-2 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] font-mono">
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wider text-amber-400/90 font-bold">GGG ({gggClock.tzAbbr})</span>
+                  <span className="text-slate-100 font-bold">{gggClock.timeStr}</span>
+                </div>
+                <div className="flex flex-col border-l border-slate-800 pl-2">
+                  <span className="text-[9px] uppercase tracking-wider text-sky-400/90 font-bold">Local ({localClock.tzAbbr})</span>
+                  <span className="text-slate-100 font-bold">{localClock.timeStr}</span>
+                </div>
+              </div>
 
-              
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={() => handleNavClick('about')}
+                  className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                  <span>About</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('privacy')}
+                  className="flex-1 py-2 px-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Privacy Policy</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -607,8 +655,35 @@ interface NavGroup {
           })}
         </nav>
 
-        {/* Compact Footer Area: Profile + About + Privacy Policy */}
+        {/* Compact Footer Area: Dual Timezone Clock + Profile + About + Privacy Policy */}
         <div className="p-3 border-t border-slate-800 space-y-2">
+          {/* Live GGG New Zealand Time + User Local Time */}
+          {!isCollapsed ? (
+            <div
+              className="grid grid-cols-2 gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800/90 font-mono"
+              title={`Grinding Gear Games HQ (Auckland): ${gggClock.timeStr} ${gggClock.tzAbbr} | Your Local Time: ${localClock.timeStr} ${localClock.tzAbbr}`}
+            >
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase tracking-wider text-amber-400/90 font-bold truncate">
+                  GGG {gggClock.tzAbbr}
+                </div>
+                <div className="text-[11px] font-bold text-slate-100 truncate">{gggClock.timeStr}</div>
+              </div>
+              <div className="min-w-0 border-l border-slate-800 pl-2">
+                <div className="text-[9px] uppercase tracking-wider text-sky-400/90 font-bold truncate">
+                  Local {localClock.tzAbbr}
+                </div>
+                <div className="text-[11px] font-bold text-slate-100 truncate">{localClock.timeStr}</div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="w-full p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center text-amber-400"
+              title={`GGG (${gggClock.tzAbbr}): ${gggClock.timeStr} | Local (${localClock.tzAbbr}): ${localClock.timeStr}`}
+            >
+              <Clock className="w-4 h-4" />
+            </div>
+          )}
 
           {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}
           {(onOpenAuthModal || onOpenProfile) && (
