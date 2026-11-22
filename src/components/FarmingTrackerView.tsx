@@ -996,7 +996,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     const donor = userAccount?.displayName || userAccount?.characterName || 'Squad Exile';
     setSharedStashKeys((prev) => ({ ...prev, [item.key]: true }));
     try {
-      await fetch('/api/stash', {
+      await fetch('/api/stash-drops', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
