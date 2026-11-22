@@ -895,7 +895,6 @@ export default {
         await ensureD1Schema(db);
       await seedHonorAndUmbraWitchToD1(db);
       await seedLeuieAvatarToD1(db);
-      const session = await readVerifiedSession(request, env);
       } catch (err: any) {
         return new Response(JSON.stringify({ status: 'error', message: `D1 init error: ${err.message}` }), {
           status: 500,
@@ -906,6 +905,7 @@ export default {
       const leagueId = url.searchParams.get('league') || 'poe1-330-umbra';
       const now = new Date().toISOString();
       const verifiedSession = await readVerifiedSession(request, env);
+      const session = verifiedSession;
 
       // Global Mutation Security Gate: require signed exile_session cookie on all state changing POST/PUT/DELETE routes
       if (request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE') {
@@ -951,7 +951,7 @@ export default {
           db,
           now,
           corsHeaders: CORS_HEADERS,
-          session,
+          session: verifiedSession,
           initD1Schema: ensureD1Schema,
           isSafeWebhookUrl
         });

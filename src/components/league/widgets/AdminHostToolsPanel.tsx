@@ -84,7 +84,8 @@ export const AdminHostToolsPanel: React.FC<AdminHostToolsPanelProps> = ({ securi
     linkUrl: ''
   });
   const [savingBanner, setSavingBanner] = useState(false);
-  const [bannerNotice, setBannerNotice] = useState<string | null>(null);
+  const [bannerNotice, setBannerNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [serverSessionStale, setServerSessionStale] = useState(false);
 
   // Feedback & Edge Cache State
   const [feedbackItems, setFeedbackItems] = useState<SiteFeedbackItem[]>([]);
@@ -94,15 +95,22 @@ export const AdminHostToolsPanel: React.FC<AdminHostToolsPanelProps> = ({ securi
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ovRes, bannerRes, fb] = await Promise.all([
+      const [sessRes, ovRes, bannerRes, fb] = await Promise.all([
+        fetch('/api/auth/session', { credentials: 'include' }),
         fetch('/api/admin/overview', { credentials: 'include' }),
         fetch('/api/site-banner'),
         fetchCloudFeedback()
       ]);
+      if (sessRes.ok) {
+        const s: any = await sessRes.json();
+        setServerSessionStale(!s?.authenticated || !s?.isAdmin);
+      }
       if (ovRes.ok) {
         const ov: any = await ovRes.json();
         if (ov?.metrics) setMetrics(ov.metrics);
         if (Array.isArray(ov?.leagues)) setLeagues(ov.leagues);
+      } else if (ovRes.status === 401 || ovRes.status === 403) {
+        setServerSessionStale(true);
       }
       if (bannerRes.ok) {
         const b: any = await bannerRes.json();
@@ -171,19 +179,25 @@ export const AdminHostToolsPanel: React.FC<AdminHostToolsPanelProps> = ({ securi
       if (res.ok) {
         const d: any = await res.json();
         if (d?.banner) setBanner(d.banner);
-        setBannerNotice(
-          banner.enabled
+        setBannerNotice({
+          type: 'ok',
+          text: banner.enabled
             ? 'Sitewide Notice Banner is LIVE across all Exile SSF pages!'
             : 'Sitewide Notice Banner saved and paused.'
-        );
+        });
       } else {
-        setBannerNotice('Failed to save sitewide banner.');
+        const errData: any = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) setServerSessionStale(true);
+        setBannerNotice({
+          type: 'err',
+          text: errData?.error || `Failed to save sitewide banner (HTTP ${res.status}).`
+        });
       }
     } catch {
-      setBannerNotice('Network error saving sitewide banner.');
+      setBannerNotice({ type: 'err', text: 'Network error saving sitewide banner.' });
     } finally {
       setSavingBanner(false);
-      setTimeout(() => setBannerNotice(null), 4500);
+      setTimeout(() => setBannerNotice(null), 5000);
     }
   };
 
@@ -256,6 +270,14 @@ export const AdminHostToolsPanel: React.FC<AdminHostToolsPanelProps> = ({ securi
 
   return (
     <div className="space-y-5 w-full">
+      {serverSessionStale && (
+        <div className="px-4 py-3 rounded-2xl bg-amber-500/15 border border-amber-400/50 text-xs text-amber-100 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+          <span>
+            <strong className="text-amber-300">Admin Session Cookie Expired:</strong> Your browser's signed cookie needs to be refreshed (for example, after rotating <code className="text-amber-200">SESSION_SECRET</code>). Click <strong>Sign Out</strong> in the top right and sign back in with your Admin Password.
+          </span>
+        </div>
+      )}
+
       {/* Macro Platform Navigation */}
       <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0d111a] p-2 shadow-lg">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -633,9 +655,15 @@ export const AdminHostToolsPanel: React.FC<AdminHostToolsPanelProps> = ({ securi
             </div>
 
             {bannerNotice && (
-              <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{bannerNotice}</span>
+              <div
+                className={`px-3.5 py-2.5 rounded-xl border flex items-center gap-2 ${
+                  bannerNotice.type === 'ok'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
+                }`}
+              >
+                <CheckCircle2 className={`w-4 h-4 shrink-0 ${bannerNotice.type === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`} />
+                <span>{bannerNotice.text}</span>
               </div>
             )}
 
