@@ -692,6 +692,27 @@ function resolvePageMeta(url: URL): PageMeta {
     };
   }
 
+  if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth') {
+    return {
+      title: 'Asset Tracker (PoE 1 & PoE 2) | Exile SSF',
+      description: 'Visualize your stash net worth, compare Before vs After farming runs, track maps per hour, and match squad wishlists with live poe.ninja prices and SSF Utility weights.'
+    };
+  }
+
+  if (path === '/regex' || path === '/regex-studio') {
+    return {
+      title: 'Regex Studio (PoE 1 & PoE 2) | Exile SSF',
+      description: 'Build and cloud sync Path of Exile 1 and Path of Exile 2 vendor, map mod, and item filter regex presets with auto generated build safe map filters.'
+    };
+  }
+
+  if (path === '/privacy' || path === '/privacy-policy') {
+    return {
+      title: 'Privacy Policy | Exile SSF',
+      description: 'How Exile SSF handles Cloudflare D1 cloud data, stateless POESESSID stash syncs, local Client.txt parsing, and signed session cookies.'
+    };
+  }
+
   if (path === '/admin') {
     return {
       title: 'League Admin Portal | Exile SSF',
