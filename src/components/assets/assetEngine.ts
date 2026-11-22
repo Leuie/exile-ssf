@@ -17,9 +17,11 @@ export interface TrackedDropItem {
   subCategory?: string;
   gemLevel?: number;
   gemQuality?: number;
+  quality?: number;
   isVaal?: boolean;
   isTransfigured?: boolean;
   isAwakened?: boolean;
+  isExceptional?: boolean;
   corrupted?: boolean;
   quantity: number;
   icon: string;
@@ -78,6 +80,7 @@ export interface SsfWeightsConfig {
 export const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v2';
 export const WORKSPACE_STORAGE_KEY = 'exile_ssf_farming_workspace_v1';
 export const WEIGHTS_STORAGE_KEY = 'exile_ssf_custom_weights_v1';
+export const POESESSID_OPTIN_STORAGE_KEY = 'exile_ssf_optin_poesessid_v1';
 
 export const DEFAULT_LEAGUES: LeagueOption[] = [
   { id: 'poe1-330-umbra', name: 'Ravenwatch Covens of Umbra GSF (PL87651)', game: 'poe1' },
@@ -106,7 +109,7 @@ export const CATEGORY_ORDER = [
   'Gear & Jewels'
 ];
 
-export const GEM_SUBFILTERS = ['All Gems', 'Vaal', 'Transfigured', 'Awakened', 'Level 20+', 'Quality 15%+', 'Corrupted'];
+export const GEM_SUBFILTERS = ['All Gems', 'Transfigured', 'Exceptional', 'Vaal', 'Awakened', 'Level 20+', 'Quality 15%+', 'Corrupted'];
 
 export const EQUIPMENT_BRACKETS = [
   'All Equipment',

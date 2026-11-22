@@ -259,17 +259,19 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           const gemQuality = parsePropNumber(it, 'Quality');
           const isVaal = Boolean(it?.hybrid?.isVaalGem) || base.startsWith('vaal ') || name.startsWith('vaal ');
           const isAwakened = base.startsWith('awakened ') || name.startsWith('awakened ');
+          const isExceptional = /\b(empower|enlighten|enhance)\b/i.test(full);
           const isTransfigured =
             /\bof\s+[a-z]/i.test(baseRaw) &&
             !/(herald of|purity of|aura of|aspect of|seal of|orb of|brand of|banner)/i.test(baseRaw);
 
           let subCategory = 'Standard Gems';
           if (isAwakened) subCategory = 'Awakened Gems';
+          else if (isExceptional) subCategory = 'Exceptional Gems';
           else if (isVaal) subCategory = 'Vaal Gems';
           else if (isTransfigured) subCategory = 'Transfigured Gems';
           else if (gemLevel >= 20 || gemQuality >= 15) subCategory = 'High Level / Quality Gems';
 
-          return { category: 'Gems', subCategory, gemLevel, gemQuality, isVaal, isTransfigured, isAwakened, corrupted };
+          return { category: 'Gems', subCategory, gemLevel, gemQuality, quality: gemQuality, isVaal, isTransfigured, isAwakened, isExceptional, corrupted };
         }
         if (ft === 3) {
           const eqBracket = detectEquipmentBracket(it, base, iconLow);
@@ -362,12 +364,17 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           const cleanBase = String(it.baseType || it.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
           const displayName = cleanName && cleanName !== cleanBase ? `${cleanName} (${cleanBase})` : cleanName || cleanBase || 'Unknown Item';
           const shortName = cleanName || cleanBase || 'Unknown Item';
-          const meta = classifyStashItem(it);
+          const meta: any = classifyStashItem(it);
+          const itemQuality = meta.category === 'Gems' ? meta.gemQuality : parsePropNumber(it, 'Quality');
+          const itemIlvl = Number(it.ilvl || 0);
           const qty = Math.max(1, Number(it.stackSize || 1));
           const frameType = Number(it.frameType ?? 0);
+          const isFlaskItem = meta.subCategory === 'Flasks & Tinctures' || /flask|tincture/i.test(cleanBase);
           const key =
             meta.category === 'Gems'
               ? `${meta.category}::${displayName.toLowerCase()}::l${meta.gemLevel}::q${meta.gemQuality}::c${meta.corrupted ? 1 : 0}`
+              : isFlaskItem
+              ? `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}::ilvl${itemIlvl}::q${itemQuality}`
               : `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}`;
 
           const existing = aggregated.get(key);
@@ -383,14 +390,16 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
               subCategory: meta.subCategory,
               gemLevel: meta.gemLevel,
               gemQuality: meta.gemQuality,
+              quality: itemQuality,
               isVaal: meta.isVaal,
               isTransfigured: meta.isTransfigured,
               isAwakened: meta.isAwakened,
+              isExceptional: Boolean(meta.isExceptional),
               corrupted: meta.corrupted,
               quantity: qty,
               icon: typeof it.icon === 'string' ? it.icon : '',
               frameType,
-              ilvl: Number(it.ilvl || 0),
+              ilvl: itemIlvl,
               tabName: tabLabel
             });
           }

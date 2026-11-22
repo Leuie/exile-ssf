@@ -52,6 +52,7 @@ import {
   DEMO_SAMPLE_DROPS,
   EQUIPMENT_BRACKETS,
   GEM_SUBFILTERS,
+  POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
   STRATEGY_PRESETS,
   TIER_RANK,
@@ -168,10 +169,25 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [leagueName, setLeagueName] = useState<string>(
     savedPrefs.leagueName || 'Ravenwatch Covens of Umbra GSF (PL87651)'
   );
+  // Opt in local POESESSID persistence (OFF by default; never sent to any database or KV)
+  const savedPoesessidOptIn = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed.poesessid === 'string' && parsed.poesessid.trim()
+        ? { poesessid: parsed.poesessid.trim(), accepted: Boolean(parsed.accepted) }
+        : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
-  const [poesessid, setPoesessid] = useState<string>('');
-  const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(false);
+  const [rememberPoesessid, setRememberPoesessid] = useState<boolean>(Boolean(savedPoesessidOptIn));
+  const [poesessid, setPoesessid] = useState<string>(savedPoesessidOptIn?.poesessid || '');
+  const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(Boolean(savedPoesessidOptIn?.accepted));
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>(
     Array.isArray(savedWorkspace.stashTabs) ? savedWorkspace.stashTabs : []
   );
@@ -189,9 +205,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [browserJsonInput, setBrowserJsonInput] = useState<string>('');
   const [browserJsonTabIndex, setBrowserJsonTabIndex] = useState<number>(0);
 
-  // Auto Pull Timer & Live Client.txt Watcher
-  const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(0);
+  // Auto Pull Timer & Live Client.txt Watcher (Wall clock based so background tabs never stall)
+  const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(Number(savedPrefs.autoSyncMinutes || 0));
   const [secondsUntilSync, setSecondsUntilSync] = useState<number>(0);
+  const nextSyncAtMsRef = useRef<number>(0);
   const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>(
     Array.isArray(savedWorkspace.checkpoints) ? savedWorkspace.checkpoints : []
   );
@@ -250,10 +267,23 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     try {
       localStorage.setItem(
         PREFS_STORAGE_KEY,
-        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem })
+        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem, autoSyncMinutes })
       );
     } catch {}
-  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem]);
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem, autoSyncMinutes]);
+
+  useEffect(() => {
+    try {
+      if (rememberPoesessid && poesessid.trim()) {
+        localStorage.setItem(
+          POESESSID_OPTIN_STORAGE_KEY,
+          JSON.stringify({ poesessid: poesessid.trim(), accepted: acceptedRiskDisclaimer })
+        );
+      } else if (!rememberPoesessid) {
+        localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY);
+      }
+    } catch {}
+  }, [rememberPoesessid, poesessid, acceptedRiskDisclaimer]);
 
   // Persist real synced loot locally (never persist DEMO data or POESESSID)
   useEffect(() => {
@@ -888,20 +918,34 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
 
   useEffect(() => {
     if (autoSyncMinutes <= 0) {
+      nextSyncAtMsRef.current = 0;
       setSecondsUntilSync(0);
       return;
     }
+    const intervalMs = autoSyncMinutes * 60 * 1000;
+    nextSyncAtMsRef.current = Date.now() + intervalMs;
     setSecondsUntilSync(autoSyncMinutes * 60);
-    const interval = setInterval(() => {
-      setSecondsUntilSync((prev) => {
-        if (prev <= 1) {
-          runSnapshotRef.current(hasBeforeRef.current ? 'after' : 'inspect');
-          return autoSyncMinutes * 60;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
+
+    const checkTick = () => {
+      const remainingMs = nextSyncAtMsRef.current - Date.now();
+      if (remainingMs <= 0) {
+        nextSyncAtMsRef.current = Date.now() + intervalMs;
+        setSecondsUntilSync(autoSyncMinutes * 60);
+        runSnapshotRef.current(hasBeforeRef.current ? 'after' : 'inspect');
+      } else {
+        setSecondsUntilSync(Math.ceil(remainingMs / 1000));
+      }
+    };
+
+    const interval = window.setInterval(checkTick, 1000);
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') checkTick();
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
   }, [autoSyncMinutes]);
 
   const parseClientTxtFile = useCallback(async (file: File, silent = false) => {
@@ -1184,18 +1228,27 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     const q = searchQuery.trim().toLowerCase();
     const filtered = enrichedDrops.filter((d) => {
       if (activeTabFilter !== 'ALL' && d.tabName !== activeTabFilter) return false;
-      if (categoryFilter !== 'All' && d.category !== categoryFilter) return false;
+      if (categoryFilter === 'Flasks') {
+        const isFlask =
+          d.subCategory === 'Flasks & Tinctures' ||
+          /flask|tincture/i.test(`${d.baseType || ''} ${d.shortName || ''}`);
+        if (!isFlask) return false;
+      } else if (categoryFilter !== 'All' && d.category !== categoryFilter) {
+        return false;
+      }
       if (tierFilter !== 'All' && d.tier !== tierFilter) return false;
       if (hideBulkNoise) {
         if (BULK_NOISE_REGEX.test(d.shortName.trim())) return false;
         if (d.tier === 'C' && d.totalChaos < 2 && d.category !== 'Uniques' && d.category !== 'Gems') return false;
       }
       if (categoryFilter === 'Gems' && subFilter !== 'All Gems') {
+        const isExceptionalGem = Boolean(d.isExceptional) || /\b(empower|enlighten|enhance)\b/i.test(d.shortName);
         if (subFilter === 'Vaal' && !d.isVaal) return false;
         if (subFilter === 'Transfigured' && !d.isTransfigured) return false;
+        if (subFilter === 'Exceptional' && !isExceptionalGem) return false;
         if (subFilter === 'Awakened' && !d.isAwakened) return false;
         if (subFilter === 'Level 20+' && (d.gemLevel || 0) < 20) return false;
-        if (subFilter === 'Quality 15%+' && (d.gemQuality || 0) < 15) return false;
+        if (subFilter === 'Quality 15%+' && (d.gemQuality || d.quality || 0) < 15) return false;
         if (subFilter === 'Corrupted' && !d.corrupted) return false;
       } else if (categoryFilter === 'Gear & Jewels' && subFilter !== 'All Equipment') {
         if ((d.subCategory || '') !== subFilter) return false;
@@ -1223,9 +1276,9 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       }
       if (sortField === 'qty') return (a.quantity - b.quantity) * mult;
       if (sortField === 'tier') return (TIER_RANK[a.tier] - TIER_RANK[b.tier]) * mult || (a.totalChaos - b.totalChaos) * mult;
-      if (sortField === 'gem_level') return ((a.gemLevel || 0) - (b.gemLevel || 0)) * mult;
-      if (sortField === 'gem_quality') return ((a.gemQuality || 0) - (b.gemQuality || 0)) * mult;
-      if (sortField === 'ilvl') return ((a.ilvl || 0) - (b.ilvl || 0)) * mult;
+      if (sortField === 'gem_level') return ((a.gemLevel || 0) - (b.gemLevel || 0)) * mult || ((a.gemQuality || a.quality || 0) - (b.gemQuality || b.quality || 0)) * mult;
+      if (sortField === 'gem_quality') return ((a.gemQuality || a.quality || 0) - (b.gemQuality || b.quality || 0)) * mult || ((a.gemLevel || a.ilvl || 0) - (b.gemLevel || b.ilvl || 0)) * mult;
+      if (sortField === 'ilvl') return ((a.ilvl || 0) - (b.ilvl || 0)) * mult || ((a.quality || a.gemQuality || 0) - (b.quality || b.gemQuality || 0)) * mult;
       if (sortField === 'tab') return a.tabName.localeCompare(b.tabName) * mult;
       return a.shortName.localeCompare(b.shortName) * mult;
     });
@@ -1680,12 +1733,36 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                   <input type="checkbox" checked={acceptedRiskDisclaimer} onChange={(e) => setAcceptedRiskDisclaimer(e.target.checked)} className="w-4 h-4 accent-amber-500 rounded cursor-pointer" />
                   <span>I understand the risks of POESESSID and choose to proceed at my own discretion.</span>
                 </label>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-500/20">
+                  <label className="flex items-center gap-2 text-amber-200 font-semibold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rememberPoesessid}
+                      onChange={(e) => setRememberPoesessid(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    />
+                    <span>Opt in: Remember POESESSID in this browser's localStorage for 15m/30m/60m Auto Sync (never sent to Exile SSF servers)</span>
+                  </label>
+                  {rememberPoesessid && poesessid && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRememberPoesessid(false);
+                        setPoesessid('');
+                        try { localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY); } catch {}
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[10px] font-mono font-bold cursor-pointer"
+                    >
+                      Forget Saved POESESSID
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
                 <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="PoE Account (e.g. Leuie#0626)" className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white" />
                 <input type="text" value={leagueName} onChange={(e) => setLeagueName(e.target.value)} placeholder="League Name" className="sm:col-span-4 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white" />
-                <input type="password" value={poesessid} onChange={(e) => setPoesessid(e.target.value)} placeholder="POESESSID (Memory Only)" className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono" />
+                <input type="password" value={poesessid} onChange={(e) => setPoesessid(e.target.value)} placeholder={rememberPoesessid ? 'POESESSID (Saved Locally)' : 'POESESSID (Memory Only)'} className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono" />
                 <div className="sm:col-span-2 flex gap-1.5">
                   <button type="button" disabled={detectingLeagues || !acceptedRiskDisclaimer} onClick={handleDetectLeagues} title="Auto detect active GGG leagues" className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold cursor-pointer disabled:opacity-40">
                     <Search className="w-4 h-4" />
@@ -2042,7 +2119,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">Category:</span>
-                {['All', ...CATEGORY_ORDER].map((cat) => (
+                {['All', ...CATEGORY_ORDER, 'Flasks'].map((cat) => (
                   <button key={cat} type="button" onClick={() => { setCategoryFilter(cat); setSubFilter(cat === 'Gems' ? 'All Gems' : cat === 'Gear & Jewels' ? 'All Equipment' : 'All'); }} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${categoryFilter === cat ? 'bg-indigo-600/30 border-indigo-400/60 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}>{cat}</button>
                 ))}
               </div>
@@ -2052,6 +2129,27 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                   {activeSubFilterOptions.map((opt) => (
                     <button key={opt} type="button" onClick={() => setSubFilter(opt)} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${subFilter === opt ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}>{opt}</button>
                   ))}
+                </div>
+              )}
+              {(categoryFilter === 'Gems' || categoryFilter === 'Flasks' || (categoryFilter === 'Gear & Jewels' && subFilter === 'Flasks & Tinctures')) && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/70">
+                  <span className="text-[10px] font-mono uppercase text-sky-400 mr-1">Quick Sort:</span>
+                  {categoryFilter === 'Gems' && (
+                    <button type="button" onClick={() => toggleSort('gem_level')} className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border cursor-pointer ${sortField === 'gem_level' ? 'bg-sky-500/20 border-sky-400/60 text-sky-200' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}>
+                      Gem Level {sortField === 'gem_level' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => toggleSort('gem_quality')} className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border cursor-pointer ${sortField === 'gem_quality' ? 'bg-sky-500/20 border-sky-400/60 text-sky-200' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}>
+                    Quality % {sortField === 'gem_quality' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                  </button>
+                  {categoryFilter !== 'Gems' && (
+                    <button type="button" onClick={() => toggleSort('ilvl')} className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border cursor-pointer ${sortField === 'ilvl' ? 'bg-sky-500/20 border-sky-400/60 text-sky-200' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}>
+                      Item Level {sortField === 'ilvl' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => toggleSort('total')} className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border cursor-pointer ${sortField === 'total' ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}>
+                    Total Value {sortField === 'total' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                  </button>
                 </div>
               )}
             </div>
@@ -2117,6 +2215,9 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                     <th className="py-2.5 px-3.5 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>Name {sortField === 'name' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
                     <th className="py-2.5 px-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('tier')}>Tier {sortField === 'tier' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
                     <th className="py-2.5 px-3 cursor-pointer hover:text-white" onClick={() => toggleSort('tab')}>Tab / Bracket {sortField === 'tab' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
+                    <th className="py-2.5 px-2 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('gem_level')}>Lv {sortField === 'gem_level' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
+                    <th className="py-2.5 px-2 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('gem_quality')}>Qual {sortField === 'gem_quality' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
+                    <th className="py-2.5 px-2 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('ilvl')}>iLvl {sortField === 'ilvl' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
                     <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('qty')}>Qty {sortField === 'qty' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
                     <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('price')}>Price {sortField === 'price' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
                     <th className="py-2.5 px-3.5 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('total')}>Total {sortField === 'total' ? (sortDir === 'desc' ? '↓' : '↑') : ''}</th>
@@ -2142,6 +2243,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                               </span>
                               {it.isVaal && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40">Vaal</span>}
                               {it.isTransfigured && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40">Transfig</span>}
+                              {(it.isExceptional || /\b(empower|enlighten|enhance)\b/i.test(it.shortName)) && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">Exceptional</span>}
                               {it.isAwakened && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">Awakened</span>}
                               {it.corrupted && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-rose-950/60 text-rose-400">Corr</span>}
                             </div>
@@ -2151,6 +2253,15 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                         <td className="py-2 px-3 text-slate-400">
                           <span className="text-slate-200 font-medium">{it.tabName}</span>
                           {it.subCategory && <span className="ml-1.5 text-[10px] font-mono text-slate-500">({it.subCategory})</span>}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono text-teal-300">
+                          {(it.gemLevel || 0) > 0 ? it.gemLevel : <span className="text-slate-700">.</span>}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono text-sky-300">
+                          {(it.gemQuality || it.quality || 0) > 0 ? `${it.gemQuality || it.quality}%` : <span className="text-slate-700">.</span>}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono text-slate-400">
+                          {(it.ilvl || 0) > 0 ? it.ilvl : <span className="text-slate-700">.</span>}
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-200">{it.quantity.toLocaleString()}</td>
                         <td className="py-2 px-3 text-right font-mono text-slate-400">
