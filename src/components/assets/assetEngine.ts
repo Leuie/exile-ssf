@@ -92,12 +92,14 @@ export const DEFAULT_LEAGUES: LeagueOption[] = [
 ];
 
 export const STRATEGY_PRESETS = [
+  'Campaign (Acts 1 to 10)',
+  'Alch & Go White Maps',
+  'Alch & Go Yellow Maps',
+  'Alch & Go Red Maps',
   'Essence + Harbinger',
-  'Destructive Play Boss Rush',
   'Breach + Scarabs',
   'Harvest + Expedition',
   'T17 Scarab Farm',
-  'Alch & Go Red Maps',
   'Tier 15 Waystones',
   'Heist / Delve / Sanctum'
 ];

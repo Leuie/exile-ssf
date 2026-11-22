@@ -14,6 +14,9 @@ import {
   Check,
   RefreshCw,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
+  X,
   Trash2,
   Activity,
   Flame,
@@ -103,7 +106,12 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
 }) => {
   const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
   const [startDate, setStartDate] = useState<string>(todayDateInput);
-  const [strategyTag, setStrategyTag] = useState<string>(STRATEGY_PRESETS[0]);
+  const [calendarOpen, setCalendarOpen] = useState<boolean>(false);
+  const [calendarCursor, setCalendarCursor] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [strategyTag, setStrategyTag] = useState<string>('Alch & Go Red Maps');
   const [sessionTitle, setSessionTitle] = useState<string>('Mapping Session');
   const [runs, setRuns] = useState<ParsedAreaRun[]>([]);
   const [deathTimestamps, setDeathTimestamps] = useState<number[]>([]);
@@ -111,6 +119,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [charLeagueFilter, setCharLeagueFilter] = useState<string>('ALL');
 
   // Cloud Saved Map Sessions
   const [savedSessions, setSavedSessions] = useState<SavedMapSession[]>([]);
@@ -445,6 +454,55 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     setTimeout(() => setCopiedPath(null), 1800);
   };
 
+  // Group polled GGG characters cleanly by league (prioritizing active/private leagues over Standard/Hardcore)
+  const characterLeagues = useMemo(() => {
+    const map = new Map<string, PolledCharacter[]>();
+    for (const c of characters) {
+      const lg = c.league || 'Other';
+      const arr = map.get(lg) || [];
+      arr.push(c);
+      map.set(lg, arr);
+    }
+    const isPerm = (name: string) => /^(standard|hardcore|ssf standard|ssf hardcore|ruthless)/i.test(name);
+    return Array.from(map.entries()).sort((a, b) => {
+      const ap = isPerm(a[0]) ? 1 : 0;
+      const bp = isPerm(b[0]) ? 1 : 0;
+      if (ap !== bp) return ap - bp;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [characters]);
+
+  const filteredCharacterLeagues = useMemo(() => {
+    if (charLeagueFilter === 'ALL') return characterLeagues;
+    return characterLeagues.filter(([lg]) => lg === charLeagueFilter);
+  }, [characterLeagues, charLeagueFilter]);
+
+  const selectDateObj = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setStartDate(`${y}-${m}-${day}`);
+    setCalendarCursor(new Date(y, d.getMonth(), 1));
+    setCalendarOpen(false);
+  };
+
+  const formattedStartDate = useMemo(() => {
+    const dt = new Date(`${startDate}T12:00:00`);
+    if (Number.isNaN(dt.getTime())) return startDate;
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [startDate]);
+
+  const calendarDays = useMemo(() => {
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < firstWeekday; i++) cells.push(null);
+    for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, month, day));
+    return cells;
+  }, [calendarCursor]);
+
   return (
     <div className="w-full space-y-5 pb-16 font-sans text-slate-200">
       {/* Unified Cinzel Indigo Gradient Header */}
@@ -597,17 +655,52 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             )}
           </div>
 
+          {/* Clear 3 Step Setup Walkthrough */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-1.5 text-[11px] text-slate-300">
+            <div className="font-mono text-[10px] uppercase font-bold text-amber-300">Quick 3 Step Setup:</div>
+            <ol className="list-decimal pl-4 space-y-1 leading-relaxed">
+              <li>
+                <strong className="text-white">Copy your logs folder path</strong> below (Steam or Standalone).
+              </li>
+              <li>
+                <strong className="text-white">Pick your Start Date</strong> using the calendar so only maps from that day onward are counted.
+              </li>
+              <li>
+                Click <strong className="text-emerald-300">Start Live Watch</strong>, paste the folder path into the file picker address bar, select <code className="text-sky-300">Client.txt</code>, and keep this tab open as you play.
+              </li>
+            </ol>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
+            <span>Step 1 (Copy folder):</span>
+            <button
+              type="button"
+              onClick={() => copyClientPath('steam', 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs')}
+              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+            >
+              {copiedPath === 'steam' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-400" />}
+              <span>{copiedPath === 'steam' ? 'Copied Steam Path!' : 'Copy Steam Logs Path'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => copyClientPath('standalone', 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs')}
+              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+            >
+              {copiedPath === 'standalone' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-400" />}
+              <span>{copiedPath === 'standalone' ? 'Copied Standalone Path!' : 'Copy Standalone Logs Path'}</span>
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2.5 text-xs">
-            <label className="flex items-center gap-1.5 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800">
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <button
+              type="button"
+              onClick={() => setCalendarOpen(true)}
+              className="flex items-center gap-2 bg-slate-950 hover:bg-slate-900 px-3 py-2 rounded-xl border border-amber-500/40 text-left cursor-pointer transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="text-slate-400 font-mono text-[11px]">Start Date:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-white font-mono font-bold focus:outline-none cursor-pointer"
-              />
-            </label>
+              <span className="text-white font-mono font-bold">{formattedStartDate}</span>
+            </button>
 
             {!watchingLive ? (
               <button
@@ -642,26 +735,6 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 }}
               />
             </label>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400 pt-1">
-            <span>Quick copy log folder:</span>
-            <button
-              type="button"
-              onClick={() => copyClientPath('steam', 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs')}
-              className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 inline-flex items-center gap-1 cursor-pointer"
-            >
-              {copiedPath === 'steam' ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-              <span>Steam Logs Path</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => copyClientPath('standalone', 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs')}
-              className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 inline-flex items-center gap-1 cursor-pointer"
-            >
-              {copiedPath === 'standalone' ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-              <span>Standalone Logs Path</span>
-            </button>
           </div>
         </section>
 
@@ -713,22 +786,52 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           </div>
 
           {characters.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-[10px] font-mono uppercase text-slate-400">Track Character:</span>
-              <select
-                value={selectedCharName}
-                onChange={(e) => {
-                  setSelectedCharName(e.target.value);
-                  setXpCheckpoints([]);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-semibold cursor-pointer"
-              >
-                {characters.map((c) => (
-                  <option key={c.name} value={c.name} className="bg-slate-950">
-                    {c.name} (Lv {c.level} {c.className} • {c.league})
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-mono uppercase text-slate-400">League:</span>
+                <select
+                  value={charLeagueFilter}
+                  onChange={(e) => {
+                    const nextLg = e.target.value;
+                    setCharLeagueFilter(nextLg);
+                    const matchGroup = nextLg === 'ALL' ? characterLeagues[0] : characterLeagues.find(([lg]) => lg === nextLg);
+                    if (matchGroup && matchGroup[1][0]) {
+                      setSelectedCharName(matchGroup[1][0].name);
+                      setXpCheckpoints([]);
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer max-w-[260px]"
+                >
+                  <option value="ALL" className="bg-slate-950">All Leagues ({characterLeagues.length})</option>
+                  {characterLeagues.map(([lg, list]) => (
+                    <option key={lg} value={lg} className="bg-slate-950">
+                      {lg} ({list.length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-mono uppercase text-slate-400">Character:</span>
+                <select
+                  value={selectedCharName}
+                  onChange={(e) => {
+                    setSelectedCharName(e.target.value);
+                    setXpCheckpoints([]);
+                  }}
+                  className="flex-1 min-w-[200px] px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-semibold cursor-pointer"
+                >
+                  {filteredCharacterLeagues.map(([lg, list]) => (
+                    <optgroup key={lg} label={lg} className="bg-slate-950 text-amber-300">
+                      {list.map((c) => (
+                        <option key={c.name} value={c.name} className="bg-slate-950 text-slate-100">
+                          {c.name} (Lv {c.level} {c.className})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
@@ -865,6 +968,117 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           )}
         </aside>
       </div>
+      {/* Custom Start Date Calendar Modal */}
+      {calendarOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setCalendarOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-indigo-500/40 bg-[#0d111a] p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                <Calendar className="w-4 h-4 text-amber-400" />
+                <span>Select Mapping Start Date</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCalendarOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => selectDateObj(new Date())}
+                className="py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-600/30 border border-slate-800 text-slate-200 font-bold cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 1);
+                  selectDateObj(d);
+                }}
+                className="py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-600/30 border border-slate-800 text-slate-200 font-bold cursor-pointer"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 6);
+                  selectDateObj(d);
+                }}
+                className="py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-600/30 border border-slate-800 text-slate-200 font-bold cursor-pointer"
+              >
+                Last 7 Days
+              </button>
+            </div>
+
+            {/* Month Switcher */}
+            <div className="flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => setCalendarCursor(new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1))}
+                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-bold text-white font-cinzel">
+                {calendarCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCalendarCursor(new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1))}
+                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 7 Day Calendar Grid */}
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-mono uppercase text-slate-500">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((wd) => (
+                <div key={wd} className="py-1">{wd}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-xs font-mono">
+              {calendarDays.map((dayObj, idx) => {
+                if (!dayObj) return <div key={`empty-${idx}`} />;
+                const iso = `${dayObj.getFullYear()}-${String(dayObj.getMonth() + 1).padStart(2, '0')}-${String(dayObj.getDate()).padStart(2, '0')}`;
+                const isSelected = iso === startDate;
+                const isToday = iso === todayDateInput();
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => selectDateObj(dayObj)}
+                    className={`py-2 rounded-lg font-bold transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow'
+                        : isToday
+                        ? 'bg-amber-500/20 border border-amber-400/50 text-amber-200'
+                        : 'bg-slate-900/70 hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {dayObj.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
