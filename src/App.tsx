@@ -31,6 +31,7 @@ const DefenseMechanicsView = lazyWithRetry(() => import('./components/DefenseMec
 const OffensesView = lazyWithRetry(() => import('./components/OffensesView').then((m) => ({ default: m.OffensesView })));
 const BuildsHubView = lazyWithRetry(() => import('./components/BuildsHubView').then((m) => ({ default: m.BuildsHubView })));
 const PatchNotesView = lazyWithRetry(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
+const PoERegexStudioView = lazyWithRetry(() => import('./components/PoERegexStudioView').then((m) => ({ default: m.PoERegexStudioView })));
 const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const LabyrinthGuideView = lazyWithRetry(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
@@ -164,6 +165,9 @@ export const App: React.FC = () => {
     if (path === '/crafting-bench' || path === '/bench' || hash === 'crafting-bench') {
       return 'crafting_bench';
     }
+    if (path === '/regex' || path === '/regex-studio' || hash === 'regex') {
+      return 'regex_studio';
+    }
 
     return 'home';
   };
@@ -276,6 +280,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/cheat-sheets');
         } else if (tab === 'crafting_bench') {
           window.history.pushState({}, '', '/crafting-bench');
+        } else if (tab === 'regex_studio') {
+          window.history.pushState({}, '', '/regex');
         } else if (tab === 'home') {
           window.history.pushState({}, '', '/');
         }
@@ -561,6 +567,7 @@ export const App: React.FC = () => {
         <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'patch_notes' && <PatchNotesView initialGame={selectedGame} />}
+        {activeTab === 'regex_studio' && <PoERegexStudioView selectedGame={selectedGame} />}
         {activeTab === 'cheat_sheets' && <CheatSheetsTab />}
         {activeTab === 'crafting_bench' && <BenchGuideTab />}
         {activeTab === 'vendor_recipes' && <VendorRecipesView />}

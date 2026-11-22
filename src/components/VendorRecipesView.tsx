@@ -329,9 +329,20 @@ export const VendorRecipesView: React.FC = () => {
 
         {/* Copyable Quick Stash & Vendor Regex Bar */}
         <div className="relative z-10 pt-3 border-t border-slate-800/80 space-y-2">
-          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-slate-400">
-            <Filter className="w-3.5 h-3.5 text-amber-400" />
-            <span>Quick Stash & Vendor Search Strings (Click to Copy):</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-amber-400" />
+              <span>Quick Stash & Vendor Search Strings (Click to Copy):</span>
+            </div>
+            <a
+              href={gameMode === 'poe2' ? 'https://poe2.re/vendor' : 'https://poe.re/vendor'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200 transition-colors"
+            >
+              <span>Custom Vendor Regex ({gameMode === 'poe2' ? 'poe2.re' : 'poe.re'})</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
           <div className="flex flex-wrap gap-2">
             {activeRegexes.map((item) => {

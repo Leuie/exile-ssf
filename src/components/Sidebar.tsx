@@ -21,6 +21,7 @@ import {
   Swords,
   Scroll,
   ExternalLink,
+  Filter,
   Home as HomeIcon,
   UserCheck
 } from "lucide-react";
@@ -138,6 +139,7 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
+        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
         { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Recipes' },
@@ -176,8 +178,12 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
+        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe2.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
-        { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' }
+        { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
+        { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Salvage' },
+        { id: 'defenses', label: 'Defenses Masterclass', icon: ShieldCheck, badge: 'Guide' },
+        { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' }
       ]
     },
     {
