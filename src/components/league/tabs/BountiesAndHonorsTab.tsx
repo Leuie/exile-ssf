@@ -529,7 +529,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-                Attach Divines, Chaos, or boss carries to chase items so squadmates are rewarded for hunting drops. Claim bounties upon delivery, settle receipts with one click, and earn achievements that persist on your profile across future expansions and seasons.
+                Attach Divines, Chaos, or boss carries to chase items so squadmates are rewarded for hunting drops. Claim bounties upon delivery, confirm receipts right from your profile or inbox, and earn achievements that persist on your profile across future expansions and seasons.
               </p>
             </div>
           </div>

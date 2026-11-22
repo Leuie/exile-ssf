@@ -532,7 +532,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
 
               <div className="flex-1 w-full space-y-2 text-xs">
                 <label className="text-[11px] font-mono text-slate-300 block">
-                  Avatar Image URL (or pick a 1 click preset below)
+                  Avatar Image URL (or choose a preset below)
                 </label>
                 <input
                   type="text"

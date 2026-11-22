@@ -60,9 +60,12 @@ export const MapRegexBuilder: React.FC<MapRegexBuilderProps> = ({
   return (
     <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
-        <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-rose-300">
+        <div
+          className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-rose-300"
+          title="Select map mods that brick your build to build a Path of Exile stash search regex"
+        >
           <ShieldAlert className="w-4 h-4 text-rose-400" />
-          <span>1 Click Safe Map Regex Generator</span>
+          <span>Generate a Safe Mapping Regex</span>
         </div>
         {canEdit && (
           <button

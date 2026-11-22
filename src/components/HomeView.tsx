@@ -218,7 +218,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               <span>Live Feed &amp; Atlas Matrix</span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              See who is farming Betrayal, Harvest, Essences, or Delve at a glance, copy 1 click swap whispers, and react to big drops on the live League Feed wall.
+              See who is farming Betrayal, Harvest, Essences, or Delve at a glance, send instant swap whispers, and react to big drops on the live League Feed wall.
             </p>
           </div>
 
@@ -262,10 +262,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/90 space-y-1.5">
             <div className="font-bold text-white flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-400" />
-              <span>1 Click Safe Map Regex &amp; Scratchpad</span>
+              <span>Safe Mapping Regex &amp; Scratchpad</span>
             </div>
             <p className="text-slate-400 leading-relaxed">
-              Check your build's brick mods once on your Exile Profile to copy safe T16/T17 stash search regexes in 1 click, alongside a character tagged Farming Session Scratchpad synced to the cloud.
+              Check your build's brick mods once on your Exile Profile to generate safe T16/T17 stash search regexes instantly, alongside a character tagged Farming Session Scratchpad synced to the cloud.
             </p>
           </div>
 

@@ -51,7 +51,7 @@ export const SquadAtlasMatrix: React.FC<SquadAtlasMatrixProps> = ({ roster }) =>
             Squad Atlas Tree & Niche Division Matrix
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Who is farming what across our GSF squad. Spot missing niches and copy a 1 click swap whisper.
+            Who is farming what across our GSF squad. Spot missing niches and whisper squadmates directly to swap crafting mats.
           </p>
         </div>
         <div className="flex items-center gap-2">

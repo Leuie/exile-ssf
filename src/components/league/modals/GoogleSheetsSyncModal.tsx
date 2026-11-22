@@ -218,19 +218,19 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                 </button>
               </div>
 
-              {/* 1 Click Blank Starter Sheet Card */}
+              {/* Blank Starter Sheet Card */}
               <div className="p-5 rounded-2xl border border-amber-500/30 bg-amber-950/15 flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
                     <FileSpreadsheet className="w-3 h-3" />
-                    <span>1 Click Blank Template</span>
+                    <span>Blank Starter Template</span>
                   </div>
                   <h4 className="text-sm font-black text-white">Exile SSF Private League Starter Sheet</h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
                     Pre formatted blank Google Sheets workbook for collecting Private League Link, Roster, Launch Interest, Characters, Builds, PoB links, Planned Atlas Mechanics, and Wishlists before launch day.
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Share it with your squad, then paste the Google Sheet URL in the <strong>Import / Ingest</strong> tab to populate Exile SSF in 1 click.
+                    Share it with your squad, then paste the Google Sheet URL in the <strong>Import / Ingest</strong> tab to populate Exile SSF automatically.
                   </p>
                 </div>
                 <button
