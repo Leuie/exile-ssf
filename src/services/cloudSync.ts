@@ -757,3 +757,20 @@ export async function fetchExternalBuildGuides(
     return null;
   }
 }
+
+
+export async function resolvePobUrl(
+  rawUrl: string
+): Promise<{ status: string; sourceUrl?: string; code?: string; error?: string }> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/pob/resolve?url=${encodeURIComponent(rawUrl.trim())}`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    const data = await res.json();
+    if (!res.ok) return { status: 'error', error: data?.error || `HTTP ${res.status}` };
+    return data;
+  } catch (err: any) {
+    return { status: 'error', error: err?.message || 'Failed to contact PoB resolver.' };
+  }
+}

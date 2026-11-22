@@ -603,7 +603,7 @@ export const BuildsHubView: React.FC<BuildsHubViewProps> = ({
             onNavigateToGuides={() => setSubTab('community')}
           />
         )}
-        {subTab === 'doctor' && <BuildAnalyzerView />}
+        {subTab === 'doctor' && <BuildAnalyzerView userAccount={userAccount} selectedGame={game} />}
       </Suspense>
     </div>
   );

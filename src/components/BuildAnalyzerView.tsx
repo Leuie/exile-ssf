@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Stethoscope, 
   ShieldCheck, 
@@ -15,14 +15,40 @@ import {
   Palette,
   Sliders,
   FlaskConical,
-  Check
+  Check,
+  CloudUpload,
+  RefreshCw,
+  Link2,
+  Users
 } from 'lucide-react';
 import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
 import { analyzeBuild } from '../utils/buildAnalyzer';
 import type { ParsedCharacter, AnalysisReport, DiagnosticItem } from '../types/analyzer';
+import type { UserAccount, LeagueRosterMember, LeagueCharacter, ActiveLeagueSession } from '../types';
+import {
+  resolvePobUrl,
+  fetchCloudLeagues,
+  fetchCloudLeagueData,
+  saveCloudRosterMember
+} from '../services/cloudSync';
 
-export const BuildAnalyzerView: React.FC = () => {
+interface BuildAnalyzerViewProps {
+  userAccount?: UserAccount | null;
+  selectedGame?: 'poe1' | 'poe2';
+}
+
+function isPobShareUrl(input: string): boolean {
+  const t = input.trim();
+  return /^(?:https?:\/\/)?(?:www\.)?(?:pobb\.in\/[a-zA-Z0-9_-]{4,64}|pastebin\.com\/(?:raw\/)?[a-zA-Z0-9]{4,32})/i.test(t);
+}
+
+export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
+  userAccount,
+  selectedGame = 'poe1'
+}) => {
   const [pobInput, setPobInput] = useState<string>('');
+  const [resolvingUrl, setResolvingUrl] = useState<boolean>(false);
+  const [resolvedPobUrl, setResolvedPobUrl] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState<'balanced' | 'ehp' | 'damage'>('balanced');
   const [parsedChar, setParsedChar] = useState<ParsedCharacter | null>(null);
@@ -30,6 +56,20 @@ export const BuildAnalyzerView: React.FC = () => {
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [expandedDiagId, setExpandedDiagId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'recommendations' | 'equipment' | 'gems' | 'chromatics' | 'flasks' | 'simulator'>('recommendations');
+
+  // League Character Sync State
+  const [availableLeagues, setAvailableLeagues] = useState<ActiveLeagueSession[]>([]);
+  const [targetLeagueId, setTargetLeagueId] = useState<string>(
+    selectedGame === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra'
+  );
+  const [matchedRosterMember, setMatchedRosterMember] = useState<LeagueRosterMember | null>(null);
+  const [syncCharName, setSyncCharName] = useState<string>('');
+  const [syncBuildName, setSyncBuildName] = useState<string>('');
+  const [syncPobUrl, setSyncPobUrl] = useState<string>('');
+  const [syncTargetSlot, setSyncTargetSlot] = useState<'main' | 'alt'>('main');
+  const [includeDoctorNote, setIncludeDoctorNote] = useState<boolean>(true);
+  const [syncingToLeague, setSyncingToLeague] = useState<boolean>(false);
+  const [syncNotice, setSyncNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   
   // Dynamic Simulator State
   const [simBlockCap, setSimBlockCap] = useState<boolean>(false);
@@ -39,25 +79,98 @@ export const BuildAnalyzerView: React.FC = () => {
   const [simEssenceHorror, setSimEssenceHorror] = useState<boolean>(false);
   const [simFlasks, setSimFlasks] = useState<boolean>(false);
 
-  const handleAnalyze = (inputString: string, forcedGroupId?: string) => {
-    if (!inputString.trim()) {
-      setErrorMessage('Please paste a Path of Building export string to analyze your character.');
+  useEffect(() => {
+    setTargetLeagueId(selectedGame === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra');
+  }, [selectedGame]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCloudLeagues().then((list) => {
+      if (!cancelled && Array.isArray(list) && list.length > 0) {
+        setAvailableLeagues(list);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userAccount || !targetLeagueId) {
+      setMatchedRosterMember(null);
+      return;
+    }
+    let cancelled = false;
+    fetchCloudLeagueData(targetLeagueId).then((data) => {
+      if (cancelled || !data || !Array.isArray(data.roster)) return;
+      const handleLow = userAccount.displayName.trim().toLowerCase();
+      const poeLow = (userAccount.poeAccountName || '').trim().toLowerCase();
+      const found = data.roster.find(
+        (m: LeagueRosterMember) =>
+          m.displayName.trim().toLowerCase() === handleLow ||
+          (poeLow && (m.poeAccountName || '').trim().toLowerCase() === poeLow)
+      );
+      setMatchedRosterMember(found || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount, targetLeagueId]);
+
+  const deriveBuildLabel = (character: ParsedCharacter, groupId: string): string => {
+    const grp = character.skillGroups.find((g) => g.id === groupId) || character.skillGroups[0];
+    const primarySkill = grp?.gems.find((g) => !g.isSupport)?.name || grp?.gems[0]?.name || '';
+    const asc = character.ascendClassName && character.ascendClassName !== 'None' ? character.ascendClassName : character.className;
+    return primarySkill ? `${primarySkill} ${asc}`.trim() : `${asc} Build`.trim();
+  };
+
+  const handleAnalyze = async (inputString: string, forcedGroupId?: string) => {
+    const trimmed = inputString.trim();
+    if (!trimmed) {
+      setErrorMessage('Please paste a pobb.in link, pastebin link, or Path of Building export string to analyze your character.');
       return;
     }
     setErrorMessage(null);
+    setSyncNotice(null);
+
+    let rawCode = trimmed;
+    let detectedUrl = '';
+
+    if (isPobShareUrl(trimmed)) {
+      setResolvingUrl(true);
+      const resolved = await resolvePobUrl(trimmed);
+      setResolvingUrl(false);
+      if (resolved.status !== 'ok' || !resolved.code) {
+        setErrorMessage(resolved.error || 'Could not fetch Path of Building code from that URL.');
+        return;
+      }
+      rawCode = resolved.code;
+      detectedUrl = resolved.sourceUrl || trimmed;
+    }
+
     try {
-      const xml = decodePoBCode(inputString);
+      const xml = decodePoBCode(rawCode);
       const character = parsePoBXml(xml);
       const groupId = forcedGroupId || selectedGroupId || character.selectedSkillGroupId;
       const analysis = analyzeBuild(character, groupId);
       setParsedChar(character);
       setSelectedGroupId(groupId);
       setReport(analysis);
+      setResolvedPobUrl(detectedUrl);
+
+      const cleanCharName =
+        character.characterName && !/^(default|unnamed|new build|path of building)/i.test(character.characterName)
+          ? character.characterName
+          : matchedRosterMember?.characterName || userAccount?.displayName || character.characterName;
+      setSyncCharName(cleanCharName);
+      setSyncBuildName(deriveBuildLabel(character, groupId));
+      setSyncPobUrl(detectedUrl || matchedRosterMember?.pobUrl || '');
+
       if (analysis.diagnostics.length > 0) {
         setExpandedDiagId(analysis.diagnostics[0].id);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to parse Path of Building data. Please ensure the code is complete.');
+      setErrorMessage(err.message || 'Failed to parse Path of Building data. Please ensure the code or pobb.in URL is complete.');
     }
   };
 
@@ -66,15 +179,132 @@ export const BuildAnalyzerView: React.FC = () => {
     if (parsedChar) {
       const analysis = analyzeBuild(parsedChar, groupId);
       setReport(analysis);
+      setSyncBuildName(deriveBuildLabel(parsedChar, groupId));
+    }
+  };
+
+  const handleSyncToLeagueCharacter = async () => {
+    if (!parsedChar || !report) return;
+    if (!userAccount) {
+      setSyncNotice({ type: 'err', text: 'Sign in first so Exile SSF knows which league roster slot belongs to you.' });
+      return;
+    }
+    setSyncingToLeague(true);
+    setSyncNotice(null);
+
+    try {
+      const resolvedAsc =
+        parsedChar.ascendClassName && parsedChar.ascendClassName !== 'None'
+          ? parsedChar.ascendClassName
+          : parsedChar.className || 'Exile';
+      const charNameFinal = syncCharName.trim() || parsedChar.characterName || userAccount.displayName;
+      const buildNameFinal = syncBuildName.trim() || deriveBuildLabel(parsedChar, selectedGroupId);
+      const pobUrlFinal = syncPobUrl.trim() || resolvedPobUrl || matchedRosterMember?.pobUrl || 'https://pobb.in/';
+      const st = parsedChar.stats;
+      const doctorSummary = `PoB Doctor Grade ${report.grade} (${report.overallScore}/100) | Life ${Math.round(st.life)} | ES ${Math.round(st.energyShield)} | Res ${Math.round(st.fireRes)}/${Math.round(st.coldRes)}/${Math.round(st.lightningRes)}/${Math.round(st.chaosRes)}`;
+
+      const existing = matchedRosterMember;
+      const baseChars: LeagueCharacter[] = Array.isArray(existing?.characters) ? [...existing.characters] : [];
+
+      const newCharEntry: LeagueCharacter = {
+        id: `char-${charNameFinal.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        characterName: charNameFinal,
+        className: parsedChar.className,
+        ascendancy: resolvedAsc,
+        buildName: buildNameFinal,
+        level: parsedChar.level || 1,
+        pobUrl: pobUrlFinal,
+        notes: includeDoctorNote ? doctorSummary : undefined,
+        isMain: syncTargetSlot === 'main'
+      };
+
+      const existingCharIdx = baseChars.findIndex(
+        (c) => c.characterName.trim().toLowerCase() === charNameFinal.toLowerCase()
+      );
+      if (existingCharIdx >= 0) {
+        baseChars[existingCharIdx] = { ...baseChars[existingCharIdx], ...newCharEntry };
+      } else {
+        baseChars.push(newCharEntry);
+      }
+
+      if (syncTargetSlot === 'main') {
+        baseChars.forEach((c) => {
+          c.isMain = c.characterName.trim().toLowerCase() === charNameFinal.toLowerCase();
+        });
+      }
+
+      const mergedNotes = includeDoctorNote
+        ? existing?.notes && !existing.notes.includes('PoB Doctor Grade')
+          ? `${existing.notes} | ${doctorSummary}`
+          : doctorSummary
+        : existing?.notes || '';
+
+      const updatedMember: LeagueRosterMember = existing
+        ? {
+            ...existing,
+            ...(syncTargetSlot === 'main'
+              ? {
+                  characterName: charNameFinal,
+                  className: parsedChar.className || existing.className,
+                  ascendancy: resolvedAsc,
+                  level: parsedChar.level || existing.level,
+                  buildName: buildNameFinal,
+                  pobUrl: pobUrlFinal,
+                  notes: mergedNotes
+                }
+              : {}),
+            characters: baseChars
+          }
+        : {
+            id: `roster-${userAccount.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
+            slotNumber: 99,
+            leagueMode: 'Private',
+            displayName: userAccount.displayName,
+            preferredContact: userAccount.preferredContact || 'app',
+            poeAccountName: userAccount.poeAccountName || userAccount.displayName,
+            characterName: charNameFinal,
+            discordName: userAccount.discordName,
+            steamName: userAccount.steamName,
+            className: parsedChar.className || 'Witch',
+            ascendancy: resolvedAsc,
+            availableAtLaunch: 'Yes',
+            level: parsedChar.level || 1,
+            buildName: buildNameFinal,
+            pobUrl: pobUrlFinal,
+            atlasContent: [],
+            notes: mergedNotes,
+            inviteStatus: 'Accepted',
+            characters: baseChars
+          };
+
+      const ok = await saveCloudRosterMember(targetLeagueId, updatedMember);
+      if (ok) {
+        setMatchedRosterMember(updatedMember);
+        setSyncNotice({
+          type: 'ok',
+          text: `Synced "${charNameFinal}" (Lv ${parsedChar.level} ${resolvedAsc} • ${buildNameFinal}) to your league roster.`
+        });
+      } else {
+        setSyncNotice({
+          type: 'err',
+          text: 'Could not save to cloud roster. Verify you are signed in with a valid Exile SSF session.'
+        });
+      }
+    } catch (err: any) {
+      setSyncNotice({ type: 'err', text: err?.message || 'Failed to sync character to league roster.' });
+    } finally {
+      setSyncingToLeague(false);
     }
   };
 
   const handleClear = () => {
     setPobInput('');
+    setResolvedPobUrl('');
     setParsedChar(null);
     setSelectedGroupId('');
     setReport(null);
     setErrorMessage(null);
+    setSyncNotice(null);
   };
 
   const getFilteredDiagnostics = (): DiagnosticItem[] => {
@@ -185,15 +415,36 @@ export const BuildAnalyzerView: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
+              type="button"
+              disabled={resolvingUrl}
               onClick={() => handleAnalyze(pobInput)}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 transition-all hover:scale-105 cursor-pointer"
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 transition-all hover:scale-105 cursor-pointer disabled:opacity-50"
             >
-              <Stethoscope className="w-4 h-4" />
-              Run Build Doctor Diagnosis
+              {resolvingUrl ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Stethoscope className="w-4 h-4" />}
+              <span>{resolvingUrl ? 'Resolving PoB URL...' : 'Run Build Doctor Diagnosis'}</span>
             </button>
+
+            {matchedRosterMember?.pobUrl && isPobShareUrl(matchedRosterMember.pobUrl) && (
+              <button
+                type="button"
+                disabled={resolvingUrl}
+                onClick={() => {
+                  const url = matchedRosterMember.pobUrl || '';
+                  setPobInput(url);
+                  handleAnalyze(url);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                title={`Load saved PoB for ${matchedRosterMember.characterName}`}
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Load My League PoB ({matchedRosterMember.characterName})</span>
+              </button>
+            )}
+
             <button
+              type="button"
               onClick={handleClear}
               className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-200 dark:hover:bg-[#3f3f5f] text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
             >
@@ -291,6 +542,192 @@ export const BuildAnalyzerView: React.FC = () => {
                 </div>
               </div>
 
+            </div>
+
+            {/* Parsed Character Vitals Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Life / ES</div>
+                <div className="font-bold text-white mt-0.5">
+                  <span className={parsedChar.stats.life >= 4000 ? 'text-emerald-300' : 'text-amber-300'}>
+                    {Math.round(parsedChar.stats.life).toLocaleString()}
+                  </span>
+                  <span className="text-slate-500"> / </span>
+                  <span className="text-sky-300">{Math.round(parsedChar.stats.energyShield).toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Elemental Res</div>
+                <div className="font-bold mt-0.5 flex items-center gap-1">
+                  <span className={parsedChar.stats.fireRes >= 75 ? 'text-rose-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.fireRes)}</span>
+                  <span className="text-slate-600">/</span>
+                  <span className={parsedChar.stats.coldRes >= 75 ? 'text-sky-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.coldRes)}</span>
+                  <span className="text-slate-600">/</span>
+                  <span className={parsedChar.stats.lightningRes >= 75 ? 'text-amber-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.lightningRes)}</span>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Chaos Res</div>
+                <div className={`font-bold mt-0.5 ${parsedChar.stats.chaosRes >= 40 ? 'text-emerald-300' : parsedChar.stats.chaosRes >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
+                  {Math.round(parsedChar.stats.chaosRes)}%
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Suppression</div>
+                <div className={`font-bold mt-0.5 ${parsedChar.stats.spellSuppression >= 100 ? 'text-emerald-300' : 'text-slate-200'}`}>
+                  {Math.round(parsedChar.stats.spellSuppression)}%
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Block / Spell</div>
+                <div className="font-bold text-slate-200 mt-0.5">
+                  {Math.round(parsedChar.stats.block)}% / {Math.round(parsedChar.stats.spellBlock)}%
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] uppercase text-slate-500">Armour / Eva</div>
+                <div className="font-bold text-slate-200 mt-0.5 truncate">
+                  {Math.round(parsedChar.stats.armour / 1000)}k / {Math.round(parsedChar.stats.evasion / 1000)}k
+                </div>
+              </div>
+            </div>
+
+            {/* Pull Parsed PoB Into Your League Character */}
+            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
+                  <Users className="w-4 h-4 text-emerald-400" />
+                  <span>Pull Parsed Character Into Your Private League Roster</span>
+                </div>
+                {matchedRosterMember ? (
+                  <span className="text-[11px] font-mono text-emerald-200/90">
+                    Matched Roster Slot: <strong>@{matchedRosterMember.displayName}</strong>
+                  </span>
+                ) : userAccount ? (
+                  <span className="text-[11px] font-mono text-amber-200/90">
+                    Will register @{userAccount.displayName} onto selected league roster
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-mono text-amber-300">
+                    Sign in to sync directly to your league roster
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Target League</label>
+                  <select
+                    value={targetLeagueId}
+                    onChange={(e) => setTargetLeagueId(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-400"
+                  >
+                    {availableLeagues.length > 0 ? (
+                      availableLeagues.map((lg) => (
+                        <option key={lg.id} value={lg.id}>
+                          {lg.name} ({lg.game === 'poe2' ? 'PoE 2' : 'PoE 1'})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="poe1-330-umbra">Ravenwatch Covens of Umbra GSF (PoE 1)</option>
+                        <option value="poe2-05-ancients">Return of the Ancients GSF (PoE 2)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Character Name</label>
+                  <input
+                    type="text"
+                    value={syncCharName}
+                    onChange={(e) => setSyncCharName(e.target.value)}
+                    placeholder="In game character name"
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Build Name</label>
+                  <input
+                    type="text"
+                    value={syncBuildName}
+                    onChange={(e) => setSyncBuildName(e.target.value)}
+                    placeholder="e.g. Penance Brand Elementalist"
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">pobb.in Link (Optional)</label>
+                  <input
+                    type="url"
+                    value={syncPobUrl}
+                    onChange={(e) => setSyncPobUrl(e.target.value)}
+                    placeholder="https://pobb.in/..."
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSyncTargetSlot('main')}
+                      className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
+                        syncTargetSlot === 'main' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Update Main Character
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSyncTargetSlot('alt')}
+                      className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
+                        syncTargetSlot === 'alt' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Add / Update Alt
+                    </button>
+                  </div>
+
+                  <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includeDoctorNote}
+                      onChange={(e) => setIncludeDoctorNote(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-950 text-emerald-500"
+                    />
+                    <span>Include PoB Doctor Grade & Vitals in Notes</span>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!userAccount || syncingToLeague}
+                  onClick={handleSyncToLeagueCharacter}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-40"
+                >
+                  {syncingToLeague ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                  <span>{syncingToLeague ? 'Syncing...' : 'Sync to League Roster'}</span>
+                </button>
+              </div>
+
+              {syncNotice && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 border ${
+                    syncNotice.type === 'ok'
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
+                  }`}
+                >
+                  {syncNotice.type === 'ok' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
+                  <span>{syncNotice.text}</span>
+                </div>
+              )}
             </div>
 
             {/* Interactive Main Skill Group Selector */}

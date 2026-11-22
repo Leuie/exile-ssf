@@ -36,7 +36,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export function decodePoBCode(code: string): string {
   const trimmed = code.trim();
   
-  if (trimmed.startsWith('<PathOfBuilding') || trimmed.includes('<PathOfBuilding>')) {
+  if (trimmed.startsWith('<PathOfBuilding') || trimmed.includes('<PathOfBuilding>') || trimmed.includes('<PathOfBuilding2')) {
     return trimmed;
   }
 
