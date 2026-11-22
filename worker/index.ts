@@ -1439,27 +1439,151 @@ export default {
             );
           }
 
-          const classifyStashItem = (it: any): string => {
+          const parsePropNumber = (it: any, propName: string): number => {
+            if (!Array.isArray(it?.properties)) return 0;
+            const found = it.properties.find((p: any) => String(p?.name || '').toLowerCase() === propName.toLowerCase());
+            if (!found || !Array.isArray(found.values) || !found.values[0]) return 0;
+            const rawVal = String(found.values[0][0] || '');
+            const match = rawVal.match(/\d+/);
+            return match ? parseInt(match[0], 10) : 0;
+          };
+
+          const detectEquipmentBracket = (it: any, baseLow: string, iconLow: string): string => {
+            if (iconLow.includes('/jewels/') || baseLow.includes('jewel')) return 'Jewels & Clusters';
+            if (iconLow.includes('/flasks/') || baseLow.includes('flask') || baseLow.includes('tincture')) return 'Flasks & Tinctures';
+            if (
+              iconLow.includes('/rings/') ||
+              iconLow.includes('/amulets/') ||
+              iconLow.includes('/belts/') ||
+              /(ring|amulet|talisman|belt|stygian vise|sash)$/i.test(baseLow)
+            ) {
+              return 'Jewellery';
+            }
+            if (
+              iconLow.includes('/weapons/') ||
+              iconLow.includes('/quivers/') ||
+              /(sword|axe|mace|sceptre|wand|staff|staves|bow|claw|dagger|quiver|foil|maul|rapier|quarterstaff|crossbow|spear|flail)/i.test(baseLow)
+            ) {
+              return 'Weapons';
+            }
+
+            const hasArmour = parsePropNumber(it, 'Armour') > 0;
+            const hasEvasion = parsePropNumber(it, 'Evasion Rating') > 0;
+            const hasES = parsePropNumber(it, 'Energy Shield') > 0;
+            const hasWard = parsePropNumber(it, 'Ward') > 0;
+
+            if (hasWard) return 'Ward';
+            if (hasArmour && hasEvasion && hasES) return 'Hybrid (AR/EV/ES)';
+            if (hasArmour && hasES) return 'Hybrid (AR/ES)';
+            if (hasArmour && hasEvasion) return 'Hybrid (AR/EV)';
+            if (hasEvasion && hasES) return 'Hybrid (EV/ES)';
+            if (hasArmour) return 'Armour';
+            if (hasEvasion) return 'Evasion';
+            if (hasES) return 'Energy Shield';
+
+            if (iconLow.includes('/armours/')) return 'Armour & Shields';
+            return 'Other Equipment';
+          };
+
+          const classifyStashItem = (
+            it: any
+          ): {
+            category: string;
+            subCategory: string;
+            gemLevel: number;
+            gemQuality: number;
+            isVaal: boolean;
+            isTransfigured: boolean;
+            isAwakened: boolean;
+            corrupted: boolean;
+          } => {
             const ft = Number(it.frameType ?? 0);
-            const base = String(it.baseType || it.typeLine || '').toLowerCase();
-            const name = String(it.name || '').toLowerCase();
+            const baseRaw = String(it.baseType || it.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
+            const nameRaw = String(it.name || '').replace(/<<[^>]+>>/g, '').trim();
+            const base = baseRaw.toLowerCase();
+            const name = nameRaw.toLowerCase();
+            const iconLow = String(it.icon || '').toLowerCase();
             const full = `${name} ${base}`;
-            if (ft === 3) return 'Uniques';
-            if (ft === 6) return 'Div Cards';
-            if (ft === 4) return 'Gems';
+            const corrupted = Boolean(it.corrupted);
+
+            if (ft === 4) {
+              const gemLevel = parsePropNumber(it, 'Level');
+              const gemQuality = parsePropNumber(it, 'Quality');
+              const isVaal = Boolean(it?.hybrid?.isVaalGem) || base.startsWith('vaal ') || name.startsWith('vaal ');
+              const isAwakened = base.startsWith('awakened ') || name.startsWith('awakened ');
+              const isTransfigured = /\bof\s+[a-z]/i.test(baseRaw) && !/(herald of|purity of|aura of|aspect of|seal of|orb of|brand of|banner)/i.test(baseRaw);
+
+              let subCategory = 'Standard Gems';
+              if (isAwakened) subCategory = 'Awakened Gems';
+              else if (isVaal) subCategory = 'Vaal Gems';
+              else if (isTransfigured) subCategory = 'Transfigured Gems';
+              else if (gemLevel >= 20 || gemQuality >= 15) subCategory = 'High Level / Quality Gems';
+
+              return { category: 'Gems', subCategory, gemLevel, gemQuality, isVaal, isTransfigured, isAwakened, corrupted };
+            }
+
+            if (ft === 3) {
+              const eqBracket = detectEquipmentBracket(it, base, iconLow);
+              const subCategory =
+                eqBracket === 'Weapons'
+                  ? 'Unique Weapons'
+                  : eqBracket === 'Jewellery'
+                  ? 'Unique Jewellery'
+                  : eqBracket === 'Jewels & Clusters' || eqBracket === 'Flasks & Tinctures'
+                  ? 'Unique Jewels & Flasks'
+                  : `Unique ${eqBracket}`;
+              return { category: 'Uniques', subCategory, gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
+            }
+
+            if (ft === 6) {
+              return { category: 'Div Cards', subCategory: 'Divination Cards', gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
+            }
+
             if (/(scarab|fragment|splinter|breachstone|emblem|invitation|mortal |sacrifice at|vessel|simulacrum|allflame)/i.test(full)) {
-              return 'Scarabs & Fragments';
+              const subCategory = full.includes('scarab')
+                ? 'Scarabs'
+                : /(splinter|breachstone|emblem|simulacrum)/i.test(full)
+                ? 'Breach & Timeless'
+                : 'Boss Fragments & Invitations';
+              return { category: 'Scarabs & Fragments', subCategory, gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
             }
+
             if (/(essence|fossil|resonator|catalyst|oil|tattoo|runegraft|omen|delirium orb|tainted)/i.test(full)) {
-              return 'Essences & Crafting';
+              const subCategory = full.includes('essence')
+                ? 'Essences'
+                : /(fossil|resonator)/i.test(full)
+                ? 'Fossils & Resonators'
+                : /(tattoo|runegraft)/i.test(full)
+                ? 'Tattoos & Runegrafts'
+                : 'Oils, Catalysts & Omens';
+              return { category: 'Essences & Crafting', subCategory, gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
             }
+
             if (/(map|waystone|logbook|blueprint|contract|inscribed ultimatum|djinn barya|chronicle)/i.test(base)) {
-              return 'Maps & League Keys';
+              const subCategory = /(blueprint|contract|logbook)/i.test(base)
+                ? 'Heist & Expedition'
+                : /(ultimatum|barya|chronicle)/i.test(base)
+                ? 'League Keys'
+                : 'Maps & Waystones';
+              return { category: 'Maps & League Keys', subCategory, gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
             }
+
             if (ft === 5 || /(orb|shard|scroll|chisel|bauble|whetstone|scrap|prism|mirror|sextant|vaals)/i.test(full)) {
-              return 'Currency';
+              const isHighTier = /(divine|mirror|exalted|fracturing|hinekora|sacred|annulment|veiled|awakener|chaos orb)/i.test(full);
+              return {
+                category: 'Currency',
+                subCategory: isHighTier ? 'High Tier Currency' : 'Standard Currency',
+                gemLevel: 0,
+                gemQuality: 0,
+                isVaal: false,
+                isTransfigured: false,
+                isAwakened: false,
+                corrupted
+              };
             }
-            return 'Gear & Jewels';
+
+            const eqBracket = detectEquipmentBracket(it, base, iconLow);
+            return { category: 'Gear & Jewels', subCategory: eqBracket, gemLevel: 0, gemQuality: 0, isVaal: false, isTransfigured: false, isAwakened: false, corrupted };
           };
 
           const aggregated = new Map<string, any>();
@@ -1497,10 +1621,13 @@ export default {
               const cleanBase = String(it.baseType || it.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
               const displayName = cleanName && cleanName !== cleanBase ? `${cleanName} (${cleanBase})` : cleanName || cleanBase || 'Unknown Item';
               const shortName = cleanName || cleanBase || 'Unknown Item';
-              const category = classifyStashItem(it);
+              const meta = classifyStashItem(it);
               const qty = Math.max(1, Number(it.stackSize || 1));
               const frameType = Number(it.frameType ?? 0);
-              const key = `${category}::${displayName.toLowerCase()}`;
+              const key =
+                meta.category === 'Gems'
+                  ? `${meta.category}::${displayName.toLowerCase()}::l${meta.gemLevel}::q${meta.gemQuality}::c${meta.corrupted ? 1 : 0}`
+                  : `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}`;
 
               const existing = aggregated.get(key);
               if (existing) {
@@ -1511,7 +1638,14 @@ export default {
                   name: displayName,
                   shortName,
                   baseType: cleanBase,
-                  category,
+                  category: meta.category,
+                  subCategory: meta.subCategory,
+                  gemLevel: meta.gemLevel,
+                  gemQuality: meta.gemQuality,
+                  isVaal: meta.isVaal,
+                  isTransfigured: meta.isTransfigured,
+                  isAwakened: meta.isAwakened,
+                  corrupted: meta.corrupted,
                   quantity: qty,
                   icon: typeof it.icon === 'string' ? it.icon : '',
                   frameType,
