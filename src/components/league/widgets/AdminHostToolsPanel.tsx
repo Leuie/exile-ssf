@@ -23,6 +23,7 @@ import {
 import { ACHIEVEMENT_CATALOG, formatLeagueLabel } from '../../../utils/achievements';
 import { getMemberCharacters } from '../tabs/RosterTab';
 import { fireConfetti } from '../../../utils/confetti';
+import { exportLeagueToXlsx, downloadStarterSheetTemplate } from '../../../utils/spreadsheetEngine';
 
 const WEBHOOK_EVENT_OPTIONS: { id: string; label: string }[] = [
   { id: 'bounty_listed', label: 'New Chase Bounties' },
@@ -243,6 +244,43 @@ export const AdminHostToolsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6 w-full max-w-5xl mt-6 relative z-10">
+      {/* 0. Google Sheets Export & Blank Starter Sheet */}
+      <div className="rounded-3xl border border-emerald-500/30 bg-emerald-950/15 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div>
+          <div className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-300">
+            Google Sheets Export & Starter Sheet
+          </div>
+          <p className="text-xs text-slate-300 mt-0.5">
+            Download a styled multi tab Google Sheets workbook of the live league or grab the blank <strong>Exile SSF Private League Starter Sheet</strong>.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() =>
+              exportLeagueToXlsx({
+                leagueId,
+                leagueName: 'Ravenwatch Covens of Umbra GSF (PL87651)',
+                patchVersion: '3.30',
+                officialLeagueUrl: 'https://www.pathofexile.com/private-leagues/league/Ravenwatch+Covens+of+Umbra+GSF',
+                roster,
+                wishlist
+              })
+            }
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer shadow"
+          >
+            Export Live League (.xlsx)
+          </button>
+          <button
+            type="button"
+            onClick={downloadStarterSheetTemplate}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow"
+          >
+            Download Starter Sheet
+          </button>
+        </div>
+      </div>
+
       {/* 1. League Health Overview */}
       <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">

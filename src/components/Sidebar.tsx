@@ -9,6 +9,7 @@ import {
   Sparkles, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
   Menu, 
   X, 
   Link, 
@@ -73,8 +74,22 @@ openSearch,
   userAccount,
   onOpenAuthModal
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1280;
+    }
+    return false;
+  });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    'Progression & Maps': true,
+    'Mechanics & Recipes': true,
+    'External Databases': true
+  });
+
+  const toggleSidebarGroup = (title: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   const currentLeague = LEAGUE_INFO[selectedGame];
 
@@ -512,19 +527,37 @@ interface NavGroup {
           </button>
         </div>
 
-        {/* Navigation Links */}
+        {/* Navigation Links (Primary League Pinned, Compendium Sections Collapsible) */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2.5">
-          {currentNavGroups.map((group, gIdx) => (
+          {currentNavGroups.map((group, gIdx) => {
+            const isAlwaysOpen = group.title === 'Command & League';
+            const isGroupCollapsed = !isCollapsed && !isAlwaysOpen && Boolean(collapsedGroups[group.title]);
+            return (
             <div key={gIdx} className="space-y-0.5">
               {!isCollapsed ? (
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold px-2 pt-1 pb-0.5">
-                  {group.title}
-                </div>
+                isAlwaysOpen ? (
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400/90 font-bold px-2 pt-1 pb-0.5">
+                    {group.title}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleSidebarGroup(group.title)}
+                    className="w-full flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-500 hover:text-slate-300 font-bold px-2 pt-1 pb-0.5 cursor-pointer transition-colors"
+                  >
+                    <span>{group.title}</span>
+                    {isGroupCollapsed ? (
+                      <ChevronRight className="w-3 h-3" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3" />
+                    )}
+                  </button>
+                )
               ) : gIdx > 0 ? (
                 <div className="border-t border-slate-800 my-1 mx-2" />
               ) : null}
 
-              {group.items.map((item) => {
+              {!isGroupCollapsed && group.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
 
@@ -559,7 +592,8 @@ interface NavGroup {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Compact Footer Area: Progress Bar + Discrete Side by Side Action Buttons */}

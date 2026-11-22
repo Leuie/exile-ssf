@@ -21,6 +21,7 @@ import type { ExileProfile, UserAccount, PersonalSessionGoal } from '../types';
 import {
   fetchCloudProfile,
   saveCloudProfile,
+  saveCloudAchievementProfile,
   type CloudExileProfileResponse
 } from '../services/cloudSync';
 import { getMemberCharacters } from './league/tabs/RosterTab';
@@ -416,129 +417,259 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
         </div>
       </div>
 
-      {/* Inline Profile Editor (Owner or Admin) */}
+      {/* Upgraded Profile Studio Editor (Owner or Admin) */}
       {isEditing && canEdit && (
         <form
           onSubmit={handleSaveProfile}
-          className="p-5 rounded-2xl border border-indigo-500/40 bg-slate-900/95 space-y-4 shadow-xl"
+          className="p-5 sm:p-6 rounded-2xl border-2 border-indigo-500/45 bg-gradient-to-b from-slate-900 via-[#0d111a] to-slate-900 space-y-5 shadow-2xl"
         >
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-            <div className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
-              Customize Your Exile Profile (Saved to Cloudflare D1)
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <div className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Exile Profile Studio (Live Preview • Saved to Cloudflare D1)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Customize your avatar, title, bio, official PoE links, and play hours across all future private league seasons.
+              </p>
             </div>
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                Linked Avatar Image URL (Imgur, Discord, GitHub, etc.)
-              </label>
-              <input
-                type="url"
-                value={editAvatarUrl}
-                onChange={(e) => setEditAvatarUrl(e.target.value)}
-                placeholder="https://i.imgur.com/your-avatar.png"
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
-              />
+          {/* Section 1: Avatar Live Preview & Identity */}
+          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/90 space-y-4">
+            <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-300">
+              1. Identity, Avatar & Legacy Title
             </div>
 
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                Official PoE Account Tag
-              </label>
-              <input
-                type="text"
-                value={editPoeAccount}
-                onChange={(e) => setEditPoeAccount(e.target.value)}
-                placeholder="e.g. Leuie#0001"
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
-              />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="w-20 h-20 rounded-2xl border-2 border-indigo-500/60 bg-slate-900 overflow-hidden flex items-center justify-center shrink-0 shadow-lg">
+                {editAvatarUrl.trim() ? (
+                  <img
+                    src={editAvatarUrl.trim()}
+                    alt="Live avatar preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl font-orbitron font-bold text-indigo-300 uppercase">
+                    {profile.handle.slice(0, 2)}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 w-full space-y-2 text-xs">
+                <label className="text-[11px] font-mono text-slate-300 block">
+                  Avatar Image URL (or pick a 1 click preset below)
+                </label>
+                <input
+                  type="text"
+                  value={editAvatarUrl}
+                  onChange={(e) => setEditAvatarUrl(e.target.value)}
+                  placeholder="https://i.imgur.com/your-avatar.png or /achievements/umbra-witch-330.jpg"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-slate-500 mr-1">Presets:</span>
+                  {[
+                    { label: 'Umbra Coven Witch', url: '/achievements/umbra-witch-330.jpg' },
+                    { label: 'Exile SSF Crest', url: '/logo.png' },
+                    { label: 'Clear Avatar', url: '' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setEditAvatarUrl(preset.url)}
+                      className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-indigo-500/20 border border-slate-800 hover:border-indigo-500/40 text-[10px] font-mono text-slate-300 hover:text-indigo-200 cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                Official PathOfExile.com Profile URL
-              </label>
-              <input
-                type="url"
-                value={editPoeUrl}
-                onChange={(e) => setEditPoeUrl(e.target.value)}
-                placeholder="https://www.pathofexile.com/account/view-profile/..."
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
-              />
+            {/* Equipped Title Picker (from unlocked achievements) */}
+            {unlockedAchievements.some((a) => a.rewardTitle) && (
+              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                <div className="text-[11px] font-mono text-purple-300">Equipped Profile Title (Instant Save)</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {unlockedAchievements
+                    .filter((a) => a.rewardTitle)
+                    .map((a) => {
+                      const active = achProfile?.equippedTitle === a.rewardTitle;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={async () => {
+                            if (!a.rewardTitle) return;
+                            const nextAch = {
+                              ...(achProfile || {
+                                unlockedIds: {},
+                                lifetimeFulfilledCount: 0,
+                                lifetimeBountiesClaimed: 0,
+                                lifetimeBountiesPaid: 0,
+                                leaguesParticipated: []
+                              }),
+                              equippedTitle: active ? '' : a.rewardTitle
+                            };
+                            const saved = await saveCloudAchievementProfile(
+                              (profile.poeAccountName || profile.handle).toLowerCase(),
+                              nextAch
+                            );
+                            await saveCloudAchievementProfile(profile.handle.toLowerCase(), nextAch);
+                            if (data) {
+                              setData({ ...data, achievementProfile: saved || nextAch });
+                            }
+                            setCopyNotice(active ? 'Title unequipped.' : `Equipped title: ${a.rewardTitle}!`);
+                            setTimeout(() => setCopyNotice(null), 2500);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-mono border cursor-pointer transition-colors ${
+                            active
+                              ? 'bg-purple-600 text-white border-purple-400 font-bold shadow'
+                              : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-purple-500/50'
+                          }`}
+                        >
+                          {active ? `★ ${a.rewardTitle}` : a.rewardTitle}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Favorite Class / Ascendancy
+                </label>
+                <input
+                  type="text"
+                  value={editFavClass}
+                  onChange={(e) => setEditFavClass(e.target.value)}
+                  placeholder="e.g. Slayer, Hierophant, Trickster"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Timezone & Play Hours
+                </label>
+                <input
+                  type="text"
+                  value={editTimezone}
+                  onChange={(e) => setEditTimezone(e.target.value)}
+                  placeholder="e.g. EST Evenings & Weekends"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {['EST Evenings', 'CST Evenings', 'PST Evenings', 'EU / CET', 'Weekends'].map((tz) => (
+                    <button
+                      key={tz}
+                      type="button"
+                      onClick={() => setEditTimezone(tz)}
+                      className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      {tz}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                Favorite Class / Ascendancy
-              </label>
-              <input
-                type="text"
-                value={editFavClass}
-                onChange={(e) => setEditFavClass(e.target.value)}
-                placeholder="e.g. Slayer, Hierophant, Trickster"
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">Timezone / Play Hours</label>
-              <input
-                type="text"
-                value={editTimezone}
-                onChange={(e) => setEditTimezone(e.target.value)}
-                placeholder="e.g. CST Evenings & Weekends"
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                Twitch / YouTube Link (Optional)
-              </label>
-              <input
-                type="url"
-                value={editTwitch}
-                onChange={(e) => setEditTwitch(e.target.value)}
-                placeholder="https://twitch.tv/..."
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+            <div className="text-xs">
+              <label className="text-[11px] font-mono text-slate-300 block mb-1">Bio / Farming Focus & Services</label>
+              <textarea
+                rows={2}
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                placeholder="e.g. Boss killer & Betrayal crafter happy to help squadmates with 4 Voidstones and crafts."
+                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
 
-          <div className="text-xs">
-            <label className="text-[11px] font-mono text-slate-300 block mb-1">Bio / Farming Focus</label>
-            <input
-              type="text"
-              value={editBio}
-              onChange={(e) => setEditBio(e.target.value)}
-              placeholder="e.g. Boss killer & Betrayal crafter happy to help squadmates with Voidstones."
-              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-indigo-500"
-            />
+          {/* Section 2: PoE & Social Links */}
+          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/90 space-y-3 text-xs">
+            <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-300">
+              2. Path of Exile & Community Links
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Official PoE Account Tag
+                </label>
+                <input
+                  type="text"
+                  value={editPoeAccount}
+                  onChange={(e) => setEditPoeAccount(e.target.value)}
+                  placeholder="e.g. Leuie#0626"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Official PathOfExile.com Profile URL
+                </label>
+                <input
+                  type="url"
+                  value={editPoeUrl}
+                  onChange={(e) => setEditPoeUrl(e.target.value)}
+                  placeholder="Auto generated from PoE Account Tag if left blank"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Discord Handle (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={editDiscord}
+                  onChange={(e) => setEditDiscord(e.target.value)}
+                  placeholder="e.g. @leuie"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Twitch / YouTube Link (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={editTwitch}
+                  onChange={(e) => setEditTwitch(e.target.value)}
+                  placeholder="https://twitch.tv/..."
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Saving...' : 'Save Profile'}</span>
+              <span>{saving ? 'Saving to D1...' : 'Save Profile Changes'}</span>
             </button>
           </div>
         </form>

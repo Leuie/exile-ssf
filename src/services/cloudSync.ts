@@ -623,3 +623,21 @@ export async function sendTestWebhookAlert(leagueId: string = 'poe1-330-umbra'):
     return false;
   }
 }
+
+export async function fetchGoogleSheetCsvViaWorker(
+  sheetUrl: string,
+  sheetName?: string
+): Promise<{ csv?: string; error?: string }> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/import/gsheet`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheetUrl, sheetName })
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error || 'Failed to read Google Sheet' };
+    return { csv: data.csv };
+  } catch {
+    return { error: 'Network error fetching Google Sheet' };
+  }
+}

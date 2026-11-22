@@ -26,6 +26,7 @@ import {
   Search,
   Coins,
   Activity,
+  FileSpreadsheet,
   X
 } from 'lucide-react';
 import {
@@ -91,6 +92,8 @@ import {
 } from '../services/cloudSync';
 import { getLeagueJoinAchievementDef, formatLeagueLabel, HONOR_PER_RECEIPT_CONFIRMED } from '../utils/achievements';
 import { NotificationBell } from './league/widgets/NotificationBell';
+import { GoogleSheetsSyncModal } from './league/modals/GoogleSheetsSyncModal';
+import type { IngestedRosterRow } from '../utils/spreadsheetEngine';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 
 interface PrivateLeagueHubViewProps {
@@ -369,6 +372,72 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [bossRotas, setBossRotas] = useState<BossRotaListing[]>([]);
   const [leagueFirsts, setLeagueFirsts] = useState<LeagueFirstMilestone[]>([]);
   const [activityFeed, setActivityFeed] = useState<LeagueFeedEvent[]>([]);
+  const [showSheetsModal, setShowSheetsModal] = useState<boolean>(false);
+
+  const handleIngestRosterRows = async (rows: IngestedRosterRow[]) => {
+    let nextRoster = [...roster];
+    let addedCount = 0;
+    let updatedCount = 0;
+    for (const row of rows) {
+      const idx = nextRoster.findIndex(
+        (m) =>
+          m.displayName.trim().toLowerCase() === row.displayName.trim().toLowerCase() ||
+          (row.poeAccountName && m.poeAccountName?.trim().toLowerCase() === row.poeAccountName.trim().toLowerCase())
+      );
+      if (idx >= 0) {
+        const existing = nextRoster[idx];
+        const merged: LeagueRosterMember = {
+          ...existing,
+          poeAccountName: row.poeAccountName || existing.poeAccountName,
+          availableAtLaunch: row.availableAtLaunch || existing.availableAtLaunch,
+          characterName: row.characterName || existing.characterName,
+          ascendancy: row.ascendancy !== 'Unassigned' ? row.ascendancy : existing.ascendancy,
+          level: Math.max(Number(existing.level) || 1, Number(row.level) || 1),
+          buildName: row.buildName !== 'Undecided Starter' ? row.buildName : existing.buildName,
+          pobUrl: row.pobUrl || existing.pobUrl,
+          atlasContent: row.atlasContent.length > 0 ? row.atlasContent : existing.atlasContent,
+          discordName: row.discordName || existing.discordName,
+          notes: row.notes || existing.notes
+        };
+        nextRoster[idx] = merged;
+        await saveCloudRosterMember(activeSessionId, merged);
+        updatedCount++;
+      } else {
+        const newMember: LeagueRosterMember = {
+          id: `member-sheet-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          slotNumber: nextRoster.length + 1,
+          leagueMode: 'Private',
+          displayName: row.displayName,
+          preferredContact: 'app',
+          poeAccountName: row.poeAccountName,
+          characterName: row.characterName,
+          discordName: row.discordName || undefined,
+          className: row.ascendancy || 'Exile',
+          ascendancy: row.ascendancy || 'Unassigned',
+          availableAtLaunch: row.availableAtLaunch,
+          level: row.level || 1,
+          buildName: row.buildName || 'Undecided Starter',
+          pobUrl: row.pobUrl || undefined,
+          atlasContent: row.atlasContent.length > 0 ? row.atlasContent : ['Expedition', 'Harvest'],
+          notes: row.notes || 'Imported via Google Sheets',
+          inviteStatus: 'Invited',
+          isOnline: false
+        };
+        nextRoster.push(newMember);
+        await saveCloudRosterMember(activeSessionId, newMember);
+        addedCount++;
+      }
+    }
+    setRoster(nextRoster);
+    fireConfetti();
+    emitFeedEvent({
+      type: 'roster_join',
+      actorHandle: userAccount?.displayName || 'Leuie',
+      title: `Synced Google Sheet into Roster (${addedCount} added, ${updatedCount} updated)`,
+      detail: 'Ingested Roster, Builds, PoBs, and Planned Mechanics into Cloudflare D1',
+      targetTab: 'roster'
+    });
+  };
 
   const emitFeedEvent = (partial: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => {
     const ev: LeagueFeedEvent = {
@@ -1496,6 +1565,16 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
             <button
               type="button"
+              onClick={() => setShowSheetsModal(true)}
+              className="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export or Import Google Sheets workbook and Starter Sheet"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Sheets</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleOpenInviteModal}
               className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
               title="Direct invite link and share templates"
@@ -1539,51 +1618,103 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
         )}
 
-        {/* Row 3: Responsive Navigation Tabs with Unique Page Navigation */}
-        <div className="px-3 sm:px-6 flex flex-wrap items-center gap-1.5 sm:gap-2 py-2 border-t border-slate-800/40 bg-slate-950/40">
-          {[
-            { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
-            { id: 'feed' as HubTab, label: 'Feed', icon: Activity, badge: activeTab !== 'feed' && unreadFeedCount > 0 ? `${unreadFeedCount} new` : activityFeed.length > 0 ? `${activityFeed.length}` : null, isUnreadHighlight: activeTab !== 'feed' && unreadFeedCount > 0, slug: 'feed' },
-            { id: 'looking_for' as HubTab, label: 'Wishlists', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
-            {
-              id: 'bounties' as HubTab,
-              label: 'Bounties',
-              icon: Trophy,
-              badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
-              slug: 'bounties'
-            },
-            { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
-            { id: 'guides' as HubTab, label: 'Builds', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
-            { id: 'cheatsheets' as HubTab, label: 'Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
-            { id: 'new_player' as HubTab, label: 'Crafting Bench', icon: Compass, badge: null, slug: 'bench' },
-            { id: 'alumni' as HubTab, label: 'Alumni', icon: History, badge: `${alumniList.length}`, slug: 'alumni' }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleSelectTab(tab.id)}
-                className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer min-h-[36px] ${
-                  isActive
-                    ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                      (tab as any).isUnreadHighlight ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 font-bold' : isActive ? 'bg-slate-700 text-slate-200' : 'bg-slate-800 text-slate-500'
-                    }`}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Row 3: Prominent Primary League Navigation Ribbon (Core Daily vs Resources) */}
+        <div className="px-3 sm:px-6 py-2.5 border-t border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] flex flex-wrap items-center justify-between gap-2 shadow-inner">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {[
+              { id: 'overview' as HubTab, label: 'Command Center', icon: Flame, badge: null, slug: 'command-center' },
+              {
+                id: 'feed' as HubTab,
+                label: 'Feed',
+                icon: Activity,
+                badge:
+                  activeTab !== 'feed' && unreadFeedCount > 0
+                    ? `${unreadFeedCount} new`
+                    : activityFeed.length > 0
+                    ? `${activityFeed.length}`
+                    : null,
+                isUnreadHighlight: activeTab !== 'feed' && unreadFeedCount > 0,
+                slug: 'feed'
+              },
+              { id: 'looking_for' as HubTab, label: 'Wishlists', icon: Sparkles, badge: `${lookingForItems.length}`, slug: 'wishlists' },
+              {
+                id: 'bounties' as HubTab,
+                label: 'Bounties',
+                icon: Trophy,
+                badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
+                slug: 'bounties'
+              },
+              { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleSelectTab(tab.id)}
+                  className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[42px] ${
+                    isActive
+                      ? 'bg-indigo-600/25 text-white border border-indigo-400/60 shadow-md shadow-indigo-500/15 ring-1 ring-indigo-500/30'
+                      : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 hover:border-slate-600 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-amber-300' : 'text-indigo-400'}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                        (tab as any).isUnreadHighlight
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 animate-pulse'
+                          : isActive
+                          ? 'bg-indigo-500/40 text-white'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 via-amber-400 to-indigo-400" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pl-0 lg:pl-3 lg:border-l lg:border-slate-800">
+            {[
+              { id: 'guides' as HubTab, label: 'Builds', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
+              { id: 'cheatsheets' as HubTab, label: 'Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
+              { id: 'new_player' as HubTab, label: 'Crafting Bench', icon: Compass, badge: null, slug: 'bench' },
+              { id: 'alumni' as HubTab, label: 'Alumni', icon: History, badge: `${alumniList.length}`, slug: 'alumni' }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleSelectTab(tab.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer min-h-[38px] ${
+                    isActive
+                      ? 'bg-slate-800 text-white border border-indigo-400/50 shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/70 border border-transparent'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                        isActive ? 'bg-slate-700 text-slate-100' : 'bg-slate-800/90 text-slate-400'
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -1664,6 +1795,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             onUpdateUserAccount={onUpdateUserAccount}
             onOpenProfile={onOpenProfile}
             onEmitFeedEvent={emitFeedEvent}
+            onOpenSheetsModal={() => setShowSheetsModal(true)}
           />
         )}
 
@@ -1949,6 +2081,44 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+              {/* Quick Recruitment Summary & Official GGG Invite Strip */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Active Capacity</div>
+                  <div className="text-base font-black text-emerald-300 mt-0.5">
+                    {roster.length} / {activeLeagueInfo.currentSlots} Slots Filled
+                  </div>
+                </div>
+                {activeLeagueInfo.officialLeagueUrl && (
+                  <a
+                    href={activeLeagueInfo.officialLeagueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 flex flex-col justify-center transition-colors"
+                  >
+                    <div className="text-[10px] font-mono uppercase text-amber-300 font-bold flex items-center gap-1">
+                      <span>GGG Official Page</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </div>
+                    <div className="text-xs font-bold text-white mt-0.5">Send In Game Invite</div>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    directInviteDialogRef.current?.close();
+                    setShowSheetsModal(true);
+                  }}
+                  className="p-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-left flex flex-col justify-center cursor-pointer transition-colors"
+                >
+                  <div className="text-[10px] font-mono uppercase text-emerald-300 font-bold flex items-center gap-1">
+                    <FileSpreadsheet className="w-3 h-3" />
+                    <span>Bulk Signups</span>
+                  </div>
+                  <div className="text-xs font-bold text-white mt-0.5">Import / Starter Sheet</div>
+                </button>
+              </div>
+
               <div className="space-y-2 p-3.5 rounded-xl border border-slate-800 bg-slate-950/60">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
@@ -2571,6 +2741,19 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           )}
         </dialog>
 
+      <GoogleSheetsSyncModal
+        isOpen={showSheetsModal}
+        onClose={() => setShowSheetsModal(false)}
+        leagueId={activeSessionId}
+        leagueName={activeLeagueInfo.name}
+        patchVersion={activeLeagueInfo.version || '3.30'}
+        officialLeagueUrl={activeLeagueInfo.officialLeagueUrl}
+        globalChannel={activeLeagueInfo.globalChannel}
+        roster={roster}
+        wishlist={lookingForItems}
+        leagueFirsts={leagueFirsts}
+        onIngestRosterRows={handleIngestRosterRows}
+      />
     </div>
   );
 };

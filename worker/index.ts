@@ -1047,6 +1047,50 @@ export default {
       }
 
 
+
+      // POST /api/import/gsheet (Fetch shared Google Sheet CSV server side with zero CORS)
+      if (url.pathname === '/api/import/gsheet' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const rawUrl = String(body.sheetUrl || '').trim();
+          const sheetName = String(body.sheetName || '').trim();
+          const match = rawUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+          if (!match) {
+            return new Response(JSON.stringify({ error: 'Invalid Google Sheets URL. Paste the full link containing /spreadsheets/d/...' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+          const sheetId = match[1];
+          const gidMatch = rawUrl.match(/[?&#]gid=(\d+)/);
+          let csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+          if (sheetName) {
+            csvUrl += `&sheet=${encodeURIComponent(sheetName)}`;
+          } else if (gidMatch) {
+            csvUrl += `&gid=${gidMatch[1]}`;
+          }
+          const res = await fetch(csvUrl, {
+            headers: { 'User-Agent': 'ExileSSF-SheetImporter/1.0' }
+          });
+          if (!res.ok) {
+            return new Response(
+              JSON.stringify({ error: 'Could not read Google Sheet. Make sure sharing is set to "Anyone with the link can view".' }),
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+          const csvText = await res.text();
+          if (csvText.trim().startsWith('<!DOCTYPE') || csvText.trim().startsWith('<html')) {
+            return new Response(
+              JSON.stringify({ error: 'Sheet is private. Set Google Sheets Share permission to "Anyone with the link can view" and try again.' }),
+              { status: 403, headers: CORS_HEADERS }
+            );
+          }
+          return new Response(JSON.stringify({ status: 'ok', csv: csvText }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
       // GET /api/admin/webhook
       if (url.pathname === '/api/admin/webhook' && request.method === 'GET') {
         try {

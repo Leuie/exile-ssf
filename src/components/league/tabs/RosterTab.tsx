@@ -15,6 +15,7 @@ import {
   Plus,
   Star,
   RefreshCw,
+  FileSpreadsheet,
   X
 } from 'lucide-react';
 import type { LeagueRosterMember, LeagueCharacter, UserAccount, LookingForItem, LeagueFeedEvent } from '../../../types';
@@ -56,6 +57,7 @@ export interface RosterTabProps {
   handleOpenJoinModal: () => void;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onOpenProfile?: (handle: string) => void;
+  onOpenSheetsModal?: () => void;
   onEmitFeedEvent?: (event: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => void;
 }
 
@@ -75,6 +77,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   handleOpenJoinModal,
   onUpdateUserAccount,
   onOpenProfile,
+  onOpenSheetsModal,
   onEmitFeedEvent
 }) => {
   const [rosterSearch, setRosterSearch] = useState<string>('');
@@ -583,6 +586,18 @@ export const RosterTab: React.FC<RosterTabProps> = ({
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingLadder ? 'animate-spin' : ''}`} />
             <span>{isSyncingLadder ? 'Syncing...' : 'Sync PoE Ladder'}</span>
           </button>
+
+          {onOpenSheetsModal && (
+            <button
+              type="button"
+              onClick={onOpenSheetsModal}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export or Import Google Sheets workbook and Starter Sheet"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Google Sheets</span>
+            </button>
+          )}
 
           <button
             type="button"
