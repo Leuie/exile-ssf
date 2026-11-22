@@ -111,7 +111,7 @@ export const PoE2HubView: React.FC = () => {
             </a>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-poe font-black text-slate-900 dark:text-slate-100 tracking-wide leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-cinzel font-black text-slate-900 dark:text-slate-100 tracking-wide leading-tight">
             Path of Exile 2 <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 via-sky-500 to-purple-600 dark:from-cyan-400 dark:via-sky-300 dark:to-purple-400">
               Solo Self Found Roadmap
@@ -126,7 +126,7 @@ export const PoE2HubView: React.FC = () => {
 
       {/* Early PoE 2 Resource Portals */}
       <div className="space-y-4">
-        <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+        <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
           PoE 2 Resource Portals
         </h2>
@@ -173,7 +173,7 @@ export const PoE2HubView: React.FC = () => {
 
       {/* Core PoE 2 SSF Systems Breakdown */}
       <div className="space-y-4">
-        <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+        <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Compass className="w-5 h-5 text-amber-500 dark:text-amber-400" />
           Confirmed PoE 2 Mechanics & SSF Impact
         </h2>

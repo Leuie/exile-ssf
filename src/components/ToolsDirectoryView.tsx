@@ -122,7 +122,7 @@ export const ToolsDirectoryView: React.FC<ToolsDirectoryViewProps> = ({
   return (
     <div className="w-full space-y-6 pb-20 font-sans text-slate-200">
       {/* Header */}
-      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-purple-400">
             <Link className="w-4 h-4" />
@@ -134,7 +134,7 @@ export const ToolsDirectoryView: React.FC<ToolsDirectoryViewProps> = ({
               </span>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-poe font-bold text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-cinzel font-bold text-slate-100">
             Tools Directory
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">

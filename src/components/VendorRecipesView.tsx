@@ -288,7 +288,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
               <Sparkles className="w-3.5 h-3.5" />
               Deterministic SSF Economy & Town Stations
             </div>
-            <h1 className="text-2xl sm:text-3xl font-poe font-bold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-cinzel font-bold text-white tracking-tight">
               Vendor Formulas & Salvage Reference
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
@@ -415,7 +415,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-poe font-bold text-white">
+              <h2 className="text-sm sm:text-base font-cinzel font-bold text-white">
                 {gameMode === 'poe1'
                   ? 'PoE 1 SSF Bare Minimum Survival Kit'
                   : 'PoE 2 SSF Town Economy Survival Kit'}
@@ -439,7 +439,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
             {gameMode === 'poe1' ? (
               <>
                 <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-                  <h3 className="font-poe font-bold text-sm text-amber-400">1. Early Vendor Currency Chains</h3>
+                  <h3 className="font-cinzel font-bold text-sm text-amber-400">1. Early Vendor Currency Chains</h3>
                   <ul className="space-y-1.5 text-slate-300">
                     <li>• <strong>6 Socket Gear:</strong> Vendor any 6 socket drop for <strong>7x Jeweller Orbs</strong>.</li>
                     <li>• <strong>RGB 3 Links:</strong> Vendor linked Red, Green, Blue sockets for <strong>1x Chromatic Orb</strong>.</li>
@@ -448,7 +448,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
                   </ul>
                 </div>
                 <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-                  <h3 className="font-poe font-bold text-sm text-sky-400">2. Offhand Weapon Swap Gem Engine</h3>
+                  <h3 className="font-cinzel font-bold text-sm text-sky-400">2. Offhand Weapon Swap Gem Engine</h3>
                   <ul className="space-y-1.5 text-slate-300">
                     <li>• Press <strong>X</strong> to fill your secondary weapon set with 6 sockets of backup gems.</li>
                     <li>• Level 6 copies of your primary skill gem to Vaal corrupt for <strong>Level 21</strong> in endgame.</li>
@@ -459,7 +459,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
             ) : (
               <>
                 <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-                  <h3 className="font-poe font-bold text-sm text-amber-400">1. Gold vs. Salvage vs. Disenchant</h3>
+                  <h3 className="font-cinzel font-bold text-sm text-amber-400">1. Gold vs. Salvage vs. Disenchant</h3>
                   <ul className="space-y-1.5 text-slate-300">
                     <li>• <strong>Always Salvage First:</strong> Any item with Rune Sockets or Quality % goes to the Salvage Bench.</li>
                     <li>• <strong>Disenchant Rares:</strong> Feed spare rares to the town disenchanter whenever Regal Orbs are low.</li>
@@ -467,7 +467,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
                   </ul>
                 </div>
                 <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-                  <h3 className="font-poe font-bold text-sm text-sky-400">2. Reforging Bench Discipline</h3>
+                  <h3 className="font-cinzel font-bold text-sm text-sky-400">2. Reforging Bench Discipline</h3>
                   <ul className="space-y-1.5 text-slate-300">
                     <li>• Unlock the Reforging Bench in Act 3 by completing Oswald's Molten Vault quest.</li>
                     <li>• Keep a dedicated dump tab for top tier weapon and ring bases to 3 to 1 Reforge failed crafts.</li>
@@ -538,7 +538,7 @@ export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = (
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
-                  <h3 className="font-poe font-bold text-base text-white leading-snug">
+                  <h3 className="font-cinzel font-bold text-base text-white leading-snug">
                     {recipe.title}
                   </h3>
                   <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 flex-shrink-0">

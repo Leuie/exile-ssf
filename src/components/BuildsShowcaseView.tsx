@@ -43,7 +43,7 @@ export const BuildsShowcaseView: React.FC = () => {
           <Flame className="w-4 h-4" />
           The SSF Hall of Fame
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
           SSF Friendly Builds
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
@@ -123,7 +123,7 @@ export const BuildsShowcaseView: React.FC = () => {
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-poe font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     {build.name}
                   </h2>
 

@@ -59,7 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-poe font-bold text-lg tracking-wider text-amber-400 group-hover:text-amber-300 transition-colors">
+                <span className="font-cinzel font-bold text-lg tracking-wider text-amber-400 group-hover:text-amber-300 transition-colors">
                   EXILE SSF
                 </span>
                 <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">

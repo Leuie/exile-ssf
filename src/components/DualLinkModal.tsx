@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   X, 
@@ -82,7 +82,7 @@ export const DualLinkModal: React.FC<DualLinkModalProps> = ({ isOpen, onClose })
             >
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100 font-poe">
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100 font-cinzel">
                     {item.name}
                   </span>
                   <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-[#2d2d44] text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-[#3f3f5f] font-mono">

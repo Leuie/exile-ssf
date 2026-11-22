@@ -110,13 +110,13 @@ export const ExternalPortalFrame: React.FC<ExternalPortalFrameProps> = ({
   return (
     <div className="space-y-3 w-full pb-6 flex flex-col h-[calc(100vh-2rem)] font-sans text-slate-200">
       {/* Control Header */}
-      <div className="bg-[#0f121a] border border-slate-800 rounded-2xl p-4 shadow-md space-y-3 flex-shrink-0">
+      <div className="bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3 flex-shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`p-2.5 rounded-xl border shrink-0 ${theme.iconBox}`}>{icon}</div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-poe font-bold text-slate-100 truncate">{title}</h1>
+                <h1 className="text-lg font-cinzel font-bold text-slate-100 truncate">{title}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${theme.badge}`}>
                   {badge}
                 </span>

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   ExternalLink, 
   Search, 
@@ -57,7 +57,7 @@ export const DirectoryView: React.FC = () => {
           <Link className="w-4 h-4" />
           The Unified Compendium Directory
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-100">
+        <h1 className="text-3xl font-cinzel font-bold text-slate-100">
           Directory & Dual Link Wiki/PoEDB Engine
         </h1>
         <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
@@ -72,7 +72,7 @@ export const DirectoryView: React.FC = () => {
             <span className="text-xs uppercase tracking-widest text-amber-400 font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" /> Instant Cross-Referencer
             </span>
-            <h2 className="text-xl font-poe font-bold text-slate-100 mt-1">
+            <h2 className="text-xl font-cinzel font-bold text-slate-100 mt-1">
               Dual Link Item & Database Search
             </h2>
           </div>
@@ -108,7 +108,7 @@ export const DirectoryView: React.FC = () => {
             >
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-300 font-poe">
+                  <span className="text-xs font-bold text-amber-300 font-cinzel">
                     {item.name}
                   </span>
                   <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
@@ -153,7 +153,7 @@ export const DirectoryView: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-poe font-bold text-slate-100">
+            <h2 className="text-xl font-cinzel font-bold text-slate-100">
               Curated Community Tools & Cheat Sheets
             </h2>
             <p className="text-xs text-slate-400">

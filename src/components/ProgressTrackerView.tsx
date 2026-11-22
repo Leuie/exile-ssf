@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckSquare, 
   Sparkles, 
@@ -127,7 +127,7 @@ export const ProgressTrackerView: React.FC = () => {
           <CheckSquare className="w-4 h-4" />
           The Anti Distraction Engine
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
           SSF Progression & Milestone Planner
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
@@ -144,7 +144,7 @@ export const ProgressTrackerView: React.FC = () => {
             <span>Total SSF Progress</span>
             <span className="text-amber-600 dark:text-amber-400 font-bold">{totalPercent}%</span>
           </div>
-          <div className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <div className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             {completedItems} <span className="text-sm font-normal text-slate-500 dark:text-slate-400">/ {totalItems}</span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-[#0f172a] rounded-full h-2 overflow-hidden border border-slate-300 dark:border-[#3f3f5f]">
@@ -160,7 +160,7 @@ export const ProgressTrackerView: React.FC = () => {
             </span>
             <span className="text-sky-600 dark:text-sky-400 font-bold">{dailyCompleted}/{dailyItems.length}</span>
           </div>
-          <div className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <div className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             {dailyItems.length > 0 ? Math.round((dailyCompleted / dailyItems.length) * 100) : 0}%
           </div>
           <div className="w-full bg-slate-200 dark:bg-[#0f172a] rounded-full h-2 overflow-hidden border border-slate-300 dark:border-[#3f3f5f]">
@@ -176,7 +176,7 @@ export const ProgressTrackerView: React.FC = () => {
             </span>
             <span className="text-emerald-600 dark:text-emerald-400 font-bold">{weeklyCompleted}/{weeklyItems.length}</span>
           </div>
-          <div className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <div className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             {weeklyItems.length > 0 ? Math.round((weeklyCompleted / weeklyItems.length) * 100) : 0}%
           </div>
           <div className="w-full bg-slate-200 dark:bg-[#0f172a] rounded-full h-2 overflow-hidden border border-slate-300 dark:border-[#3f3f5f]">
@@ -192,7 +192,7 @@ export const ProgressTrackerView: React.FC = () => {
             </span>
             <span className="text-purple-600 dark:text-purple-400 font-bold">{macroCompleted}/{macroItems.length}</span>
           </div>
-          <div className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <div className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             {macroItems.length > 0 ? Math.round((macroCompleted / macroItems.length) * 100) : 0}%
           </div>
           <div className="w-full bg-slate-200 dark:bg-[#0f172a] rounded-full h-2 overflow-hidden border border-slate-300 dark:border-[#3f3f5f]">

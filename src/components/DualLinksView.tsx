@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Search, BookOpen, Database, ExternalLink, Sparkles } from "lucide-react";
 import { DUAL_LINKS_DATABASE, searchDualLinks } from '../data/dualLinks';
 import type { DualLink } from '../types';
@@ -31,7 +31,7 @@ export const DualLinksView: React.FC = () => {
           <Sparkles className="w-4 h-4" />
           The Dual Link Index
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
           PoEWiki & PoEDB Dual Link DB
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
@@ -94,7 +94,7 @@ export const DualLinksView: React.FC = () => {
             >
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-amber-700 dark:text-amber-300 font-poe">
+                  <span className="text-sm font-bold text-amber-700 dark:text-amber-300 font-cinzel">
                     {item.name}
                   </span>
                   <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700 font-mono">

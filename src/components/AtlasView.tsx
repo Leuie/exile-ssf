@@ -127,7 +127,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
     <div className="w-full space-y-8 pb-20 font-sans text-slate-200">
       
       {/* Header Masthead */}
-      <header className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
+      <header className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] shadow-lg space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-400">
           <Compass className="w-4 h-4" />
           <span>Endgame Mapping & Strategy</span>
@@ -138,7 +138,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
             </span>
           )}
         </div>
-        <h1 className="text-3xl sm:text-5xl font-poe font-bold text-slate-100">
+        <h1 className="text-3xl sm:text-5xl font-cinzel font-bold text-slate-100">
           Atlas of Worlds & Mapping
         </h1>
         <p className="text-sm sm:text-base text-slate-400 max-w-3xl leading-relaxed">
@@ -233,7 +233,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
           <span className="text-xs uppercase font-mono tracking-widest text-sky-600 dark:text-sky-400 font-bold">
             Core Foundation
           </span>
-          <h2 className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-0.5">
+          <h2 className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-0.5">
             The 100% Map Sustain Playbook
           </h2>
         </div>
@@ -241,7 +241,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 uppercase">Trick 1 • 3 to 1 Recipe</div>
-            <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Deterministic Upgrades</h3>
+            <h3 className="font-cinzel font-bold text-lg text-slate-900 dark:text-slate-100">Deterministic Upgrades</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Sell 3 maps of the same base to any vendor for 1 connected map of 1 tier higher. If the vendor gives a duplicate map you already completed, <strong>swap one of the 3 maps</strong> with another copy to change the outcome!
             </p>
@@ -249,7 +249,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
 
           <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">Trick 2 • Kirac Resets</div>
-            <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Free Shop Refreshes</h3>
+            <h3 className="font-cinzel font-bold text-lg text-slate-900 dark:text-slate-100">Free Shop Refreshes</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Every single time you open a <strong>Kirac Mission</strong> at your map device, Kirac's inventory completely resets! Immediately check his shop before and after running the mission for uncompleted bonus objective maps.
             </p>
@@ -257,7 +257,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
 
           <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/75 space-y-2.5">
             <div className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 uppercase">Trick 3 • Horizon Orbs</div>
-            <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100">Same Tier Rerolls</h3>
+            <h3 className="font-cinzel font-bold text-lg text-slate-900 dark:text-slate-100">Same Tier Rerolls</h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               An Orb of Horizons rerolls a map into another natural map of the <strong>exact same tier</strong>. If you have 6 copies of Dunes in Tier 8 and zero copies of Cemetery, reroll them with Horizon Orbs to complete your bonus objectives.
             </p>
@@ -272,7 +272,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
             <span className="text-xs uppercase font-mono tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">
               Interactive Planner
             </span>
-            <h2 className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-0.5">
+            <h2 className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-0.5">
               PoE Atlas Interactive Tree & Explorer
             </h2>
           </div>
@@ -323,7 +323,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
           <span className="text-xs uppercase font-mono tracking-widest text-purple-600 dark:text-purple-400 font-bold">
             Progressive Strategy
           </span>
-          <h2 className="text-2xl sm:text-3xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-1">
+          <h2 className="text-2xl sm:text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-1">
             Atlas Passive Tree Roadmap (3 Stages)
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
@@ -359,7 +359,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
                   <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
                     Stage {current.stageNumber} • {current.points}
                   </span>
-                  <h3 className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  <h3 className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-1">
                     {current.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
@@ -394,14 +394,14 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
           <span className="text-xs uppercase font-mono tracking-widest text-rose-600 dark:text-rose-400 font-bold">
             Endgame Voidstones
           </span>
-          <h2 className="text-2xl sm:text-3xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-1">
+          <h2 className="text-2xl sm:text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-1">
             Voidstone Priority Roadmap & Harvest Swaps
           </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-4">
-            <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <h3 className="font-cinzel font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Crown className="w-5 h-5 text-amber-500" />
               The 4 Voidstone Progression
             </h3>
@@ -427,7 +427,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
 
           <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-sm space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
-              <h3 className="font-poe font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h3 className="font-cinzel font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-emerald-500" />
                 The Harvest Fragment Swap Masterclass
               </h3>

@@ -137,7 +137,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
       
       {/* Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-100 to-white dark:from-amber-950/20 dark:via-[#131622] dark:to-poe-darkest p-6 sm:p-10 shadow-2xl">
+      <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] p-6 sm:p-8 shadow-lg">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-64 h-64 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -148,7 +148,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
               Ascendancy and Divine Font Compendium
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h1 className="text-3xl sm:text-4xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               The Lord's Labyrinth
             </h1>
 
@@ -183,7 +183,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
             <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Campaign Trials
             </div>
-            <div className="text-3xl font-poe font-bold text-amber-600 dark:text-amber-400">
+            <div className="text-3xl font-cinzel font-bold text-amber-600 dark:text-amber-400">
               {completedTrialsCount} / {totalTrialsCount}
             </div>
             <div className="w-full bg-slate-200 dark:bg-[#0f172a] rounded-full h-1.5 overflow-hidden">
@@ -224,7 +224,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
                 Labyrinth Variations and Reward Matrix
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -236,7 +236,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
           <div className="overflow-x-auto rounded-2xl border border-amber-500/30 bg-white dark:bg-[#1a1a2e] shadow-xl">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-amber-500/10 border-b border-amber-500/30 text-amber-700 dark:text-amber-300 font-poe uppercase tracking-wider font-bold">
+                <tr className="bg-amber-500/10 border-b border-amber-500/30 text-amber-700 dark:text-amber-300 font-cinzel uppercase tracking-wider font-bold">
                   <th className="p-4">Labyrinth</th>
                   <th className="p-4">Area level</th>
                   <th className="p-4">Minimum character level</th>
@@ -292,7 +292,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
       {activeTab === 'traps' && (
         <div className="space-y-6">
           <div className="border-b border-slate-800 pb-4">
-            <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               Trap Mechanics and Survival Best Practices
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -425,7 +425,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
-              <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
                 Campaign Trials Interactive Checklist
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -448,7 +448,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
             <div className="rounded-2xl border border-amber-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
+                  <h3 className="font-cinzel font-bold text-slate-900 dark:text-slate-100">
                     Normal Labyrinth (6 Trials)
                   </h3>
                   <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">
@@ -486,7 +486,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
             <div className="rounded-2xl border border-sky-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
+                  <h3 className="font-cinzel font-bold text-slate-900 dark:text-slate-100">
                     Cruel Labyrinth (3 Trials)
                   </h3>
                   <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono">
@@ -524,7 +524,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
             <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/80 p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h3 className="font-poe font-bold text-slate-900 dark:text-slate-100">
+                  <h3 className="font-cinzel font-bold text-slate-900 dark:text-slate-100">
                     Merciless Labyrinth (3 Trials)
                   </h3>
                   <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
@@ -565,7 +565,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
       {activeTab === 'izaro' && (
         <div className="space-y-6">
           <div className="border-b border-slate-800 pb-4">
-            <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               Izaro Fight Tactics and Darkshrine Secrets
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -639,7 +639,7 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
       {activeTab === 'font' && (
         <div className="space-y-6">
           <div className="border-b border-slate-800 pb-4">
-            <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               Divine Font Gem Crafting and Transfigured Conversions
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400">

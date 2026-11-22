@@ -8,12 +8,12 @@ export const PrivacyPolicyView: React.FC = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 pb-20 font-sans text-slate-200">
-      <header className="rounded-2xl border border-slate-800 bg-gradient-to-br from-[#0e1320] via-[#111827] to-[#0b0f19] p-6 shadow-xl space-y-2">
+      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] p-6 shadow-lg space-y-2">
         <div className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-widest text-emerald-400">
           <ShieldCheck className="w-4 h-4" />
           Data Transparency & Player Privacy
         </div>
-        <h1 className="text-2xl sm:text-3xl font-poe font-bold text-white">
+        <h1 className="text-2xl sm:text-3xl font-cinzel font-bold text-white">
           Exile SSF Privacy Policy
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
@@ -23,7 +23,7 @@ export const PrivacyPolicyView: React.FC = () => {
 
       <div className="space-y-4 text-xs sm:text-sm leading-relaxed">
         <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/85 space-y-2.5">
-          <h2 className="text-base font-poe font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-cinzel font-bold text-white flex items-center gap-2">
             <Database className="w-4 h-4 text-indigo-400" />
             <span>1. Information Stored in Our Cloud Database (Cloudflare D1)</span>
           </h2>
@@ -38,7 +38,7 @@ export const PrivacyPolicyView: React.FC = () => {
         </section>
 
         <section className="p-5 rounded-2xl border border-amber-500/35 bg-amber-950/15 space-y-2.5">
-          <h2 className="text-base font-poe font-bold text-amber-300 flex items-center gap-2">
+          <h2 className="text-base font-cinzel font-bold text-amber-300 flex items-center gap-2">
             <Lock className="w-4 h-4 text-amber-400" />
             <span>2. Path of Exile Session Cookie (POESESSID) Policy</span>
           </h2>
@@ -54,7 +54,7 @@ export const PrivacyPolicyView: React.FC = () => {
         </section>
 
         <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/85 space-y-2.5">
-          <h2 className="text-base font-poe font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-cinzel font-bold text-white flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-400" />
             <span>3. Local Client.txt Log Parsing</span>
           </h2>
@@ -64,7 +64,7 @@ export const PrivacyPolicyView: React.FC = () => {
         </section>
 
         <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/85 space-y-2.5">
-          <h2 className="text-base font-poe font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-cinzel font-bold text-white flex items-center gap-2">
             <Cookie className="w-4 h-4 text-sky-400" />
             <span>4. Cookies & Local Browser Storage</span>
           </h2>
@@ -76,7 +76,7 @@ export const PrivacyPolicyView: React.FC = () => {
         </section>
 
         <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/85 space-y-2.5">
-          <h2 className="text-base font-poe font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-cinzel font-bold text-white flex items-center gap-2">
             <Mail className="w-4 h-4 text-purple-400" />
             <span>5. Data Control, Deletion & Affiliation Notice</span>
           </h2>

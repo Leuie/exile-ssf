@@ -297,7 +297,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <ShieldCheck className="w-3.5 h-3.5" />
               Survivability & Mitigation Masterclass
             </div>
-            <h1 className="text-2xl sm:text-3xl font-poe font-bold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-cinzel font-bold tracking-tight text-white">
               Defenses & EHP Architecture
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
@@ -394,7 +394,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                   )}
                 </div>
               )}
-              <h2 className="text-base sm:text-lg font-poe font-bold text-white">
+              <h2 className="text-base sm:text-lg font-cinzel font-bold text-white">
                 Interactive Hit Mitigation & EHP Calculator ({gameMode === 'poe1' ? 'PoE 1 Formula' : 'PoE 2 Formula'})
               </h2>
               <p className="text-xs text-slate-400">
@@ -612,7 +612,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
             <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-400">
               Interactive SSF Audit
             </div>
-            <h2 className="text-base sm:text-lg font-poe font-bold text-white">
+            <h2 className="text-base sm:text-lg font-cinzel font-bold text-white">
               {gameMode === 'poe1'
                 ? 'Defense Checklist Before Red Maps (T14+)'
                 : 'Defense Checklist Before Tier 15 Waystones'}
@@ -657,7 +657,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
             <span className="text-xs uppercase font-mono tracking-widest text-amber-400 font-bold">
               Path of Exile 2 Survivability Architecture
             </span>
-            <h2 className="text-2xl font-poe font-bold text-white mt-1">
+            <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
               Core PoE 2 Defensive Layers
             </h2>
           </div>
@@ -674,7 +674,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                       <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 uppercase">
                         {layer.badge}
                       </span>
-                      <h3 className="text-lg font-poe font-bold text-white mt-1">{layer.name}</h3>
+                      <h3 className="text-lg font-cinzel font-bold text-white mt-1">{layer.name}</h3>
                     </div>
                   </div>
                   <p className="text-xs text-amber-300 font-medium italic">"{layer.tagline}"</p>
@@ -703,7 +703,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <span className="text-xs uppercase font-mono tracking-widest text-emerald-400 font-bold">
                 Part 1 • Architectural Foundations
               </span>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 The 4 Layers of Defense (The Swiss Cheese Model)
               </h2>
             </div>
@@ -711,28 +711,28 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl border border-sky-500/30 bg-sky-500/5 space-y-2">
                 <div className="text-xs font-mono font-bold text-sky-400 uppercase">Layer 1 • Avoidance</div>
-                <h3 className="font-poe font-bold text-lg text-white">Avoid the Hit</h3>
+                <h3 className="font-cinzel font-bold text-lg text-white">Avoid the Hit</h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Evasion Rating (up to 95% attack evasion), Attack & Spell Block (up to 75% to 88%), Elusive buff, and Blind.
                 </p>
               </div>
               <div className="p-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
                 <div className="text-xs font-mono font-bold text-emerald-400 uppercase">Layer 2 • Mitigation</div>
-                <h3 className="font-poe font-bold text-lg text-white">Cut Damage in Half</h3>
+                <h3 className="font-cinzel font-bold text-lg text-white">Cut Damage in Half</h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   100% Spell Suppression (50% less spell damage), 75% to 90% Elemental Resistances, Armour, Endurance Charges, and Fortify.
                 </p>
               </div>
               <div className="p-5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-2">
                 <div className="text-xs font-mono font-bold text-amber-400 uppercase">Layer 3 • Damage Shift</div>
-                <h3 className="font-poe font-bold text-lg text-white">Shift to Resistances</h3>
+                <h3 className="font-cinzel font-bold text-lg text-white">Shift to Resistances</h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Convert lethal Physical damage into Elemental damage (Lightning Coil, Cloak of Flame, Dawnbreaker, Eldritch Helmet implicits).
                 </p>
               </div>
               <div className="p-5 rounded-2xl border border-purple-500/30 bg-purple-500/5 space-y-2">
                 <div className="text-xs font-mono font-bold text-purple-400 uppercase">Layer 4 • Recovery</div>
-                <h3 className="font-poe font-bold text-lg text-white">Refill Immediately</h3>
+                <h3 className="font-cinzel font-bold text-lg text-white">Refill Immediately</h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Instant Leech mastery, Life Gain on Hit, Consecrated Ground regen, Recoup (3.30 verified), and automated flasks.
                 </p>
@@ -746,7 +746,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <span className="text-xs uppercase font-mono tracking-widest text-sky-400 font-bold">
                 Part 2 • Milestones & Progression
               </span>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 Progression Levers: What You Need at Every Stage
               </h2>
             </div>
@@ -768,7 +768,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30 uppercase">
                           {m.badge}
                         </span>
-                        <h3 className="text-base sm:text-lg font-poe font-bold text-white">{m.title}</h3>
+                        <h3 className="text-base sm:text-lg font-cinzel font-bold text-white">{m.title}</h3>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400 hidden sm:inline">{m.subtitle}</span>
@@ -826,7 +826,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <span className="text-xs uppercase font-mono tracking-widest text-amber-400 font-bold">
                 Part 3 • Mechanics Reference
               </span>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 The 10 Core Defensive Archetypes
               </h2>
             </div>
@@ -843,7 +843,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                         <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
                           {mech.category}
                         </span>
-                        <h3 className="text-lg font-poe font-bold text-white mt-1">{mech.name}</h3>
+                        <h3 className="text-lg font-cinzel font-bold text-white mt-1">{mech.name}</h3>
                       </div>
                       <div className="text-right text-[10px] font-mono text-slate-400">
                         <div>Diff: <span className="font-bold text-slate-200">{mech.difficulty}</span></div>
@@ -886,7 +886,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <span className="text-xs uppercase font-mono tracking-widest text-purple-400 font-bold">
                 Part 4 • Class Architecture
               </span>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 Class Defensive Blueprints
               </h2>
             </div>
@@ -902,7 +902,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                       <span className="text-[10px] px-2.5 py-0.5 rounded font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase">
                         {cls.primaryArchetype}
                       </span>
-                      <h3 className="text-xl font-poe font-bold text-white mt-1">{cls.className}</h3>
+                      <h3 className="text-xl font-cinzel font-bold text-white mt-1">{cls.className}</h3>
                       <p className="text-xs text-slate-400 mt-0.5">{cls.identity}</p>
                     </div>
                     <div className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 self-start sm:self-center text-right">
@@ -967,7 +967,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
               <span className="text-xs uppercase font-mono tracking-widest text-rose-400 font-bold">
                 Part 5 • Suffix Economics
               </span>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 The Suffix War: Why Suffixes Make or Break SSF
               </h2>
             </div>
@@ -1021,7 +1021,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                 <span className="text-xs uppercase font-mono tracking-widest text-cyan-400 font-bold">
                   Part 6 • Hole Patching
                 </span>
-                <h2 className="text-2xl font-poe font-bold text-white mt-1">
+                <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                   The Pantheon: Free Immunities & Boss Captures
                 </h2>
               </div>
@@ -1054,7 +1054,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                     <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
                       <div className="flex items-center gap-2">
                         <Crown className={`w-4 h-4 ${soul.type === 'Major' ? 'text-amber-400' : 'text-cyan-400'}`} />
-                        <h3 className="font-poe font-bold text-base text-white">{soul.name}</h3>
+                        <h3 className="font-cinzel font-bold text-base text-white">{soul.name}</h3>
                       </div>
                       <span
                         className={`text-[10px] font-mono uppercase font-bold px-2 py-0.5 rounded ${

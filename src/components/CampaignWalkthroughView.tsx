@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Compass, 
   MapPin, 
@@ -88,7 +88,7 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
     <div className="w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header */}
-      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-cyan-400">
             <Compass className="w-4 h-4" />
@@ -100,7 +100,7 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
               </span>
             )}
           </div>
-          <h1 className="text-3xl font-poe font-bold text-slate-100">
+          <h1 className="text-3xl font-cinzel font-bold text-slate-100">
             Act 1 to 10 Walkthrough
           </h1>
           <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
@@ -152,7 +152,7 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
               }`}
             >
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-sans">Act</span>
-              <span className="text-lg font-poe font-black text-slate-900 dark:text-slate-100">{act.actNumber}</span>
+              <span className="text-lg font-cinzel font-black text-slate-900 dark:text-slate-100">{act.actNumber}</span>
               {actDone && (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mt-1" />
               )}
@@ -173,7 +173,7 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400">({completedInAct}/{totalInAct} Zones Checked)</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-2xl sm:text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               {currentActData.title}
             </h2>
           </div>
@@ -243,7 +243,7 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
 
         {/* Zone by Zone Cheat Sheet & Checkpoints */}
         <div className="space-y-3">
-          <h3 className="text-sm font-poe font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <h3 className="text-sm font-cinzel font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
             Zone Navigation & Checkpoints Checklist
           </h3>

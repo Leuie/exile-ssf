@@ -214,7 +214,7 @@ export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selected
       <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-poe font-bold text-white flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-cinzel font-bold text-white flex items-center gap-2">
               <Filter className="w-5 h-5 text-amber-400" />
               <span>Regex Studio</span>
             </h1>

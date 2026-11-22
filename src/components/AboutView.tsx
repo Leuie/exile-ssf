@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Heart, Coffee, Gamepad2, Rocket, Copy, Check, ExternalLink } from "lucide-react";
 
 export const AboutView: React.FC = () => {
@@ -25,7 +25,7 @@ export const AboutView: React.FC = () => {
               Created with Passion by Leuie
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-poe font-black text-slate-900 dark:text-slate-100 tracking-wide leading-tight">
+            <h1 className="text-3xl sm:text-5xl font-cinzel font-black text-slate-900 dark:text-slate-100 tracking-wide leading-tight">
               Hi, I'm <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-600 via-amber-500 to-rose-700 dark:from-rose-400 dark:via-amber-300 dark:to-rose-400">Leuie</span>. <br />
               Welcome to Exile SSF.
             </h1>
@@ -53,7 +53,7 @@ export const AboutView: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
             <Gamepad2 className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             Why I Created Exile SSF
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -69,7 +69,7 @@ export const AboutView: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
             <Rocket className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
             The Multi Game Vision
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -90,7 +90,7 @@ export const AboutView: React.FC = () => {
               <Coffee className="w-4 h-4" />
               Community Support & Hosting
             </div>
-            <h2 className="text-2xl sm:text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-2xl sm:text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
               Support Leuie & Help Keep Exile SSF Ad Free
             </h2>
           </div>

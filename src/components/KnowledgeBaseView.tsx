@@ -50,7 +50,7 @@ export const KnowledgeBaseView: React.FC = () => {
           <BookOpen className="w-4 h-4" />
           The SSF Bible Compendium
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
           The SSF Bible & Knowledge Base
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
@@ -98,7 +98,7 @@ export const KnowledgeBaseView: React.FC = () => {
           {/* Vendor Recipe Grid */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 Verified SSF Vendor Recipe Vault
               </h2>
@@ -212,7 +212,7 @@ export const KnowledgeBaseView: React.FC = () => {
                 <span className="text-xs uppercase tracking-widest text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" /> Interactive Tool
                 </span>
-                <h3 className="text-xl font-poe font-bold text-slate-900 dark:text-slate-100 mt-1">
+                <h3 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 mt-1">
                   The Vorici Crafting Bench Socket-Coloring Calculator
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl mt-1">
@@ -314,7 +314,7 @@ export const KnowledgeBaseView: React.FC = () => {
                 </div>
               </div>
 
-              <h2 className="text-2xl font-poe font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-2xl font-cinzel font-bold text-slate-900 dark:text-slate-100">
                 {article.title}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 italic">
@@ -334,7 +334,7 @@ export const KnowledgeBaseView: React.FC = () => {
 
                 if (trimmed.startsWith('### ')) {
                   return (
-                    <h3 key={pIdx} className="text-lg font-poe font-bold text-amber-700 dark:text-amber-400 mt-6 pt-3 border-t border-slate-100 dark:border-poe-border/40">
+                    <h3 key={pIdx} className="text-lg font-cinzel font-bold text-amber-700 dark:text-amber-400 mt-6 pt-3 border-t border-slate-100 dark:border-poe-border/40">
                       {trimmed.replace('### ', '')}
                     </h3>
                   );

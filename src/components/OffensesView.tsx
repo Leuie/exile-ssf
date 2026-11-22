@@ -199,7 +199,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
               <Swords className="w-3.5 h-3.5" />
               Damage Scaling & Multiplier Masterclass
             </div>
-            <h1 className="text-2xl sm:text-3xl font-poe font-bold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-cinzel font-bold tracking-tight text-white">
               Offenses & Scaling Architecture
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
@@ -275,7 +275,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
           <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-400">
             Visual Scaling Pipeline ({gameMode === 'poe1' ? 'PoE 1 Order' : 'PoE 2 Order'})
           </div>
-          <h2 className="text-lg sm:text-xl font-poe font-bold text-white">
+          <h2 className="text-lg sm:text-xl font-cinzel font-bold text-white">
             How Your Hit Actually Multiplies From Base to Boss Damage
           </h2>
         </div>
@@ -379,7 +379,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
             <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-orange-400">
               Interactive Quick Reference
             </div>
-            <h2 className="text-base sm:text-lg font-poe font-bold text-white">
+            <h2 className="text-base sm:text-lg font-cinzel font-bold text-white">
               Ailment Scaling & Status Thresholds ({gameMode === 'poe1' ? 'PoE 1' : 'PoE 2'})
             </h2>
           </div>
@@ -428,7 +428,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
             <span className="text-xs uppercase font-mono tracking-widest text-amber-400 font-bold">
               Path of Exile 2 Offensive Architecture
             </span>
-            <h2 className="text-2xl font-poe font-bold text-white mt-1">
+            <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
               Core PoE 2 Damage Systems
             </h2>
           </div>
@@ -444,7 +444,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
                     <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
                       {sys.badge}
                     </span>
-                    <h3 className="text-lg font-poe font-bold text-white mt-1">{sys.name}</h3>
+                    <h3 className="text-lg font-cinzel font-bold text-white mt-1">{sys.name}</h3>
                   </div>
                   <p className="text-xs text-amber-300 italic">"{sys.tagline}"</p>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{sys.detail}</p>
@@ -465,7 +465,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
               <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-400">
                 Part One • Foundational Damage Architecture
               </div>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 The 4 Pillars of Offensive Scaling
               </h2>
             </div>
@@ -501,7 +501,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
               <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-sky-400">
                 Part Two • Progression Levers
               </div>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 What to Scale and Upgrade at Each Milestone
               </h2>
             </div>
@@ -538,7 +538,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
                           {m.badge}
                         </span>
                         <div>
-                          <h3 className="text-base sm:text-lg font-poe font-bold text-white">{m.title}</h3>
+                          <h3 className="text-base sm:text-lg font-cinzel font-bold text-white">{m.title}</h3>
                           <p className="text-xs text-slate-400">{m.subtitle}</p>
                         </div>
                       </div>
@@ -597,7 +597,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
               <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-400">
                 Part Three • Comprehensive Mechanics Reference
               </div>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 All Offensive Systems Explained
               </h2>
             </div>
@@ -613,7 +613,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
                       <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
                         {mech.category}
                       </div>
-                      <h3 className="text-xl font-poe font-bold text-white">{mech.name}</h3>
+                      <h3 className="text-xl font-cinzel font-bold text-white">{mech.name}</h3>
                       <p className="text-xs text-amber-400 font-semibold mt-0.5">{mech.tagline}</p>
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-center">
@@ -677,7 +677,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
               <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-purple-400">
                 Part Four • Archetype Scaling Guide
               </div>
-              <h2 className="text-2xl font-poe font-bold text-white mt-1">
+              <h2 className="text-2xl font-cinzel font-bold text-white mt-1">
                 Core Offensive Archetypes
               </h2>
             </div>
@@ -689,7 +689,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
                   className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 hover:border-amber-500/40 transition-all space-y-4"
                 >
                   <div className="border-b border-slate-800 pb-3 space-y-1">
-                    <h3 className="text-lg font-poe font-bold text-white">{arch.name}</h3>
+                    <h3 className="text-lg font-cinzel font-bold text-white">{arch.name}</h3>
                     <p className="text-xs text-amber-400 font-mono font-semibold">
                       Scaling Focus: {arch.primaryScalingStat}
                     </p>
