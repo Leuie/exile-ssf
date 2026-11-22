@@ -192,11 +192,41 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     }
   }, []);
 
+  // 30 day POESESSID disclaimer acknowledgment check
+  const DISCLAIMER_ACK_KEY = 'exile_ssf_poesessid_disclaimer_ack_v1';
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const savedDisclaimerValid = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(DISCLAIMER_ACK_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed?.acknowledgedAtMs && Date.now() - Number(parsed.acknowledgedAtMs) < THIRTY_DAYS_MS);
+    } catch {
+      return false;
+    }
+  }, []);
+
   const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
   const [rememberPoesessid, setRememberPoesessid] = useState<boolean>(Boolean(savedPoesessidOptIn));
   const [poesessid, setPoesessid] = useState<string>(savedPoesessidOptIn?.poesessid || '');
-  const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(Boolean(savedPoesessidOptIn?.accepted));
+  const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(
+    Boolean(savedDisclaimerValid || savedPoesessidOptIn?.accepted)
+  );
+  const [showDisclaimerBanner, setShowDisclaimerBanner] = useState<boolean>(!savedDisclaimerValid);
+
+  const handleToggleDisclaimer = (checked: boolean) => {
+    setAcceptedRiskDisclaimer(checked);
+    try {
+      if (checked) {
+        localStorage.setItem(DISCLAIMER_ACK_KEY, JSON.stringify({ acknowledgedAtMs: Date.now() }));
+        setShowDisclaimerBanner(false);
+      } else {
+        localStorage.removeItem(DISCLAIMER_ACK_KEY);
+        setShowDisclaimerBanner(true);
+      }
+    } catch {}
+  };
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>(
     Array.isArray(savedWorkspace.stashTabs) ? savedWorkspace.stashTabs : []
   );
@@ -1441,6 +1471,24 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setFocusMode(false);
+              setSetupOpen((v) => !v);
+            }}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              setupOpen
+                ? 'bg-indigo-600 text-white border-indigo-400 shadow'
+                : 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-400/50 text-indigo-200'
+            }`}
+            title="Configure your PoE Account, POESESSID, and 18 Canonical Stash Tabs"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+            <span>{setupOpen ? 'Close Setup' : 'Setup & Session ID'}</span>
+            {!poesessid && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+          </button>
+
           <div className="flex bg-slate-950 p-0.5 rounded-xl border border-amber-500/30 text-[11px] font-bold">
             <button
               type="button"
@@ -1781,41 +1829,63 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
 
           {setupTab === 'api' && (
             <div className="space-y-3.5">
-              <div className="p-3 rounded-xl bg-rose-950/35 border border-rose-500/45 space-y-2 text-xs">
-                <div className="flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <p className="text-slate-200 leading-relaxed">
-                    <strong className="text-rose-300">POESESSID Security Disclaimer:</strong> Your POESESSID grants live session access to <code>pathofexile.com</code>. Never share it with anyone. Using it here is strictly optional at your own discretion while GGG OAuth registrations are paused. Exile SSF never stores it in any database, KV cache, or log.
-                  </p>
-                </div>
-                <label className="flex items-center gap-2 text-rose-200 font-semibold cursor-pointer">
-                  <input type="checkbox" checked={acceptedRiskDisclaimer} onChange={(e) => setAcceptedRiskDisclaimer(e.target.checked)} className="w-4 h-4 accent-amber-500 rounded cursor-pointer" />
-                  <span>I understand the risks of POESESSID and choose to proceed at my own discretion.</span>
-                </label>
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-500/20">
-                  <label className="flex items-center gap-2 text-amber-200 font-semibold cursor-pointer">
+              {showDisclaimerBanner ? (
+                <div className="p-3 rounded-xl bg-rose-950/35 border border-rose-500/45 space-y-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <p className="text-slate-200 leading-relaxed">
+                      <strong className="text-rose-300">POESESSID Security Disclaimer:</strong> Your POESESSID grants live session access to <code>pathofexile.com</code>. Never share it with anyone. Using it here is strictly optional at your own discretion while GGG OAuth registrations are paused. Exile SSF never stores it in any database, KV cache, or log. <strong>Once confirmed, this disclaimer will not appear again in this browser for 30 days.</strong>
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-rose-200 font-semibold cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={rememberPoesessid}
-                      onChange={(e) => setRememberPoesessid(e.target.checked)}
-                      className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                      checked={acceptedRiskDisclaimer}
+                      onChange={(e) => handleToggleDisclaimer(e.target.checked)}
+                      className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
                     />
-                    <span>Opt in: Remember POESESSID in this browser's localStorage for 15m/30m/60m Auto Sync (never sent to Exile SSF servers)</span>
+                    <span>I understand the risks of POESESSID and choose to proceed at my own discretion (hide for 30 days).</span>
                   </label>
-                  {rememberPoesessid && poesessid && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRememberPoesessid(false);
-                        setPoesessid('');
-                        try { localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY); } catch {}
-                      }}
-                      className="px-2 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[10px] font-mono font-bold cursor-pointer"
-                    >
-                      Forget Saved POESESSID
-                    </button>
-                  )}
                 </div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className="text-emerald-300 font-medium flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>POESESSID disclaimer acknowledged (hidden for 30 days in this browser).</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDisclaimerBanner(true)}
+                    className="text-slate-400 hover:text-amber-300 font-mono underline cursor-pointer"
+                  >
+                    Review Disclaimer
+                  </button>
+                </div>
+              )}
+
+              <div className="px-3 py-2 rounded-xl bg-slate-950/75 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <label className="flex items-center gap-2 text-amber-200 font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberPoesessid}
+                    onChange={(e) => setRememberPoesessid(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                  />
+                  <span>Opt in: Remember POESESSID in this browser's localStorage for 15m/30m/60m Auto Sync (never sent to Exile SSF servers)</span>
+                </label>
+                {rememberPoesessid && poesessid && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRememberPoesessid(false);
+                      setPoesessid('');
+                      try { localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY); } catch {}
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[10px] font-mono font-bold cursor-pointer"
+                  >
+                    Forget Saved POESESSID
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
