@@ -4,7 +4,6 @@ import {
   Flame, 
   BookOpen, 
   Compass, 
-  CheckSquare, 
   Users, Search, 
   Sparkles, 
   ChevronLeft, 
@@ -32,8 +31,7 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   selectedGame: 'poe1' | 'poe2';
   setSelectedGame: (game: 'poe1' | 'poe2') => void;
-openSearch: () => void;
-  trackerStats: { completed: number; total: number };
+  openSearch: () => void;
   userAccount?: import('../types').UserAccount | null;
   onOpenAuthModal?: () => void;
   onOpenProfile?: (handle: string) => void;
@@ -71,8 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   selectedGame,
   setSelectedGame,
-openSearch,
-  trackerStats,
+  openSearch,
   userAccount,
   onOpenAuthModal,
   onOpenProfile
@@ -96,10 +93,6 @@ openSearch,
 
   const currentLeague = LEAGUE_INFO[selectedGame];
 
-  const progressPercent = trackerStats.total > 0 
-    ? Math.round((trackerStats.completed / trackerStats.total) * 100) 
-    : 0;
-
   interface NavItem {
   id: string;
   label: string;
@@ -118,6 +111,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
+        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Live' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
@@ -133,14 +127,12 @@ interface NavGroup {
       items: [
         { id: 'atlas', label: 'Atlas & Mapping', icon: Compass, badge: 'Atlas' },
         { id: 'campaign', label: 'Acts 1 to 10', icon: Compass, badge: 'Walkthru' },
-        { id: 'tracker', label: 'Progression Checklist', icon: CheckSquare, badge: `${progressPercent}%` },
         { id: 'labyrinth', label: "Lord's Labyrinth", icon: Crown, badge: 'Ascend' }
       ]
     },
     {
       title: 'Mechanics & Recipes',
       items: [
-        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Drops' },
         { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
@@ -166,6 +158,7 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
+        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Live' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
@@ -180,7 +173,6 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
-        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: 'Drops' },
         { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe2.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
@@ -615,24 +607,8 @@ interface NavGroup {
           })}
         </nav>
 
-        {/* Compact Footer Area: Progress Bar + Discrete Side by Side Action Buttons */}
-        <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
-          
-          {/* Progress Bar (PoE 1 only, when expanded) */}
-          {!isCollapsed && selectedGame === 'poe1' && (
-            <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                <span>SSF Progress</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">{progressPercent}%</span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-[#0c1017] rounded-full h-1.5 overflow-hidden">
-                <div 
-                  className="h-full bg-indigo-500 transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          )}
+        {/* Compact Footer Area: Profile + About + Privacy Policy */}
+        <div className="p-3 border-t border-slate-800 space-y-2">
 
           {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}
           {(onOpenAuthModal || onOpenProfile) && (
@@ -672,17 +648,31 @@ interface NavGroup {
             {/* Heart Icon Button */}
             <button
               onClick={() => setActiveTab('about')}
-              className={`p-2 rounded-xl border transition-all flex items-center justify-center ${
+              className={`p-2 rounded-xl border transition-all flex items-center justify-center cursor-pointer ${
                 activeTab === 'about'
                   ? 'bg-rose-500 text-white border-rose-600 shadow-md shadow-rose-500/20'
-                  : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-500 hover:border-rose-500/40'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-rose-500 hover:border-rose-500/40'
               } ${isCollapsed ? 'w-full' : 'w-10 flex-shrink-0'}`}
-              title="About Leuie"
+              title="About Exile SSF"
             >
               <Heart className={`w-3.5 h-3.5 ${activeTab === 'about' ? 'fill-white text-white' : 'fill-rose-500/40 text-rose-500'}`} />
             </button>
 
-            
+            {!isCollapsed && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('privacy')}
+                className={`flex-1 py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  activeTab === 'privacy'
+                    ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                }`}
+                title="Read Exile SSF Privacy Policy"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Privacy Policy</span>
+              </button>
+            )}
           </div>
         </div>
       </aside>

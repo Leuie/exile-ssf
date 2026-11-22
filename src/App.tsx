@@ -37,7 +37,7 @@ const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/Chea
 const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const LabyrinthGuideView = lazyWithRetry(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
 const CampaignWalkthroughView = lazyWithRetry(() => import('./components/CampaignWalkthroughView').then((m) => ({ default: m.CampaignWalkthroughView })));
-const ProgressTrackerView = lazyWithRetry(() => import('./components/ProgressTrackerView').then((m) => ({ default: m.ProgressTrackerView })));
+const PrivacyPolicyView = lazyWithRetry(() => import('./components/PrivacyPolicyView').then((m) => ({ default: m.PrivacyPolicyView })));
 const ToolsDirectoryView = lazyWithRetry(() => import('./components/ToolsDirectoryView').then((m) => ({ default: m.ToolsDirectoryView })));
 const PoEWikiWrapperView = lazyWithRetry(() => import('./components/PoEWikiWrapperView').then((m) => ({ default: m.PoEWikiWrapperView })));
 const PoEDBWrapperView = lazyWithRetry(() => import('./components/PoEDBWrapperView').then((m) => ({ default: m.PoEDBWrapperView })));
@@ -60,10 +60,9 @@ const PageLoader = (
     Loading Exile SSF module...
   </div>
 );
-import { INITIAL_TRACKER_ITEMS } from './data/trackerData';
 import { getInitialLeagueRoster, INITIAL_COMMUNITY_GUIDES } from './data/privateLeagueData';
 import { saveCloudRosterMember } from './services/cloudSync';
-import type { TrackerItem, UserAccount, LeagueRosterMember, LookingForItem, CommunityGuide } from './types';
+import type { UserAccount, LeagueRosterMember, LookingForItem, CommunityGuide } from './types';
 
 export const App: React.FC = () => {
   const getInitialLeagueId = (): string => {
@@ -171,6 +170,9 @@ export const App: React.FC = () => {
     }
     if (path === '/farming' || path === '/drops' || path === '/wealth' || hash === 'farming') {
       return 'farming_tracker';
+    }
+    if (path === '/privacy' || path === '/privacy-policy' || hash === 'privacy') {
+      return 'privacy';
     }
 
     return 'home';
@@ -288,6 +290,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/regex');
         } else if (tab === 'farming_tracker') {
           window.history.pushState({}, '', '/farming');
+        } else if (tab === 'privacy') {
+          window.history.pushState({}, '', '/privacy');
         } else if (tab === 'home') {
           window.history.pushState({}, '', '/');
         }
@@ -396,21 +400,9 @@ export const App: React.FC = () => {
     } catch {}
   }, []);
 
-  // Calculate live tracker stats for the sidebar badge
-  const [trackerItems, setTrackerItems] = useState<TrackerItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('poe_ssf_tracker_items');
-      return saved ? JSON.parse(saved) : INITIAL_TRACKER_ITEMS;
-    } catch {
-      return INITIAL_TRACKER_ITEMS;
-    }
-  });
-
   useEffect(() => {
     const handleStorage = () => {
       try {
-        const saved = localStorage.getItem('poe_ssf_tracker_items');
-        if (saved) setTrackerItems(JSON.parse(saved));
         const savedUser = localStorage.getItem('poe_umbraleague_user');
         setUserAccount(savedUser ? JSON.parse(savedUser) : null);
       } catch {}
@@ -418,11 +410,6 @@ export const App: React.FC = () => {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
-
-  const trackerStats = {
-    completed: trackerItems.filter((i) => i.completed).length,
-    total: trackerItems.length
-  };
 
   // Global Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -558,7 +545,6 @@ export const App: React.FC = () => {
         selectedGame={selectedGame}
         setSelectedGame={handleSelectGame}
         openSearch={() => setIsSearchOpen(true)}
-        trackerStats={trackerStats}
         userAccount={userAccount}
         onOpenAuthModal={handleOpenAuth}
         onOpenProfile={handleOpenProfile}
@@ -598,7 +584,7 @@ export const App: React.FC = () => {
         )}
         {activeTab === 'labyrinth' && <LabyrinthGuideView />}
         {activeTab === 'campaign' && <CampaignWalkthroughView />}
-        {activeTab === 'tracker' && <ProgressTrackerView />}
+        {activeTab === 'privacy' && <PrivacyPolicyView />}
         {activeTab === 'tools_directory' && <ToolsDirectoryView />}
         {activeTab === 'poewiki' && <PoEWikiWrapperView initialUrl="https://www.poewiki.net/" title="PoEWiki Portal" isPoE2={false} />}
         {activeTab === 'poedb' && <PoEDBWrapperView initialUrl="https://poedb.tw/us/" title="PoEDB Portal" isPoE2={false} />}
