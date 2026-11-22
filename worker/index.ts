@@ -47,7 +47,10 @@ function buildCorsHeaders(request?: Request): Record<string, string> {
 const SERVER_ADMIN_SHA256 = '5fa6bba1018db3415c42db05cc93959d8f58a68dfea692677bd15f2a868bc05d';
 
 function getSessionSecret(env: Env): string {
-  return env.SESSION_SECRET || `exile-ssf-edge-hmac:${SERVER_ADMIN_SHA256}`;
+  if (env.SESSION_SECRET && env.SESSION_SECRET.trim().length >= 16) {
+    return env.SESSION_SECRET.trim();
+  }
+  throw new Error('SESSION_SECRET is not configured in Cloudflare Workers Secrets.');
 }
 
 function base64UrlEncode(input: string): string {
