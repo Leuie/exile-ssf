@@ -68,6 +68,7 @@ const WishlistsTab = lazy(() => import('./league/tabs/WishlistsTab').then((m) =>
 const RosterTab = lazy(() => import('./league/tabs/RosterTab').then((m) => ({ default: m.RosterTab })));
 const CommandCenterTab = lazy(() => import('./league/tabs/CommandCenterTab').then((m) => ({ default: m.CommandCenterTab })));
 const LeagueFirstsWall = lazy(() => import('./league/widgets/LeagueFirstsWall').then((m) => ({ default: m.LeagueFirstsWall })));
+const MechanicsTab = lazy(() => import('./league/tabs/MechanicsTab').then((m) => ({ default: m.MechanicsTab })));
 const CheatSheetsTab = lazy(() => import('./league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m) => ({ default: m.BuildGuidesTab })));
 const BenchGuideTab = lazy(() => import('./league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
@@ -120,7 +121,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenProfile
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'hall_of_fame' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
@@ -128,6 +129,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     looking_for: 'wishlists',
     bounties: 'bounties',
     roster: 'roster',
+    mechanics: 'mechanics',
     hall_of_fame: 'hall-of-fame',
     guides: 'guides',
     cheatsheets: 'cheatsheets',
@@ -143,6 +145,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
     if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
+    if (clean === 'mechanics' || clean === 'atlas-mechanics' || clean === 'niche' || clean === 'lanes') return 'mechanics';
     if (clean === 'hall-of-fame' || clean === 'halloffame' || clean === 'hall_of_fame' || clean === 'firsts' || clean === 'league-firsts') return 'hall_of_fame';
     if (clean === 'guides' || clean === 'build-guides' || clean === 'buildguides') return 'guides';
     if (clean === 'cheatsheets' || clean === 'cheat-sheets' || clean === 'mechanics' || clean === 'mechanic-cheat-sheets') return 'cheatsheets';
@@ -207,6 +210,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       looking_for: 'Wishlists',
       bounties: 'Bounties',
       roster: 'Roster',
+      mechanics: 'Mechanics',
       hall_of_fame: 'Hall of Fame',
       guides: 'Builds',
       cheatsheets: 'Cheat Sheets',
@@ -1623,6 +1627,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 slug: 'bounties'
               },
               { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
+              { id: 'mechanics' as HubTab, label: 'Mechanics', icon: Compass, badge: '25', slug: 'mechanics' },
               { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1731,6 +1736,18 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           />
         )}
 
+        {/* TAB: DEDICATED ATLAS MECHANICS MATRIX */}
+        {activeTab === 'mechanics' && (
+          <MechanicsTab
+            activeSessionId={activeSessionId}
+            roster={roster}
+            setRoster={setRoster}
+            userAccount={userAccount}
+            onOpenProfile={onOpenProfile}
+            setCopyNotice={setCopyNotice}
+          />
+        )}
+
         {/* TAB: HALL OF FAME & LEAGUE FIRSTS WALL */}
         {activeTab === 'hall_of_fame' && (
           <LeagueFirstsWall
@@ -1777,6 +1794,12 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {activeTab === 'roster' && (
           <RosterTab
             activeSessionId={activeSessionId}
+            isLeagueExpired={
+              currentSession.isActive === false ||
+              Date.now() >
+                new Date(currentSession.launchDateIso).getTime() +
+                  Math.max(10, Number(activeLeagueInfo.fundedDays || 60)) * 86_400_000
+            }
             roster={roster}
             setRoster={setRoster}
             userAccount={userAccount}

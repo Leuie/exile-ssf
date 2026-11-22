@@ -140,6 +140,31 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   const [useCustomNewChar, setUseCustomNewChar] = useState<boolean>(false);
   const [showLootFilterModal, setShowLootFilterModal] = useState<boolean>(false);
   const [honorAwardBanner, setHonorAwardBanner] = useState<{ finder: string; itemName: string; requester: string; points?: number; label?: string } | null>(null);
+  const [itemIcons, setItemIcons] = useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/farming/ninja-prices?league=auto')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: any) => {
+        if (!cancelled && data?.icons && typeof data.icons === 'object') {
+          setItemIcons(data.icons);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lookupItemIcon = (itemName: string): string | null => {
+    const clean = itemName.trim().toLowerCase();
+    if (!clean) return null;
+    if (itemIcons[clean]) return itemIcons[clean];
+    const withoutParens = clean.replace(/\s*\([^)]*\)\s*/g, '').trim();
+    if (itemIcons[withoutParens]) return itemIcons[withoutParens];
+    return null;
+  };
 
   const myRosterEntry = React.useMemo(() => {
     if (!userAccount) return undefined;
@@ -1292,8 +1317,6 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredAggregatedItems.map((itemGroup, idx) => {
-              const activeCount = itemGroup.activeNeeds;
-              const hasCriticalNeed = itemGroup.entries.some((e) => e.status === 'NEED');
               const allAcquired = itemGroup.entries.length > 0 && itemGroup.entries.every((e) => e.status === 'HAVE');
               const someAcquired = itemGroup.entries.some((e) => e.status === 'HAVE');
               const fulfilledFinders = Array.from(
@@ -1317,27 +1340,36 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
                   }`}
                 >
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
-                        {itemGroup.category}
-                      </span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <span className="inline-block text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                          {itemGroup.category}
+                        </span>
+                        {allAcquired && (
+                          <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>Acquired</span>
+                          </span>
+                        )}
+                      </div>
 
-                      {allAcquired ? (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Acquired (HAVE)</span>
-                        </span>
-                      ) : (
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                            hasCriticalNeed
-                              ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700'
-                          }`}
-                        >
-                          {activeCount} {activeCount === 1 ? 'Player Needs' : 'Players Need'}
-                        </span>
-                      )}
+                      {(() => {
+                        const iconUrl = lookupItemIcon(itemGroup.itemName);
+                        return iconUrl ? (
+                          <div className="w-10 h-10 rounded-xl bg-slate-950/90 border border-slate-700/80 p-1 flex items-center justify-center shrink-0 shadow-inner">
+                            <img
+                              src={iconUrl}
+                              alt={itemGroup.itemName}
+                              className="w-full h-full object-contain"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-center shrink-0 text-[10px] font-mono font-bold text-amber-400/90">
+                            {itemGroup.category.slice(0, 2).toUpperCase()}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className={`font-semibold text-xs group-hover:text-white ${allAcquired ? 'text-emerald-200' : 'text-slate-200'}`}>

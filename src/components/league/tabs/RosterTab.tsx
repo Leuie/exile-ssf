@@ -1,4 +1,4 @@
-import React, { useState, useId, useRef } from 'react';
+import React, { useState, useId, useRef, useEffect } from 'react';
 import {
   Search,
   Copy,
@@ -39,10 +39,10 @@ export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter
   ];
 }
 import { saveCloudRosterMember, deleteCloudRosterMember, fetchOfficialPoeLadder } from '../../../services/cloudSync';
-import { SquadAtlasMatrix } from '../widgets/SquadAtlasMatrix';
 
 export interface RosterTabProps {
   activeSessionId: string;
+  isLeagueExpired?: boolean;
   roster: LeagueRosterMember[];
   setRoster: React.Dispatch<React.SetStateAction<LeagueRosterMember[]>>;
   userAccount?: UserAccount | null;
@@ -63,6 +63,7 @@ export interface RosterTabProps {
 
 export const RosterTab: React.FC<RosterTabProps> = ({
   activeSessionId,
+  isLeagueExpired = false,
   roster,
   setRoster,
   userAccount,
@@ -325,18 +326,23 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     );
   };
 
-  const handleSyncOfficialLadder = async () => {
+  const handleSyncOfficialLadder = async (silent = false) => {
     setIsSyncingLadder(true);
     try {
       const res = await fetchOfficialPoeLadder(activeSessionId, undefined, true);
       if (!res || res.status !== 'ok' || !res.entries || res.entries.length === 0) {
-        setCopyNotice(
-          res?.message ||
-            'Could not reach official PoE ladder (ensure profiles are public on pathofexile.com).'
-        );
-        setTimeout(() => setCopyNotice(null), 4500);
+        if (!silent) {
+          setCopyNotice(
+            res?.message ||
+              'Could not reach official PoE ladder (ensure profiles are public on pathofexile.com).'
+          );
+          setTimeout(() => setCopyNotice(null), 4500);
+        }
         return;
       }
+      try {
+        localStorage.setItem(`exile_ssf_ladder_auto_sync_v1_${activeSessionId}`, String(Date.now()));
+      } catch {}
 
       const entriesByAccount = new Map<string, typeof res.entries>();
       for (const entry of res.entries) {
@@ -409,6 +415,19 @@ export const RosterTab: React.FC<RosterTabProps> = ({
       setIsSyncingLadder(false);
     }
   };
+
+  // Automatic 12 hour ladder sync while league is active (stops automatically on league expiration/archive)
+  useEffect(() => {
+    if (isLeagueExpired || roster.length === 0) return;
+    const syncKey = `exile_ssf_ladder_auto_sync_v1_${activeSessionId}`;
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    try {
+      const last = Number(localStorage.getItem(syncKey) || 0);
+      if (!last || Date.now() - last >= TWELVE_HOURS_MS) {
+        handleSyncOfficialLadder(true);
+      }
+    } catch {}
+  }, [activeSessionId, isLeagueExpired]);
 
   const handleSaveModalCharacterDetails = (e: React.FormEvent) => {
     e.preventDefault();
@@ -579,12 +598,12 @@ export const RosterTab: React.FC<RosterTabProps> = ({
           <button
             type="button"
             disabled={isSyncingLadder}
-            onClick={handleSyncOfficialLadder}
+            onClick={() => handleSyncOfficialLadder(false)}
             className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="Sync live character levels, ascendancies, and alt characters directly from the official Path of Exile ladder API"
+            title="Sync live character levels, ascendancies, and alt characters directly from the official Path of Exile ladder API (auto syncs every 12h while league is active)"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingLadder ? 'animate-spin' : ''}`} />
-            <span>{isSyncingLadder ? 'Syncing...' : 'Sync PoE Ladder'}</span>
+            <span>{isSyncingLadder ? 'Syncing...' : isLeagueExpired ? 'Sync PoE Ladder' : 'Sync Ladder (12h Auto)'}</span>
           </button>
 
           {onOpenSheetsModal && (
@@ -623,10 +642,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
         </div>
       </div>
 
-      {/* Squad Atlas Tree & Niche Division Matrix */}
-      <SquadAtlasMatrix roster={roster} />
-
-      {/* Roster Cards Grid */}
+      {/* Roster Cards Grid (Dedicated to Current Players & Characters) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {filteredRoster.map((member) => {
           const isMe = Boolean(

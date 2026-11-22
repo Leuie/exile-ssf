@@ -545,7 +545,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
       }
 
-      const cacheKey = `farming:ninja_prices:v1:${targetLeague.toLowerCase()}`;
+      const cacheKey = `farming:ninja_prices:v2:${targetLeague.toLowerCase()}`;
       if (!forceRefresh && env.EXILE_KV) {
         const cached = await env.EXILE_KV.get(cacheKey);
         if (cached) return new Response(cached, { headers: corsHeaders });
@@ -571,6 +571,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
 
       const results = await Promise.allSettled(fetches);
       const prices: Record<string, number> = { 'chaos orb': 1 };
+      const icons: Record<string, string> = {};
       let divineChaos = 150;
 
       for (const settled of results) {
@@ -579,6 +580,12 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         const lines = Array.isArray(data?.lines) ? data.lines : [];
 
         if (kind === 'currency') {
+          const details = Array.isArray(data?.currencyDetails) ? data.currencyDetails : [];
+          for (const d of details) {
+            const dn = String(d?.name || '').trim().toLowerCase();
+            const ic = String(d?.icon || '').trim();
+            if (dn && ic && !icons[dn]) icons[dn] = ic;
+          }
           for (const line of lines) {
             const name = String(line?.currencyTypeName || '').trim().toLowerCase();
             const val = Number(line?.chaosEquivalent || 0);
@@ -589,6 +596,8 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         } else if (type === 'SkillGem') {
           for (const line of lines) {
             const name = String(line?.name || '').trim().toLowerCase();
+            const ic = String(line?.icon || '').trim();
+            if (name && ic && !icons[name]) icons[name] = ic;
             const val = Number(line?.chaosValue || 0);
             if (!name || val <= 0) continue;
             const lvl = Number(line?.gemLevel || 1);
@@ -601,6 +610,8 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         } else {
           for (const line of lines) {
             const name = String(line?.name || '').trim().toLowerCase();
+            const ic = String(line?.icon || '').trim();
+            if (name && ic && !icons[name]) icons[name] = ic;
             const val = Number(line?.chaosValue || 0);
             if (!name || val <= 0) continue;
             const links = Number(line?.links || 0);
@@ -610,7 +621,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
       }
 
-      const payloadStr = JSON.stringify({ status: 'ok', league: targetLeague, divineChaos, itemCount: Object.keys(prices).length, syncedAtIso: now, prices });
+      const payloadStr = JSON.stringify({ status: 'ok', league: targetLeague, divineChaos, itemCount: Object.keys(prices).length, syncedAtIso: now, prices, icons });
       if (env.EXILE_KV && Object.keys(prices).length > 20) {
         await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 3600 });
       }
