@@ -23,6 +23,7 @@ import {
   WEIGHTS_STORAGE_KEY,
   WORKSPACE_STORAGE_KEY,
   computeSsfUtilityPoints,
+  buildPoeWikiUrl,
   formatSsfPoints,
   formatValue,
   lookupNinjaPrice,
@@ -943,9 +944,15 @@ export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
                     <span className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded border ${TIER_STYLES[item.tier]}`}>
                       {item.tier}
                     </span>
-                    <span className="text-xs font-bold text-white truncate" title={item.name}>
+                    <a
+                      href={buildPoeWikiUrl(item.shortName || item.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Open ${item.shortName || item.name} on PoE Wiki`}
+                      className="text-xs font-bold text-white hover:text-amber-200 hover:underline decoration-amber-400/70 underline-offset-2 truncate"
+                    >
                       {item.shortName || item.name}
-                    </span>
+                    </a>
                   </div>
                   <div className="text-[11px] font-mono text-amber-300 font-bold mt-0.5">
                     {valueSystem === 'ssf' ? formatSsfPoints(item.totalSsfPoints) : formatValue(item.totalChaos, divineChaos)}

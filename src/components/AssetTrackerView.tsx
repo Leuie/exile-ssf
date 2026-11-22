@@ -69,6 +69,7 @@ import {
   computeSnapshotDiff,
   computeSsfUtilityPoints,
   formatCountdown,
+  buildPoeWikiUrl,
   formatSsfPoints,
   formatValue,
   lookupNinjaPrice,
@@ -2350,10 +2351,16 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                               <div className="w-6 h-6 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-[9px] font-mono text-amber-300 shrink-0">{it.category.slice(0, 2).toUpperCase()}</div>
                             )}
                             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                              <span className={`font-semibold truncate max-w-[260px] ${it.category === 'Uniques' ? 'text-orange-300' : it.category === 'Gems' ? 'text-teal-300' : 'text-slate-100'}`}>
+                              <a
+                                href={buildPoeWikiUrl(it.shortName, game)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${it.shortName} on PoE Wiki`}
+                                className={`font-semibold truncate max-w-[260px] hover:underline decoration-amber-400/70 underline-offset-2 transition-colors ${it.category === 'Uniques' ? 'text-orange-300 hover:text-orange-200' : it.category === 'Gems' ? 'text-teal-300 hover:text-teal-200' : 'text-slate-100 hover:text-amber-200'}`}
+                              >
                                 {it.shortName}
                                 {it.category === 'Gems' && (it.gemLevel || 0) > 0 ? ` (${it.gemLevel}/${it.gemQuality || 0})` : ''}
-                              </span>
+                              </a>
                               {it.isVaal && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40">Vaal</span>}
                               {it.isTransfigured && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40">Transfig</span>}
                               {(it.isExceptional || /\b(empower|enlighten|enhance)\b/i.test(it.shortName)) && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">Exceptional</span>}
@@ -2414,7 +2421,15 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                         <div key={it.key} className="p-2.5 rounded-xl bg-slate-950/85 border border-slate-800 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${TIER_STYLES[it.tier]}`}>{it.tier}</span>
-                            <span className="text-xs font-bold text-white truncate">{it.shortName}</span>
+                            <a
+                              href={buildPoeWikiUrl(it.shortName, game)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open ${it.shortName} on PoE Wiki`}
+                              className="text-xs font-bold text-white hover:text-amber-200 hover:underline decoration-amber-400/70 underline-offset-2 truncate"
+                            >
+                              {it.shortName}
+                            </a>
                           </div>
                           <div className="flex items-center gap-1.5 font-mono text-xs shrink-0">
                             <span className="text-amber-300 font-bold">

@@ -631,3 +631,14 @@ export function formatCountdown(seconds: number): string {
   const s = seconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
+
+export function buildPoeWikiUrl(itemName: string, game: 'poe1' | 'poe2' = 'poe1'): string {
+  const clean = String(itemName || '')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const slug = encodeURIComponent(clean.replace(/ /g, '_'));
+  return game === 'poe2'
+    ? `https://www.poe2wiki.net/wiki/${slug}`
+    : `https://www.poewiki.net/wiki/${slug}`;
+}
