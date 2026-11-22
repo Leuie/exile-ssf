@@ -69,7 +69,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
   });
 
   useEffect(() => {
-    document.title = 'Site Updates & Feedback | Exile SSF';
+    document.title = 'Changelog & Feedback | Exile SSF';
   }, []);
 
   useEffect(() => {
@@ -182,7 +182,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-amber-400" />
-              <span>Site Updates &amp; Feedback</span>
+              <span>Changelog &amp; Feedback</span>
             </h1>
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-500/15 border-emerald-500/40 text-emerald-300">
               {SITE_CHANGELOG[0]?.version} Live
@@ -206,7 +206,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
               }`}
             >
               <Sparkles className={`w-3.5 h-3.5 ${mode === 'updates' ? 'text-amber-300' : 'text-slate-500'}`} />
-              <span>Site Updates ({SITE_CHANGELOG.length})</span>
+              <span>Changelog ({SITE_CHANGELOG.length})</span>
             </button>
             <button
               type="button"
