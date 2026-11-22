@@ -410,6 +410,17 @@ async function seedLeuieAvatarToD1(db: any): Promise<void> {
     stmts.push(db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(guideResetKey, now));
     if (stmts.length > 0) await db.batch(stmts);
   }
+
+  // One time migration: remove fake seeded feedback posts (fb-1..fb-4) while preserving genuine community submissions
+  const fbCleanKey = 'seed:clear_fake_feedback:v1';
+  const existingFbClean = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(fbCleanKey).first();
+  if (!existingFbClean) {
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare(`DELETE FROM feedback WHERE id IN ('fb-1', 'fb-2', 'fb-3', 'fb-4')`),
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(fbCleanKey, now)
+    ]);
+  }
 }
 
 

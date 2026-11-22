@@ -1,4 +1,4 @@
-# EXILE SSF: Path of Exile 1 & 2 Compendium, Farming Tracker, and GSF Portal
+# EXILE SSF: Path of Exile 1 & 2 Compendium, Asset & Map Trackers, and GSF Portal
 
 <div align="center">
 
@@ -32,52 +32,46 @@ Built to serve as a fast second monitor companion, **EXILE SSF** combines live s
 
 ## Core Capabilities and Feature Modules
 
-### 1. Farming & Drop Tracker (`/farming`)
-Modular second monitor dashboard (`FarmingTrackerView.tsx` + `src/components/farming/*` + `worker/routes/farming.ts`) designed for SSF and GSF mapping productivity:
-* **Compact 2 Card Summary & Stash Rail**: Displays **Wealth & Pace** (`Total | Hourly`, Strategy tag, `Maps/hr`, SVG Area Sparkline chart) and **Category Breakdown** (`Divines / Points | Percentage`) above a vertical colored Stash Tab rail (`Tabs | History | Stats`) and a dense sortable table (`Table | Bracket Cards`).
-* **15 Stash Tab Live Scanner & Progress Indicator**: Select up to **15 Dump & Specialty Tabs** with live per tab scanning progress (`Scanning tab 4 of 15...`), Before/After session diffing, **Auto Pull (`15m / 30m / 60m`)**, **Focus Mode**, and a **Direct Browser JSON Fallback** (zero `POESESSID` required).
-* **Dual Value System (`SSF Utility` | `poe.ninja`) & Custom Weights Editor**: Live 60 minute cached `poe.ninja` pricing with automatic **S / A / B / C Tiering**, plus an editable **SSF Weights** drawer (`WeightsEditorDrawer.tsx`) for customizing category multipliers, Wishlist bonuses, and exact item price overrides.
-* **Deep Gem & Equipment Bracket Sorting**: Parses Gem **Level**, **Quality %**, **Vaal**, **Transfigured**, **Awakened**, and **Corrupted** tags alongside Equipment defense brackets (**Armour, Evasion, Energy Shield, Hybrid, Ward, Weapons, Jewellery, Jewels, Flasks**).
-* **Live `Client.txt` Watcher (100% Browser Local)**: Attaches directly to your Steam or Standalone `Client.txt` (with copyable folder path helpers) to poll Maps Run, Pace, Deaths, and Current Zone every 15 seconds without uploading files.
-* **Cloudflare D1 Cloud Stash & `.xlsx` Export**: Automatically persists synced stash state (`farming_stash_state`) and saved sessions (`farming_sessions`) to Cloudflare D1 across devices, with Strategy Leaderboards, Direct Wishlist Claim, `+ Free Stash` sharing, League Feed recaps, opt in desktop drop notifications, and multi tab `.xlsx` export.
-* **Clear Demo Preview Mode**: First time visitors can click **Load Sample DEMO Data** (explicitly badged as `DEMO DATA`) to explore tiering and filters before importing their own stash.
+### 1. Asset Tracker (`/assets`) & Map Tracker (`/maps`)
+Split into two focused second monitor workspaces (`AssetTrackerView.tsx` + `src/components/assets/*`, `MapTrackerView.tsx` + `src/components/maps/*`, and `worker/routes/assets.ts`):
+* **Asset Tracker (`/assets`)**: Standardized **18 Slot Canonical Tab Mapper** (12 specialty tabs + Levelling Items Quad + Dump 1 to 5, with Auto Match, `Not Owned / Omit` hiding, and Maps/Uniques GGG API notice), **3 pure SVG charts** (Interactive Wealth Timeline, Category Share Donut, Top Yielding Tabs), default current challenge league **`poe.ninja`** pricing with **`SSF Utility`** toggle + customizable **Weights** drawer, deep sorting and filtering for **Gems** (Level, Quality, Transfigured, Exceptional, Vaal, Awakened), **Flasks** (Quality, iLvl), **Div Cards** (`Full Stacks Ready`), **Uniques** (`6 Link`), **Essences**, **Maps**, and **Gear**, opt in local `POESESSID` with 30 day disclaimer memory, wall clock background safe `15m / 30m / 60m` auto sync, Cloudflare D1 cloud stash persistence, and `.xlsx` export.
+* **Map Tracker (`/maps`)**: Dedicated realtime **`Client.txt`** mapping telemetry with a **3 step setup guide**, **custom Start Date calendar modal**, per map duration, hideout downtime %, death tracking, special zone tagging (Betrayal Safehouses, Temple of Atzoatl, Sanctum, Pinnacle Bosses), **automatic GGG character experience XP/hr polling** grouped by league (`/api/farming/character-xp`), **Live XP/hr & Atlas Strategy Comparison SVG charts**, Cloudflare D1 cloud history, and an in game **Timekeeper's Map Device** speedrun tip callout.
 
 ### 2. Private League Hub (`/privateleaguehub` & `/league/:id`)
 Universal cooperative GSF hub for hosting and managing any Path of Exile 1 or Path of Exile 2 private league:
-* **Command Center & Live Feed (`/feed`)**: League Firsts Hall of Fame, crowdfund progress, Likes, inline shoutout comments, unread `X new` badge, and Discord/Root webhook alerts.
-* **Wishlists, Free Stash & Loot Filter Generator**: 28 category item taxonomy, `Ctrl+C` tooltip parser, Path of Building wishlist importer (`pako`), reverse Free Stash Feed, and `.filter` block generator.
+* **Command Center & Live Feed (`/feed`)**: Embedded **ExileCon 2026 Keynote** & **3.30 Covens of Umbra Launch** videos, crowdfund progress, Likes, inline shoutout comments, unread `X new` badge, and Discord/Root webhook alerts.
+* **Wishlists, Free Stash & Loot Filter Generator**: Official **Path of Exile item icons** in the top right of every Wishlist card (via live `poe.ninja` CDN mapping), 28 category taxonomy, `Ctrl+C` tooltip parser, Path of Building wishlist importer (`pako`), reverse Free Stash Feed, and `.filter` block generator.
 * **Bounties, Boss Rotas & Legacy Honors**: Prominent command ribbon sub navigation uniting Active Bounties, Boss Carries & Vouches, Fulfilled Wishes & Heroes, and persistent cross season Achievements & Honor Points.
-* **Roster, Squad Atlas Matrix & Official Ladder Sync**: Account based slots with multi character tracking, 10 mechanic Squad Atlas Matrix, 10 minute Cloudflare Cron official ladder sync, and zero dependency `.xlsx` Google Sheets export/import.
+* **Roster, Dedicated 25 Mechanic Atlas Matrix (`/mechanics`) & Hall of Fame (`/hall-of-fame`)**: Focused Roster view with **automatic 12 hour official ladder sync** until league expiration; dedicated **Mechanics** tab covering all **25 Atlas & Endgame mechanics** (including Bestiary, Abyss, Beyond, Torment, Settlers, and more) with one click Claim / Drop lane syncing to D1; and a dedicated **Hall of Fame** tab for League Firsts milestones.
 
-### 3. Universal Compendium & Daily Tools (PoE 1 & PoE 2 Parity)
-* **Official Patch Notes (`/patch-notes`)**: Full width live GGG forum feed for PoE 1 and PoE 2 with a searchable **Grouped Expansion Dropdown** (`Expansion 3.30 Series`, `3.29`, etc.), Major Expansion pinning, and clean post body extraction.
-* **Unified Builds Hub (`/builds`)**: Combines Community Guides, SSF Starters, Guide Ingestion, and PoB Build Doctor filtered by game and patch.
-* **Regex Studio (`/regex`)**: Embedded `poe.re` (Vendor, Gems, Map Mods, Items, Heist, Bestiary, Tattoo, Runegraft, Ultimatum) and `poe2.re` (Waystones, Vendor & Items, Tablets & Relics) with personal saved regex presets.
-* **Modernized Mechanics & Recipes**: PoE 1 & PoE 2 **Vendor Formulas** (with Salvage, Disenchanting, Reforging Bench & quick stash regexes), **Defenses Masterclass** (Interactive EHP & Mitigation Calculator for both 5x PoE 1 and 10x PoE 2 Armour curves + Red Map/Waystone checklist), **Offenses Masterclass** (6 Step Scaling Pipeline, Interactive Multiplier Sandbox, Ailments Reference), **Mechanic Cheat Sheets**, and **Crafting Bench & Stash**.
+### 3. Universal Compendium, Builds Hub & External Portals (PoE 1 & PoE 2 Parity)
+* **Unified Builds Hub (`/builds`)**: Condensed `All Builds & Guides` directory with `SSF Starters Only` filter, minimum guide detail gate, zero fake likes/ratings, live **Mobalytics & Maxroll.gg** build puller (`/api/builds/external`), Guide Ingestion, and **PoB Build Doctor** featuring a live **`pobb.in` / `pastebin.com` URL resolver** (`/api/pob/resolve`), parsed vitals strip, and **one click Sync to Private League Roster** (Main or Alt).
+* **Official Patch Notes (`/patch-notes`) & Site Updates & Feedback (`/feedback`)**: Live GGG forum feed with grouped expansion dropdown and **EST post & edit timestamps**; plus a matching **Site Updates & Feedback** changelog reader with real community requests (zero fake posts).
+* **Cloud Synced Tools (`user_tool_state` in Cloudflare D1)**: Shared **ExternalPortalFrame** powering PoE Wiki, PoEDB, live current league PoE Ninja, and **Sabrewulf.net** interactive Crafting Bench with dynamic `My Character & Wishlist` quick lookups; cloud synced **Regex Studio** presets + auto safe map regex generator; **Defenses Masterclass** EHP Calculator with **Load My League PoB Stats**; **Atlas Voidstone & Bonus Tracker**; searchable **Crafting Bench** unlock checklist; **Campaign & Lab** cloud checklists; **Tools Directory** pinned favorites; and a live **GGG NZDT/NZST + Local Timezone** clock in the Sidebar footer.
 
 ### 4. Dedicated Exile Profiles (`/exile/:handle`) & Privacy Policy (`/privacy`)
-* **Cross Game Profiles**: `All Games | PoE 1 | PoE 2` switcher, Profile Studio (live avatar preview, Imgur normalization, title picker), **Farming Telemetry & Season Trophy Case** (Maps Blasted, Avg Pace, Top Strategy, Notable Unique Drops), Safe Mapping Regex Generator, Session Scratchpad, and Honor Points History Ledger.
-* **Security & Privacy (`/privacy`)**: Strict HMAC SHA256 signed `HttpOnly; Secure; SameSite=Lax` `exile_session` cookie enforced globally on all state changing `POST`, `PUT`, and `DELETE` Worker routes, owner/admin profile and cloud stash verification, stateless memory only `POESESSID` handling, and automatic Vite chunk reload recovery (`lazyWithRetry` + `AppErrorBoundary`).
+* **Cross Game Profiles**: `All Games | PoE 1 | PoE 2` switcher, Profile Studio, **Farming Telemetry & Season Trophy Case**, Safe Mapping Regex Generator, Session Scratchpad, and Honor Points History Ledger.
+* **Security & Privacy (`/privacy`)**: Strict HMAC SHA256 signed `HttpOnly; Secure; SameSite=Lax` `exile_session` cookie enforced globally on all state changing `POST`, `PUT`, and `DELETE` Worker routes, owner/admin verification, transparent opt in local `POESESSID` + 30 day disclaimer policy, unified `font-cinzel` typography site wide, and automatic Vite chunk reload recovery (`lazyWithRetry` + `AppErrorBoundary`).
 
 ## Modular Architecture and Cloudflare D1 Edge Stack
 
 ```mermaid
 flowchart TD
     User["Exile Browser / Brave PWA / Root / Discord"] --> Worker["Cloudflare Worker (Static Assets + Edge OG + Global Auth Gate)"]
-    Worker --> FarmingAPI["worker/routes/farming.ts (/api/farming/*)"]
+    Worker --> AssetAPI["worker/routes/assets.ts (/api/farming/*)"]
     Worker --> App["React 19 App Shell (lazyWithRetry + AppErrorBoundary)"]
 
     subgraph "Core Hubs & Modular Views"
-        App --> Farming["FarmingTrackerView (/farming + farmingEngine + WeightsEditor + Sparkline)"]
-        App --> Profile["ExileProfilePage (/exile/:handle + Farming Trophy Case + Honor Ledger)"]
-        App --> Hub["PrivateLeagueHubView (/league/:id: Command, Feed, Wishlists, Bounties, Roster)"]
-        App --> Tools["PatchNotesView / BuildsHubView / PoERegexStudioView / PrivacyPolicyView"]
+        App --> Assets["AssetTrackerView (/assets + CanonicalTabMapper + AssetAnalyticsDeck)"]
+        App --> Maps["MapTrackerView (/maps + Client.txt Live Watcher + MapAnalyticsCharts)"]
+        App --> Hub["PrivateLeagueHubView (Command, Feed, Wishlists, Bounties, Roster, Mechanics, Hall of Fame)"]
+        App --> Tools["BuildsHub / PatchNotes / SiteUpdates / RegexStudio / Sabrewulf / PrivacyPolicy"]
     end
 
     subgraph "Cloudflare Edge Storage"
-        Worker <--> D1[("Cloudflare D1 SQLite (EXILE_DB: 18 Atomic Tables)")]
-        Worker <--> KV[("Cloudflare KV (poe.ninja 60m, Patch Notes 30m, Ladder 5m)")]
-        FarmingAPI <--> External["poe.ninja Economy API & Official GGG APIs"]
+        Worker <--> D1[("Cloudflare D1 SQLite (EXILE_DB: 19 Atomic Tables incl. user_tool_state)")]
+        Worker <--> KV[("Cloudflare KV (poe.ninja 60m, Patch Notes 30m, External Builds 60m, Ladder 5m)")]
+        AssetAPI <--> External["poe.ninja Economy & Icons API + Official GGG APIs"]
     end
 ```
 
