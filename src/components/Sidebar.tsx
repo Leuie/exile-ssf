@@ -22,7 +22,6 @@ import {
   Scroll,
   ExternalLink,
   Home as HomeIcon,
-  Stethoscope,
   UserCheck
 } from "lucide-react";
 
@@ -117,15 +116,14 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
+        { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
     {
-      title: 'Builds & Ingestion',
+      title: 'Builds & Guides',
       items: [
-        { id: 'build_ingest', label: 'Ingest Guides', icon: Sparkles, badge: 'Import' },
-        { id: 'builds', label: 'SSF Starters', icon: Flame, badge: 'Builds' },
-        { id: 'build_doctor', label: 'PoB Build Doctor', icon: Stethoscope, badge: 'Doctor' }
+        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' }
       ]
     },
     {
@@ -140,6 +138,8 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
+        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
+        { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
         { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Recipes' },
         { id: 'defenses', label: 'Defenses Masterclass', icon: ShieldCheck, badge: 'Guide' },
         { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' }
@@ -162,14 +162,22 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
+        { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
     {
-      title: 'Builds & Ingestion',
+      title: 'Builds & Guides',
       items: [
-        { id: 'build_ingest', label: 'Ingest Guides', icon: Sparkles, badge: 'Import' }
+        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' }
+      ]
+    },
+    {
+      title: 'Mechanics & Recipes',
+      items: [
+        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
+        { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' }
       ]
     },
     {

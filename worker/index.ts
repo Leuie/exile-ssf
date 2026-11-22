@@ -635,6 +635,20 @@ function resolvePageMeta(url: URL): PageMeta {
     };
   }
 
+  if (path === '/patch-notes' || path === '/patchnotes') {
+    return {
+      title: 'Official Patch Notes (PoE 1 & PoE 2) | Exile SSF',
+      description: 'Full width Path of Exile 1 and Path of Exile 2 official patch notes pulled live from Grinding Gear Games with instant keyword search and direct official links.'
+    };
+  }
+
+  if (path === '/builds' || path === '/build-hub') {
+    return {
+      title: 'SSF & GSF Builds Hub (PoE 1 & PoE 2) | Exile SSF',
+      description: 'Browse Path of Exile 1 and Path of Exile 2 community guides, verified SSF league starters, PoB Build Doctor diagnostics, and guide ingestion filtered by game and patch.'
+    };
+  }
+
   if (path === '/admin') {
     return {
       title: 'League Admin Portal | Exile SSF',
@@ -983,6 +997,227 @@ export default {
 
       const leagueId = url.searchParams.get('league') || 'poe1-330-umbra';
       const now = new Date().toISOString();
+
+
+      // GET /api/patch-notes?game=poe1|poe2 (Live GGG Forum Auto Pull + 30 Min KV Cache + Resilient Fallback)
+      if (url.pathname === '/api/patch-notes' && request.method === 'GET') {
+        try {
+          const gameParam = (url.searchParams.get('game') || 'poe1').toLowerCase() === 'poe2' ? 'poe2' : 'poe1';
+          const forceRefresh = url.searchParams.get('refresh') === '1';
+          const cacheKey = `patchnotes:list:${gameParam}`;
+
+          if (!forceRefresh && env.EXILE_KV) {
+            const cached = await env.EXILE_KV.get(cacheKey);
+            if (cached) {
+              return new Response(cached, { headers: CORS_HEADERS });
+            }
+          }
+
+          const forumUrl =
+            gameParam === 'poe2'
+              ? 'https://www.pathofexile.com/forum/view-forum/2212'
+              : 'https://www.pathofexile.com/forum/view-forum/patch-notes';
+
+          const fallbackEntries =
+            gameParam === 'poe2'
+              ? [
+                  {
+                    id: 'poe2-050',
+                    title: 'Path of Exile 2: 0.5.0 Return of the Ancients Patch Notes',
+                    officialUrl: 'https://www.pathofexile.com/forum/view-forum/2212',
+                    postedAt: 'Latest PoE 2 Season',
+                    game: 'poe2'
+                  }
+                ]
+              : [
+                  {
+                    id: 'poe1-330d',
+                    title: '3.30.0d Patch Notes (Covens of Umbra)',
+                    officialUrl: 'https://www.pathofexile.com/forum/view-forum/patch-notes',
+                    postedAt: 'Latest PoE 1 Hotfix',
+                    game: 'poe1'
+                  },
+                  {
+                    id: 'poe1-330c',
+                    title: '3.30.0c Patch Notes (Threads of Creation & Balance)',
+                    officialUrl: 'https://www.pathofexile.com/forum/view-forum/patch-notes',
+                    postedAt: '3.30.0c',
+                    game: 'poe1'
+                  },
+                  {
+                    id: 'poe1-3300',
+                    title: '3.30.0 Content Update: Path of Exile: Covens of Umbra',
+                    officialUrl: 'https://www.pathofexile.com/forum/view-forum/patch-notes',
+                    postedAt: '3.30 Launch',
+                    game: 'poe1'
+                  }
+                ];
+
+          let entries: any[] = [];
+          let source: 'live' | 'fallback' = 'fallback';
+
+          try {
+            const res = await fetch(forumUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
+                Accept: 'text/html'
+              }
+            });
+            if (res.ok) {
+              const html = await res.text();
+              const threadRegex = /href="\/forum\/view-thread\/(\d+)"[^>]*>\s*([^<]{6,180})\s*<\/a>/gi;
+              const seen = new Set<string>();
+              let m: RegExpExecArray | null;
+              while ((m = threadRegex.exec(html)) !== null && entries.length < 20) {
+                const tid = m[1];
+                const rawTitle = m[2]
+                  .replace(/&amp;/g, '&')
+                  .replace(/&#039;/g, "'")
+                  .replace(/&quot;/g, '"')
+                  .trim();
+                if (!tid || seen.has(tid) || !rawTitle || rawTitle.toLowerCase() === 'last post') continue;
+                seen.add(tid);
+                entries.push({
+                  id: tid,
+                  title: rawTitle,
+                  officialUrl: `https://www.pathofexile.com/forum/view-thread/${tid}`,
+                  postedAt: 'Official GGG Post',
+                  game: gameParam
+                });
+              }
+              if (entries.length > 0) source = 'live';
+            }
+          } catch {}
+
+          const payloadStr = JSON.stringify({
+            status: 'ok',
+            game: gameParam,
+            source,
+            forumUrl,
+            syncedAtIso: now,
+            entries: entries.length > 0 ? entries : fallbackEntries
+          });
+
+          if (env.EXILE_KV && entries.length > 0) {
+            await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 1800 });
+          }
+
+          return new Response(payloadStr, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // GET /api/patch-notes/thread?id=<threadId> (Fetch & Sanitize Official GGG Thread into Clean Full Width Blocks)
+      if (url.pathname === '/api/patch-notes/thread' && request.method === 'GET') {
+        try {
+          const threadId = String(url.searchParams.get('id') || '').trim();
+          if (!/^\d+$/.test(threadId)) {
+            return new Response(
+              JSON.stringify({
+                status: 'fallback',
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Click "Read on pathofexile.com" above to open the official Grinding Gear Games patch notes forum thread directly.'
+                  }
+                ]
+              }),
+              { headers: CORS_HEADERS }
+            );
+          }
+
+          const cacheKey = `patchnotes:thread:${threadId}`;
+          if (env.EXILE_KV) {
+            const cached = await env.EXILE_KV.get(cacheKey);
+            if (cached) return new Response(cached, { headers: CORS_HEADERS });
+          }
+
+          const threadUrl = `https://www.pathofexile.com/forum/view-thread/${threadId}`;
+          const res = await fetch(threadUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
+              Accept: 'text/html'
+            }
+          });
+
+          if (!res.ok) {
+            return new Response(
+              JSON.stringify({
+                status: 'unavailable',
+                officialUrl: threadUrl,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Grinding Gear Games forums temporarily rate limited edge fetching. Open the official link above to read the full thread directly.'
+                  }
+                ]
+              }),
+              { headers: CORS_HEADERS }
+            );
+          }
+
+          const html = await res.text();
+          const contentMatch = html.match(/<div class="content">([\s\S]*?)<\/div>\s*<div class="(?:last_edited_by|signature|clear)/i);
+          const rawPost = contentMatch ? contentMatch[1] : '';
+
+          const decodeEntities = (str: string) =>
+            str
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#039;/g, "'")
+              .replace(/&nbsp;/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+          const blocks: { kind: 'heading' | 'bullet' | 'paragraph'; text: string }[] = [];
+          if (rawPost) {
+            const normalized = rawPost
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/(?:p|div|h1|h2|h3|h4|li)>/gi, '\n')
+              .replace(/<li[^>]*>/gi, '• ')
+              .replace(/<(?:h1|h2|h3|h4|strong)[^>]*>([^<]{3,100})<\/(?:h1|h2|h3|h4|strong)>/gi, '\n### $1\n')
+              .replace(/<[^>]+>/g, '');
+
+            for (const rawLine of normalized.split('\n')) {
+              const line = decodeEntities(rawLine);
+              if (!line || line.length < 2) continue;
+              if (line.startsWith('### ')) {
+                blocks.push({ kind: 'heading', text: line.slice(4).trim() });
+              } else if (line.startsWith('• ')) {
+                blocks.push({ kind: 'bullet', text: line.slice(2).trim() });
+              } else {
+                blocks.push({ kind: 'paragraph', text: line });
+              }
+            }
+          }
+
+          const payloadStr = JSON.stringify({
+            status: blocks.length > 0 ? 'ok' : 'unavailable',
+            officialUrl: threadUrl,
+            syncedAtIso: now,
+            blocks:
+              blocks.length > 0
+                ? blocks.slice(0, 600)
+                : [
+                    {
+                      kind: 'paragraph',
+                      text: 'Could not extract body text automatically from this GGG thread. Use the Official GGG Link button above to read it directly.'
+                    }
+                  ]
+          });
+
+          if (env.EXILE_KV && blocks.length > 0) {
+            await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 21600 });
+          }
+
+          return new Response(payloadStr, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
 
       // GET /api/data (Single atomic round trip from D1 with automatic KV migration)
       if (url.pathname === '/api/data' && request.method === 'GET') {

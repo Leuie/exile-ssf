@@ -6,8 +6,10 @@ const VendorRecipesView = lazy(() => import('./components/VendorRecipesView').th
 const AtlasView = lazy(() => import('./components/AtlasView').then((m) => ({ default: m.AtlasView })));
 const DefenseMechanicsView = lazy(() => import('./components/DefenseMechanicsView').then((m) => ({ default: m.DefenseMechanicsView })));
 const OffensesView = lazy(() => import('./components/OffensesView').then((m) => ({ default: m.OffensesView })));
-const BuildsShowcaseView = lazy(() => import('./components/BuildsShowcaseView').then((m) => ({ default: m.BuildsShowcaseView })));
-const BuildAnalyzerView = lazy(() => import('./components/BuildAnalyzerView').then((m) => ({ default: m.BuildAnalyzerView })));
+const BuildsHubView = lazy(() => import('./components/BuildsHubView').then((m) => ({ default: m.BuildsHubView })));
+const PatchNotesView = lazy(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
+const CheatSheetsTab = lazy(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
+const BenchGuideTab = lazy(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const LabyrinthGuideView = lazy(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
 const CampaignWalkthroughView = lazy(() => import('./components/CampaignWalkthroughView').then((m) => ({ default: m.CampaignWalkthroughView })));
 const ProgressTrackerView = lazy(() => import('./components/ProgressTrackerView').then((m) => ({ default: m.ProgressTrackerView })));
@@ -19,7 +21,6 @@ const PoE2HubView = lazy(() => import('./components/PoE2HubView').then((m) => ({
 const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
 const PrivateLeagueHubView = lazy(() => import('./components/PrivateLeagueHubView').then((m) => ({ default: m.PrivateLeagueHubView })));
 const FeedbackView = lazy(() => import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView })));
-const BuildIngestionView = lazy(() => import('./components/BuildIngestionView').then((m) => ({ default: m.BuildIngestionView })));
 const DualLinkModal = lazy(() => import('./components/DualLinkModal').then((m) => ({ default: m.DualLinkModal })));
 const AuthRegistrationModal = lazy(() => import('./components/AuthRegistrationModal').then((m) => ({ default: m.AuthRegistrationModal })));
 const LoginPage = lazy(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
@@ -128,6 +129,19 @@ export const App: React.FC = () => {
       return 'private_league_hub';
     }
 
+    if (path === '/patch-notes' || path === '/patchnotes' || hash === 'patch-notes' || hash === 'patchnotes') {
+      return 'patch_notes';
+    }
+    if (path === '/builds' || path === '/build-hub' || hash === 'builds') {
+      return 'builds';
+    }
+    if (path === '/cheat-sheets' || path === '/cheatsheets' || hash === 'cheat-sheets') {
+      return 'cheat_sheets';
+    }
+    if (path === '/crafting-bench' || path === '/bench' || hash === 'crafting-bench') {
+      return 'crafting_bench';
+    }
+
     return 'home';
   };
 
@@ -231,6 +245,14 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/privateleaguehub');
         } else if (tab === 'single_league' || tab === 'private_league') {
           window.history.pushState({}, '', `/league/${selectedLeagueSessionId}`);
+        } else if (tab === 'patch_notes') {
+          window.history.pushState({}, '', '/patch-notes');
+        } else if (tab === 'builds' || tab === 'build_doctor' || tab === 'build_ingest') {
+          window.history.pushState({}, '', '/builds');
+        } else if (tab === 'cheat_sheets') {
+          window.history.pushState({}, '', '/cheat-sheets');
+        } else if (tab === 'crafting_bench') {
+          window.history.pushState({}, '', '/crafting-bench');
         } else if (tab === 'home') {
           window.history.pushState({}, '', '/');
         }
@@ -515,12 +537,22 @@ export const App: React.FC = () => {
         }`}>
         <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
+        {activeTab === 'patch_notes' && <PatchNotesView initialGame={selectedGame} />}
+        {activeTab === 'cheat_sheets' && <CheatSheetsTab />}
+        {activeTab === 'crafting_bench' && <BenchGuideTab />}
         {activeTab === 'vendor_recipes' && <VendorRecipesView />}
         {activeTab === 'atlas' && <AtlasView />}
         {activeTab === 'defenses' && <DefenseMechanicsView />}
         {activeTab === 'offenses' && <OffensesView />}
-        {activeTab === 'builds' && <BuildsShowcaseView />}
-        {activeTab === 'build_doctor' && <BuildAnalyzerView />}
+        {activeTab === 'builds' && (
+          <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="community" />
+        )}
+        {activeTab === 'build_doctor' && (
+          <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="doctor" />
+        )}
+        {activeTab === 'build_ingest' && (
+          <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="ingest" />
+        )}
         {activeTab === 'labyrinth' && <LabyrinthGuideView />}
         {activeTab === 'campaign' && <CampaignWalkthroughView />}
         {activeTab === 'tracker' && <ProgressTrackerView />}
@@ -536,12 +568,6 @@ export const App: React.FC = () => {
           <FeedbackView
             userAccount={userAccount}
             onOpenAuthModal={handleOpenAuth}
-          />
-        )}
-        {activeTab === 'build_ingest' && (
-          <BuildIngestionView
-            userAccount={userAccount}
-            onNavigateToGuides={() => handleSelectTab('builds')}
           />
         )}
         {(activeTab === 'private_league_hub' || activeTab === 'private_leagues') && (

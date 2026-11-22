@@ -666,3 +666,56 @@ export async function cloudAuthLogout(): Promise<void> {
     });
   } catch {}
 }
+
+export interface OfficialPatchNoteEntry {
+  id: string;
+  title: string;
+  officialUrl: string;
+  postedAt: string;
+  game: 'poe1' | 'poe2';
+}
+
+export interface PatchNotesListResponse {
+  status: string;
+  game: 'poe1' | 'poe2';
+  source: 'live' | 'fallback';
+  forumUrl: string;
+  syncedAtIso: string;
+  entries: OfficialPatchNoteEntry[];
+}
+
+export interface PatchNoteBlock {
+  kind: 'heading' | 'bullet' | 'paragraph';
+  text: string;
+}
+
+export async function fetchOfficialPatchNotes(
+  game: 'poe1' | 'poe2',
+  forceRefresh: boolean = false
+): Promise<PatchNotesListResponse | null> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/patch-notes?game=${game}${forceRefresh ? '&refresh=1' : ''}&_t=${Date.now()}`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchOfficialPatchThread(
+  threadId: string
+): Promise<{ status: string; officialUrl?: string; blocks: PatchNoteBlock[] } | null> {
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/patch-notes/thread?id=${encodeURIComponent(threadId)}`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
