@@ -58,7 +58,8 @@ import type {
   FreeStashDrop,
   BossRotaListing,
   LeagueFirstMilestone,
-  LeagueFeedEvent
+  LeagueFeedEvent,
+  LeagueStaffMember
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import type { ManagerSectionType } from './LeagueContentManagerModal';
@@ -69,6 +70,8 @@ const RosterTab = lazy(() => import('./league/tabs/RosterTab').then((m) => ({ de
 const CommandCenterTab = lazy(() => import('./league/tabs/CommandCenterTab').then((m) => ({ default: m.CommandCenterTab })));
 const LeagueFirstsWall = lazy(() => import('./league/widgets/LeagueFirstsWall').then((m) => ({ default: m.LeagueFirstsWall })));
 const WealthLadderBoard = lazy(() => import('./league/widgets/WealthLadderBoard').then((m) => ({ default: m.WealthLadderBoard })));
+const LeagueStaffContactCard = lazy(() => import('./league/widgets/LeagueStaffContactCard').then((m) => ({ default: m.LeagueStaffContactCard })));
+const LeagueManageTab = lazy(() => import('./league/tabs/LeagueManageTab').then((m) => ({ default: m.LeagueManageTab })));
 const MechanicsTab = lazy(() => import('./league/tabs/MechanicsTab').then((m) => ({ default: m.MechanicsTab })));
 const CheatSheetsTab = lazy(() => import('./league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m) => ({ default: m.BuildGuidesTab })));
@@ -122,7 +125,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenProfile
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
@@ -132,6 +135,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     roster: 'roster',
     mechanics: 'mechanics',
     hall_of_fame: 'hall-of-fame',
+    manage: 'manage',
     guides: 'guides',
     cheatsheets: 'cheatsheets',
     new_player: 'bench',
@@ -148,6 +152,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
     if (clean === 'mechanics' || clean === 'atlas-mechanics' || clean === 'niche' || clean === 'lanes') return 'mechanics';
     if (clean === 'hall-of-fame' || clean === 'halloffame' || clean === 'hall_of_fame' || clean === 'firsts' || clean === 'league-firsts') return 'hall_of_fame';
+    if (clean === 'manage' || clean === 'staff' || clean === 'mods' || clean === 'moderation') return 'manage';
     if (clean === 'guides' || clean === 'build-guides' || clean === 'buildguides') return 'guides';
     if (clean === 'cheatsheets' || clean === 'cheat-sheets' || clean === 'mechanics' || clean === 'mechanic-cheat-sheets') return 'cheatsheets';
     if (clean === 'bench' || clean === 'bench-stash-guide' || clean === 'new_player' || clean === 'new-player' || clean === 'stash') return 'new_player';
@@ -213,6 +218,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       roster: 'Roster',
       mechanics: 'Mechanics',
       hall_of_fame: 'Hall of Fame',
+      manage: 'Manage League',
       guides: 'Builds',
       cheatsheets: 'Cheat Sheets',
       new_player: 'Crafting Bench',
@@ -1295,6 +1301,34 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   // Strictly require verified Admin session (no client side localStorage override)
   const isCurrentUserAdmin = Boolean(userAccount?.isAdmin);
 
+  // Per League Staff, Host Admin & Moderators (Max 3 Mods per league, loaded from Cloudflare D1)
+  const [leagueStaff, setLeagueStaff] = useState<LeagueStaffMember[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/league/${encodeURIComponent(activeSessionId)}/staff`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: any) => {
+        if (!cancelled && Array.isArray(d?.staff)) {
+          setLeagueStaff(d.staff);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId]);
+
+  const normalizedMyHandle = (userAccount?.displayName || '').trim().replace(/^@/, '').toLowerCase();
+  const isLeagueHost = Boolean(
+    normalizedMyHandle &&
+      leagueStaff.some((s) => s.role === 'host' && s.handle.trim().replace(/^@/, '').toLowerCase() === normalizedMyHandle)
+  );
+  const myModEntry =
+    leagueStaff.find(
+      (s) => s.role === 'moderator' && s.handle.trim().replace(/^@/, '').toLowerCase() === normalizedMyHandle
+    ) || null;
+  const canAccessManageTab = isCurrentUserAdmin || isLeagueHost || Boolean(myModEntry);
+
 
 
 
@@ -1629,7 +1663,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               },
               { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
               { id: 'mechanics' as HubTab, label: 'Mechanics', icon: Compass, badge: '25', slug: 'mechanics' },
-              { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' }
+              { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' },
+              ...(canAccessManageTab
+                ? [{ id: 'manage' as HubTab, label: 'Manage', icon: ShieldCheck, badge: 'Staff', slug: 'manage' }]
+                : [])
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1708,9 +1745,10 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         <Suspense fallback={<div className="p-10 text-center text-xs font-mono text-slate-400">Loading module...</div>}>
         {/* TAB 1: OVERVIEW AND COMMAND CENTER */}
         {activeTab === 'overview' && (
-          <CommandCenterTab
-            activeSessionId={activeSessionId}
-            isPoE2Session={isPoE2Session}
+          <div className="space-y-6">
+            <CommandCenterTab
+              activeSessionId={activeSessionId}
+              isPoE2Session={isPoE2Session}
             activeLeagueInfo={activeLeagueInfo}
             currentSession={currentSession}
             roster={roster}
@@ -1734,6 +1772,33 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
               setTimeout(() => setCopyNotice(null), 3500);
             }}
+          />
+          <LeagueStaffContactCard
+            leagueName={activeLeagueInfo.name}
+            staff={leagueStaff}
+            canManage={canAccessManageTab}
+            onOpenManageTab={() => handleSelectTab('manage')}
+            onOpenProfile={onOpenProfile}
+          />
+          </div>
+        )}
+
+        {/* TAB: PER LEAGUE HOST & MODERATOR MANAGEMENT CONSOLE */}
+        {activeTab === 'manage' && canAccessManageTab && (
+          <LeagueManageTab
+            leagueId={activeSessionId}
+            leagueName={activeLeagueInfo.name}
+            patchVersion={activeLeagueInfo.version || '3.30'}
+            officialLeagueUrl={activeLeagueInfo.officialLeagueUrl}
+            roster={roster}
+            wishlist={lookingForItems}
+            staff={leagueStaff}
+            setStaff={setLeagueStaff}
+            currentUser={userAccount || null}
+            isSuperAdmin={isCurrentUserAdmin}
+            isLeagueHost={isLeagueHost}
+            myModPermissions={myModEntry?.permissions || null}
+            onOpenContentManager={() => setIsManagerModalOpen(true)}
           />
         )}
 

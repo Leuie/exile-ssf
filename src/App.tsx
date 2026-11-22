@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { SiteNoticeBanner } from './components/SiteNoticeBanner';
 import { cloudAuthLogout } from './services/cloudSync';
 
 // Resilient lazy loader that auto refreshes once if a newly deployed Cloudflare build invalidates an older chunk hash
@@ -569,7 +570,9 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
-      <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out w-full ${
+      <div className="flex-1 min-w-0 flex flex-col w-full">
+        <SiteNoticeBanner />
+        <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out w-full ${
           activeTab === 'single_league' || activeTab === 'private_league' 
             ? 'p-0 max-w-none' 
             : 'p-3 sm:p-5 lg:p-6 max-w-[1700px] w-full mx-auto'
@@ -685,6 +688,7 @@ export const App: React.FC = () => {
         )}
         </Suspense>
       </main>
+      </div>
 
       <Suspense fallback={null}>
       {/* Global Ctrl+K Dual Link Search Modal */}

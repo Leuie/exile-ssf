@@ -613,3 +613,42 @@ export interface LeagueFeedEvent {
   comments?: LeagueFeedComment[];
   createdAtIso: string;
 }
+
+export type LeagueStaffRole = 'host' | 'moderator';
+
+export interface LeagueStaffPermissions {
+  canManageRoster: boolean;
+  canManageWishlists: boolean;
+  canManageAwards: boolean;
+  canBroadcast: boolean;
+  canEditWebhook: boolean;
+  canEditBannerAndLinks: boolean;
+}
+
+export interface LeagueStaffContact {
+  email?: string;
+  discord?: string;
+  root?: string;
+  inGame?: string;
+}
+
+export interface LeagueStaffMember {
+  id: string;
+  handle: string;
+  role: LeagueStaffRole;
+  title?: string;
+  contact: LeagueStaffContact;
+  permissions: LeagueStaffPermissions;
+  addedBy?: string;
+  addedAtIso: string;
+}
+
+export interface SiteBannerConfig {
+  enabled: boolean;
+  message: string;
+  subtext?: string;
+  tone: 'indigo' | 'amber' | 'emerald' | 'rose' | 'holiday';
+  linkLabel?: string;
+  linkUrl?: string;
+  updatedAtIso?: string;
+}

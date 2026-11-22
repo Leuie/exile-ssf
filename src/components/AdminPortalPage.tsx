@@ -428,10 +428,10 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
             </div>
             <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white tracking-tight flex items-center gap-2 pt-0.5">
               <ShieldCheck className="w-5 h-5 text-amber-400" />
-              <span>Admin Command Console</span>
+              <span>Site Super Admin Console</span>
             </h1>
             <p className="text-xs text-slate-400">
-              League health diagnostics, Google Sheets workbook exports, custom host awards, Root/Discord webhooks, and admin access controls.
+              Platform wide oversight across all hosted private leagues, sitewide broadcast banners, Cloudflare KV edge caches, community feedback triage, and admin access.
             </p>
           </div>
 

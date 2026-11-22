@@ -16,6 +16,20 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-22-governance',
+    version: 'v3.30.9',
+    title: 'Macro Site Super Admin Console, Sitewide Notice Banners & Per League Host/Moderator Governance',
+    dateEst: 'Nov 22, 2026 • 6:50 PM EST',
+    summary: 'Separated global platform administration (/admin) from per league moderation (/league/:id/manage), launched a sitewide broadcast banner manager for holidays and maintenance, and added per league Host Admin + up to 3 Moderators with granular permissions and public contact cards.',
+    changes: [
+      { tag: 'Added', text: 'Macro Site Super Admin Console (/admin) showing platform wide D1 metrics across ALL hosted private leagues, a searchable All Private Leagues Manager (Feature, Archive, Reassign Host), KV Edge Cache force refreshes, and global Community Feedback triage & deletion.' },
+      { tag: 'Added', text: 'Sitewide Broadcast Banner system (/api/site-banner + SiteNoticeBanner) letting Site Admin publish custom dismissible banners across all pages with 5 themes (Info, Maintenance, Event, Urgent, Holiday) and optional CTA links.' },
+      { tag: 'Added', text: 'Per League Management Console (/league/:id/manage) visible only to each league\'s Host Admin, nominated Moderators, or Site Super Admin, housing that league\'s health, exports, ladder sync, awards, announcements, per league Webhook, and Staff Manager.' },
+      { tag: 'Added', text: 'Up to 3 Moderators per private league nominated by the League Host with per moderator permission toggles (Edit Webhook, Edit Banner & Links, Grant Event Awards, Post Announcements, Manage Roster, Manage Wishlists).' },
+      { tag: 'Added', text: 'Public League Leadership & Contact Team card on every league\'s Command Center displaying the Host Admin and Moderators with one click Root, Discord, Email (mailto), and Exile Profile contact buttons.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-22-wealth-ladder',
     version: 'v3.30.8',
     title: 'Opt In Hall of Fame Wealth Ladder, PoE Wiki Item Links, Header Reorganization & Tool Guides',

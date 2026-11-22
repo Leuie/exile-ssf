@@ -1,4 +1,5 @@
 import { handleAssetRoutes } from './routes/assets';
+import { handleAdminAndGovernanceRoutes } from './routes/admin';
 import { resolvePageMeta, injectMetaIntoHtml } from './routes/seo';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
@@ -639,8 +640,19 @@ const DEFAULT_WEBHOOK_EVENTS = [
   'roster_join'
 ];
 
-async function getWebhookConfig(env: Env, db: any): Promise<WebhookConfig> {
+async function getWebhookConfig(env: Env, db: any, leagueId?: string): Promise<WebhookConfig> {
   try {
+    if (leagueId) {
+      const leagueRow = await db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind(`webhook:${leagueId}`).first();
+      if (leagueRow?.data) {
+        const parsed = JSON.parse(leagueRow.data);
+        return {
+          url: String(parsed.url || '').trim(),
+          enabled: parsed.enabled !== false,
+          events: Array.isArray(parsed.events) ? parsed.events : DEFAULT_WEBHOOK_EVENTS
+        };
+      }
+    }
     const row = await db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind('global:webhook').first();
     if (row?.data) {
       const parsed = JSON.parse(row.data);
@@ -661,7 +673,7 @@ async function getWebhookConfig(env: Env, db: any): Promise<WebhookConfig> {
 
 async function dispatchWebhookAlert(env: Env, db: any, leagueId: string, event: any): Promise<boolean> {
   try {
-    const cfg = await getWebhookConfig(env, db);
+    const cfg = await getWebhookConfig(env, db, leagueId);
     if (!cfg.enabled || !cfg.url) return false;
     if (!cfg.events.includes(event.type)) return false;
 
@@ -922,6 +934,28 @@ export default {
             );
           }
         }
+      }
+
+      // Delegate modular Platform Admin, Site Banner, and Per League Staff/Moderation routes
+      if (
+        url.pathname === '/api/site-banner' ||
+        url.pathname === '/api/admin/overview' ||
+        url.pathname === '/api/admin/leagues/update' ||
+        url.pathname.startsWith('/api/admin/feedback/') ||
+        /^\/api\/league\/[^/]+\/(staff|webhook)$/.test(url.pathname)
+      ) {
+        const govRes = await handleAdminAndGovernanceRoutes({
+          request,
+          url,
+          env,
+          db,
+          now,
+          corsHeaders: CORS_HEADERS,
+          session,
+          initD1Schema: ensureD1Schema,
+          isSafeWebhookUrl
+        });
+        if (govRes) return govRes;
       }
 
       // Delegate modular Asset Tracker routes
