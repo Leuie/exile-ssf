@@ -184,6 +184,7 @@ interface NavGroup {
         { id: 'poewiki', label: 'PoE Wiki', icon: BookOpen, badge: 'Wiki' },
         { id: 'poedb', label: 'PoEDB', icon: Database, badge: 'DB' },
         { id: 'poe_ninja', label: 'PoE Ninja', icon: TrendingUp, badge: 'Meta' },
+        { id: 'sabrewulf', label: 'Sabrewulf Bench', icon: Compass, badge: 'Bench' },
         { id: 'tools_directory', label: 'Tools Directory', icon: Link, badge: 'Library' }
       ]
     }

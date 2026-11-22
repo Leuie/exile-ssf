@@ -156,6 +156,17 @@ export const DIRECTORY_LINKS: DirectoryLink[] = [
     "poeDbUrl": "https://poedb.tw"
   },
   {
+    "id": "sabrewulf-bench",
+    "title": "Sabrewulf.net (Interactive Crafting Bench)",
+    "category": "Crafting & Emulators",
+    "description": "Visual interactive replica of the exact in game Path of Exile Crafting Bench layout showing every recipe tier, unlock source, and currency cost.",
+    "url": "https://sabrewulf.net/",
+    "iconName": "Hammer",
+    "isEssential": true,
+    "poeWikiUrl": "https://www.poewiki.net/wiki/Crafting_Bench",
+    "poeDbUrl": "https://poedb.tw/us/Crafting_Bench"
+  },
+  {
     "id": "pohx-rf-bible",
     "title": "Pohx.net (Righteous Fire Compendium)",
     "category": "Builds & Ladders",

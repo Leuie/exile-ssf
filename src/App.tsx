@@ -43,6 +43,7 @@ const ToolsDirectoryView = lazyWithRetry(() => import('./components/ToolsDirecto
 const PoEWikiWrapperView = lazyWithRetry(() => import('./components/PoEWikiWrapperView').then((m) => ({ default: m.PoEWikiWrapperView })));
 const PoEDBWrapperView = lazyWithRetry(() => import('./components/PoEDBWrapperView').then((m) => ({ default: m.PoEDBWrapperView })));
 const PoENinjaWrapperView = lazyWithRetry(() => import('./components/PoENinjaWrapperView').then((m) => ({ default: m.PoENinjaWrapperView })));
+const SabrewulfWrapperView = lazyWithRetry(() => import('./components/SabrewulfWrapperView').then((m) => ({ default: m.SabrewulfWrapperView })));
 const PoE2HubView = lazyWithRetry(() => import('./components/PoE2HubView').then((m) => ({ default: m.PoE2HubView })));
 const AboutView = lazyWithRetry(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
 const PrivateLeagueHubView = lazyWithRetry(() => import('./components/PrivateLeagueHubView').then((m) => ({ default: m.PrivateLeagueHubView })));
@@ -175,6 +176,9 @@ export const App: React.FC = () => {
     if (path === '/maps' || path === '/map-tracker' || hash === 'maps') {
       return 'map_tracker';
     }
+    if (path === '/sabrewulf' || hash === 'sabrewulf') {
+      return 'sabrewulf';
+    }
     if (path === '/privacy' || path === '/privacy-policy' || hash === 'privacy') {
       return 'privacy';
     }
@@ -296,6 +300,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/assets');
         } else if (tab === 'map_tracker') {
           window.history.pushState({}, '', '/maps');
+        } else if (tab === 'sabrewulf') {
+          window.history.pushState({}, '', '/sabrewulf');
         } else if (tab === 'privacy') {
           window.history.pushState({}, '', '/privacy');
         } else if (tab === 'home') {
@@ -598,6 +604,7 @@ export const App: React.FC = () => {
         {activeTab === 'poewiki' && <PoEWikiWrapperView initialUrl="https://www.poewiki.net/" title="PoEWiki Portal" isPoE2={false} userAccount={userAccount} />}
         {activeTab === 'poedb' && <PoEDBWrapperView initialUrl="https://poedb.tw/us/" title="PoEDB Portal" isPoE2={false} userAccount={userAccount} />}
         {activeTab === 'poe_ninja' && <PoENinjaWrapperView selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'sabrewulf' && <SabrewulfWrapperView userAccount={userAccount} />}
         {activeTab === 'poe2_hub' && <PoE2HubView />}
         {activeTab === 'poe2_wiki' && <PoEWikiWrapperView initialUrl="https://www.poe2wiki.net/" title="PoE 2 Wiki Portal" isPoE2={true} userAccount={userAccount} />}
         {activeTab === 'poe2_db' && <PoEDBWrapperView initialUrl="https://poe2db.tw/us/" title="PoE 2 DB Portal" isPoE2={true} userAccount={userAccount} />}
