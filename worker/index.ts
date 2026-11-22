@@ -345,6 +345,30 @@ async function seedHonorAndUmbraWitchToD1(db: any): Promise<void> {
   }
 }
 
+let leuieAvatarSeedChecked = false;
+
+async function seedLeuieAvatarToD1(db: any): Promise<void> {
+  if (leuieAvatarSeedChecked || !db) return;
+  leuieAvatarSeedChecked = true;
+  const migKey = 'seed:leuie_avatar:v1';
+  const existingMig = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(migKey).first();
+  if (existingMig) return;
+
+  const now = new Date().toISOString();
+  const row = await db.prepare('SELECT data FROM profiles WHERE handle_lower = ?').bind('leuie').first();
+  const prev = row?.data ? JSON.parse(row.data) : { handle: 'Leuie', uid: 'EXILE-1P8R1S' };
+  const updated = {
+    ...prev,
+    handle: prev.handle || 'Leuie',
+    avatarUrl: 'https://i.imgur.com/1Ob2OA9.png',
+    updatedAtIso: now
+  };
+  await db.batch([
+    db.prepare('INSERT OR REPLACE INTO profiles (handle_lower, data, updated_at) VALUES (?, ?, ?)').bind('leuie', JSON.stringify(updated), now),
+    db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(migKey, now)
+  ]);
+}
+
 
 async function migrateKvToD1ForLeague(env: Env, leagueId: string): Promise<void> {
   if (!env.EXILE_DB || !env.EXILE_KV) return;
@@ -948,6 +972,7 @@ export default {
       try {
         await ensureD1Schema(db);
       await seedHonorAndUmbraWitchToD1(db);
+      await seedLeuieAvatarToD1(db);
       const session = await readVerifiedSession(request, env);
       } catch (err: any) {
         return new Response(JSON.stringify({ status: 'error', message: `D1 init error: ${err.message}` }), {

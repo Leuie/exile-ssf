@@ -107,6 +107,14 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           userAccount.displayName.toLowerCase() === data.profile.handle.toLowerCase()))
   );
 
+  const normalizeAvatarInput = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    const imgurPage = trimmed.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)(?:\/)?$/i);
+    if (imgurPage) return `https://i.imgur.com/${imgurPage[1]}.png`;
+    return trimmed;
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!data?.profile) return;
@@ -114,7 +122,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
 
     const updated: ExileProfile = {
       ...data.profile,
-      avatarUrl: editAvatarUrl.trim() || undefined,
+      avatarUrl: normalizeAvatarInput(editAvatarUrl) || undefined,
       bio: editBio.trim() || undefined,
       timezone: editTimezone.trim() || undefined,
       poeAccountName: editPoeAccount.trim() || undefined,
@@ -293,8 +301,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <div className="w-20 h-20 rounded-2xl border-2 border-indigo-500/50 bg-slate-950 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-lg">
               {profile.avatarUrl && !avatarError ? (
                 <img
-                  src={profile.avatarUrl}
+                  src={normalizeAvatarInput(profile.avatarUrl)}
                   alt={`@${profile.handle} avatar`}
+                  referrerPolicy="no-referrer"
                   onError={() => setAvatarError(true)}
                   className="w-full h-full object-cover"
                 />
@@ -452,8 +461,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <div className="w-20 h-20 rounded-2xl border-2 border-indigo-500/60 bg-slate-900 overflow-hidden flex items-center justify-center shrink-0 shadow-lg">
                 {editAvatarUrl.trim() ? (
                   <img
-                    src={editAvatarUrl.trim()}
+                    src={normalizeAvatarInput(editAvatarUrl)}
                     alt="Live avatar preview"
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />
                 ) : (
