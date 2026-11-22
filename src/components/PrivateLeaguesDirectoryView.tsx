@@ -165,32 +165,44 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
   });
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-16 font-sans">
-      {/* Top Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-950 p-6 sm:p-10 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono font-bold">
-            <Globe className="w-3.5 h-3.5" />
-            <span>Community Private Leagues and Guild Hub</span>
+    <div className="space-y-4 animate-fadeIn pb-12 font-sans">
+      {/* Compact Hero Header Bar (Keeps League Cards Above the Fold) */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/35 to-slate-950 px-5 py-4 shadow-lg">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white tracking-tight">
+                Private League Hub
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-mono font-bold">
+                <Globe className="w-3 h-3" />
+                <span>PoE 1 &amp; PoE 2 GSF Directory</span>
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Coordinate cooperative Group Self Found leagues across Path of Exile 1 and Path of Exile 2. Browse active communities, inspect historical archives, or launch your own league.
+            </p>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-black font-cinzel text-white tracking-tight">
-            Private League Hub
-          </h1>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-1.5 text-[11px] font-mono">
+              <span className="px-2.5 py-1 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-300">
+                <strong className="text-white">{gameLeagues.length}</strong> Total
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300">
+                <strong>{activeCount}</strong> Active
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-950/80 border border-slate-800 text-indigo-300">
+                <strong>{archiveCount}</strong> Archives
+              </span>
+            </div>
 
-          <p className="text-sm text-slate-300 leading-relaxed">
-            Coordinate cooperative Group Self Found leagues across Path of Exile 1 and Path of Exile 2.
-            Browse community rosters, track group wishlists, inspect past read only archives, or launch your own league.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="button"
               onClick={handleOpenCreateModal}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02]"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/25 transition-all"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Create Private League</span>
             </button>
 
@@ -198,42 +210,18 @@ export const PrivateLeaguesDirectoryView: React.FC<PrivateLeaguesDirectoryViewPr
               <button
                 type="button"
                 onClick={onOpenAuthModal}
-                className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <Lock className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Sign In to Manage Your Leagues</span>
+                <span>Sign In</span>
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Quick Stats Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-slate-800/80">
-          <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-mono text-slate-400">Total Leagues</div>
-            <div className="text-xl font-bold font-orbitron text-white mt-0.5">{gameLeagues.length}</div>
-          </div>
-          <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-mono text-emerald-400">Active Seasons</div>
-            <div className="text-xl font-bold font-orbitron text-emerald-300 mt-0.5">
-              {activeCount}
-            </div>
-          </div>
-          <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-mono text-indigo-400">Historical Archives</div>
-            <div className="text-xl font-bold font-orbitron text-indigo-300 mt-0.5">
-              {archiveCount}
-            </div>
-          </div>
-          <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-mono text-amber-400">Primary Host</div>
-            <div className="text-base font-bold font-cinzel text-amber-300 mt-0.5">@Leuie (Ravenwatch)</div>
           </div>
         </div>
       </div>
 
       {/* Filter Tabs and Game Selector */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         {/* Game Switcher: PoE 1 vs PoE 2 */}
         <div className="flex items-center gap-2">
           <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
