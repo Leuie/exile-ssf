@@ -118,6 +118,7 @@ interface LeagueOption {
 type SortField = 'total' | 'price' | 'qty' | 'name' | 'tab' | 'tier' | 'gem_level' | 'gem_quality' | 'ilvl';
 
 const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v2';
+const WORKSPACE_STORAGE_KEY = 'exile_ssf_farming_workspace_v1';
 
 const DEFAULT_LEAGUES: LeagueOption[] = [
   { id: 'poe1-330-umbra', name: 'Ravenwatch Covens of Umbra GSF (PL87651)', game: 'poe1' },
@@ -433,6 +434,15 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     }
   }, []);
 
+  const savedWorkspace = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
+
   const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
   const [leagueOptions, setLeagueOptions] = useState<LeagueOption[]>(DEFAULT_LEAGUES);
   const [linkedLeagueId, setLinkedLeagueId] = useState<string>(savedPrefs.linkedLeagueId || 'poe1-330-umbra');
@@ -442,10 +452,14 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
   // Dashboard Visual Modes
   const [focusMode, setFocusMode] = useState<boolean>(false);
-  const [setupOpen, setSetupOpen] = useState<boolean>(true);
+  const [setupOpen, setSetupOpen] = useState<boolean>(
+    !(Array.isArray(savedWorkspace.activeDrops) && savedWorkspace.activeDrops.length > 0)
+  );
   const [setupTab, setSetupTab] = useState<'api' | 'json' | 'manual'>('api');
   const [wealthMode, setWealthMode] = useState<'total' | 'hourly'>('total');
-  const [valueSystem, setValueSystem] = useState<'ninja' | 'ssf'>('ssf');
+  const [valueSystem, setValueSystem] = useState<'ninja' | 'ssf'>(
+    savedPrefs.valueSystem === 'ninja' ? 'ninja' : 'ssf'
+  );
   const [breakdownMode, setBreakdownMode] = useState<'divines' | 'percent'>('divines');
   const [railTab, setRailTab] = useState<'tabs' | 'snapshots' | 'strategies'>('tabs');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -474,14 +488,16 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
   const [poesessid, setPoesessid] = useState<string>('');
   const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(false);
-  const [stashTabs, setStashTabs] = useState<StashTabMeta[]>([]);
+  const [stashTabs, setStashTabs] = useState<StashTabMeta[]>(
+    Array.isArray(savedWorkspace.stashTabs) ? savedWorkspace.stashTabs : []
+  );
   const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>(
     Array.isArray(savedPrefs.selectedTabIndices) ? savedPrefs.selectedTabIndices : []
   );
   const [activeTabFilter, setActiveTabFilter] = useState<string>('ALL');
   const [loadingTabs, setLoadingTabs] = useState<boolean>(false);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string>('');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>(savedWorkspace.lastSyncedAt || '');
   const [statusNotice, setStatusNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   // Direct Browser JSON Fallback State
@@ -491,20 +507,28 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   // Auto Pull Timer & Live Client.txt Watcher
   const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(0);
   const [secondsUntilSync, setSecondsUntilSync] = useState<number>(0);
-  const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>([]);
+  const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>(
+    Array.isArray(savedWorkspace.checkpoints) ? savedWorkspace.checkpoints : []
+  );
   const clientFileHandleRef = useRef<any>(null);
   const [watchingClientTxt, setWatchingClientTxt] = useState<boolean>(false);
   const [lastZoneName, setLastZoneName] = useState<string>('');
   const [copiedPathId, setCopiedPathId] = useState<string | null>(null);
 
-  // Active Session State
-  const [sessionTitle, setSessionTitle] = useState<string>('T16 Mapping & Dump Session');
+  // Active Session State (Persisted locally across refreshes)
+  const [sessionTitle, setSessionTitle] = useState<string>(
+    savedWorkspace.sessionTitle || 'T16 Mapping & Dump Session'
+  );
   const [strategyTag, setStrategyTag] = useState<string>(savedPrefs.strategyTag || STRATEGY_PRESETS[0]);
-  const [mapsRun, setMapsRun] = useState<number>(0);
-  const [durationMinutes, setDurationMinutes] = useState<number>(60);
-  const [deaths, setDeaths] = useState<number>(0);
-  const [beforeSnapshot, setBeforeSnapshot] = useState<{ at: string; items: TrackedDropItem[] } | null>(null);
-  const [activeDrops, setActiveDrops] = useState<TrackedDropItem[]>([]);
+  const [mapsRun, setMapsRun] = useState<number>(Number(savedWorkspace.mapsRun || 0));
+  const [durationMinutes, setDurationMinutes] = useState<number>(Number(savedWorkspace.durationMinutes || 60));
+  const [deaths, setDeaths] = useState<number>(Number(savedWorkspace.deaths || 0));
+  const [beforeSnapshot, setBeforeSnapshot] = useState<{ at: string; items: TrackedDropItem[] } | null>(
+    savedWorkspace.beforeSnapshot || null
+  );
+  const [activeDrops, setActiveDrops] = useState<TrackedDropItem[]>(
+    Array.isArray(savedWorkspace.activeDrops) ? savedWorkspace.activeDrops : []
+  );
 
   // Manual / Clipboard Drop Input
   const [clipboardText, setClipboardText] = useState<string>('');
@@ -540,11 +564,49 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           leagueName,
           linkedLeagueId,
           selectedTabIndices,
-          strategyTag
+          strategyTag,
+          valueSystem
         })
       );
     } catch {}
-  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag]);
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem]);
+
+  // Persist active synced loot, stash tabs, before snapshot, and checkpoints across page refreshes (never stores POESESSID)
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        WORKSPACE_STORAGE_KEY,
+        JSON.stringify({
+          activeDrops: activeDrops.slice(0, 1500),
+          beforeSnapshot: beforeSnapshot
+            ? { at: beforeSnapshot.at, items: beforeSnapshot.items.slice(0, 1500) }
+            : null,
+          stashTabs,
+          checkpoints,
+          lastSyncedAt,
+          sessionTitle,
+          mapsRun,
+          durationMinutes,
+          deaths
+        })
+      );
+    } catch {}
+  }, [activeDrops, beforeSnapshot, stashTabs, checkpoints, lastSyncedAt, sessionTitle, mapsRun, durationMinutes, deaths]);
+
+  const handleResetSession = () => {
+    setActiveDrops([]);
+    setBeforeSnapshot(null);
+    setCheckpoints([]);
+    setLastSyncedAt('');
+    setMapsRun(0);
+    setDurationMinutes(60);
+    setDeaths(0);
+    setActiveTabFilter('ALL');
+    try {
+      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    } catch {}
+    setStatusNotice({ type: 'ok', text: 'Cleared current farming session.' });
+  };
 
   const loadNinjaPrices = useCallback(async (targetLeague: string, forceRefresh = false) => {
     setLoadingNinja(true);
@@ -2516,6 +2578,17 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                   <span className="font-mono text-[10px] font-bold text-emerald-300">{formatCountdown(secondsUntilSync)}</span>
                 )}
               </div>
+
+              {activeDrops.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetSession}
+                  title="Clear current session drops and start fresh"
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
