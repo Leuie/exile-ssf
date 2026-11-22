@@ -121,7 +121,9 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
   // Stash API Dev Connection State (POESESSID stays in memory only, never persisted on server)
   const [accountName, setAccountName] = useState<string>(userAccount?.poeAccountName || '');
-  const [leagueName, setLeagueName] = useState<string>('PL87651');
+  const [leagueName, setLeagueName] = useState<string>('Ravenwatch Covens of Umbra GSF (PL87651)');
+  const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
+  const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
   const [poesessid, setPoesessid] = useState<string>('');
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>([]);
   const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>([]);
@@ -226,6 +228,42 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     }
     return matches;
   }, [wishlistItems, activeDrops]);
+
+  const handleDetectLeagues = async () => {
+    if (!accountName.trim() || !poesessid.trim()) {
+      setStatusNotice({ type: 'err', text: 'Enter your PoE Account Name (including #tag) and POESESSID first.' });
+      return;
+    }
+    setDetectingLeagues(true);
+    setStatusNotice(null);
+    try {
+      const res = await fetch('/api/farming/detect-leagues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          accountName: accountName.trim(),
+          realm: 'pc',
+          poesessid: poesessid.trim()
+        })
+      });
+      const data: any = await res.json();
+      if (!res.ok || data.error) {
+        setStatusNotice({ type: 'err', text: data.error || 'Could not detect leagues from GGG.' });
+      } else {
+        const list: string[] = Array.isArray(data.leagues) ? data.leagues : [];
+        setDetectedLeagues(list);
+        if (list.length > 0) setLeagueName(list[0]);
+        setStatusNotice({
+          type: 'ok',
+          text: `Detected ${list.length} active league(s) across ${data.characterCount} characters! Pick one and click Load Stash Tabs.`
+        });
+      }
+    } catch (err: any) {
+      setStatusNotice({ type: 'err', text: err.message || 'Network error detecting leagues.' });
+    }
+    setDetectingLeagues(false);
+  };
 
   const handleLoadStashTabs = async () => {
     if (!accountName.trim() || !leagueName.trim() || !poesessid.trim()) {
@@ -746,18 +784,49 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] text-slate-400">
-                  Private testing bridge until Official GGG OAuth is approved. Your POESESSID is never saved to D1, KV, or logs.
+                  Private testing bridge until Official GGG OAuth reopens. Your POESESSID is never saved to D1, KV, or logs.
                 </p>
-                <button
-                  type="button"
-                  disabled={loadingTabs}
-                  onClick={handleLoadStashTabs}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingTabs ? 'animate-spin' : ''}`} />
-                  <span>{loadingTabs ? 'Loading Tabs...' : 'Load Stash Tabs'}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={detectingLeagues}
+                    onClick={handleDetectLeagues}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Search className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{detectingLeagues ? 'Detecting...' : 'Detect My Leagues'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loadingTabs}
+                    onClick={handleLoadStashTabs}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingTabs ? 'animate-spin' : ''}`} />
+                    <span>{loadingTabs ? 'Loading Tabs...' : 'Load Stash Tabs'}</span>
+                  </button>
+                </div>
               </div>
+
+              {detectedLeagues.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] font-mono uppercase text-slate-400">Detected Leagues:</span>
+                  {detectedLeagues.map((lg) => (
+                    <button
+                      key={lg}
+                      type="button"
+                      onClick={() => setLeagueName(lg)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer ${
+                        leagueName === lg
+                          ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      {lg}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Stash Tab Picker Pills */}
               {stashTabs.length > 0 && (

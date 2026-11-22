@@ -1238,47 +1238,153 @@ export default {
         }
       }
 
+      // POST /api/farming/detect-leagues (Auto detects active GGG character leagues using stateless POESESSID)
+      if (url.pathname === '/api/farming/detect-leagues' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const accountName = String(body.accountName || '').trim();
+          const realm = String(body.realm || 'pc').trim().toLowerCase();
+          const poesessid = String(body.poesessid || '').trim();
+
+          if (!accountName || !poesessid) {
+            return new Response(
+              JSON.stringify({ error: 'Account Name and POESESSID are required to detect leagues.' }),
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const gggHeaders = {
+            Cookie: `POESESSID=${poesessid}`,
+            'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+            Accept: 'application/json'
+          };
+
+          // Try exact accountName first, then fallback to # -> - format if needed
+          const candidates = [accountName];
+          if (accountName.includes('#')) candidates.push(accountName.replace('#', '-'));
+          if (accountName.includes('-')) candidates.push(accountName.replace('-', '#'));
+
+          let chars: any[] | null = null;
+          let lastStatus = 0;
+          let lastBody = '';
+          let matchedAccount = accountName;
+
+          for (const acct of candidates) {
+            const urlChars = `https://www.pathofexile.com/character-window/get-characters?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}`;
+            const res = await fetch(urlChars, { headers: gggHeaders });
+            lastStatus = res.status;
+            if (res.ok) {
+              const parsed: any = await res.json();
+              if (Array.isArray(parsed)) {
+                chars = parsed;
+                matchedAccount = acct;
+                break;
+              }
+              lastBody = JSON.stringify(parsed).slice(0, 220);
+            } else {
+              lastBody = (await res.text()).slice(0, 220);
+            }
+          }
+
+          if (!chars) {
+            return new Response(
+              JSON.stringify({
+                error: `GGG returned HTTP ${lastStatus} while reading characters. (${lastBody || 'Check Account Name with #discriminator and POESESSID'})`
+              }),
+              { status: lastStatus || 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const leagues = Array.from(
+            new Set(chars.map((c: any) => String(c?.league || '').trim()).filter(Boolean))
+          );
+          return new Response(
+            JSON.stringify({
+              status: 'ok',
+              matchedAccount,
+              characterCount: chars.length,
+              leagues
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Failed to detect leagues.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
       // POST /api/farming/stash-tabs (Stateless GGG stash tab discovery for personal testing until OAuth is live; never stores POESESSID)
       if (url.pathname === '/api/farming/stash-tabs' && request.method === 'POST') {
         try {
           const body: any = await request.json();
-          const accountName = String(body.accountName || '').trim();
-          const league = String(body.league || '').trim();
+          const rawAccountName = String(body.accountName || '').trim();
+          const rawLeague = String(body.league || '').trim();
           const realm = String(body.realm || 'pc').trim().toLowerCase();
           const poesessid = String(body.poesessid || '').trim();
 
-          if (!accountName || !league || !poesessid) {
+          if (!rawAccountName || !rawLeague || !poesessid) {
             return new Response(
               JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
               { status: 400, headers: CORS_HEADERS }
             );
           }
 
-          const endpoint = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(accountName)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=1&tabIndex=0`;
-          const gggRes = await fetch(endpoint, {
-            headers: {
-              Cookie: `POESESSID=${poesessid}`,
-              'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
-              Accept: 'application/json'
-            }
-          });
+          const league =
+            rawLeague.toUpperCase() === 'PL87651'
+              ? 'Ravenwatch Covens of Umbra GSF (PL87651)'
+              : resolveOfficialLadderName(rawLeague);
 
-          if (!gggRes.ok) {
-            const errMsg =
-              gggRes.status === 403 || gggRes.status === 401
-                ? 'GGG rejected the session (403/401). Double check your POESESSID, Account Name (including #discriminator if used), and League Name.'
-                : gggRes.status === 429
-                ? 'GGG rate limit reached (429). Wait 30 seconds and try again.'
-                : `GGG Stash API returned HTTP ${gggRes.status}. Verify League Name (e.g. PL87651 or Standard).`;
-            return new Response(JSON.stringify({ error: errMsg }), { status: gggRes.status, headers: CORS_HEADERS });
+          const gggHeaders = {
+            Cookie: `POESESSID=${poesessid}`,
+            'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+            Accept: 'application/json'
+          };
+
+          const accountCandidates = [rawAccountName];
+          if (rawAccountName.includes('#')) accountCandidates.push(rawAccountName.replace('#', '-'));
+
+          let data: any = null;
+          let lastStatus = 0;
+          let lastRawError = '';
+          let matchedAccount = rawAccountName;
+
+          for (const acct of accountCandidates) {
+            const endpoint = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=1&tabIndex=0`;
+            const gggRes = await fetch(endpoint, { headers: gggHeaders });
+            lastStatus = gggRes.status;
+            const rawText = await gggRes.text();
+            if (gggRes.ok) {
+              try {
+                const parsed = JSON.parse(rawText);
+                if (!parsed?.error) {
+                  data = parsed;
+                  matchedAccount = acct;
+                  break;
+                }
+                lastRawError = parsed.error.message || JSON.stringify(parsed.error);
+              } catch {
+                lastRawError = rawText.slice(0, 180);
+              }
+            } else {
+              try {
+                const parsedErr = JSON.parse(rawText);
+                lastRawError = parsedErr?.error?.message || rawText.slice(0, 180);
+              } catch {
+                lastRawError = rawText.includes('Just a moment') || rawText.includes('cf-browser-verification')
+                  ? 'Cloudflare bot check blocked edge fetch to pathofexile.com'
+                  : rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+              }
+            }
           }
 
-          const data: any = await gggRes.json();
-          if (data?.error) {
-            return new Response(
-              JSON.stringify({ error: data.error.message || 'GGG Stash API returned an error.' }),
-              { status: 400, headers: CORS_HEADERS }
-            );
+          if (!data) {
+            const errMsg =
+              lastStatus === 429
+                ? 'GGG rate limit reached (429). Wait 30 seconds and try again.'
+                : `GGG Stash API HTTP ${lastStatus} for "${league}": ${lastRawError || 'Verify Account Name (with #1234 tag), full League Name, and POESESSID.'}`;
+            return new Response(JSON.stringify({ error: errMsg }), { status: lastStatus || 400, headers: CORS_HEADERS });
           }
 
           const tabs = Array.isArray(data?.tabs)
@@ -1294,6 +1400,8 @@ export default {
           return new Response(
             JSON.stringify({
               status: 'ok',
+              matchedAccount,
+              resolvedLeague: league,
               numTabs: Number(data?.numTabs || tabs.length),
               tabs
             }),
@@ -1312,7 +1420,11 @@ export default {
         try {
           const body: any = await request.json();
           const accountName = String(body.accountName || '').trim();
-          const league = String(body.league || '').trim();
+          const rawLeague = String(body.league || '').trim();
+          const league =
+            rawLeague.toUpperCase() === 'PL87651'
+              ? 'Ravenwatch Covens of Umbra GSF (PL87651)'
+              : resolveOfficialLadderName(rawLeague);
           const realm = String(body.realm || 'pc').trim().toLowerCase();
           const poesessid = String(body.poesessid || '').trim();
           const tabIndices: number[] = Array.isArray(body.tabIndices)
@@ -1362,7 +1474,7 @@ export default {
             const gggRes = await fetch(endpoint, {
               headers: {
                 Cookie: `POESESSID=${poesessid}`,
-                'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
+                'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
                 Accept: 'application/json'
               }
             });
