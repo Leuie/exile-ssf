@@ -14,6 +14,7 @@ interface AssetAnalyticsDeckProps {
   valueSystem: 'ninja' | 'ssf';
   divineChaos: number;
   ownedTabNames: string[];
+  onOpenFullAnalytics?: () => void;
 }
 
 const SLICE_COLORS = [
@@ -33,7 +34,8 @@ export const AssetAnalyticsDeck: React.FC<AssetAnalyticsDeckProps> = ({
   categoryBreakdown,
   valueSystem,
   divineChaos,
-  ownedTabNames
+  ownedTabNames,
+  onOpenFullAnalytics
 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -86,14 +88,25 @@ export const AssetAnalyticsDeck: React.FC<AssetAnalyticsDeckProps> = ({
     <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Chart 1: Interactive Wealth Timeline */}
       <div className="rounded-2xl border border-slate-800 bg-[#0d111a] p-4 space-y-2.5 shadow-lg">
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between text-xs gap-2">
           <div className="font-bold text-slate-200 flex items-center gap-1.5">
             <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
             <span>Wealth Timeline</span>
           </div>
-          <span className="font-mono text-[11px] text-amber-300 font-bold">
-            {activeHover.at}: {formatValue(activeHover.totalChaos, divineChaos)}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] text-amber-300 font-bold">
+              {activeHover.at}: {formatValue(activeHover.totalChaos, divineChaos)}
+            </span>
+            {onOpenFullAnalytics && (
+              <button
+                type="button"
+                onClick={onOpenFullAnalytics}
+                className="px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[10px] font-bold text-amber-200 cursor-pointer transition-colors"
+              >
+                Full View &rarr;
+              </button>
+            )}
+          </div>
         </div>
 
         <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-28 overflow-visible">

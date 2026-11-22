@@ -158,6 +158,13 @@ export function resolvePageMeta(url: URL): PageMeta {
     };
   }
 
+  if (path === '/assets/analytics' || path === '/wealth-analytics' || path === '/wealth/analytics') {
+    return {
+      title: 'Wealth & Pace Analytics | Exile SSF',
+      description: 'Full page interactive Wealth Timeline, farming pace, top yielding tabs leaderboard, and category breakdown synced per league to your Exile SSF cloud profile.'
+    };
+  }
+
   if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth') {
     return {
       title: 'Asset Tracker (PoE 1 & PoE 2) | Exile SSF',

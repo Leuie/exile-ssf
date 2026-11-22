@@ -33,6 +33,7 @@ const BuildsHubView = lazyWithRetry(() => import('./components/BuildsHubView').t
 const PatchNotesView = lazyWithRetry(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
 const PoERegexStudioView = lazyWithRetry(() => import('./components/PoERegexStudioView').then((m) => ({ default: m.PoERegexStudioView })));
 const AssetTrackerView = lazyWithRetry(() => import('./components/AssetTrackerView').then((m) => ({ default: m.AssetTrackerView })));
+const WealthAnalyticsView = lazyWithRetry(() => import('./components/WealthAnalyticsView').then((m) => ({ default: m.WealthAnalyticsView })));
 const MapTrackerView = lazyWithRetry(() => import('./components/MapTrackerView').then((m) => ({ default: m.MapTrackerView })));
 const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
@@ -170,6 +171,9 @@ export const App: React.FC = () => {
     if (path === '/regex' || path === '/regex-studio' || hash === 'regex') {
       return 'regex_studio';
     }
+    if (path === '/assets/analytics' || path === '/wealth-analytics' || path === '/wealth/analytics' || hash === 'wealth_analytics') {
+      return 'wealth_analytics';
+    }
     if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth' || hash === 'assets' || hash === 'farming') {
       return 'asset_tracker';
     }
@@ -298,6 +302,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/regex');
         } else if (tab === 'asset_tracker') {
           window.history.pushState({}, '', '/assets');
+        } else if (tab === 'wealth_analytics') {
+          window.history.pushState({}, '', '/assets/analytics');
         } else if (tab === 'map_tracker') {
           window.history.pushState({}, '', '/maps');
         } else if (tab === 'sabrewulf') {
@@ -576,6 +582,15 @@ export const App: React.FC = () => {
           <AssetTrackerView
             selectedGame={selectedGame}
             userAccount={userAccount}
+            onOpenAuthModal={handleOpenAuth}
+            onOpenAnalytics={() => handleSelectTab('wealth_analytics')}
+          />
+        )}
+        {activeTab === 'wealth_analytics' && (
+          <WealthAnalyticsView
+            userAccount={userAccount}
+            onBackToAssetTracker={() => handleSelectTab('asset_tracker')}
+            onOpenProfile={handleOpenProfile}
             onOpenAuthModal={handleOpenAuth}
           />
         )}

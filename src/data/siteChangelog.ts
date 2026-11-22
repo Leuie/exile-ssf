@@ -16,6 +16,19 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-22-wealth-analytics',
+    version: 'v3.30.7',
+    title: 'Full Page Wealth & Pace Analytics & Per League Cloud Sync',
+    dateEst: 'Nov 22, 2026 • 5:00 PM EST',
+    summary: 'Launched a dedicated full page Wealth & Pace Analytics view (/assets/analytics) with backlinks to Asset Tracker and Exile Profiles, backed by per league Cloudflare D1 cloud storage.',
+    changes: [
+      { tag: 'Added', text: 'Full page Wealth & Pace Analytics dashboard (/assets/analytics) with 5 executive KPI cards, interactive full width Wealth Timeline (Live Checkpoints & Saved Sessions toggle), Category Breakdown donut + table, Top Yielding Tabs leaderboard, and Top 12 Most Valuable Assets showcase.' },
+      { tag: 'Added', text: 'Per league Cloudflare D1 cloud snapshots (byLeague) inside /api/farming/stash-state so each league keeps its own persistent stash wealth timeline, tabs, and breakdown tied to your user profile.' },
+      { tag: 'Added', text: 'Direct Full Analytics buttons inside Asset Tracker header and Analytics Deck, plus Back to Asset Tracker and Exile Profile backlinks on the full page view.' },
+      { tag: 'Improved', text: 'Hardened Cloudflare Worker HMAC session signing to strictly require encrypted SESSION_SECRET with zero public repo fallback.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-22-audit',
     version: 'v3.30.6',
     title: 'Site Wide Audit Upgrades: Wishlist Autocomplete, Fixed .xlsx Export, Caching & PoE 2 Presets',

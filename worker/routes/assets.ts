@@ -689,24 +689,51 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
-  // GET /api/farming/stash-state?handle=... (Verified owner or admin only)
+  // GET /api/farming/stash-state?handle=...&league=... (Verified owner or admin only; supports per league D1 snapshots)
   if (url.pathname === '/api/farming/stash-state' && request.method === 'GET') {
     try {
       const session = await readVerifiedSession(request, env);
       const handle = String(url.searchParams.get('handle') || session?.handle || '').trim().replace(/^@/, '').toLowerCase();
+      const requestedLeague = String(url.searchParams.get('league') || '').trim();
       if (!session || (!session.isAdmin && session.handle.toLowerCase() !== handle)) {
         return new Response(JSON.stringify({ error: 'Sign in as the account owner to load private cloud stash state.' }), { status: 401, headers: corsHeaders });
       }
-      if (!handle || !env.EXILE_DB) return new Response(JSON.stringify({ state: null }), { headers: corsHeaders });
+      if (!handle || !env.EXILE_DB) return new Response(JSON.stringify({ state: null, leagues: [] }), { headers: corsHeaders });
       await initD1Schema(env.EXILE_DB);
       const row = await env.EXILE_DB.prepare(`SELECT data, updated_at FROM farming_stash_state WHERE handle_lower = ?`).bind(handle).first();
-      return new Response(JSON.stringify({ state: row?.data ? JSON.parse(row.data) : null, updatedAtIso: row?.updated_at || null }), { headers: corsHeaders });
+      if (!row?.data) return new Response(JSON.stringify({ state: null, leagues: [], updatedAtIso: null }), { headers: corsHeaders });
+      const parsed = JSON.parse(row.data);
+      const byLeague: Record<string, any> =
+        parsed?.byLeague && typeof parsed.byLeague === 'object' ? parsed.byLeague : {};
+      const activeLeagueName = String(parsed?.leagueName || '').trim();
+      if (activeLeagueName && !byLeague[activeLeagueName]) {
+        const { byLeague: _omitMap, ...topCopy } = parsed;
+        byLeague[activeLeagueName] = topCopy;
+      }
+      const leagues = Object.keys(byLeague);
+      let selectedState = parsed;
+      if (requestedLeague) {
+        const exact = byLeague[requestedLeague];
+        const ciKey = leagues.find((k) => k.toLowerCase() === requestedLeague.toLowerCase());
+        if (exact) selectedState = exact;
+        else if (ciKey) selectedState = byLeague[ciKey];
+      }
+      const { byLeague: _strip, ...cleanSelected } = selectedState || {};
+      return new Response(
+        JSON.stringify({
+          state: cleanSelected,
+          leagues,
+          activeLeague: String(cleanSelected?.leagueName || activeLeagueName || ''),
+          updatedAtIso: row?.updated_at || null
+        }),
+        { headers: corsHeaders }
+      );
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
     }
   }
 
-  // POST /api/farming/stash-state (Requires verified exile_session matching handle or admin)
+  // POST /api/farming/stash-state (Requires verified exile_session matching handle or admin; persists per league in D1)
   if (url.pathname === '/api/farming/stash-state' && request.method === 'POST') {
     try {
       const session = await readVerifiedSession(request, env);
@@ -719,15 +746,35 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       if (!handle || !state || typeof state !== 'object') {
         return new Response(JSON.stringify({ error: 'Missing handle or state payload' }), { status: 400, headers: corsHeaders });
       }
-      const { poesessid: _omit, ...cleanState } = state;
+      const { poesessid: _omit, byLeague: _omitIncomingMap, ...cleanState } = state;
+      const leagueKey = String(cleanState.leagueName || 'Default League').trim();
       if (env.EXILE_DB) {
         await initD1Schema(env.EXILE_DB);
+        let existingByLeague: Record<string, any> = {};
+        try {
+          const prevRow = await env.EXILE_DB.prepare(`SELECT data FROM farming_stash_state WHERE handle_lower = ?`).bind(handle).first();
+          if (prevRow?.data) {
+            const prevParsed = JSON.parse(prevRow.data);
+            if (prevParsed?.byLeague && typeof prevParsed.byLeague === 'object') {
+              existingByLeague = prevParsed.byLeague;
+            } else if (prevParsed?.leagueName) {
+              existingByLeague[String(prevParsed.leagueName).trim()] = prevParsed;
+            }
+          }
+        } catch {}
+        existingByLeague[leagueKey] = { ...cleanState, savedAtIso: now };
+        // Cap stored leagues per user to the 8 most recently updated to keep D1 rows lean
+        const leagueEntries = Object.entries(existingByLeague)
+          .sort((a, b) => String(b[1]?.savedAtIso || '').localeCompare(String(a[1]?.savedAtIso || '')))
+          .slice(0, 8);
+        const prunedByLeague = Object.fromEntries(leagueEntries);
+        const mergedPayload = { ...cleanState, byLeague: prunedByLeague };
         await env.EXILE_DB.prepare(
           `INSERT INTO farming_stash_state (handle_lower, data, updated_at) VALUES (?, ?, ?)
            ON CONFLICT(handle_lower) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
-        ).bind(handle, JSON.stringify(cleanState), now).run();
+        ).bind(handle, JSON.stringify(mergedPayload), now).run();
       }
-      return new Response(JSON.stringify({ status: 'ok', updatedAtIso: now }), { headers: corsHeaders });
+      return new Response(JSON.stringify({ status: 'ok', league: leagueKey, updatedAtIso: now }), { headers: corsHeaders });
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
     }

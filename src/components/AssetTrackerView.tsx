@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   KeyRound,
+  BarChart3,
   Layers,
   TrendingUp,
   Timer,
@@ -95,11 +96,13 @@ interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
+  onOpenAnalytics?: () => void;
 }
 
 export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   selectedGame = 'poe1',
-  userAccount
+  userAccount,
+  onOpenAnalytics
 }) => {
   const savedPrefs = useMemo(() => {
     try {
@@ -1489,6 +1492,18 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
             {!poesessid && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
           </button>
 
+          {onOpenAnalytics && (
+            <button
+              type="button"
+              onClick={onOpenAnalytics}
+              className="px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Open full page Wealth Timeline, Pace, Top Yielding Tabs, and Category Breakdown"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Full Analytics</span>
+            </button>
+          )}
+
           <div className="flex bg-slate-950 p-0.5 rounded-xl border border-amber-500/30 text-[11px] font-bold">
             <button
               type="button"
@@ -1803,6 +1818,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
           valueSystem={valueSystem}
           divineChaos={divineChaos}
           ownedTabNames={railTabsList.map((t) => t.name)}
+          onOpenFullAnalytics={onOpenAnalytics}
         />
       )}
 
