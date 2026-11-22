@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const localClock = formatZoneClock(clockNow);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     'Progression & Maps': true,
-    'Mechanics & Recipes': true,
+    'Mechanics & Formulas': true,
     'External Databases': true
   });
 
@@ -147,16 +147,16 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
-        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
-        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
     {
-      title: 'Builds & Guides',
+      title: 'Tools',
       items: [
-        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' }
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
+        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
+        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
     },
     {
@@ -168,14 +168,14 @@ interface NavGroup {
       ]
     },
     {
-      title: 'Mechanics & Recipes',
+      title: 'Mechanics & Formulas',
       items: [
-        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe.re' },
-        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
-        { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Recipes' },
         { id: 'defenses', label: 'Defenses Masterclass', icon: ShieldCheck, badge: 'Guide' },
-        { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' }
+        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
+        { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' },
+        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe.re' },
+        { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Recipes' }
       ]
     },
     {
@@ -195,28 +195,28 @@ interface NavGroup {
       items: [
         { id: 'home', label: 'Home Overview', icon: HomeIcon, badge: null },
         { id: 'private_league_hub', label: 'Private League Hub', icon: Users, badge: 'NEW' },
-        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
-        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' },
         { id: 'patch_notes', label: 'Patch Notes', icon: Scroll, badge: 'Live' },
         { id: 'poe2_hub', label: 'PoE 2 Hub & Roadmap', icon: Sparkles, badge: 'EA' },
         { id: 'feedback', label: 'Feedback & Needs', icon: MessageSquarePlus, badge: 'New' }
       ]
     },
     {
-      title: 'Builds & Guides',
+      title: 'Tools',
       items: [
-        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' }
+        { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'Live' },
+        { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
+        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
     },
     {
-      title: 'Mechanics & Recipes',
+      title: 'Mechanics & Formulas',
       items: [
-        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe2.re' },
-        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
-        { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Salvage' },
         { id: 'defenses', label: 'Defenses Masterclass', icon: ShieldCheck, badge: 'Guide' },
-        { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' }
+        { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
+        { id: 'offenses', label: 'Offenses Masterclass', icon: Swords, badge: 'Guide' },
+        { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe2.re' },
+        { id: 'vendor_recipes', label: 'Vendor Formulas', icon: Scroll, badge: 'Salvage' }
       ]
     },
     {
