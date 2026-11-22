@@ -200,6 +200,8 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_league_firsts_league ON league_firsts(league_id)`,
     `CREATE TABLE IF NOT EXISTS activity_feed (id TEXT PRIMARY KEY, league_id TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_activity_feed_league ON activity_feed(league_id, created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS farming_sessions (id TEXT PRIMARY KEY, handle_lower TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_farming_sessions_handle ON farming_sessions(handle_lower, created_at DESC)`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -1231,6 +1233,256 @@ export default {
           }
 
           return new Response(payloadStr, { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/farming/stash-tabs (Stateless GGG stash tab discovery for personal testing until OAuth is live; never stores POESESSID)
+      if (url.pathname === '/api/farming/stash-tabs' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const accountName = String(body.accountName || '').trim();
+          const league = String(body.league || '').trim();
+          const realm = String(body.realm || 'pc').trim().toLowerCase();
+          const poesessid = String(body.poesessid || '').trim();
+
+          if (!accountName || !league || !poesessid) {
+            return new Response(
+              JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const endpoint = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(accountName)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=1&tabIndex=0`;
+          const gggRes = await fetch(endpoint, {
+            headers: {
+              Cookie: `POESESSID=${poesessid}`,
+              'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
+              Accept: 'application/json'
+            }
+          });
+
+          if (!gggRes.ok) {
+            const errMsg =
+              gggRes.status === 403 || gggRes.status === 401
+                ? 'GGG rejected the session (403/401). Double check your POESESSID, Account Name (including #discriminator if used), and League Name.'
+                : gggRes.status === 429
+                ? 'GGG rate limit reached (429). Wait 30 seconds and try again.'
+                : `GGG Stash API returned HTTP ${gggRes.status}. Verify League Name (e.g. PL87651 or Standard).`;
+            return new Response(JSON.stringify({ error: errMsg }), { status: gggRes.status, headers: CORS_HEADERS });
+          }
+
+          const data: any = await gggRes.json();
+          if (data?.error) {
+            return new Response(
+              JSON.stringify({ error: data.error.message || 'GGG Stash API returned an error.' }),
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const tabs = Array.isArray(data?.tabs)
+            ? data.tabs.map((t: any) => ({
+                index: Number(t.i),
+                id: String(t.id || t.i),
+                name: String(t.n || `Tab ${Number(t.i) + 1}`),
+                type: String(t.type || 'NormalStash'),
+                colour: t.colour || { r: 99, g: 102, b: 241 }
+              }))
+            : [];
+
+          return new Response(
+            JSON.stringify({
+              status: 'ok',
+              numTabs: Number(data?.numTabs || tabs.length),
+              tabs
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Failed to fetch stash tabs.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/farming/stash-snapshot (Stateless multi dump tab snapshot & classifier; never persists POESESSID)
+      if (url.pathname === '/api/farming/stash-snapshot' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const accountName = String(body.accountName || '').trim();
+          const league = String(body.league || '').trim();
+          const realm = String(body.realm || 'pc').trim().toLowerCase();
+          const poesessid = String(body.poesessid || '').trim();
+          const tabIndices: number[] = Array.isArray(body.tabIndices)
+            ? body.tabIndices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 8)
+            : [0];
+          const tabNamesMap: Record<number, string> = body.tabNames && typeof body.tabNames === 'object' ? body.tabNames : {};
+
+          if (!accountName || !league || !poesessid) {
+            return new Response(
+              JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const classifyStashItem = (it: any): string => {
+            const ft = Number(it.frameType ?? 0);
+            const base = String(it.baseType || it.typeLine || '').toLowerCase();
+            const name = String(it.name || '').toLowerCase();
+            const full = `${name} ${base}`;
+            if (ft === 3) return 'Uniques';
+            if (ft === 6) return 'Div Cards';
+            if (ft === 4) return 'Gems';
+            if (/(scarab|fragment|splinter|breachstone|emblem|invitation|mortal |sacrifice at|vessel|simulacrum|allflame)/i.test(full)) {
+              return 'Scarabs & Fragments';
+            }
+            if (/(essence|fossil|resonator|catalyst|oil|tattoo|runegraft|omen|delirium orb|tainted)/i.test(full)) {
+              return 'Essences & Crafting';
+            }
+            if (/(map|waystone|logbook|blueprint|contract|inscribed ultimatum|djinn barya|chronicle)/i.test(base)) {
+              return 'Maps & League Keys';
+            }
+            if (ft === 5 || /(orb|shard|scroll|chisel|bauble|whetstone|scrap|prism|mirror|sextant|vaals)/i.test(full)) {
+              return 'Currency';
+            }
+            return 'Gear & Jewels';
+          };
+
+          const aggregated = new Map<string, any>();
+          const fetchedTabs: number[] = [];
+
+          for (let i = 0; i < tabIndices.length; i++) {
+            const tabIdx = tabIndices[i];
+            if (i > 0) {
+              await new Promise((r) => setTimeout(r, 320));
+            }
+            const endpoint = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(accountName)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=0&tabIndex=${tabIdx}`;
+            const gggRes = await fetch(endpoint, {
+              headers: {
+                Cookie: `POESESSID=${poesessid}`,
+                'User-Agent': 'Mozilla/5.0 (compatible; ExileSSF/1.0; +https://exilessf.app)',
+                Accept: 'application/json'
+              }
+            });
+            if (!gggRes.ok) {
+              if (gggRes.status === 429) {
+                return new Response(
+                  JSON.stringify({ error: `GGG rate limited at tab ${tabIdx} (429). Wait 30s or snapshot fewer tabs at once.` }),
+                  { status: 429, headers: CORS_HEADERS }
+                );
+              }
+              continue;
+            }
+            const data: any = await gggRes.json();
+            fetchedTabs.push(tabIdx);
+            const rawItems = Array.isArray(data?.items) ? data.items : [];
+            const tabLabel = tabNamesMap[tabIdx] || `Tab ${tabIdx + 1}`;
+
+            for (const it of rawItems) {
+              const cleanName = String(it.name || '').replace(/<<[^>]+>>/g, '').trim();
+              const cleanBase = String(it.baseType || it.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
+              const displayName = cleanName && cleanName !== cleanBase ? `${cleanName} (${cleanBase})` : cleanName || cleanBase || 'Unknown Item';
+              const shortName = cleanName || cleanBase || 'Unknown Item';
+              const category = classifyStashItem(it);
+              const qty = Math.max(1, Number(it.stackSize || 1));
+              const frameType = Number(it.frameType ?? 0);
+              const key = `${category}::${displayName.toLowerCase()}`;
+
+              const existing = aggregated.get(key);
+              if (existing) {
+                existing.quantity += qty;
+              } else {
+                aggregated.set(key, {
+                  key,
+                  name: displayName,
+                  shortName,
+                  baseType: cleanBase,
+                  category,
+                  quantity: qty,
+                  icon: typeof it.icon === 'string' ? it.icon : '',
+                  frameType,
+                  ilvl: Number(it.ilvl || 0),
+                  tabName: tabLabel
+                });
+              }
+            }
+          }
+
+          const items = Array.from(aggregated.values()).sort((a, b) => b.quantity - a.quantity);
+          return new Response(
+            JSON.stringify({
+              status: 'ok',
+              snapshotAtIso: now,
+              fetchedTabs,
+              totalUniqueEntries: items.length,
+              totalItemCount: items.reduce((sum, x) => sum + x.quantity, 0),
+              items
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Stash snapshot failed.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // GET /api/farming/sessions?handle=...
+      if (url.pathname === '/api/farming/sessions' && request.method === 'GET') {
+        try {
+          const handle = String(url.searchParams.get('handle') || '').trim().replace(/^@/, '').toLowerCase();
+          if (!handle || !env.EXILE_DB) {
+            return new Response(JSON.stringify({ sessions: [] }), { headers: CORS_HEADERS });
+          }
+          await initD1Schema(env.EXILE_DB);
+          const rows = await env.EXILE_DB.prepare(
+            `SELECT data FROM farming_sessions WHERE handle_lower = ? ORDER BY created_at DESC LIMIT 30`
+          )
+            .bind(handle)
+            .all();
+          const sessions = (rows?.results || []).map((r: any) => JSON.parse(r.data));
+          return new Response(JSON.stringify({ sessions }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/farming/sessions
+      if (url.pathname === '/api/farming/sessions' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const session = body.session;
+          const handle = String(body.handle || session?.handle || '').trim().replace(/^@/, '').toLowerCase();
+          if (!handle || !session?.id) {
+            return new Response(JSON.stringify({ error: 'Missing handle or session id' }), { status: 400, headers: CORS_HEADERS });
+          }
+          if (env.EXILE_DB) {
+            await initD1Schema(env.EXILE_DB);
+            await env.EXILE_DB.prepare(
+              `INSERT INTO farming_sessions (id, handle_lower, data, created_at) VALUES (?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET data = excluded.data`
+            )
+              .bind(String(session.id), handle, JSON.stringify(session), String(session.createdAtIso || now))
+              .run();
+          }
+          return new Response(JSON.stringify({ status: 'ok', id: session.id }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // DELETE /api/farming/sessions?id=...
+      if (url.pathname === '/api/farming/sessions' && request.method === 'DELETE') {
+        try {
+          const id = String(url.searchParams.get('id') || '').trim();
+          if (id && env.EXILE_DB) {
+            await initD1Schema(env.EXILE_DB);
+            await env.EXILE_DB.prepare(`DELETE FROM farming_sessions WHERE id = ?`).bind(id).run();
+          }
+          return new Response(JSON.stringify({ status: 'ok' }), { headers: CORS_HEADERS });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }

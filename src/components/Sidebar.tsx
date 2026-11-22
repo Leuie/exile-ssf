@@ -22,6 +22,7 @@ import {
   Scroll,
   ExternalLink,
   Filter,
+  Package,
   Home as HomeIcon,
   UserCheck
 } from "lucide-react";
@@ -139,6 +140,7 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
+        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: '500 HP' },
         { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: '3.30' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
@@ -178,6 +180,7 @@ interface NavGroup {
     {
       title: 'Mechanics & Recipes',
       items: [
+        { id: 'farming_tracker', label: 'Farming & Drops', icon: Package, badge: '500 HP' },
         { id: 'regex_studio', label: 'Regex Studio', icon: Filter, badge: 'poe2.re' },
         { id: 'cheat_sheets', label: 'Mechanic Cheat Sheets', icon: Scroll, badge: 'Guide' },
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
