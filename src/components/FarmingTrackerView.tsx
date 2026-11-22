@@ -1,14 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles,
-  Trophy,
   Flame,
   Hammer,
   RefreshCw,
   Camera,
   GitCompare,
   Package,
-  Clock,
   Upload,
   Plus,
   Trash2,
@@ -16,18 +14,29 @@ import {
   CheckCircle2,
   AlertTriangle,
   Save,
-  History,
   ShieldCheck,
   ShieldAlert,
   KeyRound,
   Layers,
-  ArrowUpDown,
   TrendingUp,
   Timer,
   Share2,
-  Users
+  Users,
+  Volume2,
+  VolumeX,
+  FileSpreadsheet,
+  SlidersHorizontal,
+  Table as TableIcon,
+  LayoutGrid,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
+  EyeOff,
+  Send,
+  Pencil
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
+import { buildXlsxBlob, triggerFileDownload, type SheetDefinition } from '../utils/spreadsheetEngine';
 import type { UserAccount, LookingForItem } from '../types';
 
 interface FarmingTrackerViewProps {
@@ -77,6 +86,7 @@ interface SavedFarmingSession {
   handle: string;
   game: 'poe1' | 'poe2';
   title: string;
+  strategy?: string;
   league: string;
   mapsRun: number;
   durationMinutes: number;
@@ -98,35 +108,38 @@ interface LeagueOption {
   game: 'poe1' | 'poe2';
 }
 
-type SortMode = 'value_desc' | 'bracket' | 'qty_desc' | 'gem_level' | 'gem_quality' | 'ilvl_desc' | 'alpha';
+type SortField = 'total' | 'price' | 'qty' | 'name' | 'tab' | 'tier' | 'gem_level' | 'gem_quality' | 'ilvl';
 
-const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v1';
+const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v2';
 
 const DEFAULT_LEAGUES: LeagueOption[] = [
   { id: 'poe1-330-umbra', name: 'Ravenwatch Covens of Umbra GSF (PL87651)', game: 'poe1' },
   { id: 'poe2-ea-ancients', name: 'PoE 2 Early Access Private League', game: 'poe2' }
 ];
 
+const STRATEGY_PRESETS = [
+  'Essence + Harbinger',
+  'Destructive Play Boss Rush',
+  'Breach + Scarabs',
+  'Harvest + Expedition',
+  'T17 Scarab Farm',
+  'Alch & Go Red Maps',
+  'Tier 15 Waystones',
+  'Heist / Delve / Sanctum'
+];
+
 const CATEGORY_ORDER = [
   'Uniques',
   'Currency',
-  'Scarabs & Fragments',
   'Div Cards',
+  'Gems',
+  'Scarabs & Fragments',
   'Essences & Crafting',
   'Maps & League Keys',
-  'Gems',
   'Gear & Jewels'
 ];
 
-const GEM_SUBFILTERS = [
-  'All Gems',
-  'Vaal',
-  'Transfigured',
-  'Awakened',
-  'Level 20+',
-  'Quality 15%+',
-  'Corrupted'
-];
+const GEM_SUBFILTERS = ['All Gems', 'Vaal', 'Transfigured', 'Awakened', 'Level 20+', 'Quality 15%+', 'Corrupted'];
 
 const EQUIPMENT_BRACKETS = [
   'All Equipment',
@@ -144,23 +157,164 @@ const EQUIPMENT_BRACKETS = [
   'Flasks & Tinctures'
 ];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Uniques: 'from-orange-500 to-amber-400',
-  Currency: 'from-amber-400 to-yellow-300',
-  'Scarabs & Fragments': 'from-indigo-500 to-sky-400',
-  'Div Cards': 'from-cyan-400 to-teal-300',
-  'Essences & Crafting': 'from-purple-500 to-fuchsia-400',
-  'Maps & League Keys': 'from-emerald-500 to-lime-400',
-  Gems: 'from-teal-500 to-emerald-400',
-  'Gear & Jewels': 'from-slate-400 to-slate-300'
-};
-
 const TIER_STYLES: Record<ItemTier, string> = {
-  S: 'bg-amber-500/25 border-amber-400/70 text-amber-200 shadow-sm shadow-amber-500/20',
+  S: 'bg-amber-500/25 border-amber-400/70 text-amber-200',
   A: 'bg-purple-500/20 border-purple-400/60 text-purple-200',
   B: 'bg-sky-500/20 border-sky-400/50 text-sky-200',
   C: 'bg-slate-800/80 border-slate-700 text-slate-400'
 };
+
+const TIER_RANK: Record<ItemTier, number> = { S: 4, A: 3, B: 2, C: 1 };
+
+const BULK_NOISE_REGEX = /^(scroll of wisdom|portal scroll|orb of transmutation|orb of augmentation|armourer's scrap|blacksmith's whetstone|transmutation shard|alteration shard|alchemy shard|scroll fragment)$/i;
+
+function playSubtleChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.16); // A5
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+  } catch {}
+}
+
+function parseClientGggStashJson(rawJson: string, fallbackTabName: string): { tabs: StashTabMeta[]; items: TrackedDropItem[] } {
+  const parsed = JSON.parse(rawJson);
+  const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
+  const tabs: StashTabMeta[] = Array.isArray(parsed?.tabs)
+    ? parsed.tabs.map((t: any) => ({
+        index: Number(t.i),
+        id: String(t.id || t.i),
+        name: String(t.n || `Tab ${Number(t.i) + 1}`),
+        type: String(t.type || 'NormalStash'),
+        colour: t.colour || { r: 99, g: 102, b: 241 }
+      }))
+    : [];
+
+  const parsePropNum = (it: any, propName: string): number => {
+    if (!Array.isArray(it?.properties)) return 0;
+    const found = it.properties.find((p: any) => String(p?.name || '').toLowerCase() === propName.toLowerCase());
+    if (!found || !Array.isArray(found.values) || !found.values[0]) return 0;
+    const m = String(found.values[0][0] || '').match(/\d+/);
+    return m ? parseInt(m[0], 10) : 0;
+  };
+
+  const agg = new Map<string, TrackedDropItem>();
+  for (const it of rawItems) {
+    const cleanName = String(it.name || '').replace(/<<[^>]+>>/g, '').trim();
+    const cleanBase = String(it.baseType || it.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
+    const displayName = cleanName && cleanName !== cleanBase ? `${cleanName} (${cleanBase})` : cleanName || cleanBase || 'Unknown Item';
+    const shortName = cleanName || cleanBase || 'Unknown Item';
+    const baseLow = cleanBase.toLowerCase();
+    const full = `${cleanName} ${cleanBase}`.toLowerCase();
+    const iconLow = String(it.icon || '').toLowerCase();
+    const ft = Number(it.frameType ?? 0);
+    const corrupted = Boolean(it.corrupted);
+
+    let category = 'Gear & Jewels';
+    let subCategory = 'Other Equipment';
+    let gemLevel = 0;
+    let gemQuality = 0;
+    let isVaal = false;
+    let isTransfigured = false;
+    let isAwakened = false;
+
+    if (ft === 4) {
+      category = 'Gems';
+      gemLevel = parsePropNum(it, 'Level');
+      gemQuality = parsePropNum(it, 'Quality');
+      isVaal = Boolean(it?.hybrid?.isVaalGem) || baseLow.startsWith('vaal ');
+      isAwakened = baseLow.startsWith('awakened ');
+      isTransfigured = /\bof\s+[a-z]/i.test(cleanBase) && !/(herald of|purity of|aura of|aspect of)/i.test(cleanBase);
+      subCategory = isAwakened
+        ? 'Awakened Gems'
+        : isVaal
+        ? 'Vaal Gems'
+        : isTransfigured
+        ? 'Transfigured Gems'
+        : gemLevel >= 20 || gemQuality >= 15
+        ? 'High Level / Quality Gems'
+        : 'Standard Gems';
+    } else if (ft === 3) {
+      category = 'Uniques';
+      subCategory = iconLow.includes('/weapons/') ? 'Unique Weapons' : iconLow.includes('/jewels/') || iconLow.includes('/flasks/') ? 'Unique Jewels & Flasks' : 'Unique Armour & Gear';
+    } else if (ft === 6) {
+      category = 'Div Cards';
+      subCategory = 'Divination Cards';
+    } else if (/(scarab|fragment|splinter|breachstone|emblem|invitation|mortal |sacrifice at|vessel|simulacrum)/i.test(full)) {
+      category = 'Scarabs & Fragments';
+      subCategory = full.includes('scarab') ? 'Scarabs' : 'Boss Fragments & Invitations';
+    } else if (/(essence|fossil|resonator|catalyst|oil|tattoo|runegraft|omen|delirium orb)/i.test(full)) {
+      category = 'Essences & Crafting';
+      subCategory = full.includes('essence') ? 'Essences' : 'Crafting & Socketables';
+    } else if (/(map|waystone|logbook|blueprint|contract|inscribed ultimatum)/i.test(baseLow)) {
+      category = 'Maps & League Keys';
+      subCategory = 'Maps & Waystones';
+    } else if (ft === 5 || /(orb|shard|scroll|chisel|bauble|whetstone|scrap|prism|mirror)/i.test(full)) {
+      category = 'Currency';
+      subCategory = /(divine|mirror|exalted|fracturing|hinekora|annulment|chaos orb)/i.test(full) ? 'High Tier Currency' : 'Standard Currency';
+    } else {
+      const ar = parsePropNum(it, 'Armour') > 0;
+      const ev = parsePropNum(it, 'Evasion Rating') > 0;
+      const es = parsePropNum(it, 'Energy Shield') > 0;
+      const wd = parsePropNum(it, 'Ward') > 0;
+      if (iconLow.includes('/jewels/') || baseLow.includes('jewel')) subCategory = 'Jewels & Clusters';
+      else if (iconLow.includes('/flasks/') || baseLow.includes('flask')) subCategory = 'Flasks & Tinctures';
+      else if (/(ring|amulet|belt|sash)$/i.test(baseLow)) subCategory = 'Jewellery';
+      else if (iconLow.includes('/weapons/')) subCategory = 'Weapons';
+      else if (wd) subCategory = 'Ward';
+      else if (ar && ev && es) subCategory = 'Hybrid (AR/EV/ES)';
+      else if (ar && es) subCategory = 'Hybrid (AR/ES)';
+      else if (ar && ev) subCategory = 'Hybrid (AR/EV)';
+      else if (ev && es) subCategory = 'Hybrid (EV/ES)';
+      else if (ar) subCategory = 'Armour';
+      else if (ev) subCategory = 'Evasion';
+      else if (es) subCategory = 'Energy Shield';
+    }
+
+    const qty = Math.max(1, Number(it.stackSize || 1));
+    const key =
+      category === 'Gems'
+        ? `${category}::${displayName.toLowerCase()}::l${gemLevel}::q${gemQuality}::c${corrupted ? 1 : 0}`
+        : `${category}::${subCategory}::${displayName.toLowerCase()}`;
+
+    const existing = agg.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      agg.set(key, {
+        key,
+        name: displayName,
+        shortName,
+        baseType: cleanBase,
+        category,
+        subCategory,
+        gemLevel,
+        gemQuality,
+        isVaal,
+        isTransfigured,
+        isAwakened,
+        corrupted,
+        quantity: qty,
+        icon: typeof it.icon === 'string' ? it.icon : '',
+        frameType: ft,
+        ilvl: Number(it.ilvl || 0),
+        tabName: fallbackTabName
+      });
+    }
+  }
+
+  return { tabs, items: Array.from(agg.values()) };
+}
 
 function computeSnapshotDiff(before: TrackedDropItem[], after: TrackedDropItem[]): TrackedDropItem[] {
   const beforeMap = new Map<string, number>();
@@ -171,9 +325,7 @@ function computeSnapshotDiff(before: TrackedDropItem[], after: TrackedDropItem[]
   for (const it of after) {
     const prevQty = beforeMap.get(it.key) || 0;
     const gained = it.quantity - prevQty;
-    if (gained > 0) {
-      diff.push({ ...it, quantity: gained });
-    }
+    if (gained > 0) diff.push({ ...it, quantity: gained });
   }
   return diff;
 }
@@ -181,23 +333,17 @@ function computeSnapshotDiff(before: TrackedDropItem[], after: TrackedDropItem[]
 function lookupNinjaPrice(item: TrackedDropItem, prices: Record<string, number>): number {
   const shortLow = item.shortName.trim().toLowerCase();
   const baseLow = item.baseType.trim().toLowerCase();
-
   if (item.category === 'Gems') {
     const lvl = item.gemLevel || 1;
     const qual = item.gemQuality || 0;
     const corr = item.corrupted ? 1 : 0;
     const exactGem = prices[`gem::${shortLow}::l${lvl}::q${qual}::c${corr}`];
     if (exactGem) return exactGem;
-    // Also check nearest quality bucket (20% or 0%)
     const q20 = qual >= 18 ? prices[`gem::${shortLow}::l${lvl}::q20::c${corr}`] : 0;
     if (q20) return q20;
-    if (prices[shortLow]) return prices[shortLow];
-    return 0;
+    return prices[shortLow] || 0;
   }
-
-  if (prices[shortLow]) return prices[shortLow];
-  if (baseLow && prices[baseLow]) return prices[baseLow];
-  return 0;
+  return prices[shortLow] || (baseLow ? prices[baseLow] || 0 : 0);
 }
 
 function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number): ItemTier {
@@ -206,6 +352,15 @@ function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number)
   if (chaosEach >= 30 || totalChaos >= 50) return 'A';
   if (chaosEach >= 5 || totalChaos >= 12) return 'B';
   return 'C';
+}
+
+function formatValue(chaos: number, divineChaos: number): string {
+  if (chaos <= 0) return '0c';
+  if (divineChaos > 0 && chaos >= divineChaos) {
+    return `${(chaos / divineChaos).toFixed(1)}d`;
+  }
+  if (chaos < 1) return `${chaos.toFixed(1)}c`;
+  return `${Math.round(chaos).toLocaleString()}c`;
 }
 
 function formatCountdown(seconds: number): string {
@@ -218,7 +373,6 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   selectedGame = 'poe1',
   userAccount
 }) => {
-  // Load safe saved preferences (never stores POESESSID)
   const savedPrefs = useMemo(() => {
     try {
       const raw = localStorage.getItem(PREFS_STORAGE_KEY);
@@ -235,6 +389,18 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [claimedWishIds, setClaimedWishIds] = useState<Record<string, boolean>>({});
   const [sharedStashKeys, setSharedStashKeys] = useState<Record<string, boolean>>({});
 
+  // Dashboard Visual Modes
+  const [focusMode, setFocusMode] = useState<boolean>(false);
+  const [setupOpen, setSetupOpen] = useState<boolean>(true);
+  const [setupTab, setSetupTab] = useState<'api' | 'json' | 'manual'>('api');
+  const [wealthMode, setWealthMode] = useState<'total' | 'hourly'>('total');
+  const [breakdownMode, setBreakdownMode] = useState<'divines' | 'percent'>('divines');
+  const [railTab, setRailTab] = useState<'tabs' | 'snapshots' | 'strategies'>('tabs');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [showFiltersBar, setShowFiltersBar] = useState<boolean>(false);
+  const [hideBulkNoise, setHideBulkNoise] = useState<boolean>(false);
+  const [chimeEnabled, setChimeEnabled] = useState<boolean>(true);
+
   // poe.ninja Pricing State
   const [ninjaLeagueParam, setNinjaLeagueParam] = useState<string>('auto');
   const [ninjaResolvedLeague, setNinjaResolvedLeague] = useState<string>('');
@@ -242,7 +408,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [ninjaPrices, setNinjaPrices] = useState<Record<string, number>>({ 'chaos orb': 1 });
   const [loadingNinja, setLoadingNinja] = useState<boolean>(false);
 
-  // Stash API Connection State (POESESSID stays in browser memory only)
+  // Stash API Connection State (POESESSID stays in memory only)
   const [accountName, setAccountName] = useState<string>(savedPrefs.accountName || userAccount?.poeAccountName || '');
   const [leagueName, setLeagueName] = useState<string>(
     savedPrefs.leagueName || 'Ravenwatch Covens of Umbra GSF (PL87651)'
@@ -255,17 +421,24 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>(
     Array.isArray(savedPrefs.selectedTabIndices) ? savedPrefs.selectedTabIndices : []
   );
+  const [activeTabFilter, setActiveTabFilter] = useState<string>('ALL');
   const [loadingTabs, setLoadingTabs] = useState<boolean>(false);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>('');
   const [statusNotice, setStatusNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  // Auto Sync Timer (0 = Off, 15, 30, 60 minutes)
+  // Direct Browser JSON Fallback State
+  const [browserJsonInput, setBrowserJsonInput] = useState<string>('');
+  const [browserJsonTabIndex, setBrowserJsonTabIndex] = useState<number>(0);
+
+  // Auto Pull Timer
   const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(0);
   const [secondsUntilSync, setSecondsUntilSync] = useState<number>(0);
   const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>([]);
 
   // Active Session State
   const [sessionTitle, setSessionTitle] = useState<string>('T16 Mapping & Dump Session');
+  const [strategyTag, setStrategyTag] = useState<string>(savedPrefs.strategyTag || STRATEGY_PRESETS[0]);
   const [mapsRun, setMapsRun] = useState<number>(0);
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [deaths, setDeaths] = useState<number>(0);
@@ -278,16 +451,18 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [manualCategory, setManualCategory] = useState<string>('Uniques');
   const [manualQty, setManualQty] = useState<number>(1);
 
-  // Advanced Loot Filtering, Tiers, Sub-Brackets & Sorting
+  // Filters & Table Sorting
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [subFilter, setSubFilter] = useState<string>('All');
   const [tierFilter, setTierFilter] = useState<'All' | ItemTier>('All');
-  const [sortMode, setSortMode] = useState<SortMode>('value_desc');
+  const [sortField, setSortField] = useState<SortField>('total');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Saved Sessions History
   const [savedSessions, setSavedSessions] = useState<SavedFarmingSession[]>([]);
   const [savingSession, setSavingSession] = useState<boolean>(false);
+  const [sharingRecap, setSharingRecap] = useState<boolean>(false);
 
   const normalizedHandle = (userAccount?.displayName || '').trim().replace(/^@/, '').toLowerCase();
 
@@ -295,7 +470,6 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     document.title = 'Farming & Drop Tracker | Exile SSF';
   }, []);
 
-  // Persist non-sensitive preferences locally
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -304,13 +478,13 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           accountName,
           leagueName,
           linkedLeagueId,
-          selectedTabIndices
+          selectedTabIndices,
+          strategyTag
         })
       );
     } catch {}
-  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices]);
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag]);
 
-  // Load live poe.ninja prices
   const loadNinjaPrices = useCallback(async (targetLeague: string, forceRefresh = false) => {
     setLoadingNinja(true);
     try {
@@ -334,7 +508,6 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     loadNinjaPrices(ninjaLeagueParam, false);
   }, [ninjaLeagueParam, loadNinjaPrices]);
 
-  // Load linked Private League wishlists, custom leagues, and user's saved sessions
   useEffect(() => {
     let cancelled = false;
     const loadContext = async () => {
@@ -344,9 +517,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         });
         if (dataRes.ok && !cancelled) {
           const data: any = await dataRes.json();
-          if (Array.isArray(data?.lookingForItems)) {
-            setWishlistItems(data.lookingForItems);
-          }
+          if (Array.isArray(data?.lookingForItems)) setWishlistItems(data.lookingForItems);
           if (Array.isArray(data?.customLeagues) && data.customLeagues.length > 0) {
             const customOpts: LeagueOption[] = data.customLeagues
               .filter((c: any) => c?.id && c?.name)
@@ -371,9 +542,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           });
           if (sessRes.ok && !cancelled) {
             const sessData: any = await sessRes.json();
-            if (Array.isArray(sessData?.sessions)) {
-              setSavedSessions(sessData.sessions);
-            }
+            if (Array.isArray(sessData?.sessions)) setSavedSessions(sessData.sessions);
           }
         } catch {}
       }
@@ -384,7 +553,6 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     };
   }, [linkedLeagueId, normalizedHandle]);
 
-  // Enrich drops with live poe.ninja Chaos value & S/A/B/C tier
   const enrichedDrops = useMemo<EnrichedDropItem[]>(() => {
     return activeDrops.map((it) => {
       const chaosEach = lookupNinjaPrice(it, ninjaPrices);
@@ -398,9 +566,8 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     () => Math.round(enrichedDrops.reduce((sum, it) => sum + it.totalChaos, 0) * 10) / 10,
     [enrichedDrops]
   );
-  const totalSessionDivines = divineChaos > 0 ? totalSessionChaos / divineChaos : 0;
   const chaosPerHour = durationMinutes > 0 ? Math.round((totalSessionChaos / durationMinutes) * 60) : 0;
-  const divPerHour = divineChaos > 0 ? (chaosPerHour / divineChaos).toFixed(2) : '0.00';
+  const mapsPerHour = durationMinutes > 0 && mapsRun > 0 ? ((mapsRun / durationMinutes) * 60).toFixed(1) : '0.0';
 
   const tierCounts = useMemo(() => {
     const counts: Record<ItemTier, number> = { S: 0, A: 0, B: 0, C: 0 };
@@ -424,6 +591,16 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     }
     return matches;
   }, [wishlistItems, enrichedDrops]);
+
+  // Trigger optional chime when new S Tier or Wishlist Matches arrive
+  const prevAlertCountRef = useRef<number>(0);
+  useEffect(() => {
+    const currentAlertCount = tierCounts.S + wishlistMatches.length;
+    if (chimeEnabled && currentAlertCount > prevAlertCountRef.current) {
+      playSubtleChime();
+    }
+    prevAlertCountRef.current = currentAlertCount;
+  }, [tierCounts.S, wishlistMatches.length, chimeEnabled]);
 
   const handleSelectLinkedLeague = (newId: string) => {
     setLinkedLeagueId(newId);
@@ -461,7 +638,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             type: 'item_fulfilled',
             actorHandle: finder,
             title: `Found ${wish.itemName} for @${wish.displayName || wish.characterName}`,
-            detail: 'Detected automatically via Farming & Drop Tracker dump tab scan.',
+            detail: `Detected automatically during ${strategyTag} farming session.`,
             createdAtIso: new Date().toISOString()
           }
         })
@@ -490,30 +667,86 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
             itemName: item.shortName,
             category: item.category === 'Uniques' ? 'Unique' : 'Other',
             donorHandle: donor,
-            notes: `Dropped during ${sessionTitle}${item.chaosEach > 0 ? ` (poe.ninja ~${item.chaosEach}c, Tier ${item.tier})` : ''}`,
+            notes: `Dropped during ${sessionTitle} (${strategyTag})${item.chaosEach > 0 ? ` • poe.ninja ~${item.chaosEach}c (Tier ${item.tier})` : ''}`,
             status: 'AVAILABLE',
             createdAtIso: new Date().toISOString()
           }
         })
       });
-      setStatusNotice({
-        type: 'ok',
-        text: `Shared "${item.shortName}" to your Private League Free Stash Feed!`
-      });
+      setStatusNotice({ type: 'ok', text: `Shared "${item.shortName}" to your Private League Free Stash Feed!` });
     } catch {
       setStatusNotice({ type: 'err', text: 'Could not share item to Free Stash right now.' });
     }
   };
 
-  const handleSelectCategory = (cat: string) => {
-    setCategoryFilter(cat);
-    if (cat === 'Gems') {
-      setSubFilter('All Gems');
-    } else if (cat === 'Gear & Jewels') {
-      setSubFilter('All Equipment');
-    } else {
-      setSubFilter('All');
+  const handleShareRecapToFeed = async () => {
+    if (enrichedDrops.length === 0) return;
+    setSharingRecap(true);
+    const actor = userAccount?.displayName || userAccount?.characterName || 'Exile';
+    const uniqueCount = enrichedDrops.filter((d) => d.category === 'Uniques').length;
+    const valStr = formatValue(totalSessionChaos, divineChaos);
+    try {
+      await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId: linkedLeagueId,
+          event: {
+            id: `feed-recap-${Date.now()}`,
+            type: 'loot_drop',
+            actorHandle: actor,
+            title: `Finished ${sessionTitle} (${strategyTag})`,
+            detail: `${mapsRun} maps in ${durationMinutes}m • ${valStr} poe.ninja benchmark • ${tierCounts.S} S Tier • ${uniqueCount} Uniques • ${wishlistMatches.length} Wishlist Matches`,
+            createdAtIso: new Date().toISOString()
+          }
+        })
+      });
+      setStatusNotice({ type: 'ok', text: 'Posted your farming session recap to the Private League Live Feed!' });
+    } catch {
+      setStatusNotice({ type: 'err', text: 'Could not post recap to league feed.' });
     }
+    setSharingRecap(false);
+  };
+
+  const handleExportXlsx = () => {
+    const sheets: SheetDefinition[] = [
+      {
+        name: 'Current Session Drops',
+        headers: ['Item Name', 'Tier', 'Category', 'Bracket', 'Tab', 'Quantity', 'Unit Chaos', 'Total Chaos', 'iLvl', 'Gem Lvl', 'Gem Quality'],
+        rows: enrichedDrops.map((it) => [
+          it.shortName,
+          it.tier,
+          it.category,
+          it.subCategory || '',
+          it.tabName,
+          it.quantity,
+          it.chaosEach,
+          it.totalChaos,
+          it.ilvl || 0,
+          it.gemLevel || 0,
+          it.gemQuality || 0
+        ])
+      },
+      {
+        name: 'Saved Session History',
+        headers: ['Date', 'Session Title', 'Strategy', 'League', 'Maps Run', 'Minutes', 'Deaths', 'Total Chaos', 'Stacks'],
+        rows: savedSessions.map((s) => [
+          new Date(s.createdAtIso).toLocaleDateString(),
+          s.title,
+          s.strategy || 'General',
+          s.league,
+          s.mapsRun,
+          s.durationMinutes,
+          s.deaths,
+          Math.round(s.totalChaos || 0),
+          s.items?.length || 0
+        ])
+      }
+    ];
+    const blob = buildXlsxBlob(sheets);
+    triggerFileDownload(blob, `Exile_SSF_Farming_Log_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setStatusNotice({ type: 'ok', text: 'Exported your session drops & history to Excel / Google Sheets (.xlsx)!' });
   };
 
   const handleDetectLeagues = async () => {
@@ -532,11 +765,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          accountName: accountName.trim(),
-          realm: 'pc',
-          poesessid: poesessid.trim()
-        })
+        body: JSON.stringify({ accountName: accountName.trim(), realm: 'pc', poesessid: poesessid.trim() })
       });
       const data: any = await res.json();
       if (!res.ok || data.error) {
@@ -545,10 +774,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         const list: string[] = Array.isArray(data.leagues) ? data.leagues : [];
         setDetectedLeagues(list);
         if (list.length > 0) setLeagueName(list[0]);
-        setStatusNotice({
-          type: 'ok',
-          text: `Detected ${list.length} active league(s) across ${data.characterCount} characters! Pick one and click Load Stash Tabs.`
-        });
+        setStatusNotice({ type: 'ok', text: `Detected ${list.length} active league(s). Pick one and click Load Stash Tabs.` });
       }
     } catch (err: any) {
       setStatusNotice({ type: 'err', text: err.message || 'Network error detecting leagues.' });
@@ -585,18 +811,48 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       } else {
         const tabs: StashTabMeta[] = data.tabs || [];
         setStashTabs(tabs);
-        if (tabs.length > 0 && selectedTabIndices.length === 0) {
-          setSelectedTabIndices([tabs[0].index]);
-        }
+        if (tabs.length > 0 && selectedTabIndices.length === 0) setSelectedTabIndices([tabs[0].index]);
         setStatusNotice({
           type: 'ok',
-          text: `Loaded ${tabs.length} stash tabs from ${data.resolvedLeague || leagueName.trim()}. Pick your Dump Tabs below.`
+          text: `Loaded ${tabs.length} stash tabs from ${data.resolvedLeague || leagueName.trim()}.`
         });
       }
     } catch (err: any) {
       setStatusNotice({ type: 'err', text: err.message || 'Network error reaching stash endpoint.' });
     }
     setLoadingTabs(false);
+  };
+
+  const handleParseDirectBrowserJson = (mode: 'before' | 'after' | 'inspect') => {
+    const raw = browserJsonInput.trim();
+    if (!raw) {
+      setStatusNotice({ type: 'err', text: 'Paste the raw JSON copied from your Brave pathofexile.com stash tab first.' });
+      return;
+    }
+    try {
+      const { tabs, items } = parseClientGggStashJson(raw, `Browser Tab ${browserJsonTabIndex + 1}`);
+      if (tabs.length > 0 && stashTabs.length === 0) setStashTabs(tabs);
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setLastSyncedAt(nowTime);
+
+      if (mode === 'before') {
+        setBeforeSnapshot({ at: nowTime, items });
+        setCheckpoints([{ at: nowTime, totalItems: 0, totalChaos: 0 }]);
+        setStatusNotice({ type: 'ok', text: `Direct Browser Before Snapshot locked (${items.length} stacks).` });
+      } else {
+        const finalDrops = mode === 'after' && beforeSnapshot ? computeSnapshotDiff(beforeSnapshot.items, items) : items;
+        setActiveDrops(finalDrops);
+        const estChaos = Math.round(finalDrops.reduce((s, it) => s + lookupNinjaPrice(it, ninjaPrices) * it.quantity, 0));
+        setCheckpoints((prev) => [...prev.slice(-11), { at: nowTime, totalItems: finalDrops.length, totalChaos: estChaos }]);
+        setStatusNotice({
+          type: 'ok',
+          text: `Direct Browser JSON parsed cleanly: ${finalDrops.length} stacks (~${estChaos.toLocaleString()}c on poe.ninja)!`
+        });
+      }
+      setBrowserJsonInput('');
+    } catch {
+      setStatusNotice({ type: 'err', text: 'Invalid JSON. Make sure you copied the entire JSON response from pathofexile.com.' });
+    }
   };
 
   const toggleTabIndex = (idx: number) => {
@@ -610,11 +866,11 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const runSnapshot = useCallback(
     async (mode: 'before' | 'after' | 'inspect') => {
       if (selectedTabIndices.length === 0) {
-        setStatusNotice({ type: 'err', text: 'Select at least one Dump Tab first.' });
+        setStatusNotice({ type: 'err', text: 'Select at least one Dump Tab in Setup first.' });
         return;
       }
       if (!accountName.trim() || !poesessid.trim() || !acceptedRiskDisclaimer) {
-        setStatusNotice({ type: 'err', text: 'Confirm disclaimer, Account Name, and POESESSID first.' });
+        setStatusNotice({ type: 'err', text: 'Open Setup to confirm disclaimer, Account Name, and POESESSID first.' });
         return;
       }
       setSnapshotting(true);
@@ -642,28 +898,21 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         } else {
           const snapItems: TrackedDropItem[] = data.items || [];
           const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setLastSyncedAt(nowTime);
 
           if (mode === 'before') {
             setBeforeSnapshot({ at: nowTime, items: snapItems });
             setCheckpoints([{ at: nowTime, totalItems: 0, totalChaos: 0 }]);
-            setStatusNotice({
-              type: 'ok',
-              text: `Before Snapshot captured (${data.totalItemCount} total items across ${selectedTabIndices.length} tabs). Go blast maps and dump loot!`
-            });
+            setStatusNotice({ type: 'ok', text: `Before Snapshot locked at ${nowTime} (${data.totalItemCount} items). Go blast maps!` });
           } else {
             const resultingDrops = mode === 'after' && beforeSnapshot ? computeSnapshotDiff(beforeSnapshot.items, snapItems) : snapItems;
             setActiveDrops(resultingDrops);
-            const estChaos = Math.round(
-              resultingDrops.reduce((sum, it) => sum + lookupNinjaPrice(it, ninjaPrices) * it.quantity, 0)
-            );
+            const estChaos = Math.round(resultingDrops.reduce((sum, it) => sum + lookupNinjaPrice(it, ninjaPrices) * it.quantity, 0));
             const totalCount = resultingDrops.reduce((sum, x) => sum + x.quantity, 0);
             setCheckpoints((prev) => [...prev.slice(-11), { at: nowTime, totalItems: totalCount, totalChaos: estChaos }]);
             setStatusNotice({
               type: 'ok',
-              text:
-                mode === 'after' && beforeSnapshot
-                  ? `Session Diff updated at ${nowTime}: +${totalCount} drops (~${estChaos.toLocaleString()}c on poe.ninja)!`
-                  : `Dump Tab Scan complete at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
+              text: `Synced at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
             });
           }
         }
@@ -675,13 +924,11 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     [selectedTabIndices, accountName, leagueName, poesessid, acceptedRiskDisclaimer, stashTabs, beforeSnapshot, ninjaPrices]
   );
 
-  // Keep latest runSnapshot ref for the interval timer
   const runSnapshotRef = useRef(runSnapshot);
   runSnapshotRef.current = runSnapshot;
   const hasBeforeRef = useRef(Boolean(beforeSnapshot));
   hasBeforeRef.current = Boolean(beforeSnapshot);
 
-  // Auto Sync Countdown Timer (15m / 30m / 60m)
   useEffect(() => {
     if (autoSyncMinutes <= 0) {
       setSecondsUntilSync(0);
@@ -707,7 +954,6 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       const sliceStart = Math.max(0, file.size - 2 * 1024 * 1024);
       const text = await file.slice(sliceStart).text();
       const lines = text.split(/\r?\n/);
-
       const cutoff = Date.now() - 1000 * 60 * 60 * 6;
       const townKeywords = /(hideout|encampment|watch|bridge|highgate|oriath|karui shores|epilogue|kingsmarch|ziggurat|clearfell encampment)/i;
       let mapCount = 0;
@@ -720,10 +966,8 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         if (!tsMatch) continue;
         const ts = Date.parse(tsMatch[1].replace(/\//g, '-'));
         if (!Number.isFinite(ts) || ts < cutoff) continue;
-
         if (/You have entered (.+)\./i.test(line)) {
-          const areaMatch = line.match(/You have entered (.+)\./i);
-          const area = areaMatch ? areaMatch[1] : '';
+          const area = line.match(/You have entered (.+)\./i)?.[1] || '';
           if (area && !townKeywords.test(area)) {
             mapCount += 1;
             if (!firstTs) firstTs = ts;
@@ -738,10 +982,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       setMapsRun(mapCount);
       setDurationMinutes(elapsedMin);
       setDeaths(deathCount);
-      setStatusNotice({
-        type: 'ok',
-        text: `Parsed Client.txt locally: ${mapCount} maps/zones entered over ${elapsedMin} minutes (${deathCount} deaths).`
-      });
+      setStatusNotice({ type: 'ok', text: `Client.txt parsed locally: ${mapCount} maps in ${elapsedMin}m (${deathCount} deaths).` });
     } catch {
       setStatusNotice({ type: 'err', text: 'Could not read Client.txt file.' });
     }
@@ -775,39 +1016,26 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     const corrupted = /\bcorrupted\b/i.test(raw);
 
     if (cat === 'Gems') {
-      const lvlMatch = raw.match(/Level:\s*(\d+)/i);
-      const qualMatch = raw.match(/Quality:\s*\+?(\d+)%/i);
-      gemLevel = lvlMatch ? parseInt(lvlMatch[1], 10) : 1;
-      gemQuality = qualMatch ? parseInt(qualMatch[1], 10) : 0;
+      gemLevel = parseInt(raw.match(/Level:\s*(\d+)/i)?.[1] || '1', 10);
+      gemQuality = parseInt(raw.match(/Quality:\s*\+?(\d+)%/i)?.[1] || '0', 10);
       isVaal = name.toLowerCase().startsWith('vaal ');
       isAwakened = name.toLowerCase().startsWith('awakened ');
       isTransfigured = /\bof\s+[a-z]/i.test(name) && !/(herald of|purity of|aura of|aspect of)/i.test(name);
-      subCategory = isAwakened
-        ? 'Awakened Gems'
-        : isVaal
-        ? 'Vaal Gems'
-        : isTransfigured
-        ? 'Transfigured Gems'
-        : gemLevel >= 20 || gemQuality >= 15
-        ? 'High Level / Quality Gems'
-        : 'Standard Gems';
+      subCategory = isAwakened ? 'Awakened Gems' : isVaal ? 'Vaal Gems' : isTransfigured ? 'Transfigured Gems' : 'Standard Gems';
     } else if (cat === 'Gear & Jewels' || cat === 'Uniques') {
-      const hasAr = /Armour:\s*\d+/i.test(raw);
-      const hasEv = /Evasion Rating:\s*\d+/i.test(raw);
-      const hasEs = /Energy Shield:\s*\d+/i.test(raw);
-      const hasWard = /Ward:\s*\d+/i.test(raw);
-      if (hasWard) subCategory = 'Ward';
-      else if (hasAr && hasEv && hasEs) subCategory = 'Hybrid (AR/EV/ES)';
-      else if (hasAr && hasEs) subCategory = 'Hybrid (AR/ES)';
-      else if (hasAr && hasEv) subCategory = 'Hybrid (AR/EV)';
-      else if (hasEv && hasEs) subCategory = 'Hybrid (EV/ES)';
-      else if (hasAr) subCategory = 'Armour';
-      else if (hasEv) subCategory = 'Evasion';
-      else if (hasEs) subCategory = 'Energy Shield';
+      const ar = /Armour:\s*\d+/i.test(raw);
+      const ev = /Evasion Rating:\s*\d+/i.test(raw);
+      const es = /Energy Shield:\s*\d+/i.test(raw);
+      if (ar && ev && es) subCategory = 'Hybrid (AR/EV/ES)';
+      else if (ar && es) subCategory = 'Hybrid (AR/ES)';
+      else if (ar && ev) subCategory = 'Hybrid (AR/EV)';
+      else if (ev && es) subCategory = 'Hybrid (EV/ES)';
+      else if (ar) subCategory = 'Armour';
+      else if (ev) subCategory = 'Evasion';
+      else if (es) subCategory = 'Energy Shield';
       else if (/(ring|amulet|belt)/i.test(rawLow)) subCategory = 'Jewellery';
       else if (/jewel/i.test(rawLow)) subCategory = 'Jewels & Clusters';
       else if (/flask|tincture/i.test(rawLow)) subCategory = 'Flasks & Tinctures';
-      else if (/(physical damage:|elemental damage:|attacks per second:)/i.test(rawLow)) subCategory = 'Weapons';
       if (cat === 'Uniques') subCategory = `Unique ${subCategory}`;
     } else {
       subCategory = cat;
@@ -863,9 +1091,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     frameType: number;
   }) => {
     const displayName =
-      input.baseType && input.baseType !== input.shortName
-        ? `${input.shortName} (${input.baseType})`
-        : input.shortName;
+      input.baseType && input.baseType !== input.shortName ? `${input.shortName} (${input.baseType})` : input.shortName;
     const key =
       input.category === 'Gems'
         ? `${input.category}::${displayName.toLowerCase()}::l${input.gemLevel || 0}::q${input.gemQuality || 0}`
@@ -911,6 +1137,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       handle: normalizedHandle,
       game,
       title: sessionTitle.trim() || 'Farming Session',
+      strategy: strategyTag,
       league: leagueName.trim() || (game === 'poe2' ? 'PoE 2' : 'PoE 1'),
       mapsRun,
       durationMinutes,
@@ -928,7 +1155,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       });
       if (res.ok) {
         setSavedSessions((prev) => [session, ...prev]);
-        setStatusNotice({ type: 'ok', text: `Saved "${session.title}" to your cloud farming history!` });
+        setStatusNotice({ type: 'ok', text: `Saved "${session.title}" (${strategyTag}) to your cloud history!` });
       }
     } catch {}
     setSavingSession(false);
@@ -937,61 +1164,71 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const handleDeleteSession = async (id: string) => {
     setSavedSessions((prev) => prev.filter((s) => s.id !== id));
     try {
-      await fetch(`/api/farming/sessions?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      await fetch(`/api/farming/sessions?id=${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
     } catch {}
   };
 
+  // Category Breakdown for Top Right Card (3x3 compact grid)
   const categoryBreakdown = useMemo(() => {
-    const counts = new Map<string, { count: number; chaos: number }>();
-    let totalChaosAll = 0;
-    let totalCountAll = 0;
+    const map = new Map<string, { chaos: number; count: number }>();
     for (const it of enrichedDrops) {
-      const prev = counts.get(it.category) || { count: 0, chaos: 0 };
-      prev.count += it.quantity;
+      const prev = map.get(it.category) || { chaos: 0, count: 0 };
       prev.chaos += it.totalChaos;
-      counts.set(it.category, prev);
-      totalChaosAll += it.totalChaos;
-      totalCountAll += it.quantity;
+      prev.count += it.quantity;
+      map.set(it.category, prev);
     }
     return CATEGORY_ORDER.map((cat) => {
-      const row = counts.get(cat) || { count: 0, chaos: 0 };
-      const pct =
-        totalChaosAll > 0
-          ? Math.round((row.chaos / totalChaosAll) * 100)
-          : totalCountAll > 0
-          ? Math.round((row.count / totalCountAll) * 100)
-          : 0;
-      return {
-        category: cat,
-        count: row.count,
-        chaos: Math.round(row.chaos),
-        pct
-      };
-    }).filter((c) => c.count > 0);
-  }, [enrichedDrops]);
+      const row = map.get(cat) || { chaos: 0, count: 0 };
+      const pct = totalSessionChaos > 0 ? Math.round((row.chaos / totalSessionChaos) * 100) : 0;
+      return { category: cat, chaos: Math.round(row.chaos), count: row.count, pct };
+    }).sort((a, b) => b.chaos - a.chaos || b.count - a.count);
+  }, [enrichedDrops, totalSessionChaos]);
 
-  const topDropsShowcase = useMemo(
-    () =>
-      [...enrichedDrops]
-        .filter((d) => d.tier === 'S' || d.tier === 'A' || d.category === 'Uniques')
-        .sort((a, b) => b.totalChaos - a.totalChaos || b.chaosEach - a.chaosEach)
-        .slice(0, 16),
-    [enrichedDrops]
-  );
+  // Personal Strategy Leaderboard computed from saved sessions
+  const strategyLeaderboard = useMemo(() => {
+    const agg = new Map<string, { sessions: number; totalChaos: number; totalMaps: number; totalMin: number; totalUniques: number }>();
+    for (const s of savedSessions) {
+      const key = s.strategy || 'General Mapping';
+      const cur = agg.get(key) || { sessions: 0, totalChaos: 0, totalMaps: 0, totalMin: 0, totalUniques: 0 };
+      cur.sessions += 1;
+      cur.totalChaos += Number(s.totalChaos || 0);
+      cur.totalMaps += Number(s.mapsRun || 0);
+      cur.totalMin += Math.max(1, Number(s.durationMinutes || 60));
+      cur.totalUniques += (s.items || []).filter((i) => i.category === 'Uniques').length;
+      agg.set(key, cur);
+    }
+    return Array.from(agg.entries())
+      .map(([strategy, st]) => ({
+        strategy,
+        sessions: st.sessions,
+        chaosPerHr: Math.round((st.totalChaos / st.totalMin) * 60),
+        mapsPerHr: ((st.totalMaps / st.totalMin) * 60).toFixed(1),
+        uniquesPerHr: ((st.totalUniques / st.totalMin) * 60).toFixed(1)
+      }))
+      .sort((a, b) => b.chaosPerHr - a.chaosPerHr);
+  }, [savedSessions]);
+
+  // Distinct Stash Tabs for Left Vertical Rail
+  const railTabsList = useMemo(() => {
+    if (stashTabs.length > 0 && selectedTabIndices.length > 0) {
+      return stashTabs.filter((t) => selectedTabIndices.includes(t.index));
+    }
+    const names = Array.from(new Set(enrichedDrops.map((d) => d.tabName).filter(Boolean)));
+    return names.map((name, idx) => ({
+      index: idx,
+      id: `local-${name}`,
+      name,
+      type: 'NormalStash',
+      colour: { r: 168, g: 132, b: 64 }
+    }));
+  }, [stashTabs, selectedTabIndices, enrichedDrops]);
 
   const activeSubFilterOptions = useMemo(() => {
     if (categoryFilter === 'Gems') return GEM_SUBFILTERS;
     if (categoryFilter === 'Gear & Jewels') return EQUIPMENT_BRACKETS;
     if (categoryFilter === 'All') return [];
     const presentSubs = Array.from(
-      new Set(
-        enrichedDrops
-          .filter((d) => d.category === categoryFilter && d.subCategory)
-          .map((d) => d.subCategory!)
-      )
+      new Set(enrichedDrops.filter((d) => d.category === categoryFilter && d.subCategory).map((d) => d.subCategory!))
     ).sort();
     return presentSubs.length > 1 ? ['All', ...presentSubs] : [];
   }, [categoryFilter, enrichedDrops]);
@@ -999,8 +1236,14 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const filteredAndSortedDrops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = enrichedDrops.filter((d) => {
+      if (activeTabFilter !== 'ALL' && d.tabName !== activeTabFilter) return false;
       if (categoryFilter !== 'All' && d.category !== categoryFilter) return false;
       if (tierFilter !== 'All' && d.tier !== tierFilter) return false;
+
+      if (hideBulkNoise) {
+        if (BULK_NOISE_REGEX.test(d.shortName.trim())) return false;
+        if (d.tier === 'C' && d.totalChaos < 2 && d.category !== 'Uniques' && d.category !== 'Gems') return false;
+      }
 
       if (categoryFilter === 'Gems' && subFilter !== 'All Gems') {
         if (subFilter === 'Vaal' && !d.isVaal) return false;
@@ -1022,33 +1265,24 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       return true;
     });
 
+    const mult = sortDir === 'desc' ? -1 : 1;
     return [...filtered].sort((a, b) => {
-      if (sortMode === 'value_desc') return b.totalChaos - a.totalChaos || b.chaosEach - a.chaosEach || b.quantity - a.quantity;
-      if (sortMode === 'qty_desc') return b.quantity - a.quantity || b.totalChaos - a.totalChaos;
-      if (sortMode === 'alpha') return a.shortName.localeCompare(b.shortName);
-      if (sortMode === 'ilvl_desc') return (b.ilvl || 0) - (a.ilvl || 0) || b.totalChaos - a.totalChaos;
-      if (sortMode === 'gem_level') {
-        return (b.gemLevel || 0) - (a.gemLevel || 0) || (b.gemQuality || 0) - (a.gemQuality || 0) || b.totalChaos - a.totalChaos;
-      }
-      if (sortMode === 'gem_quality') {
-        return (b.gemQuality || 0) - (a.gemQuality || 0) || (b.gemLevel || 0) - (a.gemLevel || 0) || b.totalChaos - a.totalChaos;
-      }
-      const catA = CATEGORY_ORDER.indexOf(a.category);
-      const catB = CATEGORY_ORDER.indexOf(b.category);
-      if (catA !== catB) return catA - catB;
-      const subCmp = (a.subCategory || '').localeCompare(b.subCategory || '');
-      if (subCmp !== 0) return subCmp;
-      return b.totalChaos - a.totalChaos || b.quantity - a.quantity;
+      if (sortField === 'total') return (a.totalChaos - b.totalChaos) * mult || (a.quantity - b.quantity) * mult;
+      if (sortField === 'price') return (a.chaosEach - b.chaosEach) * mult;
+      if (sortField === 'qty') return (a.quantity - b.quantity) * mult;
+      if (sortField === 'tier') return (TIER_RANK[a.tier] - TIER_RANK[b.tier]) * mult || (a.totalChaos - b.totalChaos) * mult;
+      if (sortField === 'gem_level') return ((a.gemLevel || 0) - (b.gemLevel || 0)) * mult;
+      if (sortField === 'gem_quality') return ((a.gemQuality || 0) - (b.gemQuality || 0)) * mult;
+      if (sortField === 'ilvl') return ((a.ilvl || 0) - (b.ilvl || 0)) * mult;
+      if (sortField === 'tab') return a.tabName.localeCompare(b.tabName) * mult;
+      return a.shortName.localeCompare(b.shortName) * mult;
     });
-  }, [enrichedDrops, categoryFilter, tierFilter, subFilter, sortMode, searchQuery]);
+  }, [enrichedDrops, activeTabFilter, categoryFilter, tierFilter, hideBulkNoise, subFilter, searchQuery, sortField, sortDir]);
 
   const groupedByBracket = useMemo(() => {
     const map = new Map<string, EnrichedDropItem[]>();
     for (const it of filteredAndSortedDrops) {
-      const bracketTitle =
-        categoryFilter === 'All'
-          ? `${it.category} • ${it.subCategory || 'General'}`
-          : it.subCategory || it.category;
+      const bracketTitle = categoryFilter === 'All' ? `${it.category} • ${it.subCategory || 'General'}` : it.subCategory || it.category;
       const list = map.get(bracketTitle) || [];
       list.push(it);
       map.set(bracketTitle, list);
@@ -1056,310 +1290,470 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     return Array.from(map.entries());
   }, [filteredAndSortedDrops, categoryFilter]);
 
-  const totalItemsDropped = enrichedDrops.reduce((s, x) => s + x.quantity, 0);
-  const mapsPerHour = durationMinutes > 0 && mapsRun > 0 ? ((mapsRun / durationMinutes) * 60).toFixed(1) : '0.0';
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  // Direct Browser Stash JSON URL helper
+  const directBrowserStashUrl = useMemo(() => {
+    const acct = accountName.trim() || 'YourAccount#1234';
+    const lg = leagueName.trim() || 'Ravenwatch Covens of Umbra GSF (PL87651)';
+    return `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(acct)}&realm=pc&league=${encodeURIComponent(lg)}&tabs=1&tabIndex=${browserJsonTabIndex}`;
+  }, [accountName, leagueName, browserJsonTabIndex]);
+
+  const heroChaos = wealthMode === 'hourly' ? chaosPerHour : totalSessionChaos;
 
   return (
-    <div className="w-full space-y-6 pb-20 font-sans text-slate-200">
-      {/* Header Bar */}
-      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0e1320] via-indigo-950/35 to-[#0e1320] p-5 space-y-4 shadow-xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-poe font-bold text-white flex items-center gap-2">
-                <Package className="w-5 h-5 text-amber-400" />
-                <span>Farming & Drop Tracker</span>
-              </h1>
-              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                poe.ninja S/A/B/C Tiering
-              </span>
-              {ninjaResolvedLeague && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
-                  {ninjaResolvedLeague}: 1 Div = {divineChaos}c
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 max-w-2xl">
-              Auto pull your dump tabs every 30 minutes, tier every drop by live poe.ninja value (S, A, B, C), sort Gems and Equipment into defense brackets, and match drops directly to your Private League wishlists.
-            </p>
+    <div className="w-full space-y-4 pb-16 font-sans text-slate-200">
+      {/* Compact Command Header */}
+      <header className="rounded-2xl border border-slate-800 bg-[#0d111a] px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-lg sm:text-xl font-poe font-bold text-white flex items-center gap-2">
+            <Package className="w-5 h-5 text-amber-400" />
+            <span>Farming & Drops</span>
+          </h1>
+
+          {/* Game Switcher */}
+          <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setGame('poe1')}
+              className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
+                game === 'poe1' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Flame className="w-3 h-3 text-amber-400" /> PoE 1
+            </button>
+            <button
+              type="button"
+              onClick={() => setGame('poe2')}
+              className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
+                game === 'poe2' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Hammer className="w-3 h-3 text-cyan-400" /> PoE 2
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
-            {/* Game Switcher */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-indigo-500/25 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setGame('poe1')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                  game === 'poe1'
-                    ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
-                    : 'text-slate-400 border border-transparent hover:text-white'
-                }`}
-              >
-                <Flame className={`w-3.5 h-3.5 ${game === 'poe1' ? 'text-amber-300' : 'text-slate-500'}`} />
-                <span>PoE 1</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setGame('poe2')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                  game === 'poe2'
-                    ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
-                    : 'text-slate-400 border border-transparent hover:text-white'
-                }`}
-              >
-                <Hammer className={`w-3.5 h-3.5 ${game === 'poe2' ? 'text-amber-300' : 'text-slate-500'}`} />
-                <span>PoE 2</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Linked Private League + poe.ninja Economy Reference Strip */}
-        <div className="pt-3 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-indigo-400" />
-              Linked Private League:
-            </span>
+          {/* Linked Private League */}
+          <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
+            <Users className="w-3.5 h-3.5 text-indigo-400" />
             <select
               value={linkedLeagueId}
               onChange={(e) => handleSelectLinkedLeague(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer"
+              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer max-w-[200px] sm:max-w-xs truncate"
             >
               {leagueOptions.map((lg) => (
-                <option key={lg.id} value={lg.id}>
+                <option key={lg.id} value={lg.id} className="bg-slate-950">
                   {lg.name}
                 </option>
               ))}
             </select>
-            <span className="text-[11px] text-emerald-400 font-mono">
-              ({wishlistItems.filter((w) => w.status !== 'HAVE').length} open squad wishlists synced)
-            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-mono uppercase text-slate-400">poe.ninja Reference:</span>
+          {/* poe.ninja Reference Pill */}
+          <div className="hidden md:flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-[11px] font-mono text-amber-300">
+            <TrendingUp className="w-3 h-3" />
             <select
               value={ninjaLeagueParam}
               onChange={(e) => setNinjaLeagueParam(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent focus:outline-none cursor-pointer"
             >
-              <option value="auto">Current Challenge League</option>
-              <option value="Standard">Standard</option>
-              <option value="Hardcore">Hardcore</option>
+              <option value="auto" className="bg-slate-950">{ninjaResolvedLeague || 'Challenge League'}</option>
+              <option value="Standard" className="bg-slate-950">Standard</option>
+              <option value="Hardcore" className="bg-slate-950">Hardcore</option>
             </select>
+            <span className="text-slate-500">•</span>
+            <span>1d = {divineChaos}c</span>
             <button
               type="button"
               disabled={loadingNinja}
               onClick={() => loadNinjaPrices(ninjaLeagueParam, true)}
-              title="Refresh poe.ninja pricing dictionary"
-              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              title="Refresh poe.ninja prices"
+              className="ml-1 text-slate-400 hover:text-white cursor-pointer"
             >
-              <RefreshCw className={`w-3 h-3 text-amber-400 ${loadingNinja ? 'animate-spin' : ''}`} />
-              <span>Sync Prices</span>
+              <RefreshCw className={`w-3 h-3 ${loadingNinja ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setChimeEnabled((v) => !v)}
+            title={chimeEnabled ? 'Chime enabled for S Tier & Wishlist drops' : 'Chime muted'}
+            className={`p-2 rounded-xl border text-xs cursor-pointer ${
+              chimeEnabled
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : 'bg-slate-900 border-slate-800 text-slate-500'
+            }`}
+          >
+            {chimeEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportXlsx}
+            title="Export drops and session history to Excel / Google Sheets (.xlsx)"
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export .xlsx</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = !focusMode;
+              setFocusMode(next);
+              if (next) setSetupOpen(false);
+            }}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              focusMode
+                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
+            }`}
+          >
+            {focusMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span>{focusMode ? 'Exit Focus Mode' : 'Focus Mode'}</span>
+          </button>
+        </div>
       </header>
 
-      {/* Status Notice Banner */}
+      {/* Slim Focus Status Bar when Focus Mode is active */}
+      {focusMode && (
+        <div className="px-4 py-2 rounded-xl bg-slate-900/90 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-3 text-slate-300">
+            <span>
+              Auto Pull:{' '}
+              <strong className={autoSyncMinutes > 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                {autoSyncMinutes > 0 ? formatCountdown(secondsUntilSync) : 'Off'}
+              </strong>
+            </span>
+            <span>•</span>
+            <span>
+              Tabs: <strong className="text-white">{selectedTabIndices.length || railTabsList.length}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Strategy: <strong className="text-amber-300">{strategyTag}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Pace: <strong className="text-emerald-300">{mapsPerHour} maps/hr</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFocusMode(false);
+              setSetupOpen(true);
+            }}
+            className="text-indigo-300 hover:text-white underline cursor-pointer"
+          >
+            Expand Setup
+          </button>
+        </div>
+      )}
+
+      {/* Status Notice */}
       {statusNotice && (
         <div
-          className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+          className={`px-4 py-2.5 rounded-xl border text-xs flex items-center justify-between gap-3 ${
             statusNotice.type === 'ok'
               ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
               : 'bg-rose-500/10 border-rose-500/40 text-rose-200'
           }`}
         >
           <div className="flex items-center gap-2">
-            {statusNotice.type === 'ok' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            )}
+            {statusNotice.type === 'ok' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
             <span>{statusNotice.text}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setStatusNotice(null)}
-            className="text-[11px] font-mono opacity-75 hover:opacity-100 cursor-pointer"
-          >
+          <button type="button" onClick={() => setStatusNotice(null)} className="text-[11px] font-mono opacity-75 hover:opacity-100 cursor-pointer">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Squad Wishlist Match Alert with Direct Claim & Notify Action */}
+      {/* Squad Wishlist Match Banner */}
       {wishlistMatches.length > 0 && (
-        <div className="p-4 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 space-y-2.5 shadow-lg">
-          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-amber-300">
+        <div className="p-3.5 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 flex flex-wrap items-center gap-2.5 shadow-lg">
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase text-amber-300 mr-1">
             <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Squad Wishlist Drop Match Detected ({wishlistMatches.length})</span>
+            <span>Wishlist Match ({wishlistMatches.length}):</span>
           </div>
-          <div className="flex flex-wrap gap-2.5">
-            {wishlistMatches.map((m, idx) => {
-              const isClaimed = !!claimedWishIds[m.wish.id];
-              return (
-                <div
-                  key={idx}
-                  className="px-3.5 py-2 rounded-xl bg-slate-950/90 border border-amber-400/40 text-xs text-white flex flex-wrap items-center gap-2.5"
+          {wishlistMatches.map((m, idx) => {
+            const isClaimed = !!claimedWishIds[m.wish.id];
+            return (
+              <div key={idx} className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-amber-400/40 text-xs text-white flex items-center gap-2">
+                <span className="font-bold text-orange-300">{m.drop.shortName}</span>
+                <span className="text-slate-400">for</span>
+                <span className="font-mono font-bold text-emerald-300">@{m.wish.displayName || m.wish.characterName}</span>
+                <button
+                  type="button"
+                  disabled={isClaimed}
+                  onClick={() => handleClaimWishlistMatch(m.wish)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer ${
+                    isClaimed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
                 >
-                  <span className="font-bold text-orange-300">{m.drop.shortName}</span>
-                  <span className="text-slate-400">needed by</span>
-                  <span className="font-mono font-bold text-emerald-300">
-                    @{m.wish.displayName || m.wish.characterName}
-                  </span>
-                  {m.wish.bountyOffer && (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-200 font-mono text-[10px]">
-                      Bounty: {m.wish.bountyOffer}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    disabled={isClaimed}
-                    onClick={() => handleClaimWishlistMatch(m.wish)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
-                      isClaimed
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    }`}
-                  >
-                    {isClaimed ? 'Claimed & Notified' : 'Mark Found & Notify'}
-                  </button>
-                </div>
+                  {isClaimed ? 'Claimed' : 'Mark Found'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* TOP 2 CARD HERO ROW (WealthyExile Glanceable DNA) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left Card: Wealth & Loot Over Time Sparkline */}
+        <div className="lg:col-span-6 rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-bold text-white">Wealth & Pace</span>
+              <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setWealthMode('total')}
+                  className={`px-2.5 py-0.5 rounded-md cursor-pointer ${
+                    wealthMode === 'total' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Total
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWealthMode('hourly')}
+                  className={`px-2.5 py-0.5 rounded-md cursor-pointer ${
+                    wealthMode === 'hourly' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Hourly
+                </button>
+              </div>
+
+              <select
+                value={strategyTag}
+                onChange={(e) => setStrategyTag(e.target.value)}
+                title="Atlas / Farming Strategy Tag"
+                className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-amber-300 font-semibold focus:outline-none cursor-pointer"
+              >
+                {STRATEGY_PRESETS.map((st) => (
+                  <option key={st} value={st} className="bg-slate-950">
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-right">
+              <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-300 leading-none">
+                {formatValue(heroChaos, divineChaos)}
+                {wealthMode === 'hourly' && <span className="text-xs text-slate-400 font-normal">/hr</span>}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400 mt-1">
+                {mapsRun} maps ({mapsPerHour}/hr) • {tierCounts.S} S Tier • {tierCounts.A} A Tier
+              </div>
+            </div>
+          </div>
+
+          {/* SVG Area Sparkline Chart */}
+          <div className="h-24 w-full rounded-xl bg-slate-950/75 border border-slate-800/80 px-3 py-2 flex flex-col justify-between">
+            <LootSparkline checkpoints={checkpoints} fallbackChaos={totalSessionChaos} divineChaos={divineChaos} />
+          </div>
+        </div>
+
+        {/* Right Card: Compact Category Breakdown (3x3 Grid) */}
+        <div className="lg:col-span-6 rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold text-white">Breakdown</span>
+            <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setBreakdownMode('divines')}
+                className={`px-2.5 py-0.5 rounded-md cursor-pointer ${
+                  breakdownMode === 'divines' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Divines
+              </button>
+              <button
+                type="button"
+                onClick={() => setBreakdownMode('percent')}
+                className={`px-2.5 py-0.5 rounded-md cursor-pointer ${
+                  breakdownMode === 'percent' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Percentage
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {categoryBreakdown.map((row) => {
+              const isSelected = categoryFilter === row.category;
+              return (
+                <button
+                  key={row.category}
+                  type="button"
+                  onClick={() => {
+                    const next = isSelected ? 'All' : row.category;
+                    setCategoryFilter(next);
+                    setSubFilter(next === 'Gems' ? 'All Gems' : next === 'Gear & Jewels' ? 'All Equipment' : 'All');
+                  }}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                      : 'bg-slate-950/75 border-slate-800/80 hover:border-slate-600 text-slate-200'
+                  }`}
+                >
+                  <div className="text-[10px] font-mono text-slate-400 truncate">{row.category}</div>
+                  <div className="text-sm font-mono font-bold text-amber-300 mt-0.5">
+                    {breakdownMode === 'percent'
+                      ? `${row.pct}%`
+                      : row.chaos > 0
+                      ? formatValue(row.chaos, divineChaos)
+                      : `${row.count}x`}
+                  </div>
+                </button>
               );
             })}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Top Row: Stash Dump Tab Scanner (PoE 1) + Client.txt & Clipboard Logger */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-        <section className="xl:col-span-7 rounded-2xl border border-indigo-500/30 bg-slate-900/85 p-5 space-y-4 shadow-lg">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase text-indigo-300">
+      {/* Collapsible Setup & Data Ingestion Drawer */}
+      {setupOpen && !focusMode && (
+        <section className="rounded-2xl border border-indigo-500/30 bg-[#0d111a] p-4 sm:p-5 space-y-4 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSetupTab('api')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  setupTab === 'api'
+                    ? 'bg-indigo-600/30 border border-indigo-400/60 text-white'
+                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
                 <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                <span>{game === 'poe1' ? 'PoE 1 Dump Tab Snapshot & Auto Pull Engine' : 'PoE 2 Stash API Status'}</span>
-              </div>
-              <h2 className="text-base font-poe font-bold text-white">
-                {game === 'poe1' ? 'Live Stash Tab Scanner & 30m Auto Sync' : 'PoE 2 Automated Stash Sync (Awaiting GGG OAuth)'}
-              </h2>
+                <span>1. Live Stash API (POESESSID)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSetupTab('json')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  setupTab === 'json'
+                    ? 'bg-indigo-600/30 border border-indigo-400/60 text-white'
+                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                <span>2. Direct Browser JSON (No POESESSID)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSetupTab('manual')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  setupTab === 'manual'
+                    ? 'bg-indigo-600/30 border border-indigo-400/60 text-white'
+                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5 text-sky-400" />
+                <span>3. Client.txt, Clipboard & Save Session</span>
+              </button>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              Stateless Proxy
-            </span>
+
+            <button
+              type="button"
+              onClick={() => setSetupOpen(false)}
+              className="text-xs font-mono text-slate-400 hover:text-white cursor-pointer"
+            >
+              Hide Setup ▲
+            </button>
           </div>
 
-          {game === 'poe2' ? (
-            <div className="p-4 rounded-xl bg-slate-950/75 border border-slate-800 text-xs text-slate-300 leading-relaxed space-y-2">
-              <p>
-                Grinding Gear Games has not opened the public Stash Tab API for Path of Exile 2 yet. Once GGG enables OAuth Stash access for PoE 2, this Dump Tab Diff & Auto Pull engine will unlock automatically.
-              </p>
-              <p className="text-amber-300 font-semibold">
-                In the meantime, use the Client.txt Map Speed Parser and Clipboard Drop Logger on the right to track your PoE 2 Waystone sessions with zero credentials!
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Explicit POESESSID Risk Warning & Disclaimer */}
-              <div className="p-3.5 rounded-xl bg-rose-950/35 border border-rose-500/45 space-y-2.5 text-xs">
-                <div className="flex items-start gap-2.5">
-                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <div className="font-mono font-bold uppercase text-[11px] text-rose-300">
-                      Important Security Warning & Disclaimer (POESESSID)
-                    </div>
-                    <p className="text-slate-200 leading-relaxed">
-                      <strong>What is POESESSID?</strong> It is your live authenticated session cookie for <code>pathofexile.com</code>. Anyone who possesses an active POESESSID can access your website account (forum posts, messages, and private stash tabs). <strong>Never share it in Discord, streams, or screenshots.</strong>
-                    </p>
-                    <p className="text-slate-300 leading-relaxed">
-                      <strong>Disclaimer:</strong> Grinding Gear Games currently has new OAuth application registrations paused. Providing your POESESSID here is <strong>100% optional and strictly at your own discretion</strong>. Exile SSF never stores your POESESSID in any database, KV cache, or server log: it stays in your browser memory only and is discarded immediately after each read. Sign out and back into <code>pathofexile.com</code> anytime to rotate your session cookie.
-                    </p>
-                  </div>
+          {/* Setup Tab 1: POESESSID Live API */}
+          {setupTab === 'api' && (
+            <div className="space-y-3.5">
+              <div className="p-3 rounded-xl bg-rose-950/35 border border-rose-500/45 space-y-2 text-xs">
+                <div className="flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <p className="text-slate-200 leading-relaxed">
+                    <strong className="text-rose-300">POESESSID Security Disclaimer:</strong> Your POESESSID grants live session access to <code>pathofexile.com</code>. Never share it with anyone. Using it here is strictly optional at your own discretion while GGG OAuth registrations are paused. Exile SSF never stores it in any database, KV cache, or log.
+                  </p>
                 </div>
-                <label className="flex items-center gap-2 pt-1.5 border-t border-rose-500/25 text-rose-200 font-semibold cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-rose-200 font-semibold cursor-pointer">
                   <input
                     type="checkbox"
                     checked={acceptedRiskDisclaimer}
                     onChange={(e) => setAcceptedRiskDisclaimer(e.target.checked)}
                     className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
                   />
-                  <span>I understand the risks of using POESESSID and choose to proceed at my own discretion.</span>
+                  <span>I understand the risks of POESESSID and choose to proceed at my own discretion.</span>
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-mono uppercase text-slate-400">PoE Account Name</span>
-                  <input
-                    type="text"
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    placeholder="AccountName#1234"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
-                  />
-                </label>
-
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-mono uppercase text-slate-400">League Name</span>
-                  <input
-                    type="text"
-                    value={leagueName}
-                    onChange={(e) => setLeagueName(e.target.value)}
-                    placeholder="Ravenwatch Covens of Umbra GSF (PL87651)"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
-                  />
-                </label>
-
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-mono uppercase text-slate-400">Personal POESESSID (Memory Only)</span>
-                  <input
-                    type="password"
-                    value={poesessid}
-                    onChange={(e) => setPoesessid(e.target.value)}
-                    placeholder="32 char session id..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                  />
-                </label>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={detectingLeagues || !acceptedRiskDisclaimer}
-                  onClick={handleDetectLeagues}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                >
-                  <Search className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{detectingLeagues ? 'Detecting...' : 'Detect My Leagues'}</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={loadingTabs || !acceptedRiskDisclaimer}
-                  onClick={handleLoadStashTabs}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingTabs ? 'animate-spin' : ''}`} />
-                  <span>{loadingTabs ? 'Loading Tabs...' : 'Load Stash Tabs'}</span>
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
+                <input
+                  type="text"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="PoE Account (e.g. Leuie#0626)"
+                  className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                />
+                <input
+                  type="text"
+                  value={leagueName}
+                  onChange={(e) => setLeagueName(e.target.value)}
+                  placeholder="League Name"
+                  className="sm:col-span-4 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                />
+                <input
+                  type="password"
+                  value={poesessid}
+                  onChange={(e) => setPoesessid(e.target.value)}
+                  placeholder="POESESSID (Memory Only)"
+                  className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono"
+                />
+                <div className="sm:col-span-2 flex gap-1.5">
+                  <button
+                    type="button"
+                    disabled={detectingLeagues || !acceptedRiskDisclaimer}
+                    onClick={handleDetectLeagues}
+                    title="Auto detect active GGG leagues"
+                    className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold cursor-pointer disabled:opacity-40"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loadingTabs || !acceptedRiskDisclaimer}
+                    onClick={handleLoadStashTabs}
+                    className="flex-1 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold cursor-pointer disabled:opacity-40"
+                  >
+                    {loadingTabs ? '...' : 'Load Tabs'}
+                  </button>
+                </div>
               </div>
 
               {detectedLeagues.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[10px] font-mono uppercase text-slate-400">Detected Leagues:</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-mono uppercase text-slate-400">Detected:</span>
                   {detectedLeagues.map((lg) => (
                     <button
                       key={lg}
                       type="button"
                       onClick={() => setLeagueName(lg)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer ${
-                        leagueName === lg
-                          ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
-                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-600'
+                      className={`px-2 py-1 rounded-lg text-xs border cursor-pointer ${
+                        leagueName === lg ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-950 border-slate-800 text-slate-300'
                       }`}
                     >
                       {lg}
@@ -1368,693 +1762,723 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                 </div>
               )}
 
-              {/* Stash Tab Picker + Auto Sync Timer */}
               {stashTabs.length > 0 && (
-                <div className="space-y-3 pt-2 border-t border-slate-800">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-mono text-[11px] uppercase text-slate-400">
-                      Select Dump Tabs ({selectedTabIndices.length}/8):
-                    </span>
-                    {beforeSnapshot && (
-                      <span className="text-[11px] font-mono text-emerald-400">
-                        Before Snapshot locked at {beforeSnapshot.at}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
-                    {stashTabs.map((tab) => {
-                      const active = selectedTabIndices.includes(tab.index);
-                      const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => toggleTabIndex(tab.index)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                            active
-                              ? 'bg-indigo-600/30 border-indigo-400/70 text-white shadow-sm'
-                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'
-                          }`}
-                        >
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                          <span>{tab.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                  {stashTabs.map((tab) => {
+                    const active = selectedTabIndices.includes(tab.index);
+                    const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
+                    return (
                       <button
+                        key={tab.id}
                         type="button"
-                        disabled={snapshotting}
-                        onClick={() => runSnapshot('before')}
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        onClick={() => toggleTabIndex(tab.index)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${
+                          active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}
                       >
-                        <Camera className="w-3.5 h-3.5 text-sky-400" />
-                        <span>1. Before</span>
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                        <span>{tab.name}</span>
                       </button>
-
-                      <button
-                        type="button"
-                        disabled={snapshotting || !beforeSnapshot}
-                        onClick={() => runSnapshot('after')}
-                        className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                      >
-                        <GitCompare className="w-3.5 h-3.5" />
-                        <span>2. Diff Now</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={snapshotting}
-                        onClick={() => runSnapshot('inspect')}
-                        className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Scan Now</span>
-                      </button>
-                    </div>
-
-                    {/* Auto Pull Interval Selector */}
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-indigo-500/35 text-xs">
-                      <Timer className={`w-3.5 h-3.5 ${autoSyncMinutes > 0 ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-                      <span className="text-[10px] font-mono uppercase text-slate-400">Auto Pull:</span>
-                      <select
-                        value={autoSyncMinutes}
-                        onChange={(e) => setAutoSyncMinutes(Number(e.target.value))}
-                        className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
-                      >
-                        <option value={0} className="bg-slate-950">Off</option>
-                        <option value={15} className="bg-slate-950">Every 15m</option>
-                        <option value={30} className="bg-slate-950">Every 30m</option>
-                        <option value={60} className="bg-slate-950">Every 60m</option>
-                      </select>
-                      {autoSyncMinutes > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
-                          {formatCountdown(secondsUntilSync)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
               )}
-            </>
+            </div>
+          )}
+
+          {/* Setup Tab 2: Direct Browser JSON Fallback (Zero POESESSID) */}
+          {setupTab === 'json' && (
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Zero Credential Fallback:</strong> Open your own <code>pathofexile.com</code> stash JSON URL in Brave (using your existing Brave login), press <strong>Ctrl+A</strong> then <strong>Ctrl+C</strong>, and paste it below. Works even if Cloudflare blocks edge requests!
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Account (e.g. Leuie#0626)"
+                  className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white w-48"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={browserJsonTabIndex}
+                  onChange={(e) => setBrowserJsonTabIndex(Math.max(0, Number(e.target.value) || 0))}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono w-20"
+                  title="Stash Tab Index (0 = first tab)"
+                />
+                <a
+                  href={directBrowserStashUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5"
+                >
+                  <span>Open Stash JSON in Brave</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+              <textarea
+                rows={3}
+                value={browserJsonInput}
+                onChange={(e) => setBrowserJsonInput(e.target.value)}
+                placeholder='Paste raw JSON from pathofexile.com here (starts with {"numTabs":...})...'
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-amber-200 placeholder-slate-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleParseDirectBrowserJson('before')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold cursor-pointer"
+                >
+                  1. Lock as Before Snapshot
+                </button>
+                <button
+                  type="button"
+                  disabled={!beforeSnapshot}
+                  onClick={() => handleParseDirectBrowserJson('after')}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer disabled:opacity-40"
+                >
+                  2. Diff vs Before
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleParseDirectBrowserJson('inspect')}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-200 font-bold cursor-pointer"
+                >
+                  Parse & View Now
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Setup Tab 3: Client.txt, Clipboard & Save Session */}
+          {setupTab === 'manual' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono uppercase text-[10px] text-emerald-400 font-bold">Client.txt Speed & Session Info</span>
+                  <label className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 font-bold flex items-center gap-1 cursor-pointer">
+                    <Upload className="w-3 h-3" /> Parse Client.txt
+                    <input type="file" accept=".txt,.log" onChange={handleClientTxtUpload} className="hidden" />
+                  </label>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <input
+                    type="text"
+                    value={sessionTitle}
+                    onChange={(e) => setSessionTitle(e.target.value)}
+                    placeholder="Session Title"
+                    className="col-span-2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    value={mapsRun}
+                    onChange={(e) => setMapsRun(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="Maps"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white font-mono"
+                    title="Maps Run"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value) || 1))}
+                    placeholder="Mins"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white font-mono"
+                    title="Duration Minutes"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={savingSession || activeDrops.length === 0 || !normalizedHandle}
+                    onClick={handleSaveSessionToCloud}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingSession ? 'Saving...' : 'Save Session'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sharingRecap || activeDrops.length === 0}
+                    onClick={handleShareRecapToFeed}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{sharingRecap ? 'Posting...' : 'Share Recap to League Feed'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={clipboardText}
+                    onChange={(e) => setClipboardText(e.target.value)}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text');
+                      if (pasted.includes('Rarity:')) {
+                        e.preventDefault();
+                        setClipboardText(pasted);
+                      }
+                    }}
+                    placeholder="Paste Ctrl+C item tooltip..."
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200"
+                  />
+                  <button type="button" onClick={handleAddClipboardDrop} className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-bold cursor-pointer">
+                    Parse
+                  </button>
+                </div>
+                <form onSubmit={handleAddManualDrop} className="grid grid-cols-12 gap-2">
+                  <input
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Manual drop (e.g. Divine Orb)..."
+                    className="col-span-6 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                  />
+                  <select
+                    value={manualCategory}
+                    onChange={(e) => setManualCategory(e.target.value)}
+                    className="col-span-3 px-2 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200"
+                  >
+                    {CATEGORY_ORDER.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    value={manualQty}
+                    onChange={(e) => setManualQty(Math.max(1, Number(e.target.value) || 1))}
+                    className="col-span-1 px-1 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-center font-mono text-white"
+                  />
+                  <button type="submit" className="col-span-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer">
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
         </section>
+      )}
 
-        {/* Right 5 Cols: Client.txt Speed Parser + Clipboard Quick Logger */}
-        <section className="xl:col-span-5 rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-4 shadow-lg">
-          <div className="border-b border-slate-800 pb-3 flex items-center justify-between gap-2">
-            <div>
-              <div className="text-[10px] font-mono font-bold uppercase text-emerald-400">
-                Zero Credential Tools
-              </div>
-              <h2 className="text-base font-poe font-bold text-white">
-                Client.txt Pace & Clipboard Logger
-              </h2>
-            </div>
-
-            <label className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <Upload className="w-3.5 h-3.5" />
-              <span>Parse Client.txt</span>
-              <input type="file" accept=".txt,.log" onChange={handleClientTxtUpload} className="hidden" />
-            </label>
+      {/* MAIN WORKSPACE SPLIT: LEFT STASH RAIL + RIGHT DENSE SORTABLE TABLE */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left Vertical Stash Rail (Tabs | Snapshots | Strategies) */}
+        <aside className="lg:col-span-3 xl:col-span-2 rounded-2xl border border-slate-800 bg-[#0d111a] p-3 space-y-3 shadow-lg">
+          <div className="grid grid-cols-3 bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setRailTab('tabs')}
+              className={`py-1.5 rounded-lg cursor-pointer ${railTab === 'tabs' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
+            >
+              Tabs
+            </button>
+            <button
+              type="button"
+              onClick={() => setRailTab('snapshots')}
+              className={`py-1.5 rounded-lg cursor-pointer ${railTab === 'snapshots' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
+            >
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => setRailTab('strategies')}
+              className={`py-1.5 rounded-lg cursor-pointer ${railTab === 'strategies' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
+            >
+              Stats
+            </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 text-xs">
-            <label className="space-y-1 block">
-              <span className="text-[10px] font-mono uppercase text-slate-400">Maps Run</span>
-              <input
-                type="number"
-                min={0}
-                value={mapsRun}
-                onChange={(e) => setMapsRun(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white font-mono font-bold"
-              />
-            </label>
-            <label className="space-y-1 block">
-              <span className="text-[10px] font-mono uppercase text-slate-400">Minutes</span>
-              <input
-                type="number"
-                min={1}
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value) || 1))}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white font-mono font-bold"
-              />
-            </label>
-            <label className="space-y-1 block">
-              <span className="text-[10px] font-mono uppercase text-slate-400">Deaths</span>
-              <input
-                type="number"
-                min={0}
-                value={deaths}
-                onChange={(e) => setDeaths(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-rose-300 font-mono font-bold"
-              />
-            </label>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={clipboardText}
-                onChange={(e) => setClipboardText(e.target.value)}
-                onPaste={(e) => {
-                  const pasted = e.clipboardData.getData('text');
-                  if (pasted.includes('Rarity:')) {
-                    e.preventDefault();
-                    setClipboardText(pasted);
-                  }
-                }}
-                placeholder="Paste Ctrl+C item tooltip (auto tiers via poe.ninja)..."
-                className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
-              />
+          {railTab === 'tabs' && (
+            <div className="space-y-1.5">
               <button
                 type="button"
-                onClick={handleAddClipboardDrop}
-                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shrink-0"
+                onClick={() => setActiveTabFilter('ALL')}
+                className={`w-full px-3 py-2 rounded-xl text-left text-xs font-bold flex items-center justify-between border transition-all cursor-pointer ${
+                  activeTabFilter === 'ALL'
+                    ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-600'
+                }`}
               >
-                Parse Drop
+                <span>All Synced Tabs</span>
+                <span className="font-mono text-[10px]">{enrichedDrops.length}</span>
               </button>
-            </div>
 
-            <form onSubmit={handleAddManualDrop} className="grid grid-cols-12 gap-2">
-              <input
-                type="text"
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder="Or type drop (e.g. Divine Orb, Mageblood)..."
-                className="col-span-6 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500"
-              />
-              <select
-                value={manualCategory}
-                onChange={(e) => setManualCategory(e.target.value)}
-                className="col-span-3 px-2 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200"
-              >
-                {CATEGORY_ORDER.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={1}
-                value={manualQty}
-                onChange={(e) => setManualQty(Math.max(1, Number(e.target.value) || 1))}
-                className="col-span-1 px-1.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-center font-mono text-white"
-              />
-              <button
-                type="submit"
-                className="col-span-2 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold flex items-center justify-center cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
-
-          {/* 30m Auto Pull Checkpoints Strip */}
-          {checkpoints.length > 1 && (
-            <div className="pt-2 border-t border-slate-800 space-y-1.5">
-              <div className="text-[10px] font-mono uppercase text-indigo-300">Auto Pull Interval Checkpoints</div>
-              <div className="flex flex-wrap gap-1.5">
-                {checkpoints.map((cp, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300"
-                  >
-                    {cp.at}: <strong className="text-amber-300">{cp.totalChaos.toLocaleString()}c</strong>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* KPI Metrics Strip + Save Session Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-slate-900/85 border border-amber-500/30">
-          <div className="text-[10px] font-mono uppercase text-amber-400">poe.ninja Benchmark Value</div>
-          <div className="text-2xl font-mono font-bold text-amber-300 mt-0.5">
-            {totalSessionDivines >= 1
-              ? `${totalSessionDivines.toFixed(2)} Div`
-              : `${totalSessionChaos.toLocaleString()}c`}
-          </div>
-          <div className="text-[11px] text-slate-400">
-            {totalSessionChaos.toLocaleString()}c total • {divPerHour} Div/hr ({chaosPerHour}c/hr)
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800">
-          <div className="text-[10px] font-mono uppercase text-purple-400">S & A Tier Highlights</div>
-          <div className="text-2xl font-mono font-bold text-white mt-0.5">
-            <span className="text-amber-300">{tierCounts.S} S</span>{' '}
-            <span className="text-slate-600 text-base">/</span>{' '}
-            <span className="text-purple-300">{tierCounts.A} A</span>
-          </div>
-          <div className="text-[11px] text-slate-400">
-            {totalItemsDropped.toLocaleString()} total drops ({enrichedDrops.length} stacks)
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800">
-          <div className="text-[10px] font-mono uppercase text-emerald-400">Mapping Pace</div>
-          <div className="text-2xl font-mono font-bold text-emerald-300 mt-0.5">{mapsPerHour} / hr</div>
-          <div className="text-[11px] text-slate-400">
-            {mapsRun} maps in {durationMinutes}m ({deaths} deaths)
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-900/85 border border-slate-800 flex flex-col justify-between gap-2">
-          <input
-            type="text"
-            value={sessionTitle}
-            onChange={(e) => setSessionTitle(e.target.value)}
-            className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-semibold"
-          />
-          <button
-            type="button"
-            disabled={savingSession || activeDrops.length === 0 || !normalizedHandle}
-            onClick={handleSaveSessionToCloud}
-            className="w-full py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>{savingSession ? 'Saving...' : 'Save Session to Profile'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Visual Loot Breakdown + S/A Tier & Unique Highlights Showcase */}
-      {enrichedDrops.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-3.5">
-            <h3 className="text-sm font-poe font-bold text-white">Value & Drop Distribution</h3>
-            <div className="space-y-3">
-              {categoryBreakdown.map((row) => (
-                <div key={row.category} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-200">{row.category}</span>
-                    <span className="font-mono text-slate-400">
-                      {row.chaos > 0 ? `${row.chaos.toLocaleString()}c • ` : ''}
-                      {row.count.toLocaleString()} drops ({row.pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${CATEGORY_COLORS[row.category] || 'from-indigo-500 to-sky-400'}`}
-                      style={{ width: `${Math.max(4, row.pct)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="lg:col-span-7 rounded-2xl border border-amber-500/30 bg-slate-900/85 p-5 space-y-3.5">
-            <h3 className="text-sm font-poe font-bold text-amber-300 flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>S & A Tier Jackpots & Unique Showcase ({topDropsShowcase.length})</span>
-            </h3>
-            {topDropsShowcase.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
-                No S/A Tier hits or Uniques in this session yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
-                {topDropsShowcase.map((u) => {
-                  const isShared = !!sharedStashKeys[u.key];
+              <div className="space-y-1 max-h-[420px] overflow-y-auto pr-0.5">
+                {railTabsList.map((tab) => {
+                  const isActive = activeTabFilter === tab.name;
+                  const tabBg = `rgba(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b}, ${isActive ? 0.35 : 0.14})`;
+                  const tabBorder = `rgba(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b}, ${isActive ? 0.85 : 0.35})`;
+                  const tabItemsCount = enrichedDrops.filter((d) => d.tabName === tab.name).length;
                   return (
-                    <div
-                      key={u.key}
-                      className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-between gap-2.5"
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTabFilter(isActive ? 'ALL' : tab.name)}
+                      style={{ backgroundColor: tabBg, borderColor: tabBorder }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-white border flex items-center justify-between gap-2 transition-all hover:brightness-125 cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {u.icon ? (
-                          <img src={u.icon} alt={u.shortName} className="w-9 h-9 object-contain shrink-0" />
-                        ) : (
-                          <span
-                            className={`w-8 h-8 rounded-lg border flex items-center justify-center font-mono font-bold text-xs shrink-0 ${TIER_STYLES[u.tier]}`}
-                          >
-                            {u.tier}
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-amber-200 truncate">{u.shortName}</div>
-                          <div className="text-[11px] font-mono text-slate-400 truncate">
-                            Tier {u.tier} • {u.totalChaos > 0 ? `${u.totalChaos.toLocaleString()}c` : u.subCategory}
-                            {u.quantity > 1 ? ` (×${u.quantity})` : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      {u.category === 'Uniques' && (
-                        <button
-                          type="button"
-                          disabled={isShared}
-                          onClick={() => handleShareToFreeStash(u)}
-                          title="Offer this spare Unique to your Private League Free Stash"
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
-                            isShared
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-slate-800 hover:bg-indigo-600 text-slate-200 border border-slate-700'
-                          }`}
-                        >
-                          <Share2 className="w-3 h-3" />
-                          <span>{isShared ? 'Shared' : 'Stash'}</span>
-                        </button>
-                      )}
-                    </div>
+                      <span className="truncate">{tab.name}</span>
+                      <span className="text-[10px] font-mono opacity-80">{tabItemsCount}</span>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Advanced Tiered, Bracketed & Sortable Loot Inventory */}
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-4">
-        {/* Primary Category Filter Ribbon + Sort Selector + Search */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {['All', ...CATEGORY_ORDER].map((cat) => (
               <button
-                key={cat}
                 type="button"
-                onClick={() => handleSelectCategory(cat)}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                  categoryFilter === cat
-                    ? 'bg-indigo-600/30 border-indigo-400/60 text-white shadow-sm'
+                onClick={() => {
+                  setFocusMode(false);
+                  setSetupOpen((v) => !v);
+                }}
+                className="w-full pt-2 text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Pencil className="w-3 h-3" />
+                <span>{setupOpen ? 'Hide Setup' : 'Edit synced tabs'}</span>
+              </button>
+            </div>
+          )}
+
+          {railTab === 'snapshots' && (
+            <div className="space-y-1.5 max-h-[440px] overflow-y-auto">
+              {savedSessions.length === 0 ? (
+                <div className="py-6 text-center text-[11px] text-slate-400">
+                  No saved sessions yet. Save one from Setup!
+                </div>
+              ) : (
+                savedSessions.map((s) => (
+                  <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-400/50 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSessionTitle(s.title);
+                        if (s.strategy) setStrategyTag(s.strategy);
+                        setMapsRun(s.mapsRun);
+                        setDurationMinutes(s.durationMinutes);
+                        setDeaths(s.deaths);
+                        setActiveDrops(s.items || []);
+                      }}
+                      className="text-left min-w-0 flex-1 cursor-pointer"
+                    >
+                      <div className="text-xs font-bold text-white truncate">{s.title}</div>
+                      <div className="text-[10px] font-mono text-amber-300">
+                        {formatValue(s.totalChaos || 0, divineChaos)} • {s.mapsRun}m
+                      </div>
+                    </button>
+                    <button type="button" onClick={() => handleDeleteSession(s.id)} className="text-slate-500 hover:text-rose-400 cursor-pointer">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {railTab === 'strategies' && (
+            <div className="space-y-2 max-h-[440px] overflow-y-auto">
+              <div className="text-[10px] font-mono uppercase text-amber-400 font-bold">My Best Strategies</div>
+              {strategyLeaderboard.length === 0 ? (
+                <div className="py-6 text-center text-[11px] text-slate-400">
+                  Save sessions with Strategy tags to compare Div/hr & Maps/hr here.
+                </div>
+              ) : (
+                strategyLeaderboard.map((st) => (
+                  <div key={st.strategy} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-xs font-bold text-white truncate">{st.strategy}</div>
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-amber-300">{formatValue(st.chaosPerHr, divineChaos)}/hr</span>
+                      <span className="text-emerald-300">{st.mapsPerHr} maps/hr</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400">
+                      {st.uniquesPerHr} Uniques/hr • {st.sessions} run(s)
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </aside>
+
+        {/* Right Main Loot Panel */}
+        <section className="lg:col-span-9 xl:col-span-10 rounded-2xl border border-slate-800 bg-[#0d111a] overflow-hidden shadow-xl">
+          {/* Toolbar (WealthyExile style + SSF/GSF Controls) */}
+          <div className="p-3.5 border-b border-slate-800 bg-slate-900/70 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-48 sm:w-60">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search items, brackets..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFiltersBar((v) => !v)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  showFiltersBar || tierFilter !== 'All' || categoryFilter !== 'All'
+                    ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-600'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                <span>Filters</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setHideBulkNoise((v) => !v)}
+                title="Hide Scrolls, Transmutes, and sub 2c common clutter"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  hideBulkNoise
+                    ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
                     : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                {cat}
+                <EyeOff className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hide Noise</span>
               </button>
-            ))}
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
-              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
-              <select
-                value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
-                className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
-              >
-                <option value="value_desc" className="bg-slate-950">poe.ninja Value (High to Low)</option>
-                <option value="bracket" className="bg-slate-950">Group by Bracket / Subtype</option>
-                <option value="qty_desc" className="bg-slate-950">Quantity (High to Low)</option>
-                <option value="gem_level" className="bg-slate-950">Gem Level (High to Low)</option>
-                <option value="gem_quality" className="bg-slate-950">Gem Quality (High to Low)</option>
-                <option value="ilvl_desc" className="bg-slate-950">Item Level (High to Low)</option>
-                <option value="alpha" className="bg-slate-950">Alphabetical (A to Z)</option>
-              </select>
-            </div>
-
-            <div className="relative w-full sm:w-52">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter dropped items..."
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* poe.ninja Tier Filter Bar + Dynamic Sub-Bracket Pills */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">poe.ninja Tier:</span>
-            {(['All', 'S', 'A', 'B', 'C'] as const).map((tier) => (
-              <button
-                key={tier}
-                type="button"
-                onClick={() => setTierFilter(tier)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
-                  tierFilter === tier
-                    ? tier === 'All'
-                      ? 'bg-indigo-600/30 border-indigo-400/60 text-white'
-                      : TIER_STYLES[tier]
-                    : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                {tier === 'All' ? 'All Tiers' : `Tier ${tier} (${tierCounts[tier]})`}
-              </button>
-            ))}
-          </div>
-
-          {activeSubFilterOptions.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">
-                {categoryFilter === 'Gems' ? 'Gem Filter:' : 'Bracket:'}
-              </span>
-              {activeSubFilterOptions.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setSubFilter(opt)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
-                    subFilter === opt
-                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
-                      : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {filteredAndSortedDrops.length === 0 ? (
-          <div className="py-10 text-center text-xs text-slate-400">
-            Scan your Dump Tabs above, paste a Ctrl+C item, or adjust your Tier and Bracket filters to view drops.
-          </div>
-        ) : sortMode === 'bracket' ? (
-          <div className="space-y-5 max-h-[620px] overflow-y-auto pr-1">
-            {groupedByBracket.map(([bracketName, items]) => {
-              const bracketChaos = Math.round(items.reduce((s, x) => s + x.totalChaos, 0));
-              return (
-                <div key={bracketName} className="space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
-                      {bracketName}
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                      {bracketChaos > 0 ? `${bracketChaos.toLocaleString()}c • ` : ''}
-                      {items.reduce((s, x) => s + x.quantity, 0)} drops ({items.length} stacks)
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                    {items.map((it) => (
-                      <DropItemCard
-                        key={it.key}
-                        item={it}
-                        divineChaos={divineChaos}
-                        isShared={!!sharedStashKeys[it.key]}
-                        onShareFreeStash={it.category === 'Uniques' ? () => handleShareToFreeStash(it) : undefined}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[620px] overflow-y-auto pr-1">
-            {filteredAndSortedDrops.map((it) => (
-              <DropItemCard
-                key={it.key}
-                item={it}
-                divineChaos={divineChaos}
-                isShared={!!sharedStashKeys[it.key]}
-                onShareFreeStash={it.category === 'Uniques' ? () => handleShareToFreeStash(it) : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Cloud Saved Farming Sessions History */}
-      {savedSessions.length > 0 && (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/85 p-5 space-y-3">
-          <h3 className="text-sm font-poe font-bold text-white flex items-center gap-2">
-            <History className="w-4 h-4 text-indigo-400" />
-            <span>Saved Farming Sessions ({savedSessions.length})</span>
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {savedSessions.map((s) => (
-              <div
-                key={s.id}
-                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-indigo-400/50 transition-all flex items-center justify-between gap-3"
-              >
+              {/* Table vs Bracket Cards Toggle */}
+              <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSessionTitle(s.title);
-                    setMapsRun(s.mapsRun);
-                    setDurationMinutes(s.durationMinutes);
-                    setDeaths(s.deaths);
-                    setActiveDrops(s.items || []);
-                  }}
-                  className="text-left min-w-0 flex-1 cursor-pointer space-y-1"
+                  onClick={() => setViewMode('table')}
+                  title="Dense Sortable Table"
+                  className={`p-1.5 rounded-lg cursor-pointer ${viewMode === 'table' ? 'bg-slate-800 text-amber-300' : 'text-slate-400 hover:text-white'}`}
                 >
-                  <div className="text-xs font-bold text-white truncate">{s.title}</div>
-                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {s.mapsRun} maps • {s.totalChaos ? `${Math.round(s.totalChaos).toLocaleString()}c • ` : ''}
-                      {s.items?.length || 0} stacks • {new Date(s.createdAtIso).toLocaleDateString()}
-                    </span>
-                  </div>
+                  <TableIcon className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDeleteSession(s.id)}
-                  title="Delete saved session"
-                  className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer"
+                  onClick={() => setViewMode('cards')}
+                  title="Bracketed Card View"
+                  className={`p-1.5 rounded-lg cursor-pointer ${viewMode === 'cards' ? 'bg-slate-800 text-amber-300' : 'text-slate-400 hover:text-white'}`}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <LayoutGrid className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ))}
+            </div>
+
+            {/* Right Snapshot & 30m Auto Pull Controls */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {lastSyncedAt && (
+                <span className="text-[11px] font-mono text-slate-400 hidden xl:inline">Synced {lastSyncedAt}</span>
+              )}
+
+              <button
+                type="button"
+                disabled={snapshotting}
+                onClick={() => runSnapshot('before')}
+                title="Lock starting Before Snapshot"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+              >
+                <Camera className="w-3.5 h-3.5 text-sky-400" />
+                <span>Before</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={snapshotting}
+                onClick={() => runSnapshot(beforeSnapshot ? 'after' : 'inspect')}
+                title={beforeSnapshot ? 'Diff new drops since Before Snapshot' : 'Scan selected dump tabs now'}
+                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+              >
+                {beforeSnapshot ? <GitCompare className="w-3.5 h-3.5" /> : <RefreshCw className={`w-3.5 h-3.5 ${snapshotting ? 'animate-spin' : ''}`} />}
+                <span>{beforeSnapshot ? 'Diff Now' : 'Sync'}</span>
+              </button>
+
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-indigo-500/35">
+                <Timer className={`w-3.5 h-3.5 ${autoSyncMinutes > 0 ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+                <select
+                  value={autoSyncMinutes}
+                  onChange={(e) => setAutoSyncMinutes(Number(e.target.value))}
+                  className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
+                >
+                  <option value={0} className="bg-slate-950">Auto: Off</option>
+                  <option value={15} className="bg-slate-950">Auto: 15m</option>
+                  <option value={30} className="bg-slate-950">Auto: 30m</option>
+                  <option value={60} className="bg-slate-950">Auto: 60m</option>
+                </select>
+                {autoSyncMinutes > 0 && (
+                  <span className="font-mono text-[10px] font-bold text-emerald-300">{formatCountdown(secondsUntilSync)}</span>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Expandable Advanced Filter Bar (Tiers + Categories + Gem/Equipment Brackets) */}
+          {showFiltersBar && (
+            <div className="p-3.5 border-b border-slate-800 bg-slate-950/75 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">Tier:</span>
+                {(['All', 'S', 'A', 'B', 'C'] as const).map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() => setTierFilter(tier)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border cursor-pointer ${
+                      tierFilter === tier
+                        ? tier === 'All'
+                          ? 'bg-indigo-600/30 border-indigo-400/60 text-white'
+                          : TIER_STYLES[tier]
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {tier === 'All' ? 'All Tiers' : `Tier ${tier} (${tierCounts[tier]})`}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">Category:</span>
+                {['All', ...CATEGORY_ORDER].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter(cat);
+                      setSubFilter(cat === 'Gems' ? 'All Gems' : cat === 'Gear & Jewels' ? 'All Equipment' : 'All');
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                      categoryFilter === cat
+                        ? 'bg-indigo-600/30 border-indigo-400/60 text-white'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {activeSubFilterOptions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-mono uppercase text-slate-400 mr-1">
+                    {categoryFilter === 'Gems' ? 'Gem Filter:' : 'Bracket:'}
+                  </span>
+                  {activeSubFilterOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setSubFilter(opt)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                        subFilter === opt
+                          ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MAIN CONTENT: DENSE SORTABLE TABLE OR BRACKETED CARDS */}
+          {filteredAndSortedDrops.length === 0 ? (
+            <div className="py-16 px-6 text-center space-y-2">
+              <Layers className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="text-sm font-bold text-slate-300">No Drops Loaded Yet</div>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Connect your Dump Tabs via Setup (Live API or Direct Browser JSON), parse a Ctrl+C item, or load a saved session from History on the left rail.
+              </p>
+            </div>
+          ) : viewMode === 'table' ? (
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-900/95 border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400">
+                  <tr>
+                    <th className="py-2.5 px-3.5 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>
+                      Name {sortField === 'name' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-2.5 cursor-pointer hover:text-white" onClick={() => toggleSort('tier')}>
+                      Tier {sortField === 'tier' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-3 cursor-pointer hover:text-white" onClick={() => toggleSort('tab')}>
+                      Tab / Bracket {sortField === 'tab' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('qty')}>
+                      Qty {sortField === 'qty' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-3 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('price')}>
+                      Price {sortField === 'price' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-3.5 text-right cursor-pointer hover:text-white" onClick={() => toggleSort('total')}>
+                      Total {sortField === 'total' ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                    </th>
+                    <th className="py-2.5 px-3 text-right">Squad</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70">
+                  {filteredAndSortedDrops.map((it) => {
+                    const isShared = !!sharedStashKeys[it.key];
+                    return (
+                      <tr key={it.key} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-2 px-3.5">
+                          <div className="flex items-center gap-2.5">
+                            {it.icon ? (
+                              <img src={it.icon} alt={it.shortName} className="w-6 h-6 object-contain shrink-0" />
+                            ) : (
+                              <div className="w-6 h-6 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-[9px] font-mono text-amber-300 shrink-0">
+                                {it.category.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                              <span
+                                className={`font-semibold truncate max-w-[260px] ${
+                                  it.category === 'Uniques' ? 'text-orange-300' : it.category === 'Gems' ? 'text-teal-300' : 'text-slate-100'
+                                }`}
+                              >
+                                {it.shortName}
+                                {it.category === 'Gems' && (it.gemLevel || 0) > 0 ? ` (${it.gemLevel}/${it.gemQuality || 0})` : ''}
+                              </span>
+                              {it.isVaal && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40">Vaal</span>}
+                              {it.isTransfigured && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40">Transfig</span>}
+                              {it.isAwakened && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">Awakened</span>}
+                              {it.corrupted && <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-rose-950/60 text-rose-400">Corr</span>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-2.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${TIER_STYLES[it.tier]}`}>
+                            {it.tier}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-400">
+                          <span className="text-slate-200 font-medium">{it.tabName}</span>
+                          {it.subCategory && (
+                            <span className="ml-1.5 text-[10px] font-mono text-slate-500">({it.subCategory})</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-200">{it.quantity.toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-400">
+                          {it.chaosEach > 0 ? formatValue(it.chaosEach, divineChaos) : '0c'}
+                        </td>
+                        <td className="py-2 px-3.5 text-right font-mono font-bold text-amber-300">
+                          {it.totalChaos > 0 ? formatValue(it.totalChaos, divineChaos) : '0c'}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          {it.category === 'Uniques' && (
+                            <button
+                              type="button"
+                              disabled={isShared}
+                              onClick={() => handleShareToFreeStash(it)}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer ${
+                                isShared ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 hover:bg-indigo-600 text-slate-200'
+                              }`}
+                            >
+                              <Share2 className="w-2.5 h-2.5" />
+                              <span>{isShared ? 'Shared' : 'Stash'}</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-4 space-y-5 max-h-[640px] overflow-y-auto">
+              {groupedByBracket.map(([bracketName, items]) => {
+                const bracketChaos = Math.round(items.reduce((s, x) => s + x.totalChaos, 0));
+                return (
+                  <div key={bracketName} className="space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="text-xs font-mono font-bold uppercase text-amber-300">{bracketName}</span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {formatValue(bracketChaos, divineChaos)} • {items.length} stacks
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {items.map((it) => (
+                        <div key={it.key} className="p-2.5 rounded-xl bg-slate-950/85 border border-slate-800 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${TIER_STYLES[it.tier]}`}>
+                              {it.tier}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate">{it.shortName}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono text-xs shrink-0">
+                            {it.totalChaos > 0 && <span className="text-amber-300 font-bold">{formatValue(it.totalChaos, divineChaos)}</span>}
+                            <span className="text-slate-400">×{it.quantity}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
-      )}
+      </div>
     </div>
   );
 };
 
-const DropItemCard: React.FC<{
-  item: EnrichedDropItem;
-  divineChaos: number;
-  isShared?: boolean;
-  onShareFreeStash?: () => void;
-}> = ({ item, divineChaos, isShared, onShareFreeStash }) => {
-  const valueLabel =
-    item.totalChaos >= divineChaos && divineChaos > 0
-      ? `${(item.totalChaos / divineChaos).toFixed(2)} Div`
-      : item.totalChaos > 0
-      ? `${item.totalChaos.toLocaleString()}c`
-      : '';
+const LootSparkline: React.FC<{ checkpoints: SyncCheckpoint[]; fallbackChaos: number; divineChaos: number }> = ({
+  checkpoints,
+  fallbackChaos,
+  divineChaos
+}) => {
+  const points =
+    checkpoints.length >= 2
+      ? checkpoints
+      : checkpoints.length === 1
+      ? [
+          { at: 'Start', totalItems: 0, totalChaos: 0 },
+          checkpoints[0]
+        ]
+      : [
+          { at: 'Start', totalItems: 0, totalChaos: 0 },
+          { at: 'Now', totalItems: 0, totalChaos: fallbackChaos }
+        ];
+
+  const maxVal = Math.max(10, ...points.map((p) => p.totalChaos));
+  const width = 400;
+  const height = 56;
+  const coords = points.map((p, idx) => {
+    const x = points.length === 1 ? width / 2 : (idx / (points.length - 1)) * (width - 16) + 8;
+    const y = height - 8 - (p.totalChaos / maxVal) * (height - 16);
+    return { x, y, ...p };
+  });
+
+  const linePath = coords.map((c, idx) => `${idx === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${coords[coords.length - 1].x.toFixed(1)} ${height} L ${coords[0].x.toFixed(1)} ${height} Z`;
 
   return (
-    <div
-      className={`p-3 rounded-xl bg-slate-950/85 border transition-colors flex items-center justify-between gap-2.5 ${
-        item.tier === 'S'
-          ? 'border-amber-400/60 shadow-sm shadow-amber-500/10'
-          : item.tier === 'A'
-          ? 'border-purple-500/45'
-          : 'border-slate-800 hover:border-slate-700'
-      }`}
-    >
-      <div className="flex items-center gap-2.5 min-w-0">
-        {item.icon ? (
-          <img src={item.icon} alt={item.shortName} className="w-8 h-8 object-contain shrink-0" />
-        ) : (
-          <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] font-mono text-amber-300 shrink-0">
-            {item.category.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-        <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border shrink-0 ${TIER_STYLES[item.tier]}`}
-            >
-              {item.tier}
-            </span>
-            <span
-              className={`text-xs font-bold truncate ${
-                item.category === 'Uniques'
-                  ? 'text-orange-300'
-                  : item.category === 'Gems'
-                  ? 'text-teal-300'
-                  : 'text-white'
-              }`}
-            >
-              {item.shortName}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1">
-            {item.subCategory && (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                {item.subCategory}
-              </span>
-            )}
-            {item.category === 'Gems' && (item.gemLevel || 0) > 0 && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/15 border border-teal-500/35 text-teal-300">
-                Lvl {item.gemLevel}
-              </span>
-            )}
-            {item.category === 'Gems' && (item.gemQuality || 0) > 0 && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-sky-300">
-                +{item.gemQuality}% Q
-              </span>
-            )}
-            {item.isVaal && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300">
-                Vaal
-              </span>
-            )}
-            {item.isTransfigured && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300">
-                Transfigured
-              </span>
-            )}
-            {item.isAwakened && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300">
-                Awakened
-              </span>
-            )}
-            {item.ilvl > 0 && item.category !== 'Gems' && item.category !== 'Currency' && (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                iLvl {item.ilvl}
-              </span>
-            )}
-            {item.corrupted && (
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-500/40 text-rose-400">
-                Corrupted
-              </span>
-            )}
-          </div>
-        </div>
+    <>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-14 overflow-visible" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="lootAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#lootAreaGrad)" />
+        <path d={linePath} fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r="3" fill="#fef08a" stroke="#b45309" strokeWidth="1" />
+        ))}
+      </svg>
+      <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+        <span>{points[0]?.at}</span>
+        <span>Peak: {formatValue(maxVal, divineChaos)}</span>
+        <span>{points[points.length - 1]?.at}</span>
       </div>
-
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <div className="flex items-center gap-1">
-          {valueLabel && (
-            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 font-mono text-[10px] font-bold text-amber-300">
-              {valueLabel}
-            </span>
-          )}
-          <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 font-mono text-xs font-bold text-white">
-            ×{item.quantity}
-          </span>
-        </div>
-
-        {onShareFreeStash && (
-          <button
-            type="button"
-            disabled={isShared}
-            onClick={onShareFreeStash}
-            className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer ${
-              isShared
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-slate-800 hover:bg-indigo-600 text-slate-300'
-            }`}
-          >
-            {isShared ? 'Shared' : '+ Free Stash'}
-          </button>
-        )}
-      </div>
-    </div>
+    </>
   );
 };
