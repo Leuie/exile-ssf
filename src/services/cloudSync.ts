@@ -641,3 +641,28 @@ export async function fetchGoogleSheetCsvViaWorker(
     return { error: 'Network error fetching Google Sheet' };
   }
 }
+
+export async function cloudAuthAdminLogin(password: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/auth/admin-login`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'Invalid Admin Password. Access denied.' };
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Network error verifying admin credentials.' };
+  }
+}
+
+export async function cloudAuthLogout(): Promise<void> {
+  try {
+    await fetch(`${getApiBase()}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+  } catch {}
+}

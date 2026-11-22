@@ -11,7 +11,7 @@ import {
   FolderLock
 } from 'lucide-react';
 import type { UserAccount, LeagueRosterMember } from '../types';
-import { computeSHA256, ADMIN_KEY_SHA256 } from '../utils/crypto';
+import { cloudAuthAdminLogin } from '../services/cloudSync';
 import { fireConfetti } from '../utils/confetti';
 import { AdminHostToolsPanel } from './league/widgets/AdminHostToolsPanel';
 
@@ -136,10 +136,10 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     setIsProcessing(true);
 
     try {
-      const hash = await computeSHA256(adminPasswordInput);
-      if (hash !== ADMIN_KEY_SHA256) {
+      const authRes = await cloudAuthAdminLogin(adminPasswordInput);
+      if (!authRes.success) {
         setIsProcessing(false);
-        setErrorMessage('Invalid Admin Password. Access denied.');
+        setErrorMessage(authRes.error || 'Invalid Admin Password. Access denied.');
         return;
       }
 

@@ -16,7 +16,7 @@ import {
 import { ASCENDANCY_CATALOG } from '../data/privateLeagueData';
 import type { UserAccount, LeagueRosterMember, ContactPlatform } from '../types';
 import { fireConfetti } from '../utils/confetti';
-import { saveCloudAccount } from '../services/cloudSync';
+import { cloudAuthAdminLogin } from '../services/cloudSync';
 
 interface AuthRegistrationModalProps {
   isOpen: boolean;
@@ -28,7 +28,6 @@ interface AuthRegistrationModalProps {
 }
 
 // Irreversible cryptographic hash of the admin secret key (Plain text is never committed to source)
-const ADMIN_KEY_SHA256 = '5fa6bba1018db3415c42db05cc93959d8f58a68dfea692677bd15f2a868bc05d';
 
 async function computeSHA256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -373,7 +372,6 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                 rosterEntry: foundRoster
               };
               storedList.push(matched);
-              saveCloudAccount(matched);
       localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
             }
           }
@@ -421,8 +419,8 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
 
     // If signing in as Leuie with App username/password
     if (userClean.toLowerCase() === 'leuie') {
-      const hash = await computeSHA256(appPassword);
-      if (hash !== ADMIN_KEY_SHA256) {
+      const adminRes = await cloudAuthAdminLogin(appPassword);
+      if (!adminRes.success) {
         setIsProcessing(false);
         setAuthError('Invalid Admin Password for @Leuie.');
         return;

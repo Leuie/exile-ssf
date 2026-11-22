@@ -7,15 +7,167 @@ export interface Env {
   ASSETS?: any;
   ROOT_WEBHOOK_URL?: string;
   WEBHOOK_URL?: string;
+  SESSION_SECRET?: string;
+  ADMIN_PASSWORD_HASH?: string;
 }
 
-const CORS_HEADERS: Record<string, string> = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+const ALLOWED_ORIGINS = new Set([
+  'https://exilessf.app',
+  'https://www.exilessf.app',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173'
+]);
+
+const BASE_SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
 };
+
+function buildCorsHeaders(request?: Request): Record<string, string> {
+  const origin = request?.headers.get('Origin') || '';
+  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : 'https://exilessf.app';
+  return {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    'Vary': 'Origin',
+    ...BASE_SECURITY_HEADERS
+  };
+}
+
+// Keep CORS_HEADERS alias for existing routes, updated per request in fetch()
+let CORS_HEADERS: Record<string, string> = buildCorsHeaders();
+
+const SERVER_ADMIN_SHA256 = '5fa6bba1018db3415c42db05cc93959d8f58a68dfea692677bd15f2a868bc05d';
+
+function getSessionSecret(env: Env): string {
+  return env.SESSION_SECRET || `exile-ssf-edge-hmac:${SERVER_ADMIN_SHA256}`;
+}
+
+function base64UrlEncode(input: string): string {
+  return btoa(unescape(encodeURIComponent(input)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function base64UrlDecode(input: string): string {
+  const padded = input.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((input.length + 3) % 4);
+  return decodeURIComponent(escape(atob(padded)));
+}
+
+async function signSessionToken(payload: { handle: string; isAdmin: boolean; exp: number }, env: Env): Promise<string> {
+  const body = base64UrlEncode(JSON.stringify(payload));
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(getSessionSecret(env)),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
+  const sigHex = Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${body}.${sigHex}`;
+}
+
+async function verifySessionToken(token: string, env: Env): Promise<{ handle: string; isAdmin: boolean } | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [body, sigHex] = parts;
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(getSessionSecret(env)),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const expectedSig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
+    const expectedHex = Array.from(new Uint8Array(expectedSig))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    if (expectedHex.length !== sigHex.length) return null;
+    let diff = 0;
+    for (let i = 0; i < expectedHex.length; i++) {
+      diff |= expectedHex.charCodeAt(i) ^ sigHex.charCodeAt(i);
+    }
+    if (diff !== 0) return null;
+    const parsed = JSON.parse(base64UrlDecode(body));
+    if (!parsed?.handle || !parsed?.exp || Date.now() > Number(parsed.exp)) return null;
+    return { handle: String(parsed.handle), isAdmin: Boolean(parsed.isAdmin) };
+  } catch {
+    return null;
+  }
+}
+
+async function readVerifiedSession(request: Request, env: Env): Promise<{ handle: string; isAdmin: boolean } | null> {
+  const cookieHeader = request.headers.get('Cookie') || '';
+  const match = cookieHeader.match(/(?:^|;\s*)exile_session=([^;]+)/);
+  if (!match) return null;
+  return await verifySessionToken(decodeURIComponent(match[1]), env);
+}
+
+async function buildSessionCookieHeader(handle: string, isAdmin: boolean, env: Env): Promise<string> {
+  const exp = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days
+  const token = await signSessionToken({ handle, isAdmin, exp }, env);
+  return `exile_session=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+}
+
+function buildClearSessionCookieHeader(): string {
+  return 'exile_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
+}
+
+function sanitizeUserAccountForClient(acc: any): any {
+  if (!acc || typeof acc !== 'object') return acc;
+  const { passwordHash: _omit, ...safe } = acc;
+  return safe;
+}
+
+function isSafeProfileUrl(raw?: string): boolean {
+  if (!raw || !raw.trim()) return true;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('/achievements/') || trimmed === '/logo.png') return true;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isSafeWebhookUrl(raw: string): boolean {
+  if (!raw || !raw.trim()) return false;
+  try {
+    const parsed = new URL(raw.trim());
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '[::1]' ||
+      host.endsWith('.local') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      host.startsWith('169.254.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 let schemaInitialized = false;
 
@@ -774,6 +926,7 @@ export default {
   },
 
   async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
+    CORS_HEADERS = buildCorsHeaders(request);
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -795,6 +948,7 @@ export default {
       try {
         await ensureD1Schema(db);
       await seedHonorAndUmbraWitchToD1(db);
+      const session = await readVerifiedSession(request, env);
       } catch (err: any) {
         return new Response(JSON.stringify({ status: 'error', message: `D1 init error: ${err.message}` }), {
           status: 500,
@@ -927,8 +1081,11 @@ export default {
         }
       }
 
-      // DELETE /api/roster/:id
+      // DELETE /api/roster/:id (Admin only)
       if (url.pathname.startsWith('/api/roster/') && request.method === 'DELETE') {
+        if (!session?.isAdmin) {
+          return new Response(JSON.stringify({ error: 'Admin session required to remove roster slots' }), { status: 403, headers: CORS_HEADERS });
+        }
         try {
           const memberId = decodeURIComponent(url.pathname.replace('/api/roster/', '').trim());
           await db
@@ -1091,8 +1248,11 @@ export default {
         }
       }
 
-      // GET /api/admin/webhook
+      // GET /api/admin/webhook (Admin only)
       if (url.pathname === '/api/admin/webhook' && request.method === 'GET') {
+        if (!session?.isAdmin) {
+          return new Response(JSON.stringify({ error: 'Admin session required' }), { status: 403, headers: CORS_HEADERS });
+        }
         try {
           const cfg = await getWebhookConfig(env, db);
           return new Response(JSON.stringify({ status: 'ok', config: cfg }), { headers: CORS_HEADERS });
@@ -1101,12 +1261,22 @@ export default {
         }
       }
 
-      // POST /api/admin/webhook
+      // POST /api/admin/webhook (Admin only + SSRF validation)
       if (url.pathname === '/api/admin/webhook' && request.method === 'POST') {
+        if (!session?.isAdmin) {
+          return new Response(JSON.stringify({ error: 'Admin session required' }), { status: 403, headers: CORS_HEADERS });
+        }
         try {
           const body = (await request.json()) as any;
+          const rawWebhookUrl = String(body.url || '').trim();
+          if (rawWebhookUrl && !isSafeWebhookUrl(rawWebhookUrl)) {
+            return new Response(JSON.stringify({ error: 'Webhook URL must be a public https:// endpoint.' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
           const cfg: WebhookConfig = {
-            url: String(body.url || '').trim(),
+            url: rawWebhookUrl,
             enabled: body.enabled !== false,
             events: Array.isArray(body.events) ? body.events : DEFAULT_WEBHOOK_EVENTS
           };
@@ -1120,8 +1290,11 @@ export default {
         }
       }
 
-      // POST /api/admin/test-webhook
+      // POST /api/admin/test-webhook (Admin only)
       if (url.pathname === '/api/admin/test-webhook' && request.method === 'POST') {
+        if (!session?.isAdmin) {
+          return new Response(JSON.stringify({ error: 'Admin session required' }), { status: 403, headers: CORS_HEADERS });
+        }
         try {
           const ok = await dispatchWebhookAlert(env, db, leagueId, {
             id: `test_${Date.now()}`,
@@ -1208,35 +1381,12 @@ export default {
         }
       }
 
-      // GET /api/accounts
-      if (url.pathname === '/api/accounts' && request.method === 'GET') {
-        try {
-          const res = await db.prepare('SELECT data FROM accounts').all();
-          const accounts = (res.results || []).map((r: any) => JSON.parse(r.data));
-          return new Response(JSON.stringify({ status: 'connected', accounts }), { headers: CORS_HEADERS });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
-        }
-      }
-
-      // POST /api/accounts
-      if (url.pathname === '/api/accounts' && request.method === 'POST') {
-        try {
-          const body = (await request.json()) as any;
-          const account = body.account;
-          if (!account || !account.username) {
-            return new Response(JSON.stringify({ error: 'Missing account payload' }), { status: 400, headers: CORS_HEADERS });
-          }
-          const userLower = String(account.username).trim().toLowerCase();
-          const emailLower = account.email ? String(account.email).trim().toLowerCase() : null;
-          await db
-            .prepare('INSERT OR REPLACE INTO accounts (username_lower, email_lower, data, updated_at) VALUES (?, ?, ?, ?)')
-            .bind(userLower, emailLower, JSON.stringify(account), now)
-            .run();
-          return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
-        }
+      // Disabled legacy /api/accounts endpoints to prevent public credential/email exposure
+      if (url.pathname === '/api/accounts') {
+        return new Response(JSON.stringify({ error: 'Endpoint disabled for security. Use /api/auth/login or /api/auth/register.' }), {
+          status: 403,
+          headers: CORS_HEADERS
+        });
       }
 
       // POST /api/services (Squad Atlas & Boss Carry Board)
@@ -1496,7 +1646,7 @@ export default {
         }
       }
 
-      // POST /api/profile
+      // POST /api/profile (Owner or Admin + URL sanitization)
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         try {
           const body = (await request.json()) as any;
@@ -1505,6 +1655,12 @@ export default {
             return new Response(JSON.stringify({ error: 'Missing profile payload' }), { status: 400, headers: CORS_HEADERS });
           }
           const handleLower = String(profile.handle).trim().replace(/^@/, '').toLowerCase();
+          if (session && !session.isAdmin && session.handle.toLowerCase() !== handleLower) {
+            return new Response(JSON.stringify({ error: 'You can only edit your own Exile profile.' }), { status: 403, headers: CORS_HEADERS });
+          }
+          if (!isSafeProfileUrl(profile.avatarUrl) || !isSafeProfileUrl(profile.poeProfileUrl) || !isSafeProfileUrl(profile.twitchUrl)) {
+            return new Response(JSON.stringify({ error: 'Profile URLs must use https:// or built in preset paths.' }), { status: 400, headers: CORS_HEADERS });
+          }
           await db
             .prepare('INSERT OR REPLACE INTO profiles (handle_lower, data, updated_at) VALUES (?, ?, ?)')
             .bind(handleLower, JSON.stringify({ ...profile, updatedAtIso: now }), now)
@@ -1534,13 +1690,24 @@ export default {
 
           const userLower = username.toLowerCase();
           const emailLower = email ? email.toLowerCase() : null;
-          const passwordHash = password ? await hashPasswordPBKDF2(password) : '';
+          const existingAcc = await db
+            .prepare('SELECT username_lower FROM accounts WHERE username_lower = ?')
+            .bind(userLower)
+            .first();
+          if (existingAcc && (!session || (!session.isAdmin && session.handle.toLowerCase() !== userLower))) {
+            return new Response(JSON.stringify({ error: 'Username is already registered. Please sign in instead.' }), {
+              status: 409,
+              headers: CORS_HEADERS
+            });
+          }
 
+          const passwordHash = password ? await hashPasswordPBKDF2(password) : '';
+          const safeUserObj = { ...sanitizeUserAccountForClient(userAccount), isAdmin: false };
           const record = {
             username,
             email: email || undefined,
             passwordHash,
-            userAccount: { ...userAccount, passwordHash },
+            userAccount: { ...safeUserObj, passwordHash },
             rosterEntry
           };
 
@@ -1549,13 +1716,14 @@ export default {
             .bind(userLower, emailLower, JSON.stringify(record), now)
             .run();
 
+          const cookie = await buildSessionCookieHeader(username, false, env);
           return new Response(
             JSON.stringify({
               success: true,
-              userAccount: record.userAccount,
+              userAccount: safeUserObj,
               rosterEntry: record.rosterEntry
             }),
-            { headers: CORS_HEADERS }
+            { headers: { ...CORS_HEADERS, 'Set-Cookie': cookie } }
           );
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
@@ -1610,19 +1778,63 @@ export default {
               .run();
           }
 
+          const isAdminUser = Boolean(record.userAccount?.isAdmin);
+          const cookie = await buildSessionCookieHeader(record.username || row.username_lower, isAdminUser, env);
           return new Response(
             JSON.stringify({
               success: true,
-              userAccount: record.userAccount,
+              userAccount: sanitizeUserAccountForClient(record.userAccount),
               rosterEntry: record.rosterEntry
             }),
-            { headers: CORS_HEADERS }
+            { headers: { ...CORS_HEADERS, 'Set-Cookie': cookie } }
           );
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
+
+
+      // POST /api/auth/admin-login (Server side admin password verification -> HttpOnly signed admin cookie)
+      if (url.pathname === '/api/auth/admin-login' && request.method === 'POST') {
+        try {
+          const body = (await request.json()) as any;
+          const password = String(body.password || '').trim();
+          if (!password) {
+            return new Response(JSON.stringify({ error: 'Admin password required.' }), { status: 400, headers: CORS_HEADERS });
+          }
+          const expectedHash = (env.ADMIN_PASSWORD_HASH || SERVER_ADMIN_SHA256).trim().toLowerCase();
+          const suppliedHash = (await computeSha256Hex(password)).toLowerCase();
+          if (suppliedHash !== expectedHash) {
+            return new Response(JSON.stringify({ error: 'Invalid Admin Password. Access denied.' }), { status: 401, headers: CORS_HEADERS });
+          }
+          const cookie = await buildSessionCookieHeader('Leuie', true, env);
+          return new Response(JSON.stringify({ success: true, handle: 'Leuie', isAdmin: true }), {
+            headers: { ...CORS_HEADERS, 'Set-Cookie': cookie }
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/auth/logout (Clears HttpOnly session cookie)
+      if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...CORS_HEADERS, 'Set-Cookie': buildClearSessionCookieHeader() }
+        });
+      }
+
+      // GET /api/auth/session (Verify active HttpOnly session)
+      if (url.pathname === '/api/auth/session' && request.method === 'GET') {
+        return new Response(
+          JSON.stringify({
+            authenticated: Boolean(session),
+            handle: session?.handle || null,
+            isAdmin: Boolean(session?.isAdmin)
+          }),
+          { headers: CORS_HEADERS }
+        );
+      }
 
       // POST /api/stash-drops
       if (url.pathname === '/api/stash-drops' && request.method === 'POST') {
@@ -1745,6 +1957,9 @@ export default {
         const rewrittenHtml = injectMetaIntoHtml(rawHtml, meta, url.toString());
         const headers = new Headers(assetRes.headers);
         headers.delete('content-length');
+        for (const [k, v] of Object.entries(BASE_SECURITY_HEADERS)) {
+          headers.set(k, v);
+        }
         return new Response(rewrittenHtml, {
           status: assetRes.status,
           statusText: assetRes.statusText,

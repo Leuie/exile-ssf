@@ -1282,24 +1282,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     fireConfetti();
   };
 
-  const [adminModeOverride, setAdminModeOverride] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('poe_league_admin_override') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const isCurrentUserAdmin = Boolean(
-    adminModeOverride ||
-    userAccount?.isAdmin ||
-    userAccount?.displayName?.toLowerCase() === 'leuie' ||
-    userAccount?.displayName?.toLowerCase() === 'venulum' ||
-    userAccount?.poeAccountName?.toLowerCase() === 'leuie#0001' ||
-    userAccount?.poeAccountName?.toLowerCase() === 'cgbulloc#4500' ||
-    userAccount?.characterName?.toLowerCase() === 'leuie' ||
-    userAccount?.characterName?.toLowerCase() === 'venulum'
-  );
+  // Strictly require verified Admin session (no client side localStorage override)
+  const isCurrentUserAdmin = Boolean(userAccount?.isAdmin);
 
 
 
@@ -1468,28 +1452,17 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Host Admin Controls Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextState = !adminModeOverride;
-                setAdminModeOverride(nextState);
-                try {
-                  localStorage.setItem('poe_league_admin_override', String(nextState));
-                } catch {}
-                setCopyNotice(nextState ? 'Admin Mode Activated' : 'Admin Mode Deactivated');
-                setTimeout(() => setCopyNotice(null), 3000);
-              }}
-              className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                isCurrentUserAdmin
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
-              }`}
-              title="Toggle League Host Admin Controls"
-            >
-              <ShieldCheck className={`w-3.5 h-3.5 ${isCurrentUserAdmin ? 'text-amber-400' : 'text-slate-500'}`} />
-              <span>{isCurrentUserAdmin ? 'Admin Mode' : 'Admin'}</span>
-            </button>
+            {/* Verified Host Admin Badge (Visible ONLY to authenticated admins) */}
+            {isCurrentUserAdmin && (
+              <a
+                href="/admin"
+                className="px-2.5 py-1 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm hover:bg-amber-500/30 transition-colors"
+                title="Open Host Administration Portal"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Host Admin</span>
+              </a>
+            )}
 
             {/* Personal Notification Bell (Pending Receipts, Vouches, Replies) */}
             <NotificationBell

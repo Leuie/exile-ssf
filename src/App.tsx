@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { cloudAuthLogout } from './services/cloudSync';
 const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
 const VendorRecipesView = lazy(() => import('./components/VendorRecipesView').then((m) => ({ default: m.VendorRecipesView })));
 const AtlasView = lazy(() => import('./components/AtlasView').then((m) => ({ default: m.AtlasView })));
@@ -313,6 +314,7 @@ export const App: React.FC = () => {
   };
 
   const handleSignOut = () => {
+    cloudAuthLogout();
     setUserAccount(null);
     try {
       localStorage.removeItem('poe_umbraleague_user');
