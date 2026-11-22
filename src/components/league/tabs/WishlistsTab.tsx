@@ -163,6 +163,16 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
     if (itemIcons[clean]) return itemIcons[clean];
     const withoutParens = clean.replace(/\s*\([^)]*\)\s*/g, '').trim();
     if (itemIcons[withoutParens]) return itemIcons[withoutParens];
+    // Strip gem level/quality prefixes like "20/20 ", "21/23 ", "lv20 ", "6l "
+    const withoutPrefix = withoutParens
+      .replace(/^(?:lv\.?\s*\d+|\d+\/\d+|q\d+|6l|6-link|5l|5-link|corrupted|any)\s+/i, '')
+      .trim();
+    if (withoutPrefix && itemIcons[withoutPrefix]) return itemIcons[withoutPrefix];
+    // Fallback for "Foulborn <Unique>" if only base unique is listed
+    if (withoutPrefix.startsWith('foulborn ')) {
+      const baseUnique = withoutPrefix.replace(/^foulborn\s+/i, '').trim();
+      if (itemIcons[baseUnique]) return itemIcons[baseUnique];
+    }
     return null;
   };
 

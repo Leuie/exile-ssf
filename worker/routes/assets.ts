@@ -523,13 +523,12 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     try {
       const requestedLeague = String(url.searchParams.get('league') || 'auto').trim();
       const forceRefresh = url.searchParams.get('refresh') === '1';
+      const ninjaHeaders = { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)', Accept: 'application/json' };
 
       let targetLeague = requestedLeague;
       if (!targetLeague || targetLeague.toLowerCase() === 'auto') {
         try {
-          const idxRes = await fetch('https://poe.ninja/api/data/getindexstate', {
-            headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)', Accept: 'application/json' }
-          });
+          const idxRes = await fetch('https://poe.ninja/poe1/api/data/index-state', { headers: ninjaHeaders });
           if (idxRes.ok) {
             const idxData: any = await idxRes.json();
             const leagues = Array.isArray(idxData?.economyLeagues) ? idxData.economyLeagues : [];
@@ -545,27 +544,41 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
       }
 
-      const cacheKey = `farming:ninja_prices:v2:${targetLeague.toLowerCase()}`;
+      const cacheKey = `farming:ninja_prices:v3:${targetLeague.toLowerCase()}`;
       if (!forceRefresh && env.EXILE_KV) {
         const cached = await env.EXILE_KV.get(cacheKey);
         if (cached) return new Response(cached, { headers: corsHeaders });
       }
 
-      const ninjaHeaders = { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)', Accept: 'application/json' };
-      const currencyTypes = ['Currency', 'Fragment'];
-      const itemTypes = [
-        'Scarab', 'UniqueWeapon', 'UniqueArmour', 'UniqueAccessory', 'UniqueFlask', 'UniqueJewel',
-        'DivinationCard', 'Essence', 'Fossil', 'Oil', 'SkillGem', 'Tattoo', 'Omen', 'UniqueMap'
+      const normalizeIconUrl = (raw: any): string => {
+        const s = String(raw || '').trim();
+        if (!s) return '';
+        if (s.startsWith('http://') || s.startsWith('https://')) return s;
+        if (s.startsWith('/')) return `https://web.poecdn.com${s}`;
+        return '';
+      };
+
+      const exchangeTypes = [
+        'Currency', 'Fragment', 'Scarab', 'DivinationCard', 'Essence', 'Fossil', 'Oil', 'Tattoo', 'Omen', 'DeliriumOrb'
+      ];
+      const stashTypes = [
+        'UniqueWeapon', 'UniqueArmour', 'UniqueAccessory', 'UniqueFlask', 'UniqueJewel', 'SkillGem', 'UniqueMap', 'BaseType'
       ];
 
-      const fetches: Promise<{ kind: 'currency' | 'item'; type: string; data: any }>[] = [
-        ...currencyTypes.map(async (type) => {
-          const r = await fetch(`https://poe.ninja/api/data/currencyoverview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`, { headers: ninjaHeaders });
-          return { kind: 'currency' as const, type, data: r.ok ? await r.json() : null };
+      const fetches: Promise<{ kind: 'exchange' | 'stash'; type: string; data: any }>[] = [
+        ...exchangeTypes.map(async (type) => {
+          const r = await fetch(
+            `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`,
+            { headers: ninjaHeaders }
+          );
+          return { kind: 'exchange' as const, type, data: r.ok ? await r.json() : null };
         }),
-        ...itemTypes.map(async (type) => {
-          const r = await fetch(`https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`, { headers: ninjaHeaders });
-          return { kind: 'item' as const, type, data: r.ok ? await r.json() : null };
+        ...stashTypes.map(async (type) => {
+          const r = await fetch(
+            `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(targetLeague)}&type=${encodeURIComponent(type)}`,
+            { headers: ninjaHeaders }
+          );
+          return { kind: 'stash' as const, type, data: r.ok ? await r.json() : null };
         })
       ];
 
@@ -579,24 +592,41 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         const { kind, type, data } = settled.value;
         const lines = Array.isArray(data?.lines) ? data.lines : [];
 
-        if (kind === 'currency') {
-          const details = Array.isArray(data?.currencyDetails) ? data.currencyDetails : [];
-          for (const d of details) {
-            const dn = String(d?.name || '').trim().toLowerCase();
-            const ic = String(d?.icon || '').trim();
-            if (dn && ic && !icons[dn]) icons[dn] = ic;
+        if (kind === 'exchange') {
+          if (type === 'Currency' && Number(data?.core?.rates?.divine || 0) > 0) {
+            divineChaos = Math.max(10, Math.round(1 / Number(data.core.rates.divine)));
+          }
+          const idToItem = new Map<string, { name: string; icon: string }>();
+          const itemsArr = [
+            ...(Array.isArray(data?.items) ? data.items : []),
+            ...(Array.isArray(data?.core?.items) ? data.core.items : [])
+          ];
+          for (const item of itemsArr) {
+            const id = String(item?.id || '').trim();
+            const name = String(item?.name || '').trim().toLowerCase();
+            const icon = normalizeIconUrl(item?.image || item?.icon);
+            if (id && name) idToItem.set(id, { name, icon });
+            if (name && icon && !icons[name]) icons[name] = icon;
           }
           for (const line of lines) {
-            const name = String(line?.currencyTypeName || '').trim().toLowerCase();
-            const val = Number(line?.chaosEquivalent || 0);
+            const id = String(line?.id || '').trim();
+            const meta = idToItem.get(id);
+            const name = meta?.name || String(line?.currencyTypeName || line?.name || '').trim().toLowerCase();
+            const val = Number(line?.primaryValue ?? line?.chaosEquivalent ?? 0);
             if (!name || val <= 0) continue;
             prices[name] = Math.round(val * 100) / 100;
             if (name === 'divine orb') divineChaos = Math.max(10, Math.round(val));
           }
+        } else if (type === 'BaseType') {
+          for (const line of lines) {
+            const name = String(line?.name || '').trim().toLowerCase();
+            const ic = normalizeIconUrl(line?.icon);
+            if (name && ic && !icons[name]) icons[name] = ic;
+          }
         } else if (type === 'SkillGem') {
           for (const line of lines) {
             const name = String(line?.name || '').trim().toLowerCase();
-            const ic = String(line?.icon || '').trim();
+            const ic = normalizeIconUrl(line?.icon);
             if (name && ic && !icons[name]) icons[name] = ic;
             const val = Number(line?.chaosValue || 0);
             if (!name || val <= 0) continue;
@@ -610,7 +640,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         } else {
           for (const line of lines) {
             const name = String(line?.name || '').trim().toLowerCase();
-            const ic = String(line?.icon || '').trim();
+            const ic = normalizeIconUrl(line?.icon);
             if (name && ic && !icons[name]) icons[name] = ic;
             const val = Number(line?.chaosValue || 0);
             if (!name || val <= 0) continue;
@@ -621,7 +651,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
       }
 
-      const payloadStr = JSON.stringify({ status: 'ok', league: targetLeague, divineChaos, itemCount: Object.keys(prices).length, syncedAtIso: now, prices, icons });
+      const payloadStr = JSON.stringify({ status: 'ok', league: targetLeague, divineChaos, itemCount: Object.keys(prices).length, iconCount: Object.keys(icons).length, syncedAtIso: now, prices, icons });
       if (env.EXILE_KV && Object.keys(prices).length > 20) {
         await env.EXILE_KV.put(cacheKey, payloadStr, { expirationTtl: 3600 });
       }
