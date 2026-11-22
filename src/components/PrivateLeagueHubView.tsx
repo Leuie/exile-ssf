@@ -68,6 +68,7 @@ const WishlistsTab = lazy(() => import('./league/tabs/WishlistsTab').then((m) =>
 const RosterTab = lazy(() => import('./league/tabs/RosterTab').then((m) => ({ default: m.RosterTab })));
 const CommandCenterTab = lazy(() => import('./league/tabs/CommandCenterTab').then((m) => ({ default: m.CommandCenterTab })));
 const LeagueFirstsWall = lazy(() => import('./league/widgets/LeagueFirstsWall').then((m) => ({ default: m.LeagueFirstsWall })));
+const WealthLadderBoard = lazy(() => import('./league/widgets/WealthLadderBoard').then((m) => ({ default: m.WealthLadderBoard })));
 const MechanicsTab = lazy(() => import('./league/tabs/MechanicsTab').then((m) => ({ default: m.MechanicsTab })));
 const CheatSheetsTab = lazy(() => import('./league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m) => ({ default: m.BuildGuidesTab })));
@@ -1748,22 +1749,31 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           />
         )}
 
-        {/* TAB: HALL OF FAME & LEAGUE FIRSTS WALL */}
+        {/* TAB: HALL OF FAME, OPT IN WEALTH LADDER & LEAGUE FIRSTS WALL */}
         {activeTab === 'hall_of_fame' && (
-          <LeagueFirstsWall
-            leagueId={activeSessionId}
-            firsts={leagueFirsts}
-            roster={roster}
-            currentUser={userAccount || null}
-            isAdmin={isCurrentUserAdmin}
-            onClaimFirst={(m) => {
-              setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
-              saveCloudLeagueFirst(activeSessionId, m);
-              fireConfetti();
-              setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
-              setTimeout(() => setCopyNotice(null), 3500);
-            }}
-          />
+          <div className="space-y-6">
+            <WealthLadderBoard
+              leagueId={activeSessionId}
+              leagueName={activeLeagueInfo.name}
+              roster={roster}
+              currentUser={userAccount || null}
+              onOpenProfile={onOpenProfile}
+            />
+            <LeagueFirstsWall
+              leagueId={activeSessionId}
+              firsts={leagueFirsts}
+              roster={roster}
+              currentUser={userAccount || null}
+              isAdmin={isCurrentUserAdmin}
+              onClaimFirst={(m) => {
+                setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
+                saveCloudLeagueFirst(activeSessionId, m);
+                fireConfetti();
+                setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
+                setTimeout(() => setCopyNotice(null), 3500);
+              }}
+            />
+          </div>
         )}
 
         {/* TAB: LIVE LEAGUE ACTIVITY FEED */}

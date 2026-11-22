@@ -140,6 +140,7 @@ export const BuildsHubView: React.FC<BuildsHubViewProps> = ({
   const [externalData, setExternalData] = useState<ExternalBuildsResponse | null>(null);
   const [loadingExternal, setLoadingExternal] = useState<boolean>(false);
   const [activeGuide, setActiveGuide] = useState<CommunityGuide | null>(null);
+  const [showAboutBuilds, setShowAboutBuilds] = useState<boolean>(false);
 
   const targetLeagueId = game === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
 
@@ -262,42 +263,81 @@ export const BuildsHubView: React.FC<BuildsHubViewProps> = ({
   return (
     <div className="w-full space-y-5 pb-16 font-sans text-slate-200">
       {/* Unified Builds Hub Header */}
-      <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/35 to-slate-900 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
-        <div className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white flex items-center gap-2">
-            <Flame className="w-5 h-5 text-amber-400" />
-            <span>Exile SSF Builds Hub</span>
-          </h1>
-          <p className="text-xs text-slate-400">
-            Unified community guides, SSF League Starters, live Mobalytics and Maxroll directories, guide ingestion, and PoB Build Doctor across Path of Exile 1 and Path of Exile 2.
-          </p>
+      <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/35 to-slate-900 p-5 space-y-3 shadow-lg">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-400" />
+                <span>Exile SSF Builds Hub</span>
+              </h1>
+              <button
+                type="button"
+                onClick={() => setShowAboutBuilds((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                  showAboutBuilds
+                    ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>{showAboutBuilds ? 'Hide Guide' : 'What Is This?'}</span>
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Unified community guides, SSF League Starters, live Mobalytics and Maxroll directories, guide ingestion, and PoB Build Doctor across Path of Exile 1 and Path of Exile 2.
+            </p>
+          </div>
+
+          {/* Game Switcher */}
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0 self-start lg:self-center">
+            <button
+              type="button"
+              onClick={() => setGame('poe1')}
+              className={`px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                game === 'poe1'
+                  ? 'bg-amber-600/30 text-amber-200 border border-amber-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Path of Exile 1
+            </button>
+            <button
+              type="button"
+              onClick={() => setGame('poe2')}
+              className={`px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                game === 'poe2'
+                  ? 'bg-cyan-600/30 text-cyan-200 border border-cyan-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Path of Exile 2
+            </button>
+          </div>
         </div>
 
-        {/* Game Switcher */}
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0 self-start lg:self-center">
-          <button
-            type="button"
-            onClick={() => setGame('poe1')}
-            className={`px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-              game === 'poe1'
-                ? 'bg-amber-600/30 text-amber-200 border border-amber-500/50'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Path of Exile 1
-          </button>
-          <button
-            type="button"
-            onClick={() => setGame('poe2')}
-            className={`px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-              game === 'poe2'
-                ? 'bg-cyan-600/30 text-cyan-200 border border-cyan-500/50'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Path of Exile 2
-          </button>
-        </div>
+        {showAboutBuilds && (
+          <div className="pt-3 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-amber-400">1. Unified SSF &amp; Community Builds</div>
+              <p className="text-slate-300 leading-relaxed">
+                Browse vetted Solo Self Found league starters alongside community authored guides and live pulled <strong className="text-white">Mobalytics</strong> &amp; <strong className="text-white">Maxroll.gg</strong> builds for both PoE 1 and PoE 2. Filter by Ascendancy, Patch, Source, or <strong className="text-white">SSF Starters Only</strong>.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-sky-400">2. PoB Build Doctor &amp; Roster Sync</div>
+              <p className="text-slate-300 leading-relaxed">
+                Paste any <code className="text-sky-300">pobb.in</code>, <code className="text-sky-300">pastebin.com</code>, or raw Path of Building code to inspect your defensive vitals, detect resist or suppression gaps, and sync your build directly to your <strong className="text-white">Private League Roster</strong> (Main or Alt) in one click.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. Write or Ingest Guides</div>
+              <p className="text-slate-300 leading-relaxed">
+                Publish your own full Markdown build guide or link a creator guide with required uniques and Atlas lanes. Readers can open any guide in the full width secondary monitor reader and import required uniques straight to their squad <strong className="text-white">Wishlist</strong>.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Primary Sub Navigation Ribbon (Condensed to 3 Distinct Workflows) */}

@@ -844,5 +844,152 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
+  // GET /api/farming/wealth-ladder?league=...&leagueId=... (Public opt in summary leaderboard from Asset Tracker + Map Tracker)
+  if (url.pathname === '/api/farming/wealth-ladder' && request.method === 'GET') {
+    try {
+      const leagueFilter = String(url.searchParams.get('league') || '').trim().toLowerCase();
+      const leagueIdFilter = String(url.searchParams.get('leagueId') || '').trim().toLowerCase();
+      if (!env.EXILE_DB) {
+        return new Response(JSON.stringify({ status: 'ok', entries: [], squadTotals: { totalDivines: 0, totalMaps: 0, totalSTier: 0, count: 0 } }), { headers: corsHeaders });
+      }
+      await initD1Schema(env.EXILE_DB);
+
+      const [stashRowsRes, mapRowsRes] = await Promise.all([
+        env.EXILE_DB.prepare(`SELECT handle_lower, data, updated_at FROM farming_stash_state ORDER BY updated_at DESC LIMIT 100`).all(),
+        env.EXILE_DB.prepare(`SELECT handle_lower, data FROM map_tracker_sessions ORDER BY created_at DESC LIMIT 200`).all().catch(() => ({ results: [] }))
+      ]);
+
+      // Aggregate Map Tracker telemetry per handle
+      const mapTelemetryByHandle = new Map<string, { totalMaps: number; totalMapSec: number; bestXpPerHr: number; mapSessions: number }>();
+      for (const row of mapRowsRes?.results || []) {
+        try {
+          const h = String(row.handle_lower || '').toLowerCase();
+          const d = JSON.parse(row.data);
+          const maps = Number(d?.totalMaps || (Array.isArray(d?.runs) ? d.runs.length : 0) || 0);
+          const avgSec = Number(d?.avgMapSeconds || 0);
+          const xpHr = Number(d?.xpPerHour || 0);
+          const cur = mapTelemetryByHandle.get(h) || { totalMaps: 0, totalMapSec: 0, bestXpPerHr: 0, mapSessions: 0 };
+          cur.totalMaps += maps;
+          cur.totalMapSec += maps * avgSec;
+          if (xpHr > cur.bestXpPerHr) cur.bestXpPerHr = xpHr;
+          cur.mapSessions += 1;
+          mapTelemetryByHandle.set(h, cur);
+        } catch {}
+      }
+
+      const entries: any[] = [];
+      for (const row of stashRowsRes?.results || []) {
+        try {
+          const handleLower = String(row.handle_lower || '').toLowerCase();
+          const parsed = JSON.parse(row.data);
+          const candidates: any[] = [];
+          if (parsed?.byLeague && typeof parsed.byLeague === 'object') {
+            for (const val of Object.values(parsed.byLeague)) {
+              if (val && typeof val === 'object') candidates.push(val);
+            }
+          } else if (parsed && typeof parsed === 'object') {
+            candidates.push(parsed);
+          }
+
+          // Pick matching opted in league snapshot (or latest opted in snapshot if no league filter)
+          let chosen: any = null;
+          for (const c of candidates) {
+            if (!c?.optInWealthLadder) continue;
+            const cLeague = String(c.leagueName || '').toLowerCase();
+            const cLeagueId = String(c.linkedLeagueId || '').toLowerCase();
+            const matchesLeague =
+              (!leagueFilter && !leagueIdFilter) ||
+              (leagueIdFilter && cLeagueId && cLeagueId === leagueIdFilter) ||
+              (leagueFilter && cLeague && (cLeague.includes(leagueFilter) || leagueFilter.includes(cLeague)));
+            if (matchesLeague) {
+              chosen = c;
+              break;
+            }
+          }
+          if (!chosen) continue;
+
+          const summary = chosen.ladderSummary || {};
+          const mapTel = mapTelemetryByHandle.get(handleLower);
+          const totalMaps = Math.max(Number(chosen.mapsRun || 0), mapTel?.totalMaps || 0);
+          const avgMapSeconds =
+            mapTel && mapTel.totalMaps > 0 ? Math.round(mapTel.totalMapSec / mapTel.totalMaps) : 0;
+
+          entries.push({
+            handle: handleLower,
+            leagueName: String(chosen.leagueName || ''),
+            totalChaos: Number(summary.totalChaos || 0),
+            divineChaos: Number(summary.divineChaos || 200),
+            totalDivines: Number(summary.totalDivines || 0),
+            chaosPerHour: Number(summary.chaosPerHour || 0),
+            divPerHour: Number(summary.divPerHour || 0),
+            sTierCount: Number(summary.sTierCount || 0),
+            aTierCount: Number(summary.aTierCount || 0),
+            totalStacks: Number(summary.totalStacks || (Array.isArray(chosen.activeDrops) ? chosen.activeDrops.length : 0)),
+            topTabName: String(summary.topTabName || ''),
+            topTabChaos: Number(summary.topTabChaos || 0),
+            topItemName: String(summary.topItemName || ''),
+            topItemIcon: String(summary.topItemIcon || ''),
+            topItemChaos: Number(summary.topItemChaos || 0),
+            checkpoints: Array.isArray(summary.checkpoints)
+              ? summary.checkpoints.slice(-10)
+              : Array.isArray(chosen.checkpoints)
+              ? chosen.checkpoints.slice(-10)
+              : [],
+            mapsLogged: totalMaps,
+            avgMapSeconds,
+            bestXpPerHour: mapTel?.bestXpPerHr || 0,
+            updatedAtIso: String(chosen.savedAtIso || row.updated_at || '')
+          });
+        } catch {}
+      }
+
+      entries.sort((a, b) => b.totalChaos - a.totalChaos);
+      const squadTotals = {
+        totalDivines: Math.round(entries.reduce((s, e) => s + e.totalDivines, 0) * 10) / 10,
+        totalMaps: entries.reduce((s, e) => s + e.mapsLogged, 0),
+        totalSTier: entries.reduce((s, e) => s + e.sTierCount, 0),
+        count: entries.length
+      };
+
+      return new Response(JSON.stringify({ status: 'ok', entries, squadTotals }), { headers: corsHeaders });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+    }
+  }
+
+  // POST /api/farming/wealth-ladder/opt-in (Toggle opt in directly from Hall of Fame or Asset Tracker)
+  if (url.pathname === '/api/farming/wealth-ladder/opt-in' && request.method === 'POST') {
+    try {
+      const session = await readVerifiedSession(request, env);
+      if (!session) {
+        return new Response(JSON.stringify({ error: 'Sign in to update your Wealth Ladder opt in setting.' }), { status: 401, headers: corsHeaders });
+      }
+      const body: any = await request.json();
+      const handle = session.handle.trim().replace(/^@/, '').toLowerCase();
+      const optIn = Boolean(body.optIn);
+      if (env.EXILE_DB) {
+        await initD1Schema(env.EXILE_DB);
+        const row = await env.EXILE_DB.prepare(`SELECT data FROM farming_stash_state WHERE handle_lower = ?`).bind(handle).first();
+        if (row?.data) {
+          const parsed = JSON.parse(row.data);
+          parsed.optInWealthLadder = optIn;
+          if (parsed.byLeague && typeof parsed.byLeague === 'object') {
+            for (const key of Object.keys(parsed.byLeague)) {
+              if (parsed.byLeague[key] && typeof parsed.byLeague[key] === 'object') {
+                parsed.byLeague[key].optInWealthLadder = optIn;
+              }
+            }
+          }
+          await env.EXILE_DB.prepare(`UPDATE farming_stash_state SET data = ?, updated_at = ? WHERE handle_lower = ?`)
+            .bind(JSON.stringify(parsed), now, handle)
+            .run();
+        }
+      }
+      return new Response(JSON.stringify({ status: 'ok', optIn }), { headers: corsHeaders });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+    }
+  }
+
   return null;
 }

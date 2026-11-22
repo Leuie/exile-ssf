@@ -40,7 +40,8 @@ import {
   FolderOpen,
   Bell,
   BellOff,
-  Cloud
+  Cloud,
+  Trophy
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 import { buildXlsxBlob, triggerFileDownload, type SheetDefinition } from '../utils/spreadsheetEngine';
@@ -306,6 +307,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [sharingRecap, setSharingRecap] = useState<boolean>(false);
   const [cloudHydrated, setCloudHydrated] = useState<boolean>(false);
   const [cloudSaveState, setCloudSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [optInWealthLadder, setOptInWealthLadder] = useState<boolean>(Boolean(savedPrefs.optInWealthLadder));
 
   const normalizedHandle = (userAccount?.displayName || '').trim().replace(/^@/, '').toLowerCase();
 
@@ -323,10 +325,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     try {
       localStorage.setItem(
         PREFS_STORAGE_KEY,
-        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes })
+        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes, optInWealthLadder })
       );
     } catch {}
-  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes]);
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes, optInWealthLadder]);
 
   useEffect(() => {
     try {
@@ -383,9 +385,58 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               sessionTitle,
               strategyTag,
               leagueName,
+              linkedLeagueId,
               mapsRun,
               durationMinutes,
-              deaths
+              deaths,
+              optInWealthLadder,
+              ladderSummary: optInWealthLadder
+                ? (() => {
+                    let sumChaos = 0;
+                    let sCount = 0;
+                    let aCount = 0;
+                    let topItem: { name: string; icon: string; chaos: number } | null = null;
+                    const tabMap = new Map<string, number>();
+                    for (const it of activeDrops) {
+                      const unitC = lookupNinjaPrice(it, ninjaPrices);
+                      const totC = Math.round(unitC * it.quantity * 100) / 100;
+                      sumChaos += totC;
+                      const t = resolveTier(unitC, totC, divineChaos);
+                      if (t === 'S') sCount += 1;
+                      else if (t === 'A') aCount += 1;
+                      if (!topItem || totC > topItem.chaos) {
+                        topItem = { name: it.shortName || it.name, icon: it.icon || '', chaos: totC };
+                      }
+                      const tn = it.tabName || 'Stash';
+                      tabMap.set(tn, (tabMap.get(tn) || 0) + totC);
+                    }
+                    let topTabName = '';
+                    let topTabChaos = 0;
+                    for (const [tn, val] of tabMap.entries()) {
+                      if (val > topTabChaos) {
+                        topTabName = tn;
+                        topTabChaos = Math.round(val);
+                      }
+                    }
+                    const hrs = Math.max(1 / 60, (durationMinutes || 60) / 60);
+                    return {
+                      totalChaos: Math.round(sumChaos),
+                      divineChaos,
+                      totalDivines: Math.round((sumChaos / Math.max(1, divineChaos)) * 100) / 100,
+                      chaosPerHour: Math.round(sumChaos / hrs),
+                      divPerHour: Math.round((sumChaos / hrs / Math.max(1, divineChaos)) * 100) / 100,
+                      sTierCount: sCount,
+                      aTierCount: aCount,
+                      totalStacks: activeDrops.length,
+                      topTabName,
+                      topTabChaos,
+                      topItemName: topItem?.name || '',
+                      topItemIcon: topItem?.icon || '',
+                      topItemChaos: topItem ? Math.round(topItem.chaos) : 0,
+                      checkpoints: checkpoints.slice(-12)
+                    };
+                  })()
+                : null
             }
           })
         });
@@ -413,9 +464,13 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       sessionTitle,
       strategyTag,
       leagueName,
+      linkedLeagueId,
       mapsRun,
       durationMinutes,
-      deaths
+      deaths,
+      optInWealthLadder,
+      ninjaPrices,
+      divineChaos
     ]
   );
 
@@ -426,7 +481,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       saveStashToCloud(true);
     }, 1200);
     return () => clearTimeout(t);
-  }, [cloudHydrated, normalizedHandle, isDemoMode, activeDrops, beforeSnapshot, stashTabs, checkpoints, mapsRun, durationMinutes, deaths, saveStashToCloud]);
+  }, [cloudHydrated, normalizedHandle, isDemoMode, activeDrops, beforeSnapshot, stashTabs, checkpoints, mapsRun, durationMinutes, deaths, optInWealthLadder, saveStashToCloud]);
 
   const handleLoadDemoData = () => {
     setIsDemoMode(true);
@@ -544,6 +599,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               if (typeof cs.mapsRun === 'number') setMapsRun(cs.mapsRun);
               if (typeof cs.durationMinutes === 'number' && cs.durationMinutes > 0) setDurationMinutes(cs.durationMinutes);
               if (typeof cs.deaths === 'number') setDeaths(cs.deaths);
+              if (typeof cs.optInWealthLadder === 'boolean') setOptInWealthLadder(cs.optInWealthLadder);
               setCloudSaveState('saved');
             }
           }
@@ -1395,233 +1451,268 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   return (
     <div className="w-full space-y-4 pb-16 font-sans text-slate-200">
       {/* Compact Command Header */}
-      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0d111a] via-indigo-950/25 to-[#0d111a] px-4 py-3.5 space-y-2.5 shadow-lg">
+      <header className="rounded-2xl border border-slate-800 bg-gradient-to-r from-[#0d111a] via-indigo-950/25 to-[#0d111a] px-4 py-3.5 space-y-3 shadow-lg">
+        {/* Top Row: Title & Context (Left) | Audio Chime & Notifications (Top Right) */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white tracking-tight flex items-center gap-2">
-            <Package className="w-5 h-5 text-amber-400" />
-            <span>Asset Tracker</span>
-          </h1>
-          <button
-            type="button"
-            onClick={() => setShowAboutTracker((v) => !v)}
-            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
-              showAboutTracker
-                ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
-                : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
-            }`}
-          >
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            <span>{showAboutTracker ? 'Hide Guide' : 'What Is This?'}</span>
-          </button>
-
-          <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-bold">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black font-cinzel text-white tracking-tight flex items-center gap-2">
+              <Package className="w-5 h-5 text-amber-400" />
+              <span>Asset Tracker</span>
+            </h1>
             <button
               type="button"
-              onClick={() => setGame('poe1')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
-                game === 'poe1' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+              onClick={() => setShowAboutTracker((v) => !v)}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                showAboutTracker
+                  ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                  : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
               }`}
             >
-              <Flame className="w-3 h-3 text-amber-400" /> PoE 1
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              <span>{showAboutTracker ? 'Hide Guide' : 'What Is This?'}</span>
             </button>
+
+            <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setGame('poe1')}
+                className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
+                  game === 'poe1' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Flame className="w-3 h-3 text-amber-400" /> PoE 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setGame('poe2')}
+                className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
+                  game === 'poe2' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Hammer className="w-3 h-3 text-cyan-400" /> PoE 2
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <select
+                value={linkedLeagueId}
+                onChange={(e) => handleSelectLinkedLeague(e.target.value)}
+                className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer max-w-[200px] sm:max-w-xs truncate"
+              >
+                {leagueOptions.map((lg) => (
+                  <option key={lg.id} value={lg.id} className="bg-slate-950">{lg.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-[11px] font-mono text-amber-300">
+              <TrendingUp className="w-3 h-3" />
+              <select
+                value={ninjaLeagueParam}
+                onChange={(e) => setNinjaLeagueParam(e.target.value)}
+                className="bg-transparent focus:outline-none cursor-pointer"
+              >
+                <option value="auto" className="bg-slate-950">{ninjaResolvedLeague || 'Challenge League'}</option>
+                <option value="Standard" className="bg-slate-950">Standard</option>
+                <option value="Hardcore" className="bg-slate-950">Hardcore</option>
+              </select>
+              <span className="text-slate-500">•</span>
+              <span>1d = {divineChaos}c</span>
+              <button
+                type="button"
+                disabled={loadingNinja}
+                onClick={() => loadNinjaPrices(ninjaLeagueParam, true)}
+                title="Refresh poe.ninja prices"
+                className="ml-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${loadingNinja ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Top Right: Audio Chime & Notifications */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setGame('poe2')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1 cursor-pointer ${
-                game === 'poe2' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+              onClick={() => setChimeEnabled((v) => !v)}
+              title={chimeEnabled ? 'Audio chime enabled' : 'Audio chime muted'}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                chimeEnabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
               }`}
             >
-              <Hammer className="w-3 h-3 text-cyan-400" /> PoE 2
+              {chimeEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Chime</span>
             </button>
-          </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
-            <Users className="w-3.5 h-3.5 text-indigo-400" />
-            <select
-              value={linkedLeagueId}
-              onChange={(e) => handleSelectLinkedLeague(e.target.value)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer max-w-[200px] sm:max-w-xs truncate"
-            >
-              {leagueOptions.map((lg) => (
-                <option key={lg.id} value={lg.id} className="bg-slate-950">{lg.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="hidden md:flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-[11px] font-mono text-amber-300">
-            <TrendingUp className="w-3 h-3" />
-            <select
-              value={ninjaLeagueParam}
-              onChange={(e) => setNinjaLeagueParam(e.target.value)}
-              className="bg-transparent focus:outline-none cursor-pointer"
-            >
-              <option value="auto" className="bg-slate-950">{ninjaResolvedLeague || 'Challenge League'}</option>
-              <option value="Standard" className="bg-slate-950">Standard</option>
-              <option value="Hardcore" className="bg-slate-950">Hardcore</option>
-            </select>
-            <span className="text-slate-500">•</span>
-            <span>1d = {divineChaos}c</span>
             <button
               type="button"
-              disabled={loadingNinja}
-              onClick={() => loadNinjaPrices(ninjaLeagueParam, true)}
-              title="Refresh poe.ninja prices"
-              className="ml-1 text-slate-400 hover:text-white cursor-pointer"
+              onClick={handleToggleDesktopAlerts}
+              title={desktopAlertsEnabled ? 'Desktop notifications active' : 'Enable browser desktop notifications'}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                desktopAlertsEnabled ? 'bg-amber-500/20 border-amber-400/50 text-amber-300' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+              }`}
             >
-              <RefreshCw className={`w-3 h-3 ${loadingNinja ? 'animate-spin' : ''}`} />
+              {desktopAlertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Alerts</span>
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setFocusMode(false);
-              setSetupOpen((v) => !v);
-            }}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              setupOpen
-                ? 'bg-indigo-600 text-white border-indigo-400 shadow'
-                : 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-400/50 text-indigo-200'
-            }`}
-            title="Configure your PoE Account, POESESSID, and 18 Canonical Stash Tabs"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-            <span>{setupOpen ? 'Close Setup' : 'Setup & Session ID'}</span>
-            {!poesessid && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-          </button>
-
-          {onOpenAnalytics && (
+        {/* Second Row: Setup, Pricing Toggle, Weights, Analytics (Left) | Save Cloud, Export, Focus Mode (Right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-800/70">
+          {/* Aligned Left: Setup, SSF Utility / poe.ninja toggle, Weights, Wealth & Pace Analytics, Wealth Ladder Opt In */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={onOpenAnalytics}
-              className="px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Open full page Wealth Timeline, Pace, Top Yielding Tabs, and Category Breakdown"
+              onClick={() => {
+                setFocusMode(false);
+                setSetupOpen((v) => !v);
+              }}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                setupOpen
+                  ? 'bg-indigo-600 text-white border-indigo-400 shadow'
+                  : 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-400/50 text-indigo-200'
+              }`}
+              title="Configure your PoE Account, POESESSID, and 18 Canonical Stash Tabs"
             >
-              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Full Analytics</span>
+              <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+              <span>{setupOpen ? 'Close Setup' : 'Setup'}</span>
+              {!poesessid && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
             </button>
-          )}
 
-          <div className="flex bg-slate-950 p-0.5 rounded-xl border border-amber-500/30 text-[11px] font-bold">
+            <div className="flex bg-slate-950 p-0.5 rounded-xl border border-amber-500/30 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setValueSystem('ssf')}
+                className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                  valueSystem === 'ssf' ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                SSF Utility
+              </button>
+              <button
+                type="button"
+                onClick={() => setValueSystem('ninja')}
+                className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                  valueSystem === 'ninja' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                poe.ninja
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => setValueSystem('ssf')}
-              className={`px-2.5 py-1 rounded-lg cursor-pointer ${
-                valueSystem === 'ssf' ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50' : 'text-slate-400 hover:text-white'
+              onClick={() => setShowWeightsEditor((v) => !v)}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer ${
+                showWeightsEditor ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
               }`}
             >
-              SSF Utility
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+              <span>Weights</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setValueSystem('ninja')}
-              className={`px-2.5 py-1 rounded-lg cursor-pointer ${
-                valueSystem === 'ninja' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              poe.ninja
-            </button>
+
+            {onOpenAnalytics && (
+              <button
+                type="button"
+                onClick={onOpenAnalytics}
+                className="px-3 py-1.5 rounded-xl border border-amber-500/50 bg-gradient-to-r from-amber-500/20 to-indigo-600/20 hover:from-amber-500/30 hover:to-indigo-600/30 text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                title="Open full page Wealth Timeline, Pace, Top Yielding Tabs, and Category Breakdown"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+                <span>Wealth &amp; Pace Analytics</span>
+              </button>
+            )}
+
+            {normalizedHandle && (
+              <button
+                type="button"
+                onClick={() => setOptInWealthLadder((v) => !v)}
+                title="Opt in to share your league wealth summary on the Hall of Fame Wealth Ladder"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  optInWealthLadder
+                    ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Trophy className={`w-3.5 h-3.5 ${optInWealthLadder ? 'text-amber-300' : 'text-slate-500'}`} />
+                <span>{optInWealthLadder ? 'Wealth Ladder: Opted In' : 'Join Wealth Ladder'}</span>
+              </button>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowWeightsEditor((v) => !v)}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer ${
-              showWeightsEditor ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Weights</span>
-          </button>
+          {/* Aligned Right (Below Chime & Alerts): Save Cloud, Export, Focus Mode */}
+          <div className="flex flex-wrap items-center gap-2">
+            {normalizedHandle && !isDemoMode && (
+              <button
+                type="button"
+                onClick={() => saveStashToCloud(false)}
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                  cloudSaveState === 'saved' ? 'bg-sky-500/15 border-sky-400/50 text-sky-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+                }`}
+              >
+                <Cloud className={`w-3.5 h-3.5 ${cloudSaveState === 'saving' ? 'animate-pulse text-amber-300' : 'text-sky-400'}`} />
+                <span>
+                  {cloudSaveState === 'saving' ? 'Saving...' : cloudSaveState === 'saved' ? 'Cloud Saved' : 'Save Cloud'}
+                </span>
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={handleToggleDesktopAlerts}
-            title={desktopAlertsEnabled ? 'Desktop notifications active' : 'Enable browser desktop notifications'}
-            className={`p-2 rounded-xl border text-xs cursor-pointer ${
-              desktopAlertsEnabled ? 'bg-amber-500/20 border-amber-400/50 text-amber-300' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {desktopAlertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setChimeEnabled((v) => !v)}
-            title={chimeEnabled ? 'Audio chime enabled' : 'Audio chime muted'}
-            className={`p-2 rounded-xl border text-xs cursor-pointer ${
-              chimeEnabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-900 border-slate-800 text-slate-500'
-            }`}
-          >
-            {chimeEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-          </button>
-
-          {normalizedHandle && !isDemoMode && (
             <button
               type="button"
-              onClick={() => saveStashToCloud(false)}
-              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
-                cloudSaveState === 'saved' ? 'bg-sky-500/15 border-sky-400/50 text-sky-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+              onClick={handleExportXlsx}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export .xlsx</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = !focusMode;
+                setFocusMode(next);
+                if (next) setSetupOpen(false);
+              }}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                focusMode ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
               }`}
             >
-              <Cloud className={`w-3.5 h-3.5 ${cloudSaveState === 'saving' ? 'animate-pulse text-amber-300' : 'text-sky-400'}`} />
-              <span className="hidden sm:inline">
-                {cloudSaveState === 'saving' ? 'Saving...' : cloudSaveState === 'saved' ? 'Cloud Saved' : 'Save Cloud'}
-              </span>
+              {focusMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span>{focusMode ? 'Exit Focus' : 'Focus Mode'}</span>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleExportXlsx}
-            className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export .xlsx</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = !focusMode;
-              setFocusMode(next);
-              if (next) setSetupOpen(false);
-            }}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              focusMode ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
-            }`}
-          >
-            {focusMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span>{focusMode ? 'Exit Focus' : 'Focus Mode'}</span>
-          </button>
-        </div>
+          </div>
         </div>
 
         <p className="text-xs text-slate-400 leading-relaxed">
-          Visualize your stash net worth, diff <strong className="text-slate-200">Before vs After</strong> farming sessions, measure real maps per hour, and compare Atlas strategies using live <strong className="text-indigo-300">poe.ninja</strong> prices or customizable <strong className="text-amber-300">SSF Utility</strong> crafting weights.
+          Visualize your stash net worth across 18 canonical tabs, diff <strong className="text-slate-200">Before vs After</strong> farming sessions, click any item name to inspect it on <strong className="text-sky-300">PoE Wiki</strong>, and open full page <strong className="text-amber-300">Wealth &amp; Pace Analytics</strong> backed by per league Cloudflare D1 cloud storage.
         </p>
 
         {showAboutTracker && (
-          <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
-              <div className="font-mono text-[10px] uppercase font-bold text-amber-400">1. What Asset Tracker Is</div>
+              <div className="font-mono text-[10px] uppercase font-bold text-amber-400">1. 18 Slot Stash Scanner &amp; Diffing</div>
               <p className="text-slate-300 leading-relaxed">
-                A live stash valuation and session telemetry workspace built for Solo Self Found and Group Self Found exiles. Switch seamlessly between trade market values (<strong className="text-white">poe.ninja</strong>) and customizable <strong className="text-white">SSF Utility</strong> weights tailored to crafting value.
+                Click <strong className="text-white">Setup</strong> to connect your Path of Exile account via stateless <code className="text-amber-200">POESESSID</code> (opt in local memory + 30 day disclaimer) or Direct Browser JSON. Auto match up to 18 specialty &amp; dump tabs, capture a <strong className="text-white">Before</strong> snapshot, and <strong className="text-white">Sync</strong> manually or on a background safe 15m/30m/60m timer.
               </p>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
-              <div className="font-mono text-[10px] uppercase font-bold text-sky-400">2. What It Does</div>
+              <div className="font-mono text-[10px] uppercase font-bold text-sky-400">2. Dual Pricing, Deep Filters &amp; Wiki Links</div>
               <p className="text-slate-300 leading-relaxed">
-                Snapshots up to 15 dump and specialty tabs (via stateless <code className="text-amber-200">POESESSID</code> or Direct Browser JSON), diffs loot gained between <strong className="text-white">Before</strong> and <strong className="text-white">Sync</strong>, watches your local <code className="text-emerald-300">Client.txt</code> for automatic map pace, and highlights <strong className="text-emerald-300">Squad Wishlist</strong> drops.
+                Toggle between live <strong className="text-white">poe.ninja</strong> challenge league prices and editable <strong className="text-white">SSF Utility Weights</strong>. Sort and filter by Tier (S/A/B/C), Gems (Level, Quality, Transfigured, Exceptional, Vaal, Awakened), Flasks (Quality, iLvl), Full Div Stacks, and 6 Links. Click any item name to open its <strong className="text-white">PoE Wiki</strong> page in a new tab.
               </p>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
-              <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. How It Helps You Improve</div>
+              <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. Full Page Wealth &amp; Pace Analytics</div>
               <p className="text-slate-300 leading-relaxed">
-                Tag each run with your Atlas strategy to compare <strong className="text-white">Div/hr</strong>, <strong className="text-white">Pts/hr</strong>, and <strong className="text-white">Maps/hr</strong> in the Stats leaderboard, spot wasted downtime on your wealth sparkline, save your stash to the cloud, and grow your lifetime <strong className="text-white">Exile Profile Trophy Case</strong>.
+                Click <strong className="text-white">Wealth &amp; Pace Analytics</strong> to open the dedicated full page view (<code className="text-emerald-300">/assets/analytics</code>) featuring interactive Wealth Timelines, Category Share Donuts, Top Yielding Tabs leaderboards, Top 12 Assets, and per league cloud session history tied to your Exile Profile.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-purple-400">4. Cloud Sync, Squad Stash &amp; Wealth Ladder</div>
+              <p className="text-slate-300 leading-relaxed">
+                Auto saves per league to Cloudflare D1, exports styled <strong className="text-white">.xlsx</strong> spreadsheets, shares duplicate Uniques straight to your Private League <strong className="text-white">Free Stash</strong>, alerts on Squad Wishlist hits, and lets you opt in to the <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
               </p>
             </div>
           </div>

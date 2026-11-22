@@ -108,6 +108,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
   const [startDate, setStartDate] = useState<string>(todayDateInput);
   const [calendarOpen, setCalendarOpen] = useState<boolean>(false);
+  const [showAboutMapTracker, setShowAboutMapTracker] = useState<boolean>(false);
   const [calendarCursor, setCalendarCursor] = useState<Date>(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -522,6 +523,18 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 <Compass className="w-5 h-5 text-sky-400" />
                 <span>Map Tracker</span>
               </h1>
+              <button
+                type="button"
+                onClick={() => setShowAboutMapTracker((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                  showAboutMapTracker
+                    ? 'bg-indigo-600/25 border-indigo-400/60 text-white'
+                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>{showAboutMapTracker ? 'Hide Guide' : 'What Is This?'}</span>
+              </button>
               {watchingLive && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-mono font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -563,6 +576,29 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             </div>
           </div>
         </div>
+
+        {showAboutMapTracker && (
+          <div className="pt-3 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-sky-400">1. Local Client.txt Live Watcher</div>
+              <p className="text-slate-300 leading-relaxed">
+                Copy your Steam or Standalone folder path, select <code className="text-emerald-300">Client.txt</code> in your browser, and pick a <strong className="text-white">Start Date</strong> from the calendar modal. Your log is parsed 100% locally in your browser to time every map, hideout break, Betrayal Safehouse, Temple of Atzoatl, and death.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-amber-400">2. Automatic GGG XP/hr &amp; League Filtering</div>
+              <p className="text-slate-300 leading-relaxed">
+                Load your characters grouped by league and poll GGG's official character experience counter automatically (every 5m, 10m, or 15m) to plot real <strong className="text-white">XP/hr timelines</strong> with death markers and see how fast you are leveling toward 100.
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. Strategy Presets &amp; Cloud Sessions</div>
+              <p className="text-slate-300 leading-relaxed">
+                Tag runs with PoE 1 (<strong className="text-white">Campaign, Alch &amp; Go White/Yellow/Red, T17, Essence</strong>) or PoE 2 (<strong className="text-white">Waystones T1 to T15, Towers, Breach</strong>) presets, compare maps per hour across strategies, and save sessions to Cloudflare D1 to enrich your <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
+              </p>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Timekeeper's Map Device Speedrun Tip Banner */}

@@ -16,6 +16,19 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-22-wealth-ladder',
+    version: 'v3.30.8',
+    title: 'Opt In Hall of Fame Wealth Ladder, PoE Wiki Item Links, Header Reorganization & Tool Guides',
+    dateEst: 'Nov 22, 2026 • 5:50 PM EST',
+    summary: 'Launched the Opt In Wealth & Pace Ladder on Hall of Fame pulling live Asset Tracker and Map Tracker telemetry, made every item name clickable to PoE Wiki, reorganized Asset Tracker header controls, and added What Is This guides to Map Tracker and Builds Hub.',
+    changes: [
+      { tag: 'Added', text: 'Opt In Wealth & Pace Ladder on Hall of Fame (/league/:id/hall-of-fame) featuring Gold/Silver/Bronze podium cards, Headline Jackpot Drops with official artwork, inline SVG wealth sparklines, sortable Net Worth / Div per hr / Maps / S Tier / XP per hr standings, and one click opt in controls (/api/farming/wealth-ladder).' },
+      { tag: 'Added', text: 'Clickable PoE Wiki links on every item name across Asset Tracker (Table & Grid views) and Wealth Analytics Top 12 Assets opening poewiki.net or poe2wiki.net in a new tab.' },
+      { tag: 'Added', text: 'Collapsible "What Is This?" onboarding guides on Map Tracker and Builds Hub, plus a complete 4 card guide update on Asset Tracker.' },
+      { tag: 'Improved', text: 'Reorganized Asset Tracker header: Audio Chime and Notifications moved to top right; Save Cloud, Export .xlsx, and Focus Mode aligned right below them; Setup (renamed from Setup & Session ID), SSF Utility / poe.ninja toggle, Weights, Wealth & Pace Analytics, and Join Wealth Ladder aligned left.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-22-wealth-analytics',
     version: 'v3.30.7',
     title: 'Full Page Wealth & Pace Analytics & Per League Cloud Sync',
