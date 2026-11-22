@@ -23,6 +23,7 @@ import {
   Share2,
   UserPlus,
   Trophy,
+  Crown,
   Search,
   Coins,
   Activity,
@@ -66,6 +67,7 @@ const FullGuideReaderView = lazy(() => import('./FullGuideReaderView').then((m) 
 const WishlistsTab = lazy(() => import('./league/tabs/WishlistsTab').then((m) => ({ default: m.WishlistsTab })));
 const RosterTab = lazy(() => import('./league/tabs/RosterTab').then((m) => ({ default: m.RosterTab })));
 const CommandCenterTab = lazy(() => import('./league/tabs/CommandCenterTab').then((m) => ({ default: m.CommandCenterTab })));
+const LeagueFirstsWall = lazy(() => import('./league/widgets/LeagueFirstsWall').then((m) => ({ default: m.LeagueFirstsWall })));
 const CheatSheetsTab = lazy(() => import('./league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BuildGuidesTab = lazy(() => import('./league/tabs/BuildGuidesTab').then((m) => ({ default: m.BuildGuidesTab })));
 const BenchGuideTab = lazy(() => import('./league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
@@ -118,7 +120,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenProfile
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'hall_of_fame' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
@@ -126,6 +128,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     looking_for: 'wishlists',
     bounties: 'bounties',
     roster: 'roster',
+    hall_of_fame: 'hall-of-fame',
     guides: 'guides',
     cheatsheets: 'cheatsheets',
     new_player: 'bench',
@@ -140,6 +143,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
     if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
+    if (clean === 'hall-of-fame' || clean === 'halloffame' || clean === 'hall_of_fame' || clean === 'firsts' || clean === 'league-firsts') return 'hall_of_fame';
     if (clean === 'guides' || clean === 'build-guides' || clean === 'buildguides') return 'guides';
     if (clean === 'cheatsheets' || clean === 'cheat-sheets' || clean === 'mechanics' || clean === 'mechanic-cheat-sheets') return 'cheatsheets';
     if (clean === 'bench' || clean === 'bench-stash-guide' || clean === 'new_player' || clean === 'new-player' || clean === 'stash') return 'new_player';
@@ -203,6 +207,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       looking_for: 'Wishlists',
       bounties: 'Bounties',
       roster: 'Roster',
+      hall_of_fame: 'Hall of Fame',
       guides: 'Builds',
       cheatsheets: 'Cheat Sheets',
       new_player: 'Crafting Bench',
@@ -1617,7 +1622,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
                 slug: 'bounties'
               },
-              { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' }
+              { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
+              { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1716,6 +1722,24 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             isCurrentUserAdmin={isCurrentUserAdmin}
             leagueFirsts={leagueFirsts}
             onClaimLeagueFirst={(m) => {
+              setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
+              saveCloudLeagueFirst(activeSessionId, m);
+              fireConfetti();
+              setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
+              setTimeout(() => setCopyNotice(null), 3500);
+            }}
+          />
+        )}
+
+        {/* TAB: HALL OF FAME & LEAGUE FIRSTS WALL */}
+        {activeTab === 'hall_of_fame' && (
+          <LeagueFirstsWall
+            leagueId={activeSessionId}
+            firsts={leagueFirsts}
+            roster={roster}
+            currentUser={userAccount || null}
+            isAdmin={isCurrentUserAdmin}
+            onClaimFirst={(m) => {
               setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
               saveCloudLeagueFirst(activeSessionId, m);
               fireConfetti();
