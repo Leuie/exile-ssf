@@ -38,7 +38,8 @@ import {
   Check,
   FolderOpen,
   Bell,
-  BellOff
+  BellOff,
+  Cloud
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 import { buildXlsxBlob, triggerFileDownload, type SheetDefinition } from '../utils/spreadsheetEngine';
@@ -544,10 +545,12 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Saved Sessions History
+  // Saved Sessions History & Cloud Stash Sync Status
   const [savedSessions, setSavedSessions] = useState<SavedFarmingSession[]>([]);
   const [savingSession, setSavingSession] = useState<boolean>(false);
   const [sharingRecap, setSharingRecap] = useState<boolean>(false);
+  const [cloudHydrated, setCloudHydrated] = useState<boolean>(false);
+  const [cloudSaveState, setCloudSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const normalizedHandle = (userAccount?.displayName || '').trim().replace(/^@/, '').toLowerCase();
 
@@ -593,6 +596,72 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     } catch {}
   }, [activeDrops, beforeSnapshot, stashTabs, checkpoints, lastSyncedAt, sessionTitle, mapsRun, durationMinutes, deaths]);
 
+  // Auto save active synced stash & tabs to Cloudflare D1 cloud (debounced, never stores POESESSID)
+  const saveStashToCloud = useCallback(
+    async (silent = true) => {
+      if (!normalizedHandle) return;
+      setCloudSaveState('saving');
+      try {
+        const res = await fetch('/api/farming/stash-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            handle: normalizedHandle,
+            state: {
+              activeDrops: activeDrops.slice(0, 1500),
+              beforeSnapshot: beforeSnapshot
+                ? { at: beforeSnapshot.at, items: beforeSnapshot.items.slice(0, 1500) }
+                : null,
+              stashTabs,
+              selectedTabIndices,
+              checkpoints,
+              lastSyncedAt,
+              sessionTitle,
+              strategyTag,
+              leagueName,
+              mapsRun,
+              durationMinutes,
+              deaths
+            }
+          })
+        });
+        if (res.ok) {
+          setCloudSaveState('saved');
+          if (!silent) {
+            setStatusNotice({ type: 'ok', text: `Saved ${activeDrops.length} stash stacks to your Exile SSF cloud account!` });
+          }
+        }
+      } catch {
+        setCloudSaveState('idle');
+      }
+    },
+    [
+      normalizedHandle,
+      activeDrops,
+      beforeSnapshot,
+      stashTabs,
+      selectedTabIndices,
+      checkpoints,
+      lastSyncedAt,
+      sessionTitle,
+      strategyTag,
+      leagueName,
+      mapsRun,
+      durationMinutes,
+      deaths
+    ]
+  );
+
+  useEffect(() => {
+    if (!cloudHydrated || !normalizedHandle) return;
+    if (activeDrops.length === 0 && stashTabs.length === 0 && !beforeSnapshot) return;
+    const t = setTimeout(() => {
+      saveStashToCloud(true);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [cloudHydrated, normalizedHandle, activeDrops, beforeSnapshot, stashTabs, checkpoints, mapsRun, durationMinutes, deaths, saveStashToCloud]);
+
   const handleResetSession = () => {
     setActiveDrops([]);
     setBeforeSnapshot(null);
@@ -605,7 +674,18 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     try {
       localStorage.removeItem(WORKSPACE_STORAGE_KEY);
     } catch {}
-    setStatusNotice({ type: 'ok', text: 'Cleared current farming session.' });
+    if (normalizedHandle) {
+      fetch('/api/farming/stash-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          handle: normalizedHandle,
+          state: { activeDrops: [], beforeSnapshot: null, stashTabs, selectedTabIndices, checkpoints: [] }
+        })
+      }).catch(() => {});
+    }
+    setStatusNotice({ type: 'ok', text: 'Cleared current farming session (local and cloud).' });
   };
 
   const loadNinjaPrices = useCallback(async (targetLeague: string, forceRefresh = false) => {
@@ -660,15 +740,40 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
       if (normalizedHandle) {
         try {
-          const sessRes = await fetch(`/api/farming/sessions?handle=${encodeURIComponent(normalizedHandle)}`, {
-            credentials: 'include'
-          });
+          const [sessRes, cloudStateRes] = await Promise.all([
+            fetch(`/api/farming/sessions?handle=${encodeURIComponent(normalizedHandle)}`, { credentials: 'include' }),
+            fetch(`/api/farming/stash-state?handle=${encodeURIComponent(normalizedHandle)}`, { credentials: 'include' })
+          ]);
           if (sessRes.ok && !cancelled) {
             const sessData: any = await sessRes.json();
             if (Array.isArray(sessData?.sessions)) setSavedSessions(sessData.sessions);
           }
+          if (cloudStateRes.ok && !cancelled) {
+            const stData: any = await cloudStateRes.json();
+            const cs = stData?.state;
+            if (cs && typeof cs === 'object') {
+              if (Array.isArray(cs.activeDrops) && cs.activeDrops.length > 0) {
+                setActiveDrops(cs.activeDrops);
+                setSetupOpen(false);
+              }
+              if (Array.isArray(cs.stashTabs) && cs.stashTabs.length > 0) setStashTabs(cs.stashTabs);
+              if (Array.isArray(cs.selectedTabIndices) && cs.selectedTabIndices.length > 0) {
+                setSelectedTabIndices(cs.selectedTabIndices);
+              }
+              if (cs.beforeSnapshot) setBeforeSnapshot(cs.beforeSnapshot);
+              if (Array.isArray(cs.checkpoints)) setCheckpoints(cs.checkpoints);
+              if (cs.lastSyncedAt) setLastSyncedAt(cs.lastSyncedAt);
+              if (cs.sessionTitle) setSessionTitle(cs.sessionTitle);
+              if (cs.strategyTag) setStrategyTag(cs.strategyTag);
+              if (typeof cs.mapsRun === 'number') setMapsRun(cs.mapsRun);
+              if (typeof cs.durationMinutes === 'number' && cs.durationMinutes > 0) setDurationMinutes(cs.durationMinutes);
+              if (typeof cs.deaths === 'number') setDeaths(cs.deaths);
+              setCloudSaveState('saved');
+            }
+          }
         } catch {}
       }
+      if (!cancelled) setCloudHydrated(true);
     };
     loadContext();
     return () => {
@@ -1672,6 +1777,24 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           >
             {chimeEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
           </button>
+
+          {normalizedHandle && (
+            <button
+              type="button"
+              onClick={() => saveStashToCloud(false)}
+              title="Your synced stash is automatically saved to Cloudflare D1 for your account"
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                cloudSaveState === 'saved'
+                  ? 'bg-sky-500/15 border-sky-400/50 text-sky-200'
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+              }`}
+            >
+              <Cloud className={`w-3.5 h-3.5 ${cloudSaveState === 'saving' ? 'animate-pulse text-amber-300' : 'text-sky-400'}`} />
+              <span className="hidden sm:inline">
+                {cloudSaveState === 'saving' ? 'Saving...' : cloudSaveState === 'saved' ? 'Cloud Saved' : 'Save Cloud'}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"

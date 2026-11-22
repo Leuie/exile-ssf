@@ -202,6 +202,7 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_activity_feed_league ON activity_feed(league_id, created_at DESC)`,
     `CREATE TABLE IF NOT EXISTS farming_sessions (id TEXT PRIMARY KEY, handle_lower TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_farming_sessions_handle ON farming_sessions(handle_lower, created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS farming_stash_state (handle_lower TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -1833,6 +1834,57 @@ export default {
             status: 500,
             headers: CORS_HEADERS
           });
+        }
+      }
+
+      // GET /api/farming/stash-state?handle=... (Load user's cloud saved stash workspace from D1)
+      if (url.pathname === '/api/farming/stash-state' && request.method === 'GET') {
+        try {
+          const handle = String(url.searchParams.get('handle') || '').trim().replace(/^@/, '').toLowerCase();
+          if (!handle || !env.EXILE_DB) {
+            return new Response(JSON.stringify({ state: null }), { headers: CORS_HEADERS });
+          }
+          await initD1Schema(env.EXILE_DB);
+          const row = await env.EXILE_DB.prepare(
+            `SELECT data, updated_at FROM farming_stash_state WHERE handle_lower = ?`
+          )
+            .bind(handle)
+            .first();
+          return new Response(
+            JSON.stringify({
+              state: row?.data ? JSON.parse(row.data) : null,
+              updatedAtIso: row?.updated_at || null
+            }),
+            { headers: CORS_HEADERS }
+          );
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
+        }
+      }
+
+      // POST /api/farming/stash-state (Persist user's synced stash items & tabs to Cloudflare D1; never stores POESESSID)
+      if (url.pathname === '/api/farming/stash-state' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const handle = String(body.handle || '').trim().replace(/^@/, '').toLowerCase();
+          const state = body.state;
+          if (!handle || !state || typeof state !== 'object') {
+            return new Response(JSON.stringify({ error: 'Missing handle or state payload' }), { status: 400, headers: CORS_HEADERS });
+          }
+          // Strip any accidental secret fields just in case
+          const { poesessid: _omit, ...cleanState } = state;
+          if (env.EXILE_DB) {
+            await initD1Schema(env.EXILE_DB);
+            await env.EXILE_DB.prepare(
+              `INSERT INTO farming_stash_state (handle_lower, data, updated_at) VALUES (?, ?, ?)
+               ON CONFLICT(handle_lower) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
+            )
+              .bind(handle, JSON.stringify(cleanState), now)
+              .run();
+          }
+          return new Response(JSON.stringify({ status: 'ok', updatedAtIso: now }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
         }
       }
 
