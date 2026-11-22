@@ -431,10 +431,13 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [browserJsonInput, setBrowserJsonInput] = useState<string>('');
   const [browserJsonTabIndex, setBrowserJsonTabIndex] = useState<number>(0);
 
-  // Auto Pull Timer
+  // Auto Pull Timer & Live Client.txt Watcher
   const [autoSyncMinutes, setAutoSyncMinutes] = useState<number>(0);
   const [secondsUntilSync, setSecondsUntilSync] = useState<number>(0);
   const [checkpoints, setCheckpoints] = useState<SyncCheckpoint[]>([]);
+  const clientFileHandleRef = useRef<any>(null);
+  const [watchingClientTxt, setWatchingClientTxt] = useState<boolean>(false);
+  const [lastZoneName, setLastZoneName] = useState<string>('');
 
   // Active Session State
   const [sessionTitle, setSessionTitle] = useState<string>('T16 Mapping & Dump Session');
@@ -950,42 +953,95 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     return () => clearInterval(interval);
   }, [autoSyncMinutes]);
 
-  const handleClientTxtUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const sliceStart = Math.max(0, file.size - 2 * 1024 * 1024);
-      const text = await file.slice(sliceStart).text();
-      const lines = text.split(/\r?\n/);
-      const cutoff = Date.now() - 1000 * 60 * 60 * 6;
-      const townKeywords = /(hideout|encampment|watch|bridge|highgate|oriath|karui shores|epilogue|kingsmarch|ziggurat|clearfell encampment)/i;
-      let mapCount = 0;
-      let deathCount = 0;
-      let firstTs = 0;
-      let lastTs = 0;
+  const parseClientTxtFile = useCallback(async (file: File, silent = false) => {
+    const sliceStart = Math.max(0, file.size - 2 * 1024 * 1024);
+    const text = await file.slice(sliceStart).text();
+    const lines = text.split(/\r?\n/);
+    const cutoff = Date.now() - 1000 * 60 * 60 * 6;
+    const townKeywords = /(hideout|encampment|watch|bridge|highgate|oriath|karui shores|epilogue|kingsmarch|ziggurat|clearfell encampment)/i;
+    let mapCount = 0;
+    let deathCount = 0;
+    let firstTs = 0;
+    let lastTs = 0;
+    let latestZone = '';
 
-      for (const line of lines) {
-        const tsMatch = line.match(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/);
-        if (!tsMatch) continue;
-        const ts = Date.parse(tsMatch[1].replace(/\//g, '-'));
-        if (!Number.isFinite(ts) || ts < cutoff) continue;
-        if (/You have entered (.+)\./i.test(line)) {
-          const area = line.match(/You have entered (.+)\./i)?.[1] || '';
-          if (area && !townKeywords.test(area)) {
+    for (const line of lines) {
+      const tsMatch = line.match(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/);
+      if (!tsMatch) continue;
+      const ts = Date.parse(tsMatch[1].replace(/\//g, '-'));
+      if (!Number.isFinite(ts) || ts < cutoff) continue;
+      if (/You have entered (.+)\./i.test(line)) {
+        const area = line.match(/You have entered (.+)\./i)?.[1] || '';
+        if (area) {
+          latestZone = area;
+          if (!townKeywords.test(area)) {
             mapCount += 1;
             if (!firstTs) firstTs = ts;
             lastTs = ts;
           }
-        } else if (/has been slain\./i.test(line)) {
-          deathCount += 1;
         }
+      } else if (/has been slain\./i.test(line)) {
+        deathCount += 1;
       }
+    }
 
-      const elapsedMin = firstTs && lastTs && lastTs > firstTs ? Math.max(1, Math.round((lastTs - firstTs) / 60000)) : durationMinutes;
-      setMapsRun(mapCount);
-      setDurationMinutes(elapsedMin);
-      setDeaths(deathCount);
-      setStatusNotice({ type: 'ok', text: `Client.txt parsed locally: ${mapCount} maps in ${elapsedMin}m (${deathCount} deaths).` });
+    const elapsedMin = firstTs && lastTs && lastTs > firstTs ? Math.max(1, Math.round((lastTs - firstTs) / 60000)) : 60;
+    setMapsRun(mapCount);
+    setDurationMinutes(elapsedMin);
+    setDeaths(deathCount);
+    if (latestZone) setLastZoneName(latestZone);
+    if (!silent) {
+      setStatusNotice({
+        type: 'ok',
+        text: `Client.txt synced locally: ${mapCount} maps in ${elapsedMin}m (${deathCount} deaths)${latestZone ? ` • Last zone: ${latestZone}` : ''}.`
+      });
+      setSetupOpen(false);
+    }
+  }, []);
+
+  // Poll live Client.txt handle every 15 seconds while watching
+  useEffect(() => {
+    if (!watchingClientTxt || !clientFileHandleRef.current) return;
+    const timer = setInterval(async () => {
+      try {
+        const file: File = await clientFileHandleRef.current.getFile();
+        await parseClientTxtFile(file, true);
+      } catch {}
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [watchingClientTxt, parseClientTxtFile]);
+
+  const handleWatchLiveClientTxt = async () => {
+    const picker = (window as any).showOpenFilePicker;
+    if (typeof picker !== 'function') {
+      setStatusNotice({
+        type: 'err',
+        text: 'Your browser does not support live file handles. Use the Parse Client.txt upload button instead.'
+      });
+      return;
+    }
+    try {
+      const [handle] = await picker({
+        multiple: false,
+        types: [{ description: 'Path of Exile Client Log', accept: { 'text/plain': ['.txt', '.log'] } }]
+      });
+      if (!handle) return;
+      clientFileHandleRef.current = handle;
+      const file: File = await handle.getFile();
+      await parseClientTxtFile(file, false);
+      setWatchingClientTxt(true);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setStatusNotice({ type: 'err', text: 'Could not attach live Client.txt watcher.' });
+      }
+    }
+  };
+
+  const handleClientTxtUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await parseClientTxtFile(file, false);
     } catch {
       setStatusNotice({ type: 'err', text: 'Could not read Client.txt file.' });
     }
@@ -1562,6 +1618,11 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
               </div>
               <div className="text-[10px] font-mono text-slate-400 mt-1">
                 {mapsRun} maps ({mapsPerHour}/hr) • {tierCounts.S} S Tier • {tierCounts.A} A Tier
+                {watchingClientTxt && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                    Live Log{lastZoneName ? `: ${lastZoneName}` : ''}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1862,12 +1923,35 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           {setupTab === 'manual' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-mono uppercase text-[10px] text-emerald-400 font-bold">Client.txt Speed & Session Info</span>
-                  <label className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 font-bold flex items-center gap-1 cursor-pointer">
-                    <Upload className="w-3 h-3" /> Parse Client.txt
-                    <input type="file" accept=".txt,.log" onChange={handleClientTxtUpload} className="hidden" />
-                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {watchingClientTxt ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWatchingClientTxt(false);
+                          clientFileHandleRef.current = null;
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-200 font-bold cursor-pointer"
+                      >
+                        Stop Live Watch
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleWatchLiveClientTxt}
+                        title="Pick Client.txt once in Brave to auto update Maps/hr and Zones every 15 seconds"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Timer className="w-3 h-3" /> Watch Live Client.txt
+                      </button>
+                    )}
+                    <label className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex items-center gap-1 cursor-pointer">
+                      <Upload className="w-3 h-3" /> One Time Read
+                      <input type="file" accept=".txt,.log" onChange={handleClientTxtUpload} className="hidden" />
+                    </label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   <input
