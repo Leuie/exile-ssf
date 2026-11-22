@@ -354,21 +354,34 @@ async function seedLeuieAvatarToD1(db: any): Promise<void> {
   leuieAvatarSeedChecked = true;
   const migKey = 'seed:leuie_avatar:v1';
   const existingMig = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(migKey).first();
-  if (existingMig) return;
+  if (!existingMig) {
+    const now = new Date().toISOString();
+    const row = await db.prepare('SELECT data FROM profiles WHERE handle_lower = ?').bind('leuie').first();
+    const prev = row?.data ? JSON.parse(row.data) : { handle: 'Leuie', uid: 'EXILE-1P8R1S' };
+    const updated = {
+      ...prev,
+      handle: prev.handle || 'Leuie',
+      avatarUrl: 'https://i.imgur.com/1Ob2OA9.png',
+      updatedAtIso: now
+    };
+    await db.batch([
+      db.prepare('INSERT OR REPLACE INTO profiles (handle_lower, data, updated_at) VALUES (?, ?, ?)').bind('leuie', JSON.stringify(updated), now),
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(migKey, now)
+    ]);
+  }
 
-  const now = new Date().toISOString();
-  const row = await db.prepare('SELECT data FROM profiles WHERE handle_lower = ?').bind('leuie').first();
-  const prev = row?.data ? JSON.parse(row.data) : { handle: 'Leuie', uid: 'EXILE-1P8R1S' };
-  const updated = {
-    ...prev,
-    handle: prev.handle || 'Leuie',
-    avatarUrl: 'https://i.imgur.com/1Ob2OA9.png',
-    updatedAtIso: now
-  };
-  await db.batch([
-    db.prepare('INSERT OR REPLACE INTO profiles (handle_lower, data, updated_at) VALUES (?, ?, ?)').bind('leuie', JSON.stringify(updated), now),
-    db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(migKey, now)
-  ]);
+  // One time migration: permanently update Leuie#0001 -> Leuie#0626 across profiles, accounts, and roster in D1
+  const tagMigKey = 'seed:leuie_account_0626:v1';
+  const existingTagMig = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(tagMigKey).first();
+  if (!existingTagMig) {
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare(`UPDATE profiles SET data = REPLACE(data, 'Leuie#0001', 'Leuie#0626'), updated_at = ? WHERE handle_lower = 'leuie'`).bind(now),
+      db.prepare(`UPDATE accounts SET data = REPLACE(data, 'Leuie#0001', 'Leuie#0626'), updated_at = ? WHERE username_lower = 'leuie'`).bind(now),
+      db.prepare(`UPDATE roster SET data = REPLACE(data, 'Leuie#0001', 'Leuie#0626'), updated_at = ? WHERE display_name_lower = 'leuie'`).bind(now),
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(tagMigKey, now)
+    ]);
+  }
 }
 
 

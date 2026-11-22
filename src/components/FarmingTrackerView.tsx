@@ -462,7 +462,11 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [loadingNinja, setLoadingNinja] = useState<boolean>(false);
 
   // Stash API Connection State (POESESSID stays in memory only)
-  const [accountName, setAccountName] = useState<string>(savedPrefs.accountName || userAccount?.poeAccountName || '');
+  const [accountName, setAccountName] = useState<string>(
+    (savedPrefs.accountName && savedPrefs.accountName !== 'Leuie#0001' ? savedPrefs.accountName : '') ||
+      (userAccount?.poeAccountName && userAccount.poeAccountName !== 'Leuie#0001' ? userAccount.poeAccountName : '') ||
+      ''
+  );
   const [leagueName, setLeagueName] = useState<string>(
     savedPrefs.leagueName || 'Ravenwatch Covens of Umbra GSF (PL87651)'
   );

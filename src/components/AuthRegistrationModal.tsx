@@ -245,7 +245,10 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       }
     } catch {}
 
-    const resolvedAccountName = savedAcc.poeAccountName || savedRoster.poeAccountName || 'Leuie#0001';
+    const resolvedAccountName =
+      (savedAcc.poeAccountName && savedAcc.poeAccountName !== 'Leuie#0001' ? savedAcc.poeAccountName : '') ||
+      (savedRoster.poeAccountName && savedRoster.poeAccountName !== 'Leuie#0001' ? savedRoster.poeAccountName : '') ||
+      'Leuie#0626';
     const resolvedCharName = savedAcc.characterName || savedRoster.characterName || 'Leuie_Umbra';
     const resolvedClass = savedAcc.className || savedRoster.className || 'Witch';
     const resolvedAsc = savedAcc.ascendancy || savedRoster.ascendancy || 'Elementalist';
