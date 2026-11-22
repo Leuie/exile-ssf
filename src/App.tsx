@@ -504,6 +504,7 @@ export const App: React.FC = () => {
         trackerStats={trackerStats}
         userAccount={userAccount}
         onOpenAuthModal={handleOpenAuth}
+        onOpenProfile={handleOpenProfile}
       />
 
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}

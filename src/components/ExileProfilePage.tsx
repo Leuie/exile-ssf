@@ -49,6 +49,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [avatarError, setAvatarError] = useState<boolean>(false);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
+  const [gameScope, setGameScope] = useState<'all' | 'poe1' | 'poe2'>('all');
 
   // Inline Profile Editor State
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -161,13 +162,27 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
     uid: 'EXILE-NEW'
   };
 
+  const isLeaguePoE2 = (lid?: string) => Boolean(lid && lid.toLowerCase().startsWith('poe2'));
+  const matchesGameScope = (lid?: string) => {
+    if (gameScope === 'all') return true;
+    return gameScope === 'poe2' ? isLeaguePoE2(lid) : !isLeaguePoE2(lid);
+  };
+
   const rosterEntries = data?.rosterEntries || [];
-  const allCharacters = rosterEntries.flatMap((entry) =>
+  const allCharactersRaw = rosterEntries.flatMap((entry) =>
     getMemberCharacters(entry.member).map((ch) => ({
       ...ch,
-      leagueId: entry.leagueId
+      leagueId: entry.leagueId,
+      gameTag: isLeaguePoE2(entry.leagueId) ? 'PoE 2' : 'PoE 1'
     }))
   );
+  const allCharacters = allCharactersRaw.filter((ch) => matchesGameScope(ch.leagueId));
+  const poe1CharCount = allCharactersRaw.filter((ch) => !isLeaguePoE2(ch.leagueId)).length;
+  const poe2CharCount = allCharactersRaw.filter((ch) => isLeaguePoE2(ch.leagueId)).length;
+  const primaryNavLeagueId =
+    gameScope === 'poe2'
+      ? rosterEntries.find((e) => isLeaguePoE2(e.leagueId))?.leagueId || 'poe2-05-ancients'
+      : rosterEntries.find((e) => !isLeaguePoE2(e.leagueId))?.leagueId || rosterEntries[0]?.leagueId || 'poe1-330-umbra';
 
   const openWishes = (data?.wishes || []).filter((w) => w.status !== 'HAVE');
   const openBounties = openWishes.filter((w) => w.bountyOffer && w.bountyOffer.trim());
@@ -187,8 +202,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const isEarly330Pioneer =
     rosterEntries.some((entry) => entry.leagueId === 'poe1-330-umbra') ||
     Boolean(data?.alumniRecord);
-  const services = data?.services || [];
-  const vouches = data?.vouches || [];
+  const services = (data?.services || []).filter((s) => matchesGameScope(s.leagueId));
+  const vouches = (data?.vouches || []).filter((v) => matchesGameScope(v.leagueId));
   const achProfile = data?.achievementProfile;
   const unlockedIds = achProfile?.unlockedIds || {};
   const unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a) => Boolean(unlockedIds[a.id]));
@@ -395,8 +410,50 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           </div>
         </div>
 
+        {/* Cross Game Synergy Switcher (PoE 1 + PoE 2 Combined or Filtered) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800/80">
+          <div className="text-[11px] font-mono text-slate-400">
+            Cross Game Profile Scope (PoE 1 &amp; PoE 2 metrics combined by default)
+          </div>
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setGameScope('all')}
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                gameScope === 'all'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All Games ({allCharactersRaw.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setGameScope('poe1')}
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                gameScope === 'poe1'
+                  ? 'bg-amber-600/30 text-amber-200 border border-amber-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              PoE 1 ({poe1CharCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setGameScope('poe2')}
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                gameScope === 'poe2'
+                  ? 'bg-cyan-600/30 text-cyan-200 border border-cyan-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              PoE 2 ({poe2CharCount})
+            </button>
+          </div>
+        </div>
+
         {/* Reputation & Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
             <div className="text-[10px] font-mono uppercase text-amber-400">Verified Vouches</div>
             <div className="text-lg font-bold text-white mt-0.5">★ {vouches.length}</div>
@@ -697,7 +754,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             {onNavigateLeague && (
               <button
                 type="button"
-                onClick={() => onNavigateLeague('poe1-330-umbra', 'roster')}
+                onClick={() => onNavigateLeague(primaryNavLeagueId, 'roster')}
                 className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
               >
                 Open League Roster →
@@ -717,8 +774,17 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2 text-xs"
                 >
                   <div>
-                    <div className="flex items-center gap-1.5 font-bold text-white">
+                    <div className="flex flex-wrap items-center gap-1.5 font-bold text-white">
                       <span>{ch.characterName}</span>
+                      <span
+                        className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                          ch.gameTag === 'PoE 2'
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                            : 'bg-amber-500/15 text-amber-300 border-amber-500/35'
+                        }`}
+                      >
+                        {ch.gameTag}
+                      </span>
                       {ch.isMain && (
                         <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
                           MAIN
@@ -758,7 +824,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             {onNavigateLeague && (
               <button
                 type="button"
-                onClick={() => onNavigateLeague('poe1-330-umbra', 'wishlists')}
+                onClick={() => onNavigateLeague(primaryNavLeagueId, 'wishlists')}
                 className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
               >
                 Open Wishlists →
@@ -826,7 +892,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             {onNavigateLeague && (
               <button
                 type="button"
-                onClick={() => onNavigateLeague('poe1-330-umbra', 'bounties')}
+                onClick={() => onNavigateLeague(primaryNavLeagueId, 'bounties')}
                 className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
               >
                 Open Bounties →

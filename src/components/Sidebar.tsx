@@ -35,6 +35,7 @@ openSearch: () => void;
   trackerStats: { completed: number; total: number };
   userAccount?: import('../types').UserAccount | null;
   onOpenAuthModal?: () => void;
+  onOpenProfile?: (handle: string) => void;
 }
 
 const LEAGUE_INFO = {
@@ -72,7 +73,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 openSearch,
   trackerStats,
   userAccount,
-  onOpenAuthModal
+  onOpenAuthModal,
+  onOpenProfile
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -615,13 +617,19 @@ interface NavGroup {
             </div>
           )}
 
-          {/* User Account Profile & Dynamic Tag Card */}
-          {onOpenAuthModal && (
+          {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}
+          {(onOpenAuthModal || onOpenProfile) && (
             !isCollapsed ? (
               <button
-                onClick={onOpenAuthModal}
+                onClick={() => {
+                  if (userAccount && onOpenProfile) {
+                    onOpenProfile(userAccount.displayName);
+                  } else {
+                    onOpenAuthModal?.();
+                  }
+                }}
                 className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors cursor-pointer"
-                title={userAccount ? `@${userAccount.displayName} (${userAccount.poeAccountName})` : 'Login'}
+                title={userAccount ? `Open @${userAccount.displayName}'s Exile Profile` : 'Login'}
               >
                 <div className="flex items-center gap-2 truncate">
                   <UserCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
