@@ -7,13 +7,23 @@ import {
   ExternalLink, 
   ShieldAlert, 
   Key, 
-  Check
+  Check,
+  Cloud,
+  RotateCcw
 } from 'lucide-react';
 import { CAMPAIGN_ACTS } from '../data/campaignWalkthrough';
 import { fireConfetti } from '../utils/confetti';
+import type { UserAccount } from '../types';
+import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
 
-export const CampaignWalkthroughView: React.FC = () => {
+interface CampaignWalkthroughViewProps {
+  selectedGame?: 'poe1' | 'poe2';
+  userAccount?: UserAccount | null;
+}
+
+export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = ({ userAccount }) => {
   const [selectedAct, setSelectedAct] = useState<number>(1);
+  const [cloudSynced, setCloudSynced] = useState<boolean>(false);
   const [completedZones, setCompletedZones] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('poe_ssf_completed_zones');
@@ -24,26 +34,50 @@ export const CampaignWalkthroughView: React.FC = () => {
   });
 
   useEffect(() => {
+    if (!userAccount?.displayName) return;
+    let cancelled = false;
+    fetchUserToolState<Record<string, boolean>>(userAccount.displayName, 'campaign_progress').then((data) => {
+      if (!cancelled && data && typeof data === 'object') {
+        setCompletedZones(data);
+        setCloudSynced(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const persistZones = (next: Record<string, boolean>) => {
+    setCompletedZones(next);
     try {
-      localStorage.setItem('poe_ssf_completed_zones', JSON.stringify(completedZones));
-    } catch {
-      // storage error fallback
+      localStorage.setItem('poe_ssf_completed_zones', JSON.stringify(next));
+    } catch {}
+    if (userAccount?.displayName) {
+      saveUserToolState(userAccount.displayName, 'campaign_progress', next).then((ok) => {
+        if (ok) setCloudSynced(true);
+      });
     }
-  }, [completedZones]);
+  };
 
   const currentActData = CAMPAIGN_ACTS.find((a) => a.actNumber === selectedAct) || CAMPAIGN_ACTS[0];
 
   const toggleZone = (zoneKey: string) => {
     const nextState = !completedZones[zoneKey];
-    setCompletedZones((prev) => ({
-      ...prev,
-      [zoneKey]: nextState
-    }));
+    const nextMap = { ...completedZones, [zoneKey]: nextState };
+    persistZones(nextMap);
 
-    if (nextState) {
+    // Fire celebration only when an entire Act is completed
+    if (nextState && currentActData.zones.every((z) => nextMap[`act${selectedAct}_${z.zoneName}`])) {
       fireConfetti();
     }
   };
+
+  const totalCampaignZones = CAMPAIGN_ACTS.reduce((acc, a) => acc + a.zones.length, 0);
+  const totalCompletedZones = CAMPAIGN_ACTS.reduce(
+    (acc, a) => acc + a.zones.filter((z) => completedZones[`act${a.actNumber}_${z.zoneName}`]).length,
+    0
+  );
+  const overallPercent = totalCampaignZones > 0 ? Math.round((totalCompletedZones / totalCampaignZones) * 100) : 0;
 
   const actZones = currentActData.zones;
   const completedInAct = actZones.filter((z) => completedZones[`act${selectedAct}_${z.zoneName}`]).length;
@@ -51,20 +85,52 @@ export const CampaignWalkthroughView: React.FC = () => {
   const actProgressPercent = Math.round((completedInAct / totalInAct) * 100);
 
   return (
-    <div className="space-y-8 w-full space-y-6 pb-20 font-sans text-slate-200">
+    <div className="w-full space-y-6 pb-20 font-sans text-slate-200">
       
       {/* Header */}
-      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-cyan-600 dark:text-cyan-400">
-          <Compass className="w-4 h-4" />
-          The Foolproof Campaign Guide
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-cyan-400">
+            <Compass className="w-4 h-4" />
+            <span>The Foolproof Campaign Guide</span>
+            {cloudSynced && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-mono text-emerald-300 normal-case">
+                <Cloud className="w-3 h-3" />
+                <span>Cloud Synced</span>
+              </span>
+            )}
+          </div>
+          <h1 className="text-3xl font-poe font-bold text-slate-100">
+            Act 1 to 10 Walkthrough
+          </h1>
+          <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
+            Engineered so players have an easier time completing the campaign. Zone navigation tips, Book of Skill quest markers, Lab trial alerts, and Kitava resistance drop safeguards.
+          </p>
         </div>
-        <h1 className="text-3xl font-poe font-bold text-slate-900 dark:text-slate-100">
-          Act 1 to 10 Walkthrough
-        </h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
-          Engineered so players have an easier time completing the campaign. Zone navigation tips, Book of Skill quest markers, Lab trial alerts, and Kitava resistance drop safeguards.
-        </p>
+
+        <div className="flex flex-col items-start md:items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-400">Campaign Total:</span>
+            <span className="font-bold text-emerald-300">{totalCompletedZones}/{totalCampaignZones} ({overallPercent}%)</span>
+          </div>
+          <div className="w-48 h-2 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-300" style={{ width: `${overallPercent}%` }} />
+          </div>
+          {totalCompletedZones > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Reset all Acts 1 to 10 checkboxes for a new character or alt?')) {
+                  persistZones({});
+                }
+              }}
+              className="px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[11px] font-mono text-slate-300 hover:text-rose-300 inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset for New Character / Alt</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Act Selection Tabs with Vibrant Color Coding */}

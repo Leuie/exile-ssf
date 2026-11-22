@@ -12,11 +12,15 @@ import {
   Hammer,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Cloud
 } from 'lucide-react';
+import type { UserAccount, LeagueRosterMember } from '../types';
+import { fetchUserToolState, saveUserToolState, fetchActiveCharacterContext } from '../services/cloudSync';
 
 interface PoERegexStudioViewProps {
   selectedGame?: 'poe1' | 'poe2';
+  userAccount?: UserAccount | null;
 }
 
 interface RegexPresetTab {
@@ -66,14 +70,16 @@ function loadSavedRegexes(): SavedRegexItem[] {
   }
 }
 
-export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selectedGame = 'poe1' }) => {
+export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selectedGame = 'poe1', userAccount }) => {
   const [game, setGame] = useState<'poe1' | 'poe2'>(selectedGame);
   const [activeTabId, setActiveTabId] = useState<string>(selectedGame === 'poe2' ? 'poe2_waystones' : 'maps');
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Saved personal regex presets
+  // Saved personal regex presets (cloud synced when signed in)
   const [savedRegexes, setSavedRegexes] = useState<SavedRegexItem[]>(loadSavedRegexes);
+  const [cloudSynced, setCloudSynced] = useState<boolean>(false);
+  const [activeMember, setActiveMember] = useState<LeagueRosterMember | null>(null);
   const [showSavedPanel, setShowSavedPanel] = useState<boolean>(false);
   const [newLabel, setNewLabel] = useState<string>('');
   const [newRegex, setNewRegex] = useState<string>('');
@@ -83,10 +89,73 @@ export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selected
   }, []);
 
   useEffect(() => {
+    setGame(selectedGame);
+    setActiveTabId(selectedGame === 'poe2' ? 'poe2_waystones' : 'maps');
+  }, [selectedGame]);
+
+  useEffect(() => {
+    if (!userAccount?.displayName) return;
+    let cancelled = false;
+    fetchUserToolState<SavedRegexItem[]>(userAccount.displayName, 'regex_presets').then((data) => {
+      if (!cancelled && Array.isArray(data) && data.length > 0) {
+        setSavedRegexes(data);
+        setCloudSynced(true);
+      }
+    });
+    fetchActiveCharacterContext(userAccount, game).then((ctx) => {
+      if (!cancelled) setActiveMember(ctx.member);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName, game]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(savedRegexes));
     } catch {}
   }, [savedRegexes]);
+
+  const persistRegexes = (next: SavedRegexItem[]) => {
+    setSavedRegexes(next);
+    if (userAccount?.displayName) {
+      saveUserToolState(userAccount.displayName, 'regex_presets', next).then((ok) => {
+        if (ok) setCloudSynced(true);
+      });
+    }
+  };
+
+  const handleGenerateBuildMapRegex = () => {
+    const buildStr = `${activeMember?.buildName || ''} ${activeMember?.ascendancy || ''}`.toLowerCase();
+    const exclusions: string[] = ['o al']; // No regen / cannot regenerate
+    if (/(ignite|burning|rf|righteous|fire|cold|lightning|elemental|brand|archmage|nova|spark)/i.test(buildStr)) {
+      exclusions.push('tal d', 'ailm'); // Elemental reflect + avoid elemental ailments
+    } else if (/(phys|bleed|impale|boneshatter|slayer|slam|cyclone)/i.test(buildStr)) {
+      exclusions.push('f ph', 'lee'); // Physical reflect + cannot leech
+    } else {
+      exclusions.push('tal d', 'f ph'); // Both reflects safe default
+    }
+    if (/(block|aegis|svalinn|gladiator|necro)/i.test(buildStr)) {
+      exclusions.push('bloc'); // Less block chance
+    }
+    const generated = `"!${exclusions.join('|')}"`;
+    const label = activeMember
+      ? `${activeMember.characterName} Safe Maps (${activeMember.ascendancy})`
+      : 'Safe SSF Map Rolling Regex';
+    const item: SavedRegexItem = {
+      id: `rx-auto-${Date.now()}`,
+      game,
+      category: 'Map Mods',
+      label,
+      regex: generated,
+      createdAt: new Date().toLocaleDateString()
+    };
+    persistRegexes([item, ...savedRegexes]);
+    setShowSavedPanel(true);
+    navigator.clipboard?.writeText(generated);
+    setCopiedKey(item.id);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   const activeTabs = game === 'poe2' ? POE2_TABS : POE1_TABS;
   const activeTab = useMemo(
@@ -125,13 +194,13 @@ export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selected
       regex: cleanRegex,
       createdAt: new Date().toLocaleDateString()
     };
-    setSavedRegexes((prev) => [item, ...prev]);
+    persistRegexes([item, ...savedRegexes]);
     setNewLabel('');
     setNewRegex('');
   };
 
   const handleDeletePreset = (id: string) => {
-    setSavedRegexes((prev) => prev.filter((item) => item.id !== id));
+    persistRegexes(savedRegexes.filter((item) => item.id !== id));
   };
 
   const gameSavedRegexes = useMemo(
@@ -234,7 +303,8 @@ export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selected
       </header>
 
       {/* Prominent Category Ribbon */}
-      <div className="px-3.5 py-2.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] shadow-inner flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <div className="px-3.5 py-2.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] shadow-inner flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         {activeTabs.map((tab) => {
           const isActive = activeTab.id === tab.id;
           return (
@@ -256,6 +326,25 @@ export const PoERegexStudioView: React.FC<PoERegexStudioViewProps> = ({ selected
             </button>
           );
         })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {cloudSynced && (
+            <span className="hidden xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-mono text-emerald-300">
+              <Cloud className="w-3 h-3" />
+              <span>Cloud Presets</span>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleGenerateBuildMapRegex}
+            className="px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            title="Auto generate and copy a safe map rolling regex tailored to your active league build"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{activeMember ? `Auto Regex (${activeMember.ascendancy})` : 'Auto Safe Map Regex'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Collapsible Personal Saved Regex Presets */}

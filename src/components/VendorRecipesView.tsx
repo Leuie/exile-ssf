@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -200,12 +200,17 @@ function mapPoe1Category(raw: string, title: string): { id: string; label: strin
   return { id: 'endgame', label: 'Endgame & Maps' };
 }
 
-export const VendorRecipesView: React.FC = () => {
-  const [gameMode, setGameMode] = useState<GameMode>('poe1');
+export const VendorRecipesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ selectedGame = 'poe1' }) => {
+  const [gameMode, setGameMode] = useState<GameMode>(selectedGame);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSurvivalKit, setShowSurvivalKit] = useState<boolean>(false);
+
+  useEffect(() => {
+    setGameMode(selectedGame);
+    setSelectedCategory('all');
+  }, [selectedGame]);
 
   const handleSwitchGame = (next: GameMode) => {
     setGameMode(next);

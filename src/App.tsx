@@ -559,7 +559,7 @@ export const App: React.FC = () => {
         <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'patch_notes' && <PatchNotesView initialGame={selectedGame} />}
-        {activeTab === 'regex_studio' && <PoERegexStudioView selectedGame={selectedGame} />}
+        {activeTab === 'regex_studio' && <PoERegexStudioView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'farming_tracker' && (
           <FarmingTrackerView
             selectedGame={selectedGame}
@@ -567,12 +567,12 @@ export const App: React.FC = () => {
             onOpenAuthModal={handleOpenAuth}
           />
         )}
-        {activeTab === 'cheat_sheets' && <CheatSheetsTab />}
-        {activeTab === 'crafting_bench' && <BenchGuideTab />}
-        {activeTab === 'vendor_recipes' && <VendorRecipesView />}
-        {activeTab === 'atlas' && <AtlasView />}
-        {activeTab === 'defenses' && <DefenseMechanicsView />}
-        {activeTab === 'offenses' && <OffensesView />}
+        {activeTab === 'cheat_sheets' && <CheatSheetsTab selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'crafting_bench' && <BenchGuideTab selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'vendor_recipes' && <VendorRecipesView selectedGame={selectedGame} />}
+        {activeTab === 'atlas' && <AtlasView selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'defenses' && <DefenseMechanicsView selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'offenses' && <OffensesView selectedGame={selectedGame} />}
         {activeTab === 'builds' && (
           <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="community" />
         )}
@@ -582,16 +582,16 @@ export const App: React.FC = () => {
         {activeTab === 'build_ingest' && (
           <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="ingest" />
         )}
-        {activeTab === 'labyrinth' && <LabyrinthGuideView />}
-        {activeTab === 'campaign' && <CampaignWalkthroughView />}
+        {activeTab === 'labyrinth' && <LabyrinthGuideView selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'campaign' && <CampaignWalkthroughView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'privacy' && <PrivacyPolicyView />}
-        {activeTab === 'tools_directory' && <ToolsDirectoryView />}
-        {activeTab === 'poewiki' && <PoEWikiWrapperView initialUrl="https://www.poewiki.net/" title="PoEWiki Portal" isPoE2={false} />}
-        {activeTab === 'poedb' && <PoEDBWrapperView initialUrl="https://poedb.tw/us/" title="PoEDB Portal" isPoE2={false} />}
-        {activeTab === 'poe_ninja' && <PoENinjaWrapperView />}
+        {activeTab === 'tools_directory' && <ToolsDirectoryView selectedGame={selectedGame} userAccount={userAccount} />}
+        {activeTab === 'poewiki' && <PoEWikiWrapperView initialUrl="https://www.poewiki.net/" title="PoEWiki Portal" isPoE2={false} userAccount={userAccount} />}
+        {activeTab === 'poedb' && <PoEDBWrapperView initialUrl="https://poedb.tw/us/" title="PoEDB Portal" isPoE2={false} userAccount={userAccount} />}
+        {activeTab === 'poe_ninja' && <PoENinjaWrapperView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'poe2_hub' && <PoE2HubView />}
-        {activeTab === 'poe2_wiki' && <PoEWikiWrapperView initialUrl="https://www.poe2wiki.net/" title="PoE 2 Wiki Portal" isPoE2={true} />}
-        {activeTab === 'poe2_db' && <PoEDBWrapperView initialUrl="https://poe2db.tw/us/" title="PoE 2 DB Portal" isPoE2={true} />}
+        {activeTab === 'poe2_wiki' && <PoEWikiWrapperView initialUrl="https://www.poe2wiki.net/" title="PoE 2 Wiki Portal" isPoE2={true} userAccount={userAccount} />}
+        {activeTab === 'poe2_db' && <PoEDBWrapperView initialUrl="https://poe2db.tw/us/" title="PoE 2 DB Portal" isPoE2={true} userAccount={userAccount} />}
         {activeTab === 'about' && <AboutView />}
         {activeTab === 'feedback' && (
           <FeedbackView

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Compass, 
   ExternalLink, 
@@ -7,13 +7,72 @@ import {
   Crown, 
   RefreshCw, 
   Maximize2,
-  Minimize2
+  Minimize2,
+  Cloud,
+  Gem
 } from 'lucide-react';
+import type { UserAccount } from '../types';
+import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
 
-export const AtlasView: React.FC = () => {
+interface AtlasViewProps {
+  selectedGame?: 'poe1' | 'poe2';
+  userAccount?: UserAccount | null;
+}
+
+interface AtlasProgressState {
+  completedMaps: number;
+  voidstones: { exarch: boolean; eater: boolean; maven: boolean; uberElder: boolean };
+  favouredCount: number;
+}
+
+const DEFAULT_ATLAS_PROGRESS: AtlasProgressState = {
+  completedMaps: 0,
+  voidstones: { exarch: false, eater: false, maven: false, uberElder: false },
+  favouredCount: 0
+};
+
+export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', userAccount }) => {
   const [activeStage, setActiveStage] = useState<number>(1);
   const [isIframeFullscreen, setIsIframeFullscreen] = useState<boolean>(false);
   const [iframeKey, setIframeKey] = useState<number>(0);
+  const [cloudSynced, setCloudSynced] = useState<boolean>(false);
+  const [progress, setProgress] = useState<AtlasProgressState>(() => {
+    try {
+      const saved = localStorage.getItem('exile_ssf_atlas_progress_v1');
+      return saved ? { ...DEFAULT_ATLAS_PROGRESS, ...JSON.parse(saved) } : DEFAULT_ATLAS_PROGRESS;
+    } catch {
+      return DEFAULT_ATLAS_PROGRESS;
+    }
+  });
+
+  useEffect(() => {
+    if (!userAccount?.displayName) return;
+    let cancelled = false;
+    fetchUserToolState<AtlasProgressState>(userAccount.displayName, 'atlas_progress').then((data) => {
+      if (!cancelled && data && typeof data === 'object') {
+        setProgress({ ...DEFAULT_ATLAS_PROGRESS, ...data });
+        setCloudSynced(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const updateProgress = (next: AtlasProgressState) => {
+    setProgress(next);
+    try {
+      localStorage.setItem('exile_ssf_atlas_progress_v1', JSON.stringify(next));
+    } catch {}
+    if (userAccount?.displayName) {
+      saveUserToolState(userAccount.displayName, 'atlas_progress', next).then((ok) => {
+        if (ok) setCloudSynced(true);
+      });
+    }
+  };
+
+  const voidstoneCount = Object.values(progress.voidstones).filter(Boolean).length;
+  void selectedGame;
 
   const stages = [
     {
@@ -65,21 +124,108 @@ export const AtlasView: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-10 w-full space-y-6 pb-20 font-sans text-slate-200">
+    <div className="w-full space-y-8 pb-20 font-sans text-slate-200">
       
       {/* Header Masthead */}
       <header className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/85 backdrop-blur-md space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-600 dark:text-sky-400">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-400">
           <Compass className="w-4 h-4" />
-          Endgame Mapping & Strategy
+          <span>Endgame Mapping & Strategy</span>
+          {cloudSynced && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-[10px] font-mono text-emerald-300 normal-case">
+              <Cloud className="w-3 h-3" />
+              <span>Cloud Synced</span>
+            </span>
+          )}
         </div>
-        <h1 className="text-3xl sm:text-5xl font-poe font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl sm:text-5xl font-poe font-bold text-slate-100">
           Atlas of Worlds & Mapping
         </h1>
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
+        <p className="text-sm sm:text-base text-slate-400 max-w-3xl leading-relaxed">
           The comprehensive Solo Self Found guide to 100% map sustain, progressive Atlas passive trees, Voidstone unlocks, and the interactive Atlas tree planner.
         </p>
       </header>
+
+      {/* Interactive Voidstone & Atlas Completion Tracker (Cloud Synced) */}
+      <section className="p-5 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/25 to-slate-900 space-y-4 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+            <Gem className="w-4 h-4 text-amber-400" />
+            <span>My Atlas Progression Tracker</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-bold">
+              {voidstoneCount}/4 Voidstones
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-sky-300 font-bold">
+              {progress.completedMaps}/115 Bonus Objectives
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {(
+              [
+                { key: 'exarch', label: 'Searing Exarch', color: 'rose' },
+                { key: 'eater', label: 'Eater of Worlds', color: 'sky' },
+                { key: 'maven', label: 'The Maven', color: 'purple' },
+                { key: 'uberElder', label: 'Uber Elder', color: 'amber' }
+              ] as const
+            ).map((vs) => {
+              const active = progress.voidstones[vs.key];
+              return (
+                <button
+                  key={vs.key}
+                  type="button"
+                  onClick={() =>
+                    updateProgress({
+                      ...progress,
+                      voidstones: { ...progress.voidstones, [vs.key]: !active }
+                    })
+                  }
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                    active
+                      ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                      : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <span className="text-xs font-bold truncate">{vs.label}</span>
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-400' : 'text-slate-600'}`} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="lg:col-span-5 flex flex-wrap items-center gap-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+            <div className="flex-1 min-w-[140px]">
+              <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-1">
+                <span>Atlas Bonus</span>
+                <span className="text-sky-300 font-bold">{progress.completedMaps} / 115</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={115}
+                value={progress.completedMaps}
+                onChange={(e) => updateProgress({ ...progress, completedMaps: Number(e.target.value) })}
+                className="w-full accent-sky-400 cursor-pointer"
+              />
+            </div>
+            <div className="w-24">
+              <div className="text-[10px] font-mono text-slate-400 mb-1">Favoured</div>
+              <input
+                type="number"
+                min={0}
+                max={12}
+                value={progress.favouredCount}
+                onChange={(e) => updateProgress({ ...progress, favouredCount: Math.max(0, Math.min(12, Number(e.target.value) || 0)) })}
+                className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Section 1: The 100% Map Sustain Playbook */}
       <section className="space-y-5">

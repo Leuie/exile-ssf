@@ -774,3 +774,78 @@ export async function resolvePobUrl(
     return { status: 'error', error: err?.message || 'Failed to contact PoB resolver.' };
   }
 }
+
+
+export async function fetchUserToolState<T = any>(
+  handle: string,
+  toolKey: string
+): Promise<T | null> {
+  if (!handle?.trim() || !toolKey?.trim()) return null;
+  try {
+    const res = await fetch(
+      `${getApiBase()}/api/tool-state?handle=${encodeURIComponent(handle.trim())}&key=${encodeURIComponent(toolKey.trim())}&_t=${Date.now()}`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json?.data ?? null) as T | null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUserToolState(
+  handle: string,
+  toolKey: string,
+  data: any
+): Promise<boolean> {
+  if (!handle?.trim() || !toolKey?.trim()) return false;
+  try {
+    const res = await fetch(`${getApiBase()}/api/tool-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle: handle.trim(), toolKey: toolKey.trim(), data })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface ActiveCharacterContext {
+  leagueId: string;
+  member: LeagueRosterMember | null;
+  wishlistItems: LookingForItem[];
+}
+
+export async function fetchActiveCharacterContext(
+  userAccount?: { displayName?: string; poeAccountName?: string } | null,
+  selectedGame: 'poe1' | 'poe2' = 'poe1'
+): Promise<ActiveCharacterContext> {
+  const leagueId = selectedGame === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
+  if (!userAccount?.displayName) {
+    return { leagueId, member: null, wishlistItems: [] };
+  }
+  try {
+    const data = await fetchCloudLeagueData(leagueId);
+    if (!data) return { leagueId, member: null, wishlistItems: [] };
+    const handleLow = userAccount.displayName.trim().toLowerCase();
+    const poeLow = (userAccount.poeAccountName || '').trim().toLowerCase();
+    const member =
+      (Array.isArray(data.roster) ? data.roster : []).find(
+        (m) =>
+          m.displayName.trim().toLowerCase() === handleLow ||
+          (poeLow && (m.poeAccountName || '').trim().toLowerCase() === poeLow)
+      ) || null;
+    const wishlistItems = (Array.isArray(data.wishlist) ? data.wishlist : []).filter(
+      (w: LookingForItem) =>
+        w.status === 'NEED' &&
+        ((w.displayName || '').trim().toLowerCase() === handleLow ||
+          (w.characterName || '').trim().toLowerCase() === handleLow ||
+          (member && (w.characterName || '').trim().toLowerCase() === member.characterName.trim().toLowerCase()))
+    );
+    return { leagueId, member, wishlistItems };
+  } catch {
+    return { leagueId, member: null, wishlistItems: [] };
+  }
+}

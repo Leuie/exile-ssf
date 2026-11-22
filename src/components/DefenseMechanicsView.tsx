@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Shield,
@@ -15,8 +15,13 @@ import {
   Flame,
   Hammer,
   CheckSquare,
-  Square
+  Square,
+  Download,
+  RefreshCw
 } from 'lucide-react';
+import type { UserAccount } from '../types';
+import { fetchActiveCharacterContext, resolvePobUrl } from '../services/cloudSync';
+import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
 import {
   DEFENSE_MECHANICS,
   CLASS_DEFENSIVE_BLUEPRINTS,
@@ -129,11 +134,51 @@ const POE2_DEFENSE_LAYERS = [
   }
 ];
 
-export const DefenseMechanicsView: React.FC = () => {
-  const [gameMode, setGameMode] = useState<GameMode>('poe1');
+export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; userAccount?: UserAccount | null }> = ({
+  selectedGame = 'poe1',
+  userAccount
+}) => {
+  const [gameMode, setGameMode] = useState<GameMode>(selectedGame);
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>('campaign');
   const [pantheonFilter, setPantheonFilter] = useState<'All' | 'Major' | 'Minor'>('All');
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [loadingCharPob, setLoadingCharPob] = useState<boolean>(false);
+  const [loadedCharLabel, setLoadedCharLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setGameMode(selectedGame);
+  }, [selectedGame]);
+
+  const handleLoadLeagueCharacterStats = async () => {
+    if (!userAccount?.displayName) return;
+    setLoadingCharPob(true);
+    setLoadedCharLabel(null);
+    try {
+      const ctx = await fetchActiveCharacterContext(userAccount, gameMode);
+      const pobUrl = ctx.member?.pobUrl || '';
+      if (!pobUrl || !/pobb\.in\/[a-zA-Z0-9_-]{4,}/i.test(pobUrl)) {
+        setLoadedCharLabel('No pobb.in link saved on your League Roster character yet.');
+        return;
+      }
+      const resolved = await resolvePobUrl(pobUrl);
+      if (resolved.status !== 'ok' || !resolved.code) {
+        setLoadedCharLabel(resolved.error || 'Could not resolve saved pobb.in link.');
+        return;
+      }
+      const parsed = parsePoBXml(decodePoBCode(resolved.code));
+      const st = parsed.stats;
+      setHpPool(Math.max(500, Math.round(st.life + st.energyShield)));
+      setArmour(Math.max(0, Math.round(st.armour)));
+      const minEleRes = Math.min(st.fireRes, st.coldRes, st.lightningRes);
+      if (minEleRes > 0) setMaxEleRes(Math.min(90, Math.round(minEleRes)));
+      setSuppressionCapped(st.spellSuppression >= 100);
+      setLoadedCharLabel(`Loaded ${ctx.member?.characterName || parsed.characterName} (${Math.round(st.life + st.energyShield)} Pool, ${Math.round(st.armour).toLocaleString()} Armour)`);
+    } catch {
+      setLoadedCharLabel('Could not parse stats from your saved League PoB.');
+    } finally {
+      setLoadingCharPob(false);
+    }
+  };
 
   // Interactive EHP Calculator State
   const [hitDamage, setHitDamage] = useState<number>(6000);
@@ -333,6 +378,22 @@ export const DefenseMechanicsView: React.FC = () => {
               <Calculator className="w-5 h-5" />
             </div>
             <div>
+              {userAccount && (
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={loadingCharPob}
+                    onClick={handleLoadLeagueCharacterStats}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingCharPob ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    <span>{loadingCharPob ? 'Pulling League PoB...' : 'Load My League PoB Stats'}</span>
+                  </button>
+                  {loadedCharLabel && (
+                    <span className="text-[11px] font-mono text-sky-300">{loadedCharLabel}</span>
+                  )}
+                </div>
+              )}
               <h2 className="text-base sm:text-lg font-poe font-bold text-white">
                 Interactive Hit Mitigation & EHP Calculator ({gameMode === 'poe1' ? 'PoE 1 Formula' : 'PoE 2 Formula'})
               </h2>

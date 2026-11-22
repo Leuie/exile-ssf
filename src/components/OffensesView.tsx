@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Swords,
   Flame,
@@ -128,10 +128,14 @@ const POE2_OFFENSE_SYSTEMS = [
   }
 ];
 
-export const OffensesView: React.FC = () => {
-  const [gameMode, setGameMode] = useState<GameMode>('poe1');
+export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ selectedGame = 'poe1' }) => {
+  const [gameMode, setGameMode] = useState<GameMode>(selectedGame);
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>('campaign');
   const [selectedAilment, setSelectedAilment] = useState<string>('ignite');
+
+  useEffect(() => {
+    setGameMode(selectedGame);
+  }, [selectedGame]);
 
   // Interactive Multiplier Sandbox State
   const [existingIncreased, setExistingIncreased] = useState<number>(400);

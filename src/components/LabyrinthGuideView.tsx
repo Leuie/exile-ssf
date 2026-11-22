@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Crown, ExternalLink, Flame, Sparkles, ShieldAlert, Heart, Zap, Gem, RotateCcw, CheckCircle2, Circle, BookOpen } from 'lucide-react';
+import type { UserAccount } from '../types';
+import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
+
+interface LabyrinthGuideViewProps {
+  selectedGame?: 'poe1' | 'poe2';
+  userAccount?: UserAccount | null;
+}
 
 interface LabTrial { id: string; name: string; act: string; zone: string; tier: 'Normal' | 'Cruel' | 'Merciless'; }
 
@@ -18,26 +25,48 @@ const LAB_TRIALS: LabTrial[] = [
   { id: 'trial-act10-ossuary', name: 'Trial of Stinging Doubt', act: 'Act 10', zone: 'The Ossuary', tier: 'Merciless' }
 ];
 
-export const LabyrinthGuideView: React.FC = () => {
+export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAccount }) => {
   const [completedTrials, setCompletedTrials] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('poe_ssf_lab_trials');
       return saved ? JSON.parse(saved) : {};
     } catch { return {}; }
   });
+  const [cloudSynced, setCloudSynced] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'variations' | 'traps' | 'trials' | 'izaro' | 'font'>('variations');
 
   useEffect(() => {
-    try { localStorage.setItem('poe_ssf_lab_trials', JSON.stringify(completedTrials)); } catch {}
-  }, [completedTrials]);
+    if (!userAccount?.displayName) return;
+    let cancelled = false;
+    fetchUserToolState<Record<string, boolean>>(userAccount.displayName, 'lab_progress').then((data) => {
+      if (!cancelled && data && typeof data === 'object') {
+        setCompletedTrials(data);
+        setCloudSynced(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const persistTrials = (next: Record<string, boolean>) => {
+    setCompletedTrials(next);
+    try { localStorage.setItem('poe_ssf_lab_trials', JSON.stringify(next)); } catch {}
+    if (userAccount?.displayName) {
+      saveUserToolState(userAccount.displayName, 'lab_progress', next).then((ok) => {
+        if (ok) setCloudSynced(true);
+      });
+    }
+  };
 
   const toggleTrial = (id: string) => {
-    setCompletedTrials((prev) => ({ ...prev, [id]: !prev[id] }));
+    persistTrials({ ...completedTrials, [id]: !completedTrials[id] });
   };
 
   const resetTrials = () => {
-    if (window.confirm('Reset all completed Labyrinth Trial checkboxes?')) setCompletedTrials({});
+    if (window.confirm('Reset all completed Labyrinth Trial checkboxes?')) persistTrials({});
   };
+  void cloudSynced;
 
   const labVariations = [
     {

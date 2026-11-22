@@ -204,6 +204,7 @@ async function ensureD1Schema(db: any): Promise<void> {
     `CREATE TABLE IF NOT EXISTS farming_sessions (id TEXT PRIMARY KEY, handle_lower TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_farming_sessions_handle ON farming_sessions(handle_lower, created_at DESC)`,
     `CREATE TABLE IF NOT EXISTS farming_stash_state (handle_lower TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS user_tool_state (handle_lower TEXT NOT NULL, tool_key TEXT NOT NULL, data TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (handle_lower, tool_key))`,
     `CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, migrated_at TEXT NOT NULL)`
   ];
 
@@ -1584,6 +1585,90 @@ export default {
           );
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err.message || 'Failed to resolve PoB URL.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // GET /api/tool-state?handle=<handle>&key=<toolKey> (Cloud synced per user tool state: regex presets, bench unlocks, campaign/lab/atlas progress)
+      if (url.pathname === '/api/tool-state' && request.method === 'GET') {
+        try {
+          const handle = String(url.searchParams.get('handle') || '').trim().toLowerCase();
+          const toolKey = String(url.searchParams.get('key') || '').trim();
+          if (!handle) {
+            return new Response(JSON.stringify({ error: 'Missing handle parameter.' }), { status: 400, headers: CORS_HEADERS });
+          }
+          if (toolKey) {
+            const row = await db
+              .prepare('SELECT data, updated_at FROM user_tool_state WHERE handle_lower = ? AND tool_key = ?')
+              .bind(handle, toolKey)
+              .first();
+            return new Response(
+              JSON.stringify({
+                status: 'ok',
+                handle,
+                toolKey,
+                data: row?.data ? JSON.parse(String(row.data)) : null,
+                updatedAt: row?.updated_at || null
+              }),
+              { headers: CORS_HEADERS }
+            );
+          }
+          const rows = await db
+            .prepare('SELECT tool_key, data, updated_at FROM user_tool_state WHERE handle_lower = ?')
+            .bind(handle)
+            .all();
+          const map: Record<string, any> = {};
+          for (const r of (rows.results || []) as any[]) {
+            try {
+              map[String(r.tool_key)] = JSON.parse(String(r.data));
+            } catch {}
+          }
+          return new Response(JSON.stringify({ status: 'ok', handle, states: map }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Failed to read tool state.' }), {
+            status: 500,
+            headers: CORS_HEADERS
+          });
+        }
+      }
+
+      // POST /api/tool-state (Owner or Admin verified cloud save for user tool state)
+      if (url.pathname === '/api/tool-state' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          const handle = String(body.handle || '').trim().toLowerCase();
+          const toolKey = String(body.toolKey || '').trim();
+          if (!handle || !toolKey || body.data === undefined) {
+            return new Response(JSON.stringify({ error: 'handle, toolKey, and data are required.' }), {
+              status: 400,
+              headers: CORS_HEADERS
+            });
+          }
+          const session = await readVerifiedSession(request, env);
+          if (!session || (session.handle !== handle && !session.isAdmin)) {
+            return new Response(JSON.stringify({ error: 'You may only save tool state for your own signed in account.' }), {
+              status: 403,
+              headers: CORS_HEADERS
+            });
+          }
+          const serialized = JSON.stringify(body.data);
+          if (serialized.length > 150000) {
+            return new Response(JSON.stringify({ error: 'Tool state payload exceeds size limit.' }), {
+              status: 413,
+              headers: CORS_HEADERS
+            });
+          }
+          await db
+            .prepare(
+              'INSERT INTO user_tool_state (handle_lower, tool_key, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(handle_lower, tool_key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
+            )
+            .bind(handle, toolKey, serialized, now)
+            .run();
+          return new Response(JSON.stringify({ status: 'ok', handle, toolKey, updatedAt: now }), { headers: CORS_HEADERS });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Failed to save tool state.' }), {
             status: 500,
             headers: CORS_HEADERS
           });
