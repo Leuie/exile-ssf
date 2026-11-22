@@ -33,6 +33,7 @@ const BuildsHubView = lazyWithRetry(() => import('./components/BuildsHubView').t
 const PatchNotesView = lazyWithRetry(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
 const PoERegexStudioView = lazyWithRetry(() => import('./components/PoERegexStudioView').then((m) => ({ default: m.PoERegexStudioView })));
 const AssetTrackerView = lazyWithRetry(() => import('./components/AssetTrackerView').then((m) => ({ default: m.AssetTrackerView })));
+const MapTrackerView = lazyWithRetry(() => import('./components/MapTrackerView').then((m) => ({ default: m.MapTrackerView })));
 const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
 const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
 const LabyrinthGuideView = lazyWithRetry(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
@@ -171,6 +172,9 @@ export const App: React.FC = () => {
     if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth' || hash === 'assets' || hash === 'farming') {
       return 'asset_tracker';
     }
+    if (path === '/maps' || path === '/map-tracker' || hash === 'maps') {
+      return 'map_tracker';
+    }
     if (path === '/privacy' || path === '/privacy-policy' || hash === 'privacy') {
       return 'privacy';
     }
@@ -290,6 +294,8 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/regex');
         } else if (tab === 'asset_tracker') {
           window.history.pushState({}, '', '/assets');
+        } else if (tab === 'map_tracker') {
+          window.history.pushState({}, '', '/maps');
         } else if (tab === 'privacy') {
           window.history.pushState({}, '', '/privacy');
         } else if (tab === 'home') {
@@ -566,6 +572,9 @@ export const App: React.FC = () => {
             userAccount={userAccount}
             onOpenAuthModal={handleOpenAuth}
           />
+        )}
+        {activeTab === 'map_tracker' && (
+          <MapTrackerView selectedGame={selectedGame} userAccount={userAccount} />
         )}
         {activeTab === 'cheat_sheets' && <CheatSheetsTab selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'crafting_bench' && <BenchGuideTab selectedGame={selectedGame} userAccount={userAccount} />}

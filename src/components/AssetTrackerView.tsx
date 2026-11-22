@@ -47,18 +47,24 @@ import type { UserAccount, LookingForItem } from '../types';
 import {
   BULK_NOISE_REGEX,
   CATEGORY_ORDER,
+  CURRENCY_SUBFILTERS,
   DEFAULT_LEAGUES,
   DEFAULT_SSF_WEIGHTS,
   DEMO_SAMPLE_DROPS,
+  DIV_SUBFILTERS,
   EQUIPMENT_BRACKETS,
+  ESSENCE_SUBFILTERS,
   GEM_SUBFILTERS,
+  MAP_SUBFILTERS,
   POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
   STRATEGY_PRESETS,
   TIER_RANK,
   TIER_STYLES,
+  UNIQUE_SUBFILTERS,
   WEIGHTS_STORAGE_KEY,
   WORKSPACE_STORAGE_KEY,
+  autoMatchCanonicalTabs,
   computeSnapshotDiff,
   computeSsfUtilityPoints,
   formatCountdown,
@@ -69,6 +75,7 @@ import {
   parseClientGggStashJson,
   playSubtleChime,
   resolveTier,
+  type CanonicalTabMapping,
   type EnrichedDropItem,
   type ItemTier,
   type LeagueOption,
@@ -81,6 +88,8 @@ import {
 } from './assets/assetEngine';
 import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
+import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
+import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
 
 interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -191,9 +200,22 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>(
     Array.isArray(savedWorkspace.stashTabs) ? savedWorkspace.stashTabs : []
   );
+  const [canonicalMapping, setCanonicalMapping] = useState<CanonicalTabMapping>(
+    savedPrefs.canonicalMapping && typeof savedPrefs.canonicalMapping === 'object' ? savedPrefs.canonicalMapping : {}
+  );
   const [selectedTabIndices, setSelectedTabIndices] = useState<number[]>(
     Array.isArray(savedPrefs.selectedTabIndices) ? savedPrefs.selectedTabIndices : []
   );
+
+  const applyCanonicalMapping = (nextMap: CanonicalTabMapping) => {
+    setCanonicalMapping(nextMap);
+    const indices = Array.from(
+      new Set(
+        Object.values(nextMap).filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0)
+      )
+    ).slice(0, 18);
+    if (indices.length > 0) setSelectedTabIndices(indices);
+  };
   const [activeTabFilter, setActiveTabFilter] = useState<string>('ALL');
   const [loadingTabs, setLoadingTabs] = useState<boolean>(false);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
@@ -267,10 +289,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     try {
       localStorage.setItem(
         PREFS_STORAGE_KEY,
-        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem, autoSyncMinutes })
+        JSON.stringify({ accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes })
       );
     } catch {}
-  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, strategyTag, valueSystem, autoSyncMinutes]);
+  }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes]);
 
   useEffect(() => {
     try {
@@ -777,7 +799,12 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       } else {
         const tabs: StashTabMeta[] = data.tabs || [];
         setStashTabs(tabs);
-        if (tabs.length > 0 && selectedTabIndices.length === 0) setSelectedTabIndices([tabs[0].index]);
+        const hasMapped = Object.values(canonicalMapping).some((v) => typeof v === 'number');
+        if (!hasMapped && tabs.length > 0) {
+          applyCanonicalMapping(autoMatchCanonicalTabs(tabs));
+        } else if (tabs.length > 0 && selectedTabIndices.length === 0) {
+          setSelectedTabIndices([tabs[0].index]);
+        }
         setStatusNotice({ type: 'ok', text: `Loaded ${tabs.length} stash tabs from ${data.resolvedLeague || leagueName.trim()}.` });
       }
     } catch (err: any) {
@@ -817,15 +844,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     }
   };
 
-  const toggleTabIndex = (idx: number) => {
-    setSelectedTabIndices((prev) => {
-      if (prev.includes(idx)) return prev.filter((x) => x !== idx);
-      if (prev.length >= 15) return prev;
-      return [...prev, idx];
-    });
-  };
-
-  // Live Multi Tab Progress Snapshot (scans 1 tab at a time so user sees live progress "Scanning tab 4 of 15...")
+  // Live Multi Tab Progress Snapshot (scans 1 tab at a time so user sees live progress)
   const runSnapshot = useCallback(
     async (mode: 'before' | 'after' | 'inspect') => {
       if (selectedTabIndices.length === 0) {
@@ -1216,8 +1235,13 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
 
   const activeSubFilterOptions = useMemo(() => {
     if (categoryFilter === 'Gems') return GEM_SUBFILTERS;
-    if (categoryFilter === 'Gear & Jewels') return EQUIPMENT_BRACKETS;
-    if (categoryFilter === 'All') return [];
+    if (categoryFilter === 'Div Cards') return DIV_SUBFILTERS;
+    if (categoryFilter === 'Uniques') return UNIQUE_SUBFILTERS;
+    if (categoryFilter === 'Essences & Crafting') return ESSENCE_SUBFILTERS;
+    if (categoryFilter === 'Maps & League Keys') return MAP_SUBFILTERS;
+    if (categoryFilter === 'Currency') return CURRENCY_SUBFILTERS;
+    if (categoryFilter === 'Gear & Jewels') return [...EQUIPMENT_BRACKETS, '6 Link', 'Influenced / Fractured', 'iLvl 84+'];
+    if (categoryFilter === 'All' || categoryFilter === 'Flasks') return [];
     const presentSubs = Array.from(
       new Set(enrichedDrops.filter((d) => d.category === categoryFilter && d.subCategory).map((d) => d.subCategory!))
     ).sort();
@@ -1250,9 +1274,30 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         if (subFilter === 'Level 20+' && (d.gemLevel || 0) < 20) return false;
         if (subFilter === 'Quality 15%+' && (d.gemQuality || d.quality || 0) < 15) return false;
         if (subFilter === 'Corrupted' && !d.corrupted) return false;
+      } else if (categoryFilter === 'Div Cards' && subFilter !== 'All Cards') {
+        const isFull = (d.maxStackSize || 0) > 0 && d.quantity >= (d.maxStackSize || 1);
+        if (subFilter === 'Full Stacks Ready' && !isFull) return false;
+        if (subFilter === 'Partial Stacks' && isFull) return false;
+      } else if (categoryFilter === 'Uniques' && subFilter !== 'All Uniques') {
+        if (subFilter === '6 Link' && (d.links || 0) < 6) return false;
+        if (subFilter === 'Corrupted' && !d.corrupted) return false;
+        if (subFilter !== '6 Link' && subFilter !== 'Corrupted' && (d.subCategory || '') !== subFilter) return false;
+      } else if (categoryFilter === 'Essences & Crafting' && subFilter !== 'All Crafting') {
+        if (subFilter === 'Deafening / Shrieking' && !/(deafening|shrieking)/i.test(d.shortName)) return false;
+        if (subFilter === 'Corrupted Essences' && !/(horror|delirium|insanity|hysteria)/i.test(d.shortName)) return false;
+        if (!['Deafening / Shrieking', 'Corrupted Essences'].includes(subFilter) && (d.subCategory || '') !== subFilter) return false;
+      } else if (categoryFilter === 'Maps & League Keys' && subFilter !== 'All Maps & Keys') {
+        if (subFilter === 'T16 / T17' && (d.mapTier || 0) < 16) return false;
+        if (subFilter !== 'T16 / T17' && (d.subCategory || '') !== subFilter) return false;
+      } else if (categoryFilter === 'Currency' && subFilter !== 'All Currency') {
+        if (subFilter === 'Eldritch Currency' && !/(eldritch|ichor|ember|conflict)/i.test(d.shortName)) return false;
+        if (subFilter !== 'Eldritch Currency' && (d.subCategory || '') !== subFilter) return false;
       } else if (categoryFilter === 'Gear & Jewels' && subFilter !== 'All Equipment') {
-        if ((d.subCategory || '') !== subFilter) return false;
-      } else if (subFilter !== 'All' && subFilter !== 'All Gems' && subFilter !== 'All Equipment') {
+        if (subFilter === '6 Link' && (d.links || 0) < 6) return false;
+        else if (subFilter === 'Influenced / Fractured' && !d.influenced) return false;
+        else if (subFilter === 'iLvl 84+' && (d.ilvl || 0) < 84) return false;
+        else if (!['6 Link', 'Influenced / Fractured', 'iLvl 84+'].includes(subFilter) && (d.subCategory || '') !== subFilter) return false;
+      } else if (subFilter !== 'All' && !subFilter.startsWith('All ')) {
         if ((d.subCategory || '') !== subFilter) return false;
       }
       if (q) {
@@ -1279,6 +1324,8 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       if (sortField === 'gem_level') return ((a.gemLevel || 0) - (b.gemLevel || 0)) * mult || ((a.gemQuality || a.quality || 0) - (b.gemQuality || b.quality || 0)) * mult;
       if (sortField === 'gem_quality') return ((a.gemQuality || a.quality || 0) - (b.gemQuality || b.quality || 0)) * mult || ((a.gemLevel || a.ilvl || 0) - (b.gemLevel || b.ilvl || 0)) * mult;
       if (sortField === 'ilvl') return ((a.ilvl || 0) - (b.ilvl || 0)) * mult || ((a.quality || a.gemQuality || 0) - (b.quality || b.gemQuality || 0)) * mult;
+      if (sortField === 'links') return ((a.links || 0) - (b.links || 0)) * mult;
+      if (sortField === 'map_tier') return ((a.mapTier || 0) - (b.mapTier || 0)) * mult;
       if (sortField === 'tab') return a.tabName.localeCompare(b.tabName) * mult;
       return a.shortName.localeCompare(b.shortName) * mult;
     });
@@ -1699,6 +1746,18 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         </div>
       </div>
 
+      {/* Visual Analytics Deck (3 Pure SVG Asset Charts) */}
+      {!focusMode && (
+        <AssetAnalyticsDeck
+          checkpoints={checkpoints}
+          enrichedDrops={enrichedDrops}
+          categoryBreakdown={categoryBreakdown}
+          valueSystem={valueSystem}
+          divineChaos={divineChaos}
+          ownedTabNames={railTabsList.map((t) => t.name)}
+        />
+      )}
+
       {/* Collapsible Setup Drawer */}
       {setupOpen && !focusMode && (
         <section className="rounded-2xl border border-indigo-500/30 bg-[#0d111a] p-4 sm:p-5 space-y-4 shadow-xl">
@@ -1783,44 +1842,12 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               )}
 
               {stashTabs.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase text-slate-400">
-                    <span>Select Dump & Specialty Tabs ({selectedTabIndices.length}/15 selected):</span>
-                    {stashTabs.some((t) => t.type === 'UniqueStash' || t.type === 'MapStash') && (
-                      <span className="text-amber-300/90 normal-case">
-                        Note: GGG web API returns 0 items for Unique Collection & Map Stash tabs
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
-                    {stashTabs.map((tab) => {
-                      const active = selectedTabIndices.includes(tab.index);
-                      const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
-                      const isApiEmptySpecialty = tab.type === 'UniqueStash' || tab.type === 'MapStash';
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => toggleTabIndex(tab.index)}
-                          title={
-                            isApiEmptySpecialty
-                              ? "GGG's web API returns 0 items for Unique Collection and Map Stash tabs. Track uniques or maps in a regular or quad tab instead."
-                              : tab.name
-                          }
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
-                        >
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                          <span>{tab.name}</span>
-                          {isApiEmptySpecialty && (
-                            <span className="px-1 py-0.2 rounded bg-amber-500/20 border border-amber-500/40 text-[9px] font-mono text-amber-300">
-                              API 0
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <CanonicalTabMapper
+                  stashTabs={stashTabs}
+                  mapping={canonicalMapping}
+                  onChangeMapping={applyCanonicalMapping}
+                  onAutoMatch={() => applyCanonicalMapping(autoMatchCanonicalTabs(stashTabs))}
+                />
               )}
             </div>
           )}

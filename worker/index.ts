@@ -695,7 +695,14 @@ function resolvePageMeta(url: URL): PageMeta {
   if (path === '/assets' || path === '/asset-tracker' || path === '/farming' || path === '/drops' || path === '/wealth') {
     return {
       title: 'Asset Tracker (PoE 1 & PoE 2) | Exile SSF',
-      description: 'Visualize your stash net worth, compare Before vs After farming runs, track maps per hour, and match squad wishlists with live poe.ninja prices and SSF Utility weights.'
+      description: 'Visualize your stash net worth, compare Before vs After farming runs, track 18 canonical tabs, and match squad wishlists with live poe.ninja prices and SSF Utility weights.'
+    };
+  }
+
+  if (path === '/maps' || path === '/map-tracker') {
+    return {
+      title: 'Map Tracker & XP/hr Telemetry (PoE 1 & PoE 2) | Exile SSF',
+      description: 'Realtime Client.txt mapping telemetry, per map duration, hideout downtime tracking, live GGG experience XP/hr polling, and Atlas strategy analytics.'
     };
   }
 
@@ -1071,6 +1078,7 @@ export default {
           '/api/auth/admin-login',
           '/api/auth/logout',
           '/api/farming/detect-leagues',
+          '/api/farming/character-xp',
           '/api/farming/stash-tabs',
           '/api/farming/stash-snapshot'
         ]);

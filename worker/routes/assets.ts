@@ -83,6 +83,79 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
+  // POST /api/farming/character-xp (Stateless GGG character experience & level reader for Map Tracker XP/hr)
+  if (url.pathname === '/api/farming/character-xp' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const accountName = String(body.accountName || '').trim();
+      const realm = String(body.realm || 'pc').trim().toLowerCase();
+      const poesessid = String(body.poesessid || '').trim();
+      const leagueFilter = String(body.league || '').trim().toLowerCase();
+
+      if (!accountName || !poesessid) {
+        return new Response(
+          JSON.stringify({ error: 'Account Name and POESESSID are required to read live character XP.' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const gggHeaders = {
+        Cookie: `POESESSID=${poesessid}`,
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'application/json'
+      };
+
+      const candidates = [accountName];
+      if (accountName.includes('#')) candidates.push(accountName.replace('#', '-'));
+      if (accountName.includes('-')) candidates.push(accountName.replace('-', '#'));
+
+      let chars: any[] | null = null;
+      let lastStatus = 0;
+      for (const acct of candidates) {
+        const res = await fetch(
+          `https://www.pathofexile.com/character-window/get-characters?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}`,
+          { headers: gggHeaders }
+        );
+        lastStatus = res.status;
+        if (res.ok) {
+          const parsed: any = await res.json();
+          if (Array.isArray(parsed)) {
+            chars = parsed;
+            break;
+          }
+        }
+      }
+
+      if (!chars) {
+        return new Response(
+          JSON.stringify({ error: `GGG returned HTTP ${lastStatus} while reading characters.` }),
+          { status: lastStatus || 400, headers: corsHeaders }
+        );
+      }
+
+      const mapped = chars
+        .map((c: any) => ({
+          name: String(c?.name || ''),
+          league: String(c?.league || ''),
+          className: String(c?.class || ''),
+          level: Number(c?.level || 1),
+          experience: Number(c?.experience || 0)
+        }))
+        .filter((c) => c.name && (!leagueFilter || c.league.toLowerCase().includes(leagueFilter)))
+        .sort((a, b) => b.experience - a.experience);
+
+      return new Response(
+        JSON.stringify({ status: 'ok', polledAtIso: now, characters: mapped }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Failed to poll character XP.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
   // POST /api/farming/stash-tabs (Stateless GGG stash tab discovery; never stores POESESSID)
   if (url.pathname === '/api/farming/stash-tabs' && request.method === 'POST') {
     try {
@@ -191,7 +264,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       const realm = String(body.realm || 'pc').trim().toLowerCase();
       const poesessid = String(body.poesessid || '').trim();
       const tabIndices: number[] = Array.isArray(body.tabIndices)
-        ? body.tabIndices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 15)
+        ? body.tabIndices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 18)
         : [0];
       const tabNamesMap: Record<number, string> = body.tabNames && typeof body.tabNames === 'object' ? body.tabNames : {};
 
@@ -367,6 +440,19 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           const meta: any = classifyStashItem(it);
           const itemQuality = meta.category === 'Gems' ? meta.gemQuality : parsePropNumber(it, 'Quality');
           const itemIlvl = Number(it.ilvl || 0);
+          const mapTier = parsePropNumber(it, 'Map Tier');
+          const maxStackSize = Number(it.maxStackSize || 0);
+          const socketGroups = new Map<number, number>();
+          if (Array.isArray(it?.sockets)) {
+            for (const s of it.sockets) {
+              const g = Number(s?.group ?? 0);
+              socketGroups.set(g, (socketGroups.get(g) || 0) + 1);
+            }
+          }
+          const links = socketGroups.size > 0 ? Math.max(...Array.from(socketGroups.values())) : 0;
+          const influenced = Boolean(
+            it?.influences || it?.shaper || it?.elder || it?.fractured || it?.synthesised
+          );
           const qty = Math.max(1, Number(it.stackSize || 1));
           const frameType = Number(it.frameType ?? 0);
           const isFlaskItem = meta.subCategory === 'Flasks & Tinctures' || /flask|tincture/i.test(cleanBase);
@@ -375,6 +461,8 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
               ? `${meta.category}::${displayName.toLowerCase()}::l${meta.gemLevel}::q${meta.gemQuality}::c${meta.corrupted ? 1 : 0}`
               : isFlaskItem
               ? `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}::ilvl${itemIlvl}::q${itemQuality}`
+              : links >= 5
+              ? `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}::${links}L`
               : `${meta.category}::${meta.subCategory}::${displayName.toLowerCase()}`;
 
           const existing = aggregated.get(key);
@@ -391,6 +479,10 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
               gemLevel: meta.gemLevel,
               gemQuality: meta.gemQuality,
               quality: itemQuality,
+              maxStackSize,
+              links,
+              mapTier,
+              influenced,
               isVaal: meta.isVaal,
               isTransfigured: meta.isTransfigured,
               isAwakened: meta.isAwakened,

@@ -18,6 +18,10 @@ export interface TrackedDropItem {
   gemLevel?: number;
   gemQuality?: number;
   quality?: number;
+  maxStackSize?: number;
+  links?: number;
+  mapTier?: number;
+  influenced?: boolean;
   isVaal?: boolean;
   isTransfigured?: boolean;
   isAwakened?: boolean;
@@ -67,7 +71,7 @@ export interface LeagueOption {
   game: 'poe1' | 'poe2';
 }
 
-export type SortField = 'total' | 'price' | 'qty' | 'name' | 'tab' | 'tier' | 'gem_level' | 'gem_quality' | 'ilvl';
+export type SortField = 'total' | 'price' | 'qty' | 'name' | 'tab' | 'tier' | 'gem_level' | 'gem_quality' | 'ilvl' | 'links' | 'map_tier';
 
 export interface SsfWeightsConfig {
   categoryMultipliers: Record<string, number>;
@@ -110,6 +114,78 @@ export const CATEGORY_ORDER = [
 ];
 
 export const GEM_SUBFILTERS = ['All Gems', 'Transfigured', 'Exceptional', 'Vaal', 'Awakened', 'Level 20+', 'Quality 15%+', 'Corrupted'];
+export const DIV_SUBFILTERS = ['All Cards', 'Full Stacks Ready', 'Partial Stacks'];
+export const UNIQUE_SUBFILTERS = ['All Uniques', '6 Link', 'Corrupted', 'Unique Weapons', 'Unique Jewellery', 'Unique Jewels & Flasks'];
+export const ESSENCE_SUBFILTERS = ['All Crafting', 'Deafening / Shrieking', 'Corrupted Essences', 'Fossils & Resonators', 'Oils, Catalysts & Omens', 'Tattoos & Runegrafts'];
+export const MAP_SUBFILTERS = ['All Maps & Keys', 'T16 / T17', 'Heist & Expedition', 'League Keys'];
+export const CURRENCY_SUBFILTERS = ['All Currency', 'High Tier Currency', 'Eldritch Currency', 'Standard Currency'];
+
+export interface CanonicalTabSlot {
+  id: string;
+  label: string;
+  group: 'Specialty' | 'Quad & Dump';
+  matchTypes: string[];
+  matchKeywords: string[];
+}
+
+export const CANONICAL_TAB_SLOTS: CanonicalTabSlot[] = [
+  { id: 'currency', label: 'Currency', group: 'Specialty', matchTypes: ['CurrencyStash'], matchKeywords: ['currency', '$', 'curr'] },
+  { id: 'gems', label: 'Gems', group: 'Specialty', matchTypes: ['GemStash'], matchKeywords: ['gem'] },
+  { id: 'flasks', label: 'Flasks', group: 'Specialty', matchTypes: ['FlaskStash'], matchKeywords: ['flask'] },
+  { id: 'delirium', label: 'Delirium', group: 'Specialty', matchTypes: ['DeliriumStash'], matchKeywords: ['delirium', 'deli'] },
+  { id: 'ultimatum', label: 'Ultimatum', group: 'Specialty', matchTypes: ['UltimatumStash'], matchKeywords: ['ultimatum', 'ulti'] },
+  { id: 'blight', label: 'Blight', group: 'Specialty', matchTypes: ['BlightStash'], matchKeywords: ['blight'] },
+  { id: 'delve', label: 'Delve', group: 'Specialty', matchTypes: ['DelveStash'], matchKeywords: ['delve', 'fossil'] },
+  { id: 'fragments', label: 'Fragments', group: 'Specialty', matchTypes: ['FragmentStash'], matchKeywords: ['fragment', 'frag', 'scarab'] },
+  { id: 'essences', label: 'Essences', group: 'Specialty', matchTypes: ['EssenceStash'], matchKeywords: ['essence', 'ess'] },
+  { id: 'divinations', label: 'Divinations', group: 'Specialty', matchTypes: ['DivinationStash'], matchKeywords: ['divination', 'div'] },
+  { id: 'omens', label: 'Omens', group: 'Specialty', matchTypes: [], matchKeywords: ['omen', 'ritual'] },
+  { id: 'breach', label: 'Breach', group: 'Specialty', matchTypes: [], matchKeywords: ['breach'] },
+  { id: 'levelling', label: 'Levelling Items (Quad Tab)', group: 'Quad & Dump', matchTypes: [], matchKeywords: ['levelling', 'leveling', 'level', 'twink'] },
+  { id: 'dump_1', label: 'Dump 1 (Quad Tab)', group: 'Quad & Dump', matchTypes: ['QuadStash'], matchKeywords: ['dump 1', 'dump1', 'q1', 'dump'] },
+  { id: 'dump_2', label: 'Dump 2 (Quad Tab)', group: 'Quad & Dump', matchTypes: ['QuadStash'], matchKeywords: ['dump 2', 'dump2', 'q2'] },
+  { id: 'dump_3', label: 'Dump 3 (Quad Tab)', group: 'Quad & Dump', matchTypes: ['QuadStash'], matchKeywords: ['dump 3', 'dump3', 'q3'] },
+  { id: 'dump_4', label: 'Dump 4 (Quad Tab)', group: 'Quad & Dump', matchTypes: ['QuadStash'], matchKeywords: ['dump 4', 'dump4', 'q4'] },
+  { id: 'dump_5', label: 'Dump 5 (Quad Tab)', group: 'Quad & Dump', matchTypes: ['QuadStash'], matchKeywords: ['dump 5', 'dump5', 'q5'] }
+];
+
+export type CanonicalTabMapping = Record<string, number | null>;
+
+export function autoMatchCanonicalTabs(tabs: StashTabMeta[]): CanonicalTabMapping {
+  const result: CanonicalTabMapping = {};
+  const usedIndices = new Set<number>();
+  const eligible = tabs.filter((t) => t.type !== 'UniqueStash' && t.type !== 'MapStash');
+
+  for (const slot of CANONICAL_TAB_SLOTS) {
+    // 1. Exact GGG specialty type match first (skip QuadStash for non dump slots)
+    let matched =
+      slot.group === 'Specialty' && slot.matchTypes.length > 0
+        ? eligible.find((t) => !usedIndices.has(t.index) && slot.matchTypes.includes(t.type))
+        : undefined;
+
+    // 2. Keyword name match
+    if (!matched) {
+      matched = eligible.find((t) => {
+        if (usedIndices.has(t.index)) return false;
+        const low = t.name.toLowerCase();
+        return slot.matchKeywords.some((kw) => low.includes(kw));
+      });
+    }
+
+    // 3. Fallback unused QuadStash for Dump 1..5
+    if (!matched && slot.id.startsWith('dump_')) {
+      matched = eligible.find((t) => !usedIndices.has(t.index) && t.type === 'QuadStash');
+    }
+
+    if (matched) {
+      result[slot.id] = matched.index;
+      usedIndices.add(matched.index);
+    } else {
+      result[slot.id] = null;
+    }
+  }
+  return result;
+}
 
 export const EQUIPMENT_BRACKETS = [
   'All Equipment',
