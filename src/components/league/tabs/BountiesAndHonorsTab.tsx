@@ -581,70 +581,75 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
       </div>
 
       {/* Sub Navigation Bar and Search */}
-      <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setSubView('bounties')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              subView === 'bounties'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-800/70 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Coins className="w-3.5 h-3.5" />
-            <span>Active Bounty Board ({openBountyItems.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubView('carries')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              subView === 'carries'
-                ? 'bg-indigo-500 text-white shadow-sm'
-                : 'bg-slate-800/70 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Swords className="w-3.5 h-3.5" />
-            <span>Boss Carries & Vouches ({services.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubView('ledger')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              subView === 'ledger'
-                ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                : 'bg-slate-800/70 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5" />
-            <span>Fulfilled Wishes & Heroes ({fulfilledItems.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubView('achievements')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              subView === 'achievements'
-                ? 'bg-purple-500 text-white shadow-sm'
-                : 'bg-slate-800/70 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Achievements ({achievementEval.unlockedCount}/{achievementEval.achievements.length})</span>
-          </button>
+      <div className="px-3.5 py-2.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] shadow-inner flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {[
+            {
+              id: 'bounties' as const,
+              label: 'Active Bounty Board',
+              icon: Coins,
+              badge: `${openBountyItems.length}`
+            },
+            {
+              id: 'carries' as const,
+              label: 'Boss Carries & Vouches',
+              icon: Swords,
+              badge: `${services.length}`
+            },
+            {
+              id: 'ledger' as const,
+              label: 'Fulfilled Wishes & Heroes',
+              icon: Award,
+              badge: `${fulfilledItems.length}`
+            },
+            {
+              id: 'achievements' as const,
+              label: 'Achievements',
+              icon: Sparkles,
+              badge: `${achievementEval.unlockedCount}/${achievementEval.achievements.length}`
+            }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = subView === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSubView(tab.id)}
+                className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[42px] ${
+                  isActive
+                    ? 'bg-indigo-600/25 text-white border border-indigo-400/60 shadow-md shadow-indigo-500/15 ring-1 ring-indigo-500/30'
+                    : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 hover:border-slate-600 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-amber-300' : 'text-indigo-400'}`} />
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                    isActive
+                      ? 'bg-indigo-500/40 text-white'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+                {isActive && (
+                  <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 via-amber-400 to-indigo-400" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {subView !== 'achievements' && (
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full xl:w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter bounties, items, exiles..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-500/50"
+              className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-800 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/60"
             />
           </div>
         )}
