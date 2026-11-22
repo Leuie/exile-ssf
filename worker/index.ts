@@ -1004,7 +1004,7 @@ export default {
         try {
           const gameParam = (url.searchParams.get('game') || 'poe1').toLowerCase() === 'poe2' ? 'poe2' : 'poe1';
           const forceRefresh = url.searchParams.get('refresh') === '1';
-          const cacheKey = `patchnotes:list:${gameParam}`;
+          const cacheKey = `patchnotes:list:v2:${gameParam}`;
 
           if (!forceRefresh && env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
@@ -1068,7 +1068,7 @@ export default {
               const threadRegex = /href="\/forum\/view-thread\/(\d+)"[^>]*>\s*([^<]{6,180})\s*<\/a>/gi;
               const seen = new Set<string>();
               let m: RegExpExecArray | null;
-              while ((m = threadRegex.exec(html)) !== null && entries.length < 20) {
+              while ((m = threadRegex.exec(html)) !== null && entries.length < 50) {
                 const tid = m[1];
                 const rawTitle = m[2]
                   .replace(/&amp;/g, '&')
@@ -1127,7 +1127,7 @@ export default {
             );
           }
 
-          const cacheKey = `patchnotes:thread:${threadId}`;
+          const cacheKey = `patchnotes:thread:v2:${threadId}`;
           if (env.EXILE_KV) {
             const cached = await env.EXILE_KV.get(cacheKey);
             if (cached) return new Response(cached, { headers: CORS_HEADERS });
@@ -1158,8 +1158,14 @@ export default {
           }
 
           const html = await res.text();
-          const contentMatch = html.match(/<div class="content">([\s\S]*?)<\/div>\s*<div class="(?:last_edited_by|signature|clear)/i);
-          const rawPost = contentMatch ? contentMatch[1] : '';
+          // Isolate the first forum post body inside content-container (avoiding outer page wrapper)
+          const postContainerMatch = html.match(
+            /<td[^>]*class="[^"]*content-container[^"]*"[^>]*>[\s\S]*?<div class="content">([\s\S]*?)<\/div>\s*(?:<div class="(?:last_edited_by|signature|clear)|<\/div>\s*<\/td>)/i
+          );
+          const fallbackPostMatch = html.match(
+            /<div class="content">([\s\S]*?)<\/div>\s*<div class="(?:last_edited_by|signature|clear)/i
+          );
+          const rawPost = postContainerMatch ? postContainerMatch[1] : fallbackPostMatch ? fallbackPostMatch[1] : '';
 
           const decodeEntities = (str: string) =>
             str
@@ -1167,10 +1173,21 @@ export default {
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>')
               .replace(/&quot;/g, '"')
-              .replace(/&#039;/g, "'")
+              .replace(/&#039;|&#x27;|&rsquo;|&lsquo;/g, "'")
+              .replace(/&rdquo;|&ldquo;/g, '"')
+              .replace(/&hellip;/g, '...')
+              .replace(/&mdash;|&ndash;/g, ': ')
               .replace(/&nbsp;/g, ' ')
               .replace(/\s+/g, ' ')
               .trim();
+
+          const isForumChromeLine = (line: string) => {
+            const lower = line.toLowerCase();
+            if (lower.includes('forum index') && lower.includes('view thread')) return true;
+            if (lower.includes('view staff posts') || lower.includes('post reply')) return true;
+            if (/^\d+\s*\.\.\.\s*\d+\s*next$/i.test(line) || /^1234\.\.\./.test(line)) return true;
+            return false;
+          };
 
           const blocks: { kind: 'heading' | 'bullet' | 'paragraph'; text: string }[] = [];
           if (rawPost) {
@@ -1183,7 +1200,7 @@ export default {
 
             for (const rawLine of normalized.split('\n')) {
               const line = decodeEntities(rawLine);
-              if (!line || line.length < 2) continue;
+              if (!line || line.length < 2 || isForumChromeLine(line)) continue;
               if (line.startsWith('### ')) {
                 blocks.push({ kind: 'heading', text: line.slice(4).trim() });
               } else if (line.startsWith('• ')) {
