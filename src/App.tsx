@@ -1,34 +1,57 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { cloudAuthLogout } from './services/cloudSync';
-const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
-const VendorRecipesView = lazy(() => import('./components/VendorRecipesView').then((m) => ({ default: m.VendorRecipesView })));
-const AtlasView = lazy(() => import('./components/AtlasView').then((m) => ({ default: m.AtlasView })));
-const DefenseMechanicsView = lazy(() => import('./components/DefenseMechanicsView').then((m) => ({ default: m.DefenseMechanicsView })));
-const OffensesView = lazy(() => import('./components/OffensesView').then((m) => ({ default: m.OffensesView })));
-const BuildsHubView = lazy(() => import('./components/BuildsHubView').then((m) => ({ default: m.BuildsHubView })));
-const PatchNotesView = lazy(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
-const CheatSheetsTab = lazy(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
-const BenchGuideTab = lazy(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
-const LabyrinthGuideView = lazy(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
-const CampaignWalkthroughView = lazy(() => import('./components/CampaignWalkthroughView').then((m) => ({ default: m.CampaignWalkthroughView })));
-const ProgressTrackerView = lazy(() => import('./components/ProgressTrackerView').then((m) => ({ default: m.ProgressTrackerView })));
-const ToolsDirectoryView = lazy(() => import('./components/ToolsDirectoryView').then((m) => ({ default: m.ToolsDirectoryView })));
-const PoEWikiWrapperView = lazy(() => import('./components/PoEWikiWrapperView').then((m) => ({ default: m.PoEWikiWrapperView })));
-const PoEDBWrapperView = lazy(() => import('./components/PoEDBWrapperView').then((m) => ({ default: m.PoEDBWrapperView })));
-const PoENinjaWrapperView = lazy(() => import('./components/PoENinjaWrapperView').then((m) => ({ default: m.PoENinjaWrapperView })));
-const PoE2HubView = lazy(() => import('./components/PoE2HubView').then((m) => ({ default: m.PoE2HubView })));
-const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
-const PrivateLeagueHubView = lazy(() => import('./components/PrivateLeagueHubView').then((m) => ({ default: m.PrivateLeagueHubView })));
-const FeedbackView = lazy(() => import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView })));
-const DualLinkModal = lazy(() => import('./components/DualLinkModal').then((m) => ({ default: m.DualLinkModal })));
-const AuthRegistrationModal = lazy(() => import('./components/AuthRegistrationModal').then((m) => ({ default: m.AuthRegistrationModal })));
-const LoginPage = lazy(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
-const RegisterPage = lazy(() => import('./components/RegisterPage').then((m) => ({ default: m.RegisterPage })));
-const AdminPortalPage = lazy(() => import('./components/AdminPortalPage').then((m) => ({ default: m.AdminPortalPage })));
-const PrivateLeaguesDirectoryView = lazy(() => import('./components/PrivateLeaguesDirectoryView').then((m) => ({ default: m.PrivateLeaguesDirectoryView })));
-const FullGuideReaderView = lazy(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
-const ExileProfilePage = lazy(() => import('./components/ExileProfilePage').then((m) => ({ default: m.ExileProfilePage })));
+
+// Resilient lazy loader that auto refreshes once if a newly deployed Cloudflare build invalidates an older chunk hash
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  importer: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      return await importer();
+    } catch (err) {
+      try {
+        const key = 'exile_ssf_chunk_reload_at';
+        const last = Number(sessionStorage.getItem(key) || '0');
+        if (Date.now() - last > 12000) {
+          sessionStorage.setItem(key, String(Date.now()));
+          window.location.reload();
+          return new Promise<{ default: T }>(() => {});
+        }
+      } catch {}
+      throw err;
+    }
+  });
+}
+
+const HomeView = lazyWithRetry(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
+const VendorRecipesView = lazyWithRetry(() => import('./components/VendorRecipesView').then((m) => ({ default: m.VendorRecipesView })));
+const AtlasView = lazyWithRetry(() => import('./components/AtlasView').then((m) => ({ default: m.AtlasView })));
+const DefenseMechanicsView = lazyWithRetry(() => import('./components/DefenseMechanicsView').then((m) => ({ default: m.DefenseMechanicsView })));
+const OffensesView = lazyWithRetry(() => import('./components/OffensesView').then((m) => ({ default: m.OffensesView })));
+const BuildsHubView = lazyWithRetry(() => import('./components/BuildsHubView').then((m) => ({ default: m.BuildsHubView })));
+const PatchNotesView = lazyWithRetry(() => import('./components/PatchNotesView').then((m) => ({ default: m.PatchNotesView })));
+const CheatSheetsTab = lazyWithRetry(() => import('./components/league/tabs/CheatSheetsTab').then((m) => ({ default: m.CheatSheetsTab })));
+const BenchGuideTab = lazyWithRetry(() => import('./components/league/tabs/BenchGuideTab').then((m) => ({ default: m.BenchGuideTab })));
+const LabyrinthGuideView = lazyWithRetry(() => import('./components/LabyrinthGuideView').then((m) => ({ default: m.LabyrinthGuideView })));
+const CampaignWalkthroughView = lazyWithRetry(() => import('./components/CampaignWalkthroughView').then((m) => ({ default: m.CampaignWalkthroughView })));
+const ProgressTrackerView = lazyWithRetry(() => import('./components/ProgressTrackerView').then((m) => ({ default: m.ProgressTrackerView })));
+const ToolsDirectoryView = lazyWithRetry(() => import('./components/ToolsDirectoryView').then((m) => ({ default: m.ToolsDirectoryView })));
+const PoEWikiWrapperView = lazyWithRetry(() => import('./components/PoEWikiWrapperView').then((m) => ({ default: m.PoEWikiWrapperView })));
+const PoEDBWrapperView = lazyWithRetry(() => import('./components/PoEDBWrapperView').then((m) => ({ default: m.PoEDBWrapperView })));
+const PoENinjaWrapperView = lazyWithRetry(() => import('./components/PoENinjaWrapperView').then((m) => ({ default: m.PoENinjaWrapperView })));
+const PoE2HubView = lazyWithRetry(() => import('./components/PoE2HubView').then((m) => ({ default: m.PoE2HubView })));
+const AboutView = lazyWithRetry(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
+const PrivateLeagueHubView = lazyWithRetry(() => import('./components/PrivateLeagueHubView').then((m) => ({ default: m.PrivateLeagueHubView })));
+const FeedbackView = lazyWithRetry(() => import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView })));
+const DualLinkModal = lazyWithRetry(() => import('./components/DualLinkModal').then((m) => ({ default: m.DualLinkModal })));
+const AuthRegistrationModal = lazyWithRetry(() => import('./components/AuthRegistrationModal').then((m) => ({ default: m.AuthRegistrationModal })));
+const LoginPage = lazyWithRetry(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazyWithRetry(() => import('./components/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const AdminPortalPage = lazyWithRetry(() => import('./components/AdminPortalPage').then((m) => ({ default: m.AdminPortalPage })));
+const PrivateLeaguesDirectoryView = lazyWithRetry(() => import('./components/PrivateLeaguesDirectoryView').then((m) => ({ default: m.PrivateLeaguesDirectoryView })));
+const FullGuideReaderView = lazyWithRetry(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
+const ExileProfilePage = lazyWithRetry(() => import('./components/ExileProfilePage').then((m) => ({ default: m.ExileProfilePage })));
 
 const PageLoader = (
   <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-slate-400">
