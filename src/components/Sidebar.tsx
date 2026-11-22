@@ -100,7 +100,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ...(timeZone ? { timeZone } : {}),
         timeZoneName: 'short'
       }).formatToParts(date);
-      const tzAbbr = parts.find((p) => p.type === 'timeZoneName')?.value || (timeZone ? 'NZT' : 'LOCAL');
+      const rawTzAbbr = parts.find((p) => p.type === 'timeZoneName')?.value || (timeZone ? 'NZT' : 'LOCAL');
+      const tzAbbr =
+        timeZone === 'Pacific/Auckland'
+          ? rawTzAbbr === 'GMT+13'
+            ? 'NZDT'
+            : rawTzAbbr === 'GMT+12'
+            ? 'NZST'
+            : rawTzAbbr
+          : rawTzAbbr;
       return { timeStr, tzAbbr };
     } catch {
       return { timeStr: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), tzAbbr: timeZone ? 'NZT' : 'LOCAL' };
@@ -447,46 +455,51 @@ interface NavGroup {
         </div>
       )}
 
-      {/* Desktop Left Collapsible Sidebar with Floating Outer Collapse Button */}
+      {/* Desktop Left Collapsible Sidebar */}
       <aside 
-        className={`hidden lg:flex flex-col justify-between sticky top-0 h-screen border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1017] transition-all duration-300 z-30 shadow-xl ${
+        className={`hidden lg:flex flex-col justify-between sticky top-0 h-screen border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1017] transition-all duration-300 z-40 shadow-xl shrink-0 ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
-        {/* Floating Collapse Button Attached Directly to Outside Right Border */}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3.5 top-6 z-40 w-7 h-7 rounded-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-indigo-400 hover:border-indigo-500 shadow-md flex items-center justify-center transition-transform hover:scale-110 cursor-pointer"
-          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-        </button>
-
         {/* Top Header & Logo */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
           
-          {/* Logo & Title */}
-          <div 
-            onClick={() => setActiveTab('home')}
-            className={`flex items-center cursor-pointer group overflow-hidden ${isCollapsed ? 'justify-center' : 'gap-3'}`}
-            title="Exile SSF"
-          >
-            <img 
-              src="/logo.png" 
-              alt="Exile SSF Logo" 
-              className="w-10 h-10 object-contain rounded-xl flex-shrink-0 shadow-lg shadow-indigo-500/20 border border-indigo-500/40 group-hover:scale-105 transition-transform" 
-            />
-            
-            {!isCollapsed && (
-              <div className="truncate">
-                <div className="font-poppins font-bold text-sm tracking-wider zorbble-wordmark-gradient">
-                  EXILE SSF
+          {/* Logo, Title & Integrated Collapse Toggle */}
+          <div className={`flex items-center ${isCollapsed ? 'flex-col gap-2.5' : 'justify-between gap-2'}`}>
+            <div 
+              onClick={() => setActiveTab('home')}
+              className={`flex items-center cursor-pointer group min-w-0 ${isCollapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}
+              title="Exile SSF"
+            >
+              <img 
+                src="/logo.png" 
+                alt="Exile SSF Logo" 
+                className="w-9 h-9 object-contain rounded-xl flex-shrink-0 shadow-lg shadow-indigo-500/20 border border-indigo-500/40 group-hover:scale-105 transition-transform" 
+              />
+              
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <div className="font-poppins font-bold text-sm tracking-wider zorbble-wordmark-gradient truncate">
+                    EXILE SSF
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-sans truncate">
+                    The SSF Compendium
+                  </div>
                 </div>
-                <div className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-sans truncate">
-                  The SSF Compendium
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className={`rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-indigo-400 hover:border-indigo-500/70 flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+                isCollapsed ? 'w-9 h-7' : 'w-7 h-7'
+              }`}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
           </div>
 
           {/* PoE 1 vs PoE 2 Game Directory Switcher */}
