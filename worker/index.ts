@@ -1428,7 +1428,7 @@ export default {
           const realm = String(body.realm || 'pc').trim().toLowerCase();
           const poesessid = String(body.poesessid || '').trim();
           const tabIndices: number[] = Array.isArray(body.tabIndices)
-            ? body.tabIndices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 8)
+            ? body.tabIndices.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 15)
             : [0];
           const tabNamesMap: Record<number, string> = body.tabNames && typeof body.tabNames === 'object' ? body.tabNames : {};
 

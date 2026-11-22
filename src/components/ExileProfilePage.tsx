@@ -15,7 +15,8 @@ import {
   Swords,
   Trophy,
   Users,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import type { ExileProfile, UserAccount, PersonalSessionGoal } from '../types';
 import {
@@ -50,6 +51,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [avatarError, setAvatarError] = useState<boolean>(false);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [gameScope, setGameScope] = useState<'all' | 'poe1' | 'poe2'>('all');
+  const [farmingSessions, setFarmingSessions] = useState<any[]>([]);
 
   // Inline Profile Editor State
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -87,6 +89,15 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
         setLoading(false);
       }
     });
+
+    fetch(`/api/farming/sessions?handle=${encodeURIComponent(cleanHandle.toLowerCase())}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res: any) => {
+        if (!cancelled && Array.isArray(res?.sessions)) {
+          setFarmingSessions(res.sessions);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -1000,6 +1011,110 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           onSaveGoals={handleSaveSessionGoals}
         />
       </div>
+
+      {/* Farming Telemetry & Season Trophy Case */}
+      {(() => {
+        const scopedSessions = farmingSessions.filter(
+          (s) => gameScope === 'all' || (s.game || 'poe1') === gameScope
+        );
+        const totalMaps = scopedSessions.reduce((sum, s) => sum + Number(s.mapsRun || 0), 0);
+        const totalMins = scopedSessions.reduce((sum, s) => sum + Math.max(1, Number(s.durationMinutes || 0)), 0);
+        const avgPace = totalMins > 0 && totalMaps > 0 ? ((totalMaps / totalMins) * 60).toFixed(1) : '0.0';
+        const stratCounts = new Map<string, number>();
+        const trophyMap = new Map<string, { name: string; icon: string; count: number; sub: string }>();
+
+        for (const s of scopedSessions) {
+          const st = String(s.strategy || 'General Mapping');
+          stratCounts.set(st, (stratCounts.get(st) || 0) + 1);
+          for (const it of Array.isArray(s.items) ? s.items : []) {
+            if (it.category === 'Uniques') {
+              const k = String(it.shortName || it.name || '').toLowerCase();
+              const cur = trophyMap.get(k);
+              if (cur) {
+                cur.count += Number(it.quantity || 1);
+              } else {
+                trophyMap.set(k, {
+                  name: String(it.shortName || it.name || 'Unique'),
+                  icon: String(it.icon || ''),
+                  count: Number(it.quantity || 1),
+                  sub: String(it.subCategory || it.baseType || 'Unique')
+                });
+              }
+            }
+          }
+        }
+        const topStrategy = Array.from(stratCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None Logged Yet';
+        const trophies = Array.from(trophyMap.values()).slice(0, 8);
+
+        return (
+          <div className="p-4 sm:p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/75 space-y-4 shadow-lg">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+                <Package className="w-4 h-4 text-amber-400" />
+                <span>Farming Telemetry & Season Trophy Case ({scopedSessions.length} Sessions)</span>
+              </div>
+              <a
+                href="/farming"
+                className="text-[11px] font-mono text-amber-300 hover:text-amber-200 underline"
+              >
+                Open Farming Tracker →
+              </a>
+            </div>
+
+            {scopedSessions.length === 0 ? (
+              <div className="p-5 text-center text-xs text-slate-500 italic">
+                No farming sessions saved yet for this game filter. Save a session on the Farming & Drops page to populate your lifetime productivity stats and Unique Trophy Case!
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+                    <div className="text-[10px] font-mono uppercase text-slate-400">Maps Blasted</div>
+                    <div className="text-lg font-mono font-bold text-white mt-0.5">{totalMaps.toLocaleString()}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+                    <div className="text-[10px] font-mono uppercase text-emerald-400">Average Pace</div>
+                    <div className="text-lg font-mono font-bold text-emerald-300 mt-0.5">{avgPace} / hr</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+                    <div className="text-[10px] font-mono uppercase text-orange-400">Uniques Logged</div>
+                    <div className="text-lg font-mono font-bold text-orange-300 mt-0.5">{trophyMap.size}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+                    <div className="text-[10px] font-mono uppercase text-amber-400">Top Strategy</div>
+                    <div className="text-xs font-bold text-amber-200 mt-1 truncate">{topStrategy}</div>
+                  </div>
+                </div>
+
+                {trophies.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-mono uppercase text-orange-300 font-bold">Notable Unique Drops</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {trophies.map((t) => (
+                        <div key={t.name} className="p-2.5 rounded-xl bg-orange-950/20 border border-orange-500/30 flex items-center gap-2">
+                          {t.icon ? (
+                            <img src={t.icon} alt={t.name} className="w-7 h-7 object-contain shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded bg-orange-500/15 flex items-center justify-center text-[10px] font-bold text-orange-300 shrink-0">
+                              U
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold text-orange-200 truncate">{t.name}</div>
+                            <div className="text-[10px] font-mono text-slate-400 truncate">
+                              {t.sub}{t.count > 1 ? ` ×${t.count}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Honor Points History Ledger (When, Where, Why) */}
       <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/30 bg-slate-900/75 space-y-3 shadow-lg">

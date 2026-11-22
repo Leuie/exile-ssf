@@ -36,7 +36,9 @@ import {
   Pencil,
   Copy,
   Check,
-  FolderOpen
+  FolderOpen,
+  Bell,
+  BellOff
 } from 'lucide-react';
 import { parsePoeClipboardTooltip } from '../utils/poeItemParser';
 import { buildXlsxBlob, triggerFileDownload, type SheetDefinition } from '../utils/spreadsheetEngine';
@@ -81,6 +83,8 @@ type ItemTier = 'S' | 'A' | 'B' | 'C';
 interface EnrichedDropItem extends TrackedDropItem {
   chaosEach: number;
   totalChaos: number;
+  ssfPointsEach: number;
+  totalSsfPoints: number;
   tier: ItemTier;
 }
 
@@ -357,6 +361,50 @@ function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number)
   return 'C';
 }
 
+function computeSsfUtilityPoints(item: TrackedDropItem, chaosEach: number, isWishlistMatch: boolean): number {
+  const low = `${item.shortName} ${item.baseType}`.toLowerCase();
+  let pts = 3; // Default SSF sustain baseline
+
+  if (BULK_NOISE_REGEX.test(item.shortName.trim())) {
+    pts = 0.5;
+  } else if (
+    /(mirror of kalandra|hinekora|fracturing orb|divine orb|veiled orb|sacred orb|awakener's orb)/i.test(low) ||
+    item.isAwakened ||
+    (item.category === 'Gems' && (item.gemLevel || 0) >= 21) ||
+    chaosEach >= 120
+  ) {
+    pts = 100;
+  } else if (
+    /(deafening essence|shrieking essence|exalted orb|orb of annulment|regal orb|eldritch ichor|eldritch ember|orb of conflict|tainted|fossil|resonator)/i.test(low) ||
+    item.isTransfigured ||
+    (item.isVaal && (item.gemLevel || 0) >= 20) ||
+    (item.category === 'Gear & Jewels' && item.ilvl >= 84) ||
+    chaosEach >= 25
+  ) {
+    pts = 40;
+  } else if (
+    item.category === 'Uniques' ||
+    item.category === 'Scarabs & Fragments' ||
+    item.category === 'Maps & League Keys' ||
+    /(chisel|gemcutter|bauble|instilling|enkindling|unmaking|horizon|vaal orb|oil|catalyst|tattoo|runegraft|omen|divination)/i.test(low) ||
+    chaosEach >= 4
+  ) {
+    pts = 15;
+  } else if (
+    /(chaos orb|alchemy|scouring|regret|fusing|jeweller|chromatic|alteration|blessed|chance|binding)/i.test(low)
+  ) {
+    pts = 3;
+  }
+
+  return isWishlistMatch ? pts + 50 : pts;
+}
+
+function formatSsfPoints(pts: number): string {
+  if (pts <= 0) return '0 pts';
+  if (pts < 10) return `${pts.toFixed(1)} pts`;
+  return `${Math.round(pts).toLocaleString()} pts`;
+}
+
 function formatValue(chaos: number, divineChaos: number): string {
   if (chaos <= 0) return '0c';
   if (divineChaos > 0 && chaos >= divineChaos) {
@@ -397,12 +445,14 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [setupOpen, setSetupOpen] = useState<boolean>(true);
   const [setupTab, setSetupTab] = useState<'api' | 'json' | 'manual'>('api');
   const [wealthMode, setWealthMode] = useState<'total' | 'hourly'>('total');
+  const [valueSystem, setValueSystem] = useState<'ninja' | 'ssf'>('ssf');
   const [breakdownMode, setBreakdownMode] = useState<'divines' | 'percent'>('divines');
   const [railTab, setRailTab] = useState<'tabs' | 'snapshots' | 'strategies'>('tabs');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [showFiltersBar, setShowFiltersBar] = useState<boolean>(false);
   const [hideBulkNoise, setHideBulkNoise] = useState<boolean>(false);
   const [chimeEnabled, setChimeEnabled] = useState<boolean>(true);
+  const [desktopAlertsEnabled, setDesktopAlertsEnabled] = useState<boolean>(false);
 
   // poe.ninja Pricing State
   const [ninjaLeagueParam, setNinjaLeagueParam] = useState<string>('auto');
@@ -560,20 +610,34 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     };
   }, [linkedLeagueId, normalizedHandle]);
 
+  const openWishlistNames = useMemo(
+    () => wishlistItems.filter((w) => w.status !== 'HAVE').map((w) => w.itemName.trim().toLowerCase()).filter((s) => s.length >= 4),
+    [wishlistItems]
+  );
+
   const enrichedDrops = useMemo<EnrichedDropItem[]>(() => {
     return activeDrops.map((it) => {
       const chaosEach = lookupNinjaPrice(it, ninjaPrices);
       const totalChaos = Math.round(chaosEach * it.quantity * 10) / 10;
+      const dropLow = it.shortName.toLowerCase();
+      const isWish = openWishlistNames.some((w) => dropLow === w || it.name.toLowerCase().includes(w));
+      const ssfPointsEach = computeSsfUtilityPoints(it, chaosEach, isWish);
+      const totalSsfPoints = Math.round(ssfPointsEach * it.quantity * 10) / 10;
       const tier = resolveTier(chaosEach, totalChaos, divineChaos);
-      return { ...it, chaosEach, totalChaos, tier };
+      return { ...it, chaosEach, totalChaos, ssfPointsEach, totalSsfPoints, tier };
     });
-  }, [activeDrops, ninjaPrices, divineChaos]);
+  }, [activeDrops, ninjaPrices, divineChaos, openWishlistNames]);
 
   const totalSessionChaos = useMemo(
     () => Math.round(enrichedDrops.reduce((sum, it) => sum + it.totalChaos, 0) * 10) / 10,
     [enrichedDrops]
   );
+  const totalSessionSsfPoints = useMemo(
+    () => Math.round(enrichedDrops.reduce((sum, it) => sum + it.totalSsfPoints, 0) * 10) / 10,
+    [enrichedDrops]
+  );
   const chaosPerHour = durationMinutes > 0 ? Math.round((totalSessionChaos / durationMinutes) * 60) : 0;
+  const ssfPointsPerHour = durationMinutes > 0 ? Math.round((totalSessionSsfPoints / durationMinutes) * 60) : 0;
   const mapsPerHour = durationMinutes > 0 && mapsRun > 0 ? ((mapsRun / durationMinutes) * 60).toFixed(1) : '0.0';
 
   const tierCounts = useMemo(() => {
@@ -599,15 +663,46 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
     return matches;
   }, [wishlistItems, enrichedDrops]);
 
-  // Trigger optional chime when new S Tier or Wishlist Matches arrive
+  // Trigger optional chime & browser desktop notification when new S Tier or Wishlist Matches arrive
   const prevAlertCountRef = useRef<number>(0);
   useEffect(() => {
     const currentAlertCount = tierCounts.S + wishlistMatches.length;
-    if (chimeEnabled && currentAlertCount > prevAlertCountRef.current) {
-      playSubtleChime();
+    if (currentAlertCount > prevAlertCountRef.current) {
+      if (chimeEnabled) playSubtleChime();
+      if (desktopAlertsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const msg =
+          wishlistMatches.length > 0
+            ? `Squad Wishlist Match: ${wishlistMatches[0].drop.shortName} for @${wishlistMatches[0].wish.displayName || wishlistMatches[0].wish.characterName}!`
+            : `${tierCounts.S} Tier S Jackpot drop(s) detected in your Dump Tabs!`;
+        try {
+          new Notification('Exile SSF Drop Alert', { body: msg, icon: '/logo.png' });
+        } catch {}
+      }
     }
     prevAlertCountRef.current = currentAlertCount;
-  }, [tierCounts.S, wishlistMatches.length, chimeEnabled]);
+  }, [tierCounts.S, wishlistMatches, chimeEnabled, desktopAlertsEnabled]);
+
+  const handleToggleDesktopAlerts = async () => {
+    if (desktopAlertsEnabled) {
+      setDesktopAlertsEnabled(false);
+      return;
+    }
+    if (typeof Notification === 'undefined') {
+      setStatusNotice({ type: 'err', text: 'Desktop notifications are not supported in this browser.' });
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      setDesktopAlertsEnabled(true);
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      setDesktopAlertsEnabled(true);
+      setStatusNotice({ type: 'ok', text: 'Desktop drop notifications enabled for Tier S & Squad Wishlist hits!' });
+    } else {
+      setStatusNotice({ type: 'err', text: 'Browser blocked desktop notification permission.' });
+    }
+  };
 
   const handleSelectLinkedLeague = (newId: string) => {
     setLinkedLeagueId(newId);
@@ -866,7 +961,7 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const toggleTabIndex = (idx: number) => {
     setSelectedTabIndices((prev) => {
       if (prev.includes(idx)) return prev.filter((x) => x !== idx);
-      if (prev.length >= 8) return prev;
+      if (prev.length >= 15) return prev;
       return [...prev, idx];
     });
   };
@@ -1233,19 +1328,27 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
   // Category Breakdown for Top Right Card (3x3 compact grid)
   const categoryBreakdown = useMemo(() => {
-    const map = new Map<string, { chaos: number; count: number }>();
+    const map = new Map<string, { chaos: number; ssfPts: number; count: number }>();
     for (const it of enrichedDrops) {
-      const prev = map.get(it.category) || { chaos: 0, count: 0 };
+      const prev = map.get(it.category) || { chaos: 0, ssfPts: 0, count: 0 };
       prev.chaos += it.totalChaos;
+      prev.ssfPts += it.totalSsfPoints;
       prev.count += it.quantity;
       map.set(it.category, prev);
     }
     return CATEGORY_ORDER.map((cat) => {
-      const row = map.get(cat) || { chaos: 0, count: 0 };
-      const pct = totalSessionChaos > 0 ? Math.round((row.chaos / totalSessionChaos) * 100) : 0;
-      return { category: cat, chaos: Math.round(row.chaos), count: row.count, pct };
-    }).sort((a, b) => b.chaos - a.chaos || b.count - a.count);
-  }, [enrichedDrops, totalSessionChaos]);
+      const row = map.get(cat) || { chaos: 0, ssfPts: 0, count: 0 };
+      const pct =
+        valueSystem === 'ssf'
+          ? totalSessionSsfPoints > 0
+            ? Math.round((row.ssfPts / totalSessionSsfPoints) * 100)
+            : 0
+          : totalSessionChaos > 0
+          ? Math.round((row.chaos / totalSessionChaos) * 100)
+          : 0;
+      return { category: cat, chaos: Math.round(row.chaos), ssfPts: Math.round(row.ssfPts), count: row.count, pct };
+    }).sort((a, b) => (valueSystem === 'ssf' ? b.ssfPts - a.ssfPts : b.chaos - a.chaos) || b.count - a.count);
+  }, [enrichedDrops, totalSessionChaos, totalSessionSsfPoints, valueSystem]);
 
   // Personal Strategy Leaderboard computed from saved sessions
   const strategyLeaderboard = useMemo(() => {
@@ -1330,8 +1433,16 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
     const mult = sortDir === 'desc' ? -1 : 1;
     return [...filtered].sort((a, b) => {
-      if (sortField === 'total') return (a.totalChaos - b.totalChaos) * mult || (a.quantity - b.quantity) * mult;
-      if (sortField === 'price') return (a.chaosEach - b.chaosEach) * mult;
+      if (sortField === 'total') {
+        const va = valueSystem === 'ssf' ? a.totalSsfPoints : a.totalChaos;
+        const vb = valueSystem === 'ssf' ? b.totalSsfPoints : b.totalChaos;
+        return (va - vb) * mult || (a.quantity - b.quantity) * mult;
+      }
+      if (sortField === 'price') {
+        const va = valueSystem === 'ssf' ? a.ssfPointsEach : a.chaosEach;
+        const vb = valueSystem === 'ssf' ? b.ssfPointsEach : b.chaosEach;
+        return (va - vb) * mult;
+      }
       if (sortField === 'qty') return (a.quantity - b.quantity) * mult;
       if (sortField === 'tier') return (TIER_RANK[a.tier] - TIER_RANK[b.tier]) * mult || (a.totalChaos - b.totalChaos) * mult;
       if (sortField === 'gem_level') return ((a.gemLevel || 0) - (b.gemLevel || 0)) * mult;
@@ -1446,6 +1557,43 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Dual Value System Toggle (SSF Utility vs poe.ninja) */}
+          <div className="flex bg-slate-950 p-0.5 rounded-xl border border-amber-500/30 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setValueSystem('ssf')}
+              title="Score drops by SSF crafting, Atlas fuel, and Wishlist utility"
+              className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                valueSystem === 'ssf' ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              SSF Utility
+            </button>
+            <button
+              type="button"
+              onClick={() => setValueSystem('ninja')}
+              title="Score drops by live poe.ninja Chaos & Divine prices"
+              className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                valueSystem === 'ninja' ? 'bg-indigo-600/30 text-white border border-indigo-400/50' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              poe.ninja
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleDesktopAlerts}
+            title={desktopAlertsEnabled ? 'Desktop notifications active for Tier S & Wishlist hits' : 'Enable browser desktop notifications'}
+            className={`p-2 rounded-xl border text-xs cursor-pointer ${
+              desktopAlertsEnabled
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {desktopAlertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+          </button>
+
           <button
             type="button"
             onClick={() => setChimeEnabled((v) => !v)}
@@ -1617,7 +1765,9 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
             <div className="text-right">
               <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-300 leading-none">
-                {formatValue(heroChaos, divineChaos)}
+                {valueSystem === 'ssf'
+                  ? formatSsfPoints(wealthMode === 'hourly' ? ssfPointsPerHour : totalSessionSsfPoints)
+                  : formatValue(heroChaos, divineChaos)}
                 {wealthMode === 'hourly' && <span className="text-xs text-slate-400 font-normal">/hr</span>}
               </div>
               <div className="text-[10px] font-mono text-slate-400 mt-1">
@@ -1685,6 +1835,8 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                   <div className="text-sm font-mono font-bold text-amber-300 mt-0.5">
                     {breakdownMode === 'percent'
                       ? `${row.pct}%`
+                      : valueSystem === 'ssf'
+                      ? formatSsfPoints(row.ssfPts)
                       : row.chaos > 0
                       ? formatValue(row.chaos, divineChaos)
                       : `${row.count}x`}
@@ -1831,24 +1983,29 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
               )}
 
               {stashTabs.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
-                  {stashTabs.map((tab) => {
-                    const active = selectedTabIndices.includes(tab.index);
-                    const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => toggleTabIndex(tab.index)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${
-                          active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                        <span>{tab.name}</span>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">
+                    Select Dump & Specialty Tabs ({selectedTabIndices.length}/15 selected):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                    {stashTabs.map((tab) => {
+                      const active = selectedTabIndices.includes(tab.index);
+                      const dotColor = `rgb(${tab.colour.r}, ${tab.colour.g}, ${tab.colour.b})`;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => toggleTabIndex(tab.index)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border cursor-pointer ${
+                            active ? 'bg-indigo-600/30 border-indigo-400/70 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'
+                          }`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                          <span>{tab.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -2504,10 +2661,18 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-200">{it.quantity.toLocaleString()}</td>
                         <td className="py-2 px-3 text-right font-mono text-slate-400">
-                          {it.chaosEach > 0 ? formatValue(it.chaosEach, divineChaos) : '0c'}
+                          {valueSystem === 'ssf'
+                            ? formatSsfPoints(it.ssfPointsEach)
+                            : it.chaosEach > 0
+                            ? formatValue(it.chaosEach, divineChaos)
+                            : '0c'}
                         </td>
                         <td className="py-2 px-3.5 text-right font-mono font-bold text-amber-300">
-                          {it.totalChaos > 0 ? formatValue(it.totalChaos, divineChaos) : '0c'}
+                          {valueSystem === 'ssf'
+                            ? formatSsfPoints(it.totalSsfPoints)
+                            : it.totalChaos > 0
+                            ? formatValue(it.totalChaos, divineChaos)
+                            : '0c'}
                         </td>
                         <td className="py-2 px-3 text-right">
                           {it.category === 'Uniques' && (
