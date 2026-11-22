@@ -120,6 +120,41 @@ type SortField = 'total' | 'price' | 'qty' | 'name' | 'tab' | 'tier' | 'gem_leve
 
 const PREFS_STORAGE_KEY = 'exile_ssf_farming_prefs_v2';
 const WORKSPACE_STORAGE_KEY = 'exile_ssf_farming_workspace_v1';
+const WEIGHTS_STORAGE_KEY = 'exile_ssf_custom_weights_v1';
+
+interface SsfWeightsConfig {
+  categoryMultipliers: Record<string, number>;
+  wishlistBonus: number;
+  unpricedUniqueFloor: number;
+  unpricedMapFloor: number;
+  customOverrides: Record<string, number>;
+}
+
+const DEFAULT_SSF_WEIGHTS: SsfWeightsConfig = {
+  categoryMultipliers: {
+    Uniques: 1.15,
+    Currency: 1.0,
+    'Div Cards': 1.0,
+    Gems: 1.1,
+    'Scarabs & Fragments': 1.2,
+    'Essences & Crafting': 1.2,
+    'Maps & League Keys': 1.1,
+    'Gear & Jewels': 1.0
+  },
+  wishlistBonus: 50,
+  unpricedUniqueFloor: 3,
+  unpricedMapFloor: 1.5,
+  customOverrides: {
+    "rogue's marker": 0.002,
+    'primal crystallised lifeforce': 0.025,
+    'wild crystallised lifeforce': 0.025,
+    'vivid crystallised lifeforce': 0.025,
+    'orb of unmaking': 1.5,
+    'instilling orb': 1.2,
+    'enkindling orb': 1.2,
+    "cartographer's chisel": 1.0
+  }
+};
 
 const DEFAULT_LEAGUES: LeagueOption[] = [
   { id: 'poe1-330-umbra', name: 'Ravenwatch Covens of Umbra GSF (PL87651)', game: 'poe1' },
@@ -363,59 +398,49 @@ function resolveTier(chaosEach: number, totalChaos: number, divineChaos: number)
   return 'C';
 }
 
-function computeSsfUtilityPoints(item: TrackedDropItem, chaosEach: number, isWishlistMatch: boolean): number {
-  const low = `${item.shortName} ${item.baseType}`.toLowerCase();
+function computeSsfUtilityPoints(
+  item: TrackedDropItem,
+  chaosEach: number,
+  isWishlistMatch: boolean,
+  weights: SsfWeightsConfig
+): number {
+  const shortLow = item.shortName.trim().toLowerCase();
+  const low = `${shortLow} ${item.baseType.toLowerCase()}`;
+
+  // 1. Check exact user custom item override first
+  if (typeof weights.customOverrides[shortLow] === 'number') {
+    const basePts = weights.customOverrides[shortLow];
+    return isWishlistMatch ? basePts + weights.wishlistBonus : basePts;
+  }
+
   let pts = 0;
 
-  // 1. Micro-stackables that drop in hundreds/thousands MUST stay fractional
+  // 2. Micro-stackable guardrails so high stack currencies stay realistic
   if (low.includes("rogue's marker")) {
     pts = 0.002;
   } else if (low.includes('crystallised lifeforce')) {
     pts = 0.025;
-  } else if (low.includes('splinter') || low.includes('artifact')) {
-    pts = chaosEach > 0 ? Math.min(chaosEach, 0.5) : 0.15;
-  } else if (
-    BULK_NOISE_REGEX.test(item.shortName.trim()) ||
-    /\b(shard|fragment of|scroll)\b/i.test(low)
-  ) {
-    pts = 0.01;
-  } else if (/\b(orb of alteration|jeweller's orb|chromatic orb)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 0.15);
-  } else if (/\b(orb of fusing|orb of alchemy|orb of scouring|orb of chance|orb of binding|blessed orb)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 0.4);
-  } else if (/\b(lesser eldritch)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 1.5);
-  } else if (/\b(greater eldritch)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 4);
-  } else if (/\b(grand eldritch)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 12);
-  } else if (/\b(exceptional eldritch)\b/i.test(low)) {
-    pts = Math.max(chaosEach, 40);
-  } else if (/\b(regal orb|vaal orb|cartographer's chisel|orb of unmaking|orb of horizons|orb of regret|instilling orb|enkindling orb|glassblower's bauble)\b/i.test(low)) {
-    pts = Math.max(chaosEach * 1.25, 1.5);
+  } else if (BULK_NOISE_REGEX.test(shortLow) || /\b(shard|scroll)\b/i.test(low)) {
+    pts = chaosEach > 0 ? Math.min(chaosEach, 0.05) : 0.01;
   } else if (chaosEach > 0) {
-    // Anchor directly to poe.ninja Chaos value (1 Chaos = 1.0 SSF pt), with a modest SSF crafting/atlas boost
-    const isSsfStaple =
-      item.category === 'Essences & Crafting' ||
-      item.category === 'Scarabs & Fragments' ||
-      item.category === 'Maps & League Keys' ||
-      item.isTransfigured ||
-      item.isAwakened;
-    pts = Math.round(chaosEach * (isSsfStaple ? 1.2 : 1.0) * 100) / 100;
+    // Anchor directly to live poe.ninja Chaos price × transparent category multiplier
+    const mult = weights.categoryMultipliers[item.category] ?? 1.0;
+    pts = Math.round(chaosEach * mult * 100) / 100;
+  } else if (low.includes('splinter') || low.includes('artifact')) {
+    pts = 0.15;
   } else if (item.category === 'Uniques') {
-    pts = 5;
-  } else if (item.category === 'Gems') {
-    pts = item.isAwakened ? 80 : item.isTransfigured ? 20 : (item.gemLevel || 0) >= 20 ? 10 : 1;
+    pts = weights.unpricedUniqueFloor;
   } else if (item.category === 'Maps & League Keys') {
-    pts = 2;
+    pts = weights.unpricedMapFloor;
+  } else if (item.category === 'Gems') {
+    pts = item.isAwakened ? 40 : item.isTransfigured ? 10 : (item.gemLevel || 0) >= 20 ? 5 : 0.5;
   } else if (item.category === 'Gear & Jewels' && item.ilvl >= 84) {
-    pts = 3;
+    pts = 2;
   } else {
-    pts = 0.25;
+    pts = 0.1;
   }
 
-  // Squad Wishlist Match gets a real +100 pt priority boost (never inflated by stack size)
-  return isWishlistMatch ? pts + 100 : pts;
+  return isWishlistMatch ? pts + weights.wishlistBonus : pts;
 }
 
 function formatSsfPoints(pts: number): string {
@@ -486,6 +511,24 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   const [hideBulkNoise, setHideBulkNoise] = useState<boolean>(false);
   const [chimeEnabled, setChimeEnabled] = useState<boolean>(true);
   const [desktopAlertsEnabled, setDesktopAlertsEnabled] = useState<boolean>(false);
+  const [showWeightsEditor, setShowWeightsEditor] = useState<boolean>(false);
+  const [ssfWeights, setSsfWeights] = useState<SsfWeightsConfig>(() => {
+    try {
+      const raw = localStorage.getItem(WEIGHTS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          ...DEFAULT_SSF_WEIGHTS,
+          ...parsed,
+          categoryMultipliers: { ...DEFAULT_SSF_WEIGHTS.categoryMultipliers, ...(parsed?.categoryMultipliers || {}) },
+          customOverrides: { ...DEFAULT_SSF_WEIGHTS.customOverrides, ...(parsed?.customOverrides || {}) }
+        };
+      }
+    } catch {}
+    return DEFAULT_SSF_WEIGHTS;
+  });
+  const [newOverrideName, setNewOverrideName] = useState<string>('');
+  const [newOverrideVal, setNewOverrideVal] = useState<string>('1.0');
 
   // poe.ninja Pricing State
   const [ninjaLeagueParam, setNinjaLeagueParam] = useState<string>('auto');
@@ -575,6 +618,12 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
   useEffect(() => {
     document.title = 'Farming & Drop Tracker | Exile SSF';
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WEIGHTS_STORAGE_KEY, JSON.stringify(ssfWeights));
+    } catch {}
+  }, [ssfWeights]);
 
   useEffect(() => {
     try {
@@ -810,12 +859,12 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
       const totalChaos = Math.round(chaosEach * it.quantity * 10) / 10;
       const dropLow = it.shortName.toLowerCase();
       const isWish = openWishlistNames.some((w) => dropLow === w || it.name.toLowerCase().includes(w));
-      const ssfPointsEach = computeSsfUtilityPoints(it, chaosEach, isWish);
+      const ssfPointsEach = computeSsfUtilityPoints(it, chaosEach, isWish, ssfWeights);
       const totalSsfPoints = Math.round(ssfPointsEach * it.quantity * 10) / 10;
       const tier = resolveTier(chaosEach, totalChaos, divineChaos);
       return { ...it, chaosEach, totalChaos, ssfPointsEach, totalSsfPoints, tier };
     });
-  }, [activeDrops, ninjaPrices, divineChaos, openWishlistNames]);
+  }, [activeDrops, ninjaPrices, divineChaos, openWishlistNames, ssfWeights]);
 
   const totalSessionChaos = useMemo(
     () => Math.round(enrichedDrops.reduce((sum, it) => sum + it.totalChaos, 0) * 10) / 10,
@@ -1772,6 +1821,20 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
 
           <button
             type="button"
+            onClick={() => setShowWeightsEditor((v) => !v)}
+            title="Inspect and edit SSF Utility category multipliers & custom item overrides"
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer ${
+              showWeightsEditor
+                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Weights</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleToggleDesktopAlerts}
             title={desktopAlertsEnabled ? 'Desktop notifications active for Tier S & Wishlist hits' : 'Enable browser desktop notifications'}
             className={`p-2 rounded-xl border text-xs cursor-pointer ${
@@ -1842,6 +1905,176 @@ export const FarmingTrackerView: React.FC<FarmingTrackerViewProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Editable SSF Utility Weightings & Custom Item Overrides Drawer */}
+      {showWeightsEditor && (
+        <section className="rounded-2xl border border-amber-500/35 bg-[#0d111a] p-4 sm:p-5 space-y-4 shadow-xl text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <div className="text-[10px] font-mono uppercase text-amber-400 font-bold">
+                Transparent SSF Value Formula (1.0x = Live poe.ninja Chaos Price)
+              </div>
+              <h2 className="text-sm font-bold text-white">
+                Customize SSF Category Multipliers & Item Overrides
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSsfWeights(DEFAULT_SSF_WEIGHTS)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold cursor-pointer"
+              >
+                Reset Defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWeightsEditor(false)}
+                className="text-slate-400 hover:text-white font-mono cursor-pointer"
+              >
+                Close ▲
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Category Multipliers */}
+            <div className="lg:col-span-7 space-y-2.5">
+              <div className="text-[10px] font-mono uppercase text-slate-400 font-bold">
+                Category Multipliers (Applied to poe.ninja Chaos Price)
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {CATEGORY_ORDER.map((cat) => (
+                  <label key={cat} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1 block">
+                    <span className="text-[10px] text-slate-300 font-semibold block truncate">{cat}</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={5}
+                        step={0.05}
+                        value={ssfWeights.categoryMultipliers[cat] ?? 1.0}
+                        onChange={(e) => {
+                          const v = Math.max(0, Math.min(5, Number(e.target.value) || 0));
+                          setSsfWeights((prev) => ({
+                            ...prev,
+                            categoryMultipliers: { ...prev.categoryMultipliers, [cat]: v }
+                          }));
+                        }}
+                        className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold"
+                      />
+                      <span className="text-[10px] font-mono text-slate-500">x</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <label className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1 block">
+                  <span className="text-[10px] text-emerald-300 font-semibold block">Wishlist Match Bonus</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={10}
+                    value={ssfWeights.wishlistBonus}
+                    onChange={(e) => setSsfWeights((prev) => ({ ...prev, wishlistBonus: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-emerald-300 font-mono font-bold"
+                  />
+                </label>
+                <label className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1 block">
+                  <span className="text-[10px] text-orange-300 font-semibold block">Unpriced Unique Floor</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={ssfWeights.unpricedUniqueFloor}
+                    onChange={(e) => setSsfWeights((prev) => ({ ...prev, unpricedUniqueFloor: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-orange-300 font-mono font-bold"
+                  />
+                </label>
+                <label className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1 block">
+                  <span className="text-[10px] text-sky-300 font-semibold block">Unpriced Map Floor</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={ssfWeights.unpricedMapFloor}
+                    onChange={(e) => setSsfWeights((prev) => ({ ...prev, unpricedMapFloor: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sky-300 font-mono font-bold"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Custom Exact Item Overrides */}
+            <div className="lg:col-span-5 space-y-2.5">
+              <div className="text-[10px] font-mono uppercase text-slate-400 font-bold">
+                Exact Item Price Overrides (pts per 1 item)
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const clean = newOverrideName.trim().toLowerCase();
+                  const num = Number(newOverrideVal);
+                  if (!clean || Number.isNaN(num) || num < 0) return;
+                  setSsfWeights((prev) => ({
+                    ...prev,
+                    customOverrides: { ...prev.customOverrides, [clean]: num }
+                  }));
+                  setNewOverrideName('');
+                  setNewOverrideVal('1.0');
+                }}
+                className="flex gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={newOverrideName}
+                  onChange={(e) => setNewOverrideName(e.target.value)}
+                  placeholder="Exact item name (e.g. Rogue's Marker)"
+                  className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  min={0}
+                  value={newOverrideVal}
+                  onChange={(e) => setNewOverrideVal(e.target.value)}
+                  className="w-20 px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-amber-300 font-mono"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer"
+                >
+                  Set
+                </button>
+              </form>
+
+              <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                {Object.entries(ssfWeights.customOverrides).map(([k, v]) => (
+                  <div key={k} className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
+                    <span className="text-slate-200 capitalize truncate">{k}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-bold text-amber-300">{v} pts</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSsfWeights((prev) => {
+                            const copy = { ...prev.customOverrides };
+                            delete copy[k];
+                            return { ...prev, customOverrides: copy };
+                          });
+                        }}
+                        className="text-slate-500 hover:text-rose-400 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Slim Focus Status Bar when Focus Mode is active */}
       {focusMode && (
