@@ -35,6 +35,10 @@ import {
   type StrategyCompareRow,
   type XpCheckpoint
 } from './maps/MapAnalyticsCharts';
+import {
+  ClientTxtDeepInsights,
+  type LevelUpEvent
+} from './maps/ClientTxtDeepInsights';
 
 interface MapTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -49,6 +53,10 @@ interface ParsedAreaRun {
   enteredLabel: string;
   durationSec: number;
   deathsInRun: number;
+  areaLevel?: number;
+  areaCode?: string;
+  seed?: string;
+  mechanics?: string[];
 }
 
 interface SavedMapSession {
@@ -123,6 +131,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   }, [game]);
   const [sessionTitle, setSessionTitle] = useState<string>('Mapping Session');
   const [runs, setRuns] = useState<ParsedAreaRun[]>([]);
+  const [levelUps, setLevelUps] = useState<LevelUpEvent[]>([]);
   const [deathTimestamps, setDeathTimestamps] = useState<number[]>([]);
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
@@ -226,9 +235,34 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           ts: number;
           area: string;
           label: string;
+          areaLevel?: number;
+          areaCode?: string;
+          seed?: string;
+          mechanics: Set<string>;
         }
         const zoneEvents: RawZoneEvt[] = [];
         const deaths: number[] = [];
+        const parsedLevels: LevelUpEvent[] = [];
+        let pendingGen: { level: number; code: string; seed: string; ts: number } | null = null;
+        const lastLevelTsByChar = new Map<string, number>();
+
+        const detectNpcMechanic = (ln: string): string | null => {
+          if (/Einhar, Beastmaster:/i.test(ln)) return 'Bestiary';
+          if (/Niko, Master of the Depths:/i.test(ln)) return 'Delve';
+          if (/Alva, Master Explorer:/i.test(ln)) return 'Incursion';
+          if (/Jun, Veiled Master:/i.test(ln)) return 'Betrayal';
+          if (/Sister Cassia:/i.test(ln)) return 'Blight';
+          if (/\b(Tujen|Rog|Gwennen|Dannig):/i.test(ln)) return 'Expedition';
+          if (/Oshabi:/i.test(ln)) return 'Harvest';
+          if (/The Nameless Seer:/i.test(ln)) return 'Nameless Seer';
+          if (/The Maven:/i.test(ln)) return 'Maven';
+          if (/The Searing Exarch:/i.test(ln)) return 'Searing Exarch';
+          if (/The Eater of Worlds:/i.test(ln)) return 'Eater of Worlds';
+          if (/The Envoy:/i.test(ln)) return 'Eldritch Envoy';
+          if (/The Trialmaster:/i.test(ln)) return 'Ultimatum';
+          if (/\b(The Shaper|The Elder|Sirus, Awakener|Venarius):/i.test(ln)) return 'Pinnacle Boss';
+          return null;
+        };
 
         for (const line of lines) {
           const tsMatch = line.match(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/);
@@ -236,17 +270,55 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           const ts = Date.parse(tsMatch[1].replace(/\//g, '-'));
           if (!Number.isFinite(ts) || ts < cutoffMs) continue;
 
+          const genMatch = line.match(/Generating level (\d+) area "([^"]+)" with seed (\d+)/i);
+          if (genMatch) {
+            pendingGen = {
+              level: Number(genMatch[1]),
+              code: genMatch[2],
+              seed: genMatch[3],
+              ts
+            };
+            continue;
+          }
+
           if (/You have entered (.+)\./i.test(line)) {
             const area = line.match(/You have entered (.+)\./i)?.[1]?.trim() || '';
             if (area) {
+              const useGen = pendingGen && Math.abs(ts - pendingGen.ts) <= 30_000 ? pendingGen : null;
               zoneEvents.push({
                 ts,
                 area,
-                label: new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                label: new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                areaLevel: useGen?.level,
+                areaCode: useGen?.code,
+                seed: useGen?.seed,
+                mechanics: new Set<string>()
               });
+              pendingGen = null;
             }
           } else if (/has been slain\./i.test(line)) {
             deaths.push(ts);
+          } else {
+            const lvlMatch = line.match(/:\s*([^\s:]+)\s+\(([^)]+)\)\s+is now level (\d+)/i);
+            if (lvlMatch) {
+              const charName = lvlMatch[1].trim();
+              const className = lvlMatch[2].trim();
+              const level = Number(lvlMatch[3]);
+              const prevTs = lastLevelTsByChar.get(charName.toLowerCase());
+              const durationSec = prevTs ? Math.max(1, Math.round((ts - prevTs) / 1000)) : null;
+              lastLevelTsByChar.set(charName.toLowerCase(), ts);
+              parsedLevels.push({
+                charName,
+                className,
+                level,
+                tsMs: ts,
+                label: new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                durationSec
+              });
+            } else if (zoneEvents.length > 0) {
+              const mech = detectNpcMechanic(line);
+              if (mech) zoneEvents[zoneEvents.length - 1].mechanics.add(mech);
+            }
           }
         }
 
@@ -264,11 +336,16 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             enteredAtMs: cur.ts,
             enteredLabel: cur.label,
             durationSec,
-            deathsInRun: runDeaths
+            deathsInRun: runDeaths,
+            areaLevel: cur.areaLevel,
+            areaCode: cur.areaCode,
+            seed: cur.seed,
+            mechanics: Array.from(cur.mechanics)
           });
         }
 
         setRuns(builtRuns.reverse());
+        setLevelUps(parsedLevels);
         setDeathTimestamps(deaths);
         setLastFileReadAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         if (!silent) {
@@ -995,6 +1072,8 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         deathTimestamps={deathTimestamps}
         strategyRows={strategyRows}
       />
+
+      <ClientTxtDeepInsights runs={runs} levelUps={levelUps} />
 
       {/* Recent Area Runs Table & Cloud Saved Sessions */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">

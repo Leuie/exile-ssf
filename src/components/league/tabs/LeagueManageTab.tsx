@@ -92,7 +92,7 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
   const canBroadcast = isSuperAdmin || isLeagueHost || Boolean(myModPermissions?.canBroadcast);
 
   const [section, setSection] = useState<'health' | 'staff' | 'awards' | 'webhook'>('health');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [syncingLadder, setSyncingLadder] = useState(false);
 
   // Staff editor local state
@@ -152,9 +152,9 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
     };
   }, [leagueId, canEditWebhook]);
 
-  const showTempNotice = (msg: string) => {
-    setNotice(msg);
-    setTimeout(() => setNotice(null), 4000);
+  const showTempNotice = (msg: string, type: 'ok' | 'err' = 'ok') => {
+    setNotice({ type, text: msg });
+    setTimeout(() => setNotice(null), 5000);
   };
 
   const health = useMemo(() => {
@@ -195,13 +195,16 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
       if (res.ok) {
         const d: any = await res.json();
         if (Array.isArray(d?.staff)) setStaff(d.staff);
-        showTempNotice('League staff, contacts, and moderator permissions saved to Cloudflare D1!');
+        showTempNotice('League staff, contacts, and moderator permissions saved to Cloudflare D1!', 'ok');
       } else {
         const err: any = await res.json().catch(() => ({}));
-        showTempNotice(err?.error || 'Could not save league staff.');
+        if (res.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('exile:session-expired'));
+        }
+        showTempNotice(err?.error || 'Could not save league staff.', 'err');
       }
     } catch {
-      showTempNotice('Network error saving league staff.');
+      showTempNotice('Network error saving league staff.', 'err');
     } finally {
       setSavingStaff(false);
     }
@@ -387,7 +390,7 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Scoped exclusively to <strong className="text-slate-200">{leagueName}</strong>. Manage staff (up to 3 moderators), per moderator permissions, exports, awards, and webhooks.
+            Scoped exclusively to <strong className="text-slate-200">{leagueName || leagueId}</strong>. Manage staff (up to 3 moderators), per moderator permissions, exports, awards, and webhooks.
           </p>
         </div>
 
@@ -419,9 +422,15 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
       </div>
 
       {notice && (
-        <div className="px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-xs text-emerald-200 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{notice}</span>
+        <div
+          className={`px-4 py-2.5 rounded-xl border text-xs flex items-center gap-2 ${
+            notice.type === 'ok'
+              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+              : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
+          }`}
+        >
+          <CheckCircle2 className={`w-4 h-4 shrink-0 ${notice.type === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`} />
+          <span>{notice.text}</span>
         </div>
       )}
 

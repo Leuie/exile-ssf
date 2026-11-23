@@ -197,6 +197,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [serverSessionExpired, setServerSessionExpired] = useState<boolean>(false);
 
   const getInitialGuideSlug = (): string => {
     if (typeof window === 'undefined') return '';
@@ -338,8 +339,35 @@ export const App: React.FC = () => {
     }
   });
 
+  // Verify real HttpOnly server session cookie whenever localStorage thinks the user is signed in
+  useEffect(() => {
+    if (!userAccount) {
+      setServerSessionExpired(false);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: any) => {
+        if (!cancelled && s && !s.authenticated) {
+          setServerSessionExpired(true);
+        } else if (!cancelled && s?.authenticated) {
+          setServerSessionExpired(false);
+        }
+      })
+      .catch(() => {});
+
+    const onExpired = () => setServerSessionExpired(true);
+    window.addEventListener('exile:session-expired', onExpired);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('exile:session-expired', onExpired);
+    };
+  }, [userAccount]);
+
   const handleSaveAccount = (account: UserAccount, rosterEntry: LeagueRosterMember) => {
     setUserAccount(account);
+    setServerSessionExpired(false);
     try {
       localStorage.setItem('poe_umbraleague_user', JSON.stringify(account));
       // Sync into clean 3.30 roster
@@ -572,6 +600,31 @@ export const App: React.FC = () => {
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
       <div className="flex-1 min-w-0 flex flex-col w-full">
         <SiteNoticeBanner />
+        {serverSessionExpired && userAccount && (
+          <div className="w-full bg-amber-950/95 border-b border-amber-500/50 px-4 py-2 text-xs text-amber-100">
+            <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong className="text-amber-300">Cloud Session Needs Refresh:</strong> Your browser still shows @{userAccount.displayName}, but your encrypted server cookie expired. Sign in once to re enable Cloudflare D1 saves.
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => (userAccount.isAdmin ? handleSelectTab('admin') : handleOpenAuth())}
+                  className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer"
+                >
+                  {userAccount.isAdmin ? 'Admin Sign In' : 'Sign In Now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setServerSessionExpired(false)}
+                  className="text-[11px] text-amber-300/80 hover:text-white cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out w-full ${
           activeTab === 'single_league' || activeTab === 'private_league' 
             ? 'p-0 max-w-none' 

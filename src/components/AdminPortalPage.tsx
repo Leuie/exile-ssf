@@ -34,7 +34,6 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 }) => {
   const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
   const [googleEmailToLink, setGoogleEmailToLink] = useState<string>('');
-  const [googleSignInEmail, setGoogleSignInEmail] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -164,32 +163,6 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     }
   };
 
-  // Direct Google Sign In (for linked Google accounts)
-  const handleGoogleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    const cleanMail = googleSignInEmail.trim().toLowerCase();
-
-    if (!cleanMail || !cleanMail.includes('@')) {
-      setErrorMessage('Please enter a valid Google email address.');
-      return;
-    }
-
-    if (!linkedAdminGoogle || cleanMail !== linkedAdminGoogle.toLowerCase()) {
-      setErrorMessage('This Google account is not linked to @Leuie. Log in with the Admin Password below to link it.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      const { adminAccount, adminRoster } = buildLeuieAdminPayload(cleanMail);
-      onAdminLoginSuccess(adminAccount, adminRoster);
-      fireConfetti();
-    }, 350);
-  };
-
   // Link or Unlink Google Account while logged in
   const handleToggleGoogleLink = (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,35 +237,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
           <div className="space-y-5">
             {linkedAdminGoogle && (
-              <form onSubmit={handleGoogleAdminLogin} className="p-4 rounded-xl border border-indigo-500/35 bg-indigo-500/10 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-bold text-white">Linked Google Direct Login</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono truncate max-w-[160px]">
-                    {linkedAdminGoogle}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    required
-                    placeholder="Confirm Google email"
-                    value={googleSignInEmail || linkedAdminGoogle}
-                    onChange={(e) => setGoogleSignInEmail(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isProcessing}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow flex-shrink-0"
-                  >
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Sign In</span>
-                  </button>
-                </div>
-              </form>
+              <div className="p-3.5 rounded-xl border border-indigo-500/35 bg-indigo-500/10 text-xs text-indigo-200 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Linked Google: <strong className="text-white">{linkedAdminGoogle}</strong></span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">Password required for server cookie</span>
+              </div>
             )}
 
             <form onSubmit={handlePasswordLogin} className="space-y-4">

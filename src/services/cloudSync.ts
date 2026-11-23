@@ -50,12 +50,23 @@ function getApiBase(): string {
   return '';
 }
 
+// Unified API fetch wrapper: always includes signed HttpOnly exile_session cookie
+// and notifies the app if any mutation receives 401 so users are prompted to sign in.
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const res = await window.fetch(input, { ...init, credentials: 'include' });
+  const method = String(init.method || 'GET').toUpperCase();
+  if (res.status === 401 && method !== 'GET' && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('exile:session-expired'));
+  }
+  return res;
+}
+
 export async function fetchCloudLeagueData(
   leagueId: string = 'poe1-330-umbra'
 ): Promise<CloudLeagueDataResponse | null> {
   try {
     const timestamp = Date.now();
-    const res = await fetch(`${getApiBase()}/api/data?league=${encodeURIComponent(leagueId)}&_t=${timestamp}`, {
+    const res = await apiFetch(`${getApiBase()}/api/data?league=${encodeURIComponent(leagueId)}&_t=${timestamp}`, {
       method: 'GET',
       cache: 'no-store',
       headers: {
@@ -80,7 +91,7 @@ export async function saveCloudWishlistItem(
   item: LookingForItem
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/wishlist`, {
+    const res = await apiFetch(`${getApiBase()}/api/wishlist`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -98,7 +109,7 @@ export async function deleteCloudWishlistItem(
   itemId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/wishlist/${encodeURIComponent(itemId)}?league=${encodeURIComponent(leagueId)}`,
       {
         method: 'DELETE'
@@ -115,7 +126,7 @@ export async function saveCloudRosterMember(
   member: LeagueRosterMember
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/roster`, {
+    const res = await apiFetch(`${getApiBase()}/api/roster`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -133,7 +144,7 @@ export async function deleteCloudRosterMember(
   memberId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/roster/${encodeURIComponent(memberId)}?league=${encodeURIComponent(leagueId)}`,
       {
         method: 'DELETE'
@@ -150,7 +161,7 @@ export async function saveCloudVaultItem(
   item: FoundUniqueVaultItem
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/vault`, {
+    const res = await apiFetch(`${getApiBase()}/api/vault`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -168,7 +179,7 @@ export async function saveCloudGuide(
   guide: CommunityGuide
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/guides`, {
+    const res = await apiFetch(`${getApiBase()}/api/guides`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -186,7 +197,7 @@ export async function saveCloudAchievementProfile(
   profile: PersistentAchievementProfile
 ): Promise<PersistentAchievementProfile | null> {
   try {
-    const res = await fetch(`${getApiBase()}/api/achievements`, {
+    const res = await apiFetch(`${getApiBase()}/api/achievements`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -205,7 +216,7 @@ export async function saveCloudAlumniList(
   alumni: LeagueParticipantAlumnus[]
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/alumni`, {
+    const res = await apiFetch(`${getApiBase()}/api/alumni`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -221,7 +232,7 @@ export async function saveCloudAlumniList(
 export async function fetchCloudFeedback(): Promise<SiteFeedbackItem[] | null> {
   try {
     const timestamp = Date.now();
-    const res = await fetch(`${getApiBase()}/api/feedback?_t=${timestamp}`, {
+    const res = await apiFetch(`${getApiBase()}/api/feedback?_t=${timestamp}`, {
       method: 'GET',
       cache: 'no-store',
       headers: {
@@ -239,7 +250,7 @@ export async function fetchCloudFeedback(): Promise<SiteFeedbackItem[] | null> {
 
 export async function saveCloudFeedbackItem(item: SiteFeedbackItem): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/feedback`, {
+    const res = await apiFetch(`${getApiBase()}/api/feedback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -257,7 +268,7 @@ export async function saveCloudLeagueMeta(
   meta: CloudLeagueMeta
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/meta`, {
+    const res = await apiFetch(`${getApiBase()}/api/meta`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, ...meta })
@@ -270,7 +281,7 @@ export async function saveCloudLeagueMeta(
 
 export async function fetchCloudLeagues(): Promise<ActiveLeagueSession[] | null> {
   try {
-    const res = await fetch(`${getApiBase()}/api/leagues?_t=${Date.now()}`, {
+    const res = await apiFetch(`${getApiBase()}/api/leagues?_t=${Date.now()}`, {
       method: 'GET',
       cache: 'no-store',
       headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
@@ -285,7 +296,7 @@ export async function fetchCloudLeagues(): Promise<ActiveLeagueSession[] | null>
 
 export async function saveCloudLeague(league: ActiveLeagueSession): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/leagues`, {
+    const res = await apiFetch(`${getApiBase()}/api/leagues`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ league })
@@ -298,7 +309,7 @@ export async function saveCloudLeague(league: ActiveLeagueSession): Promise<bool
 
 export async function fetchCloudAccounts(): Promise<any[] | null> {
   try {
-    const res = await fetch(`${getApiBase()}/api/accounts?_t=${Date.now()}`, {
+    const res = await apiFetch(`${getApiBase()}/api/accounts?_t=${Date.now()}`, {
       method: 'GET',
       cache: 'no-store',
       headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }
@@ -313,7 +324,7 @@ export async function fetchCloudAccounts(): Promise<any[] | null> {
 
 export async function saveCloudAccount(account: any): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/accounts`, {
+    const res = await apiFetch(`${getApiBase()}/api/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account })
@@ -329,7 +340,7 @@ export async function saveCloudService(
   service: SquadServiceListing
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/services`, {
+    const res = await apiFetch(`${getApiBase()}/api/services`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, service })
@@ -345,7 +356,7 @@ export async function deleteCloudService(
   serviceId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/services/${encodeURIComponent(serviceId)}?league=${encodeURIComponent(leagueId)}`,
       { method: 'DELETE' }
     );
@@ -360,7 +371,7 @@ export async function saveCloudVouch(
   vouch: PlayerVouch
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/vouches`, {
+    const res = await apiFetch(`${getApiBase()}/api/vouches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, vouch })
@@ -389,7 +400,7 @@ export async function fetchOfficialPoeLadder(
     const params = new URLSearchParams({ league: leagueId });
     if (officialLeagueName) params.set('name', officialLeagueName);
     if (forceRefresh) params.set('refresh', '1');
-    const res = await fetch(`${getApiBase()}/api/ladder?${params.toString()}`, {
+    const res = await apiFetch(`${getApiBase()}/api/ladder?${params.toString()}`, {
       method: 'GET',
       cache: 'no-store',
       headers: { Accept: 'application/json' }
@@ -417,7 +428,7 @@ export async function fetchCloudProfile(handle: string): Promise<CloudExileProfi
   try {
     const clean = handle.trim().replace(/^@/, '');
     if (!clean) return null;
-    const res = await fetch(`${getApiBase()}/api/profile/${encodeURIComponent(clean)}?_t=${Date.now()}`, {
+    const res = await apiFetch(`${getApiBase()}/api/profile/${encodeURIComponent(clean)}?_t=${Date.now()}`, {
       method: 'GET',
       cache: 'no-store',
       headers: { Accept: 'application/json' }
@@ -431,7 +442,7 @@ export async function fetchCloudProfile(handle: string): Promise<CloudExileProfi
 
 export async function saveCloudProfile(profile: ExileProfile): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/profile`, {
+    const res = await apiFetch(`${getApiBase()}/api/profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile })
@@ -457,7 +468,7 @@ export async function cloudAuthRegister(payload: {
   rosterEntry: any;
 }): Promise<CloudAuthResult> {
   try {
-    const res = await fetch(`${getApiBase()}/api/auth/register`, {
+    const res = await apiFetch(`${getApiBase()}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -472,7 +483,7 @@ export async function cloudAuthRegister(payload: {
 
 export async function cloudAuthLogin(identifier: string, password: string): Promise<CloudAuthResult> {
   try {
-    const res = await fetch(`${getApiBase()}/api/auth/login`, {
+    const res = await apiFetch(`${getApiBase()}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password })
@@ -491,7 +502,7 @@ export async function saveCloudStashDrop(
   drop: FreeStashDrop
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/stash-drops`, {
+    const res = await apiFetch(`${getApiBase()}/api/stash-drops`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, drop })
@@ -507,7 +518,7 @@ export async function deleteCloudStashDrop(
   dropId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/stash-drops/${encodeURIComponent(dropId)}?league=${encodeURIComponent(leagueId)}`,
       { method: 'DELETE' }
     );
@@ -522,7 +533,7 @@ export async function saveCloudBossRota(
   rota: BossRotaListing
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/boss-rotas`, {
+    const res = await apiFetch(`${getApiBase()}/api/boss-rotas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, rota })
@@ -538,7 +549,7 @@ export async function deleteCloudBossRota(
   rotaId: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/boss-rotas/${encodeURIComponent(rotaId)}?league=${encodeURIComponent(leagueId)}`,
       { method: 'DELETE' }
     );
@@ -553,7 +564,7 @@ export async function saveCloudLeagueFirst(
   milestone: LeagueFirstMilestone
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/league-firsts`, {
+    const res = await apiFetch(`${getApiBase()}/api/league-firsts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, milestone })
@@ -569,7 +580,7 @@ export async function saveCloudFeedEvent(
   event: LeagueFeedEvent
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/feed`, {
+    const res = await apiFetch(`${getApiBase()}/api/feed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId, event })
@@ -588,7 +599,7 @@ export interface WebhookConfigPayload {
 
 export async function fetchWebhookConfig(): Promise<WebhookConfigPayload | null> {
   try {
-    const res = await fetch(`${getApiBase()}/api/admin/webhook?_t=${Date.now()}`, {
+    const res = await apiFetch(`${getApiBase()}/api/admin/webhook?_t=${Date.now()}`, {
       method: 'GET',
       cache: 'no-store'
     });
@@ -602,7 +613,7 @@ export async function fetchWebhookConfig(): Promise<WebhookConfigPayload | null>
 
 export async function saveWebhookConfig(config: WebhookConfigPayload): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/admin/webhook`, {
+    const res = await apiFetch(`${getApiBase()}/api/admin/webhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
@@ -615,7 +626,7 @@ export async function saveWebhookConfig(config: WebhookConfigPayload): Promise<b
 
 export async function sendTestWebhookAlert(leagueId: string = 'poe1-330-umbra'): Promise<boolean> {
   try {
-    const res = await fetch(`${getApiBase()}/api/admin/test-webhook?league=${encodeURIComponent(leagueId)}`, {
+    const res = await apiFetch(`${getApiBase()}/api/admin/test-webhook?league=${encodeURIComponent(leagueId)}`, {
       method: 'POST'
     });
     return res.ok;
@@ -629,7 +640,7 @@ export async function fetchGoogleSheetCsvViaWorker(
   sheetName?: string
 ): Promise<{ csv?: string; error?: string }> {
   try {
-    const res = await fetch(`${getApiBase()}/api/import/gsheet`, {
+    const res = await apiFetch(`${getApiBase()}/api/import/gsheet`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sheetUrl, sheetName })
@@ -644,7 +655,7 @@ export async function fetchGoogleSheetCsvViaWorker(
 
 export async function cloudAuthAdminLogin(password: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${getApiBase()}/api/auth/admin-login`, {
+    const res = await apiFetch(`${getApiBase()}/api/auth/admin-login`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -660,7 +671,7 @@ export async function cloudAuthAdminLogin(password: string): Promise<{ success: 
 
 export async function cloudAuthLogout(): Promise<void> {
   try {
-    await fetch(`${getApiBase()}/api/auth/logout`, {
+    await apiFetch(`${getApiBase()}/api/auth/logout`, {
       method: 'POST',
       credentials: 'same-origin'
     });
@@ -695,7 +706,7 @@ export async function fetchOfficialPatchNotes(
   forceRefresh: boolean = false
 ): Promise<PatchNotesListResponse | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/patch-notes?game=${game}${forceRefresh ? '&refresh=1' : ''}&_t=${Date.now()}`,
       { method: 'GET', cache: 'no-store' }
     );
@@ -719,7 +730,7 @@ export async function fetchOfficialPatchThread(
   blocks: PatchNoteBlock[];
 } | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/patch-notes/thread?id=${encodeURIComponent(threadId)}`,
       { method: 'GET', cache: 'no-store' }
     );
@@ -747,7 +758,7 @@ export async function fetchExternalBuildGuides(
   forceRefresh: boolean = false
 ): Promise<ExternalBuildsResponse | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/builds/external?game=${game}${forceRefresh ? '&refresh=1' : ''}&_t=${Date.now()}`,
       { method: 'GET', cache: 'no-store' }
     );
@@ -763,7 +774,7 @@ export async function resolvePobUrl(
   rawUrl: string
 ): Promise<{ status: string; sourceUrl?: string; code?: string; error?: string }> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/pob/resolve?url=${encodeURIComponent(rawUrl.trim())}`,
       { method: 'GET', cache: 'no-store' }
     );
@@ -782,7 +793,7 @@ export async function fetchUserToolState<T = any>(
 ): Promise<T | null> {
   if (!handle?.trim() || !toolKey?.trim()) return null;
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${getApiBase()}/api/tool-state?handle=${encodeURIComponent(handle.trim())}&key=${encodeURIComponent(toolKey.trim())}&_t=${Date.now()}`,
       { method: 'GET', cache: 'no-store', credentials: 'include' }
     );
@@ -801,7 +812,7 @@ export async function saveUserToolState(
 ): Promise<boolean> {
   if (!handle?.trim() || !toolKey?.trim()) return false;
   try {
-    const res = await fetch(`${getApiBase()}/api/tool-state`, {
+    const res = await apiFetch(`${getApiBase()}/api/tool-state`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
