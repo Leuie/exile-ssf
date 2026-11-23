@@ -127,7 +127,9 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const supportsLiveHandles = typeof window !== 'undefined' && typeof (window as any).showOpenFilePicker === 'function';
   const [charLeagueFilter, setCharLeagueFilter] = useState<string>('ALL');
 
   // Cloud Saved Map Sessions
@@ -687,88 +689,94 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
 
       {/* Control Deck: Client.txt Live Watcher + GGG XP/hr Poller */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Left: Client.txt Start Date & Live Watcher */}
-        <section className="rounded-2xl border border-slate-800 bg-[#0d111a] p-4 space-y-3.5 shadow-lg">
+        {/* Left: Kid Simple 3 Step Client.txt Setup + Drag & Drop */}
+        <section
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            const f = e.dataTransfer?.files?.[0];
+            if (f) parseClientTxtFromStartDate(f, false);
+          }}
+          className={`rounded-2xl border p-4 space-y-3.5 shadow-lg transition-colors ${
+            isDraggingFile ? 'border-emerald-400 bg-emerald-950/20' : 'border-slate-800 bg-[#0d111a]'
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-mono uppercase font-bold text-sky-400 flex items-center gap-1.5">
               <Activity className="w-4 h-4" />
-              <span>1. Realtime Client.txt Watcher (100% Local)</span>
+              <span>1. Connect Your Client.txt (100% Local)</span>
             </div>
             {lastFileReadAt && (
-              <span className="text-[10px] font-mono text-slate-400">Last read: {lastFileReadAt}</span>
+              <span className="text-[10px] font-mono text-emerald-300">Updated {lastFileReadAt}</span>
             )}
           </div>
 
-          {/* Clear 3 Step Setup Walkthrough */}
-          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-1.5 text-[11px] text-slate-300">
-            <div className="font-mono text-[10px] uppercase font-bold text-amber-300">Quick 3 Step Setup:</div>
-            <ol className="list-decimal pl-4 space-y-1 leading-relaxed">
-              <li>
-                <strong className="text-white">Copy your logs folder path</strong> below (Steam or Standalone).
-              </li>
-              <li>
-                <strong className="text-white">Pick your Start Date</strong> using the calendar so only maps from that day onward are counted.
-              </li>
-              <li>
-                Click <strong className="text-emerald-300">Start Live Watch</strong>, paste the folder path into the file picker address bar, select <code className="text-sky-300">Client.txt</code>, and keep this tab open as you play.
-              </li>
-            </ol>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
-            <span>Step 1 (Copy folder):</span>
-            <button
-              type="button"
-              onClick={() => copyClientPath('steam', 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs')}
-              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 inline-flex items-center gap-1 cursor-pointer"
-            >
-              {copiedPath === 'steam' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-400" />}
-              <span>{copiedPath === 'steam' ? 'Copied Steam Path!' : 'Copy Steam Logs Path'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => copyClientPath('standalone', 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs')}
-              className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 inline-flex items-center gap-1 cursor-pointer"
-            >
-              {copiedPath === 'standalone' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-400" />}
-              <span>{copiedPath === 'standalone' ? 'Copied Standalone Path!' : 'Copy Standalone Logs Path'}</span>
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          {/* Super Simple 3 Step Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <button
               type="button"
               onClick={() => setCalendarOpen(true)}
-              className="flex items-center gap-2 bg-slate-950 hover:bg-slate-900 px-3 py-2 rounded-xl border border-amber-500/40 text-left cursor-pointer transition-colors"
+              className="flex items-center justify-between gap-2 bg-slate-950 hover:bg-slate-900 px-3 py-2 rounded-xl border border-amber-500/40 text-left cursor-pointer transition-colors"
             >
-              <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="text-slate-400 font-mono text-[11px]">Start Date:</span>
+              <span className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-slate-400 font-mono text-[11px]">Step 1 • Start Date:</span>
+              </span>
               <span className="text-white font-mono font-bold">{formattedStartDate}</span>
             </button>
 
-            {!watchingLive ? (
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={handleStartLiveWatch}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer shadow"
+                onClick={() => copyClientPath('steam', 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs')}
+                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
               >
-                <Play className="w-3.5 h-3.5" />
-                <span>Start Live Watch (Client.txt)</span>
+                {copiedPath === 'steam' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
+                <span>{copiedPath === 'steam' ? 'Copied!' : 'Steam Folder'}</span>
               </button>
-            ) : (
               <button
                 type="button"
-                onClick={() => setWatchingLive(false)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                onClick={() => copyClientPath('standalone', 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs')}
+                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
               >
-                <Square className="w-3.5 h-3.5" />
-                <span>Stop Live Watch</span>
+                {copiedPath === 'standalone' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
+                <span>{copiedPath === 'standalone' ? 'Copied!' : 'Standalone Folder'}</span>
               </button>
-            )}
+            </div>
+          </div>
 
-            <label className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold inline-flex items-center gap-1.5 cursor-pointer">
-              <Upload className="w-3.5 h-3.5 text-sky-400" />
-              <span>One Time Read</span>
+          {/* Step 2: Big Friendly Action Area (Auto Detects Browser Capability) */}
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            {supportsLiveHandles ? (
+              !watchingLive ? (
+                <button
+                  type="button"
+                  onClick={handleStartLiveWatch}
+                  className="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black inline-flex items-center justify-center gap-2 cursor-pointer shadow"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Step 2 • Start Live Auto Watch (Every 12s)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setWatchingLive(false)}
+                  className="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black inline-flex items-center justify-center gap-2 cursor-pointer shadow"
+                >
+                  <Square className="w-4 h-4" />
+                  <span>Stop Live Auto Watch</span>
+                </button>
+              )
+            ) : null}
+
+            <label className="flex-1 min-w-[180px] px-4 py-2.5 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/35 border border-indigo-400/50 text-white font-bold inline-flex items-center justify-center gap-2 cursor-pointer text-center">
+              <Upload className="w-4 h-4 text-sky-300" />
+              <span>{supportsLiveHandles ? 'Or Drop / Pick Client.txt' : 'Step 2 • Drop or Pick Client.txt'}</span>
               <input
                 type="file"
                 accept=".txt"
@@ -776,10 +784,35 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) parseClientTxtFromStartDate(f, false);
+                  e.target.value = '';
                 }}
               />
             </label>
           </div>
+
+          {/* Friendly Brave Browser 10 Second Unlock Card (Shown ONLY when browser disables live file handles) */}
+          {!supportsLiveHandles && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/35 space-y-2 text-[11px] text-amber-100">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-amber-300">
+                  Using Brave? Unlock 100% Automatic Live Sync in 10 Seconds:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyClientPath('brave_flag', 'brave://flags/#file-system-access-api')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedPath === 'brave_flag' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedPath === 'brave_flag' ? 'Copied Flag URL!' : 'Copy Brave Flag URL'}</span>
+                </button>
+              </div>
+              <ol className="list-decimal pl-4 space-y-0.5 text-slate-300">
+                <li>Click <strong className="text-white">Copy Brave Flag URL</strong> above and paste it into your Brave address bar.</li>
+                <li>Change <strong className="text-white">File System Access API</strong> to <strong className="text-emerald-300">Enabled</strong> and click <strong className="text-white">Relaunch</strong>.</li>
+                <li>Return here and click <strong className="text-emerald-300">Start Live Auto Watch</strong> to track every map automatically! (Or simply drag &amp; drop <code className="text-sky-300">Client.txt</code> onto this box anytime.)</li>
+              </ol>
+            </div>
+          )}
         </section>
 
         {/* Right: Automatic GGG XP/hr Poller + Save Session */}
@@ -911,6 +944,8 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
 
       {/* Charts 4 & 5: Live XP/hr Timeline + Atlas Strategy Speed Comparison */}
       <MapAnalyticsCharts
+        runs={runs}
+        hideoutPct={hideoutPct}
         xpCheckpoints={xpCheckpoints}
         deathTimestamps={deathTimestamps}
         strategyRows={strategyRows}
