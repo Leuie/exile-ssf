@@ -578,12 +578,21 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   onNotify
 }) => {
   const initialSaved = useMemo(() => readSavedSession30d(), []);
+  const lastCharStorageKey = `exile_ssf_last_char_${handle.trim().toLowerCase()}`;
   const [snapshots, setSnapshots] = useState<Record<string, CharacterGearSnapshot>>({});
-  const [selectedChar, setSelectedChar] = useState<string>('');
+  const [selectedChar, setSelectedChar] = useState<string>(() => {
+    try {
+      return localStorage.getItem(lastCharStorageKey) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [userManuallyPickedChar, setUserManuallyPickedChar] = useState<boolean>(false);
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1);
   const [hoveredItem, setHoveredItem] = useState<PaperdollItem | null>(null);
   const [lockedItem, setLockedItem] = useState<PaperdollItem | null>(null);
   const [selectedGemIdx, setSelectedGemIdx] = useState<number | null>(null);
+  const [showSetupMenu, setShowSetupMenu] = useState<boolean>(false);
 
   // User preference: 'popup' (default in game hover modal) or 'side' (side inspector panel)
   const [inspectMode, setInspectMode] = useState<'popup' | 'side'>(() => {
@@ -637,11 +646,46 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
   useEffect(() => {
     let cancelled = false;
+    setUserManuallyPickedChar(false);
     fetchUserToolState(handle, 'character_gear_snapshots')
       .then((saved) => {
         if (cancelled) return;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
-          setSnapshots(saved as Record<string, CharacterGearSnapshot>);
+          const rawObj = saved as Record<string, any>;
+          const cloudLastChar = typeof rawObj.__lastSelectedChar === 'string' ? rawObj.__lastSelectedChar : '';
+          const cleanSnaps: Record<string, CharacterGearSnapshot> = {};
+          for (const [k, v] of Object.entries(rawObj)) {
+            if (!k.startsWith('__') && v && typeof v === 'object' && v.character) {
+              cleanSnaps[k] = v as CharacterGearSnapshot;
+            }
+          }
+          setSnapshots(cleanSnaps);
+
+          // Automatically restore the last opened character (localStorage -> cloud __lastSelectedChar -> most recently synced)
+          const localLast = (() => {
+            try {
+              return localStorage.getItem(lastCharStorageKey) || '';
+            } catch {
+              return '';
+            }
+          })();
+          const snapKeys = Object.keys(cleanSnaps);
+          const findSnapMatch = (candidate: string) =>
+            snapKeys.find((k) => k.toLowerCase() === candidate.toLowerCase()) || '';
+
+          const bestMatch =
+            (localLast && findSnapMatch(localLast)) ||
+            (cloudLastChar && findSnapMatch(cloudLastChar)) ||
+            snapKeys.sort(
+              (a, b) =>
+                (Date.parse(cleanSnaps[b]?.syncedAtIso || '') || 0) -
+                (Date.parse(cleanSnaps[a]?.syncedAtIso || '') || 0)
+            )[0] ||
+            '';
+
+          if (bestMatch) {
+            setSelectedChar((prev) => (userManuallyPickedChar && prev ? prev : bestMatch));
+          }
         }
       })
       .catch(() => {});
@@ -879,12 +923,19 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
       const updatedMap = { ...snapshots, [charKey]: nextSnap };
       setSnapshots(updatedMap);
       setSelectedChar(charKey);
+      try {
+        localStorage.setItem(lastCharStorageKey, charKey);
+      } catch {}
       setLockedItem(null);
       setSelectedGemIdx(null);
       setShowSyncDrawer(false);
+      setShowSetupMenu(false);
 
       if (canEdit) {
-        await saveUserToolState(handle, 'character_gear_snapshots', updatedMap);
+        await saveUserToolState(handle, 'character_gear_snapshots', {
+          ...updatedMap,
+          __lastSelectedChar: charKey
+        });
       }
       onNotify?.(`Synced ${charKey} gear & saved to your Exile Profile!`);
     } catch (e: any) {
@@ -1013,44 +1064,24 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Hover Popup vs Side Panel User Toggle */}
-          <div
-            className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px] font-mono"
-            title="Choose how equipped item tooltips appear"
-          >
-            <button
-              type="button"
-              onClick={() => handleSetInspectMode('popup')}
-              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
-                inspectMode === 'popup'
-                  ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50 font-bold'
-                  : 'text-slate-400 hover:text-white border border-transparent'
-              }`}
-            >
-              <MousePointerClick className="w-3 h-3" />
-              <span>Hover Popup</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetInspectMode('side')}
-              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
-                inspectMode === 'side'
-                  ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/50 font-bold'
-                  : 'text-slate-400 hover:text-white border border-transparent'
-              }`}
-            >
-              <PanelRight className="w-3 h-3" />
-              <span>Side Panel</span>
-            </button>
-          </div>
-
           <select
             value={selectedChar}
             onChange={(e) => {
-              setSelectedChar(e.target.value);
+              const nextChar = e.target.value;
+              setUserManuallyPickedChar(true);
+              setSelectedChar(nextChar);
               setLockedItem(null);
               setHoveredItem(null);
               setSelectedGemIdx(null);
+              try {
+                localStorage.setItem(lastCharStorageKey, nextChar);
+              } catch {}
+              if (canEdit && Object.keys(snapshots).length > 0) {
+                saveUserToolState(handle, 'character_gear_snapshots', {
+                  ...snapshots,
+                  __lastSelectedChar: nextChar
+                }).catch(() => {});
+              }
             }}
             className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-[220px] max-w-xs"
           >
@@ -1070,29 +1101,19 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             )}
           </select>
 
-          {canEdit && hasSavedCreds && selectedChar && (
-            <button
-              type="button"
-              onClick={() => handleSyncCharacterGear()}
-              disabled={syncing}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow"
-              title="Refresh this character's live gear from GGG using your saved 30 day session"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              <span>{syncing ? 'Syncing...' : 'Refresh Gear'}</span>
-            </button>
-          )}
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setShowSyncDrawer((v) => !v)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              <span>{showSyncDrawer ? 'Hide Sync' : hasSavedCreds ? 'GGG Sync' : 'Connect GGG Sync'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowSetupMenu((v) => !v)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              showSetupMenu
+                ? 'bg-indigo-600/30 border-indigo-400/60 text-white'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+            title="Tooltip style, Refresh Gear, and GGG Sync settings"
+          >
+            <Settings2 className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-emerald-400' : 'text-amber-300'}`} />
+            <span>{syncing ? 'Syncing...' : 'Setup'}</span>
+          </button>
 
           {onToggleCollapse && (
             <button
@@ -1109,57 +1130,116 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
       {!collapsed && (
         <>
-          {/* Collapsible Live GGG Sync Drawer */}
-          {canEdit && showSyncDrawer && (
-            <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-[11px] font-mono text-indigo-200">
-                  <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>
-                    Saved locally in your browser for 30 days per our Privacy Policy (never stored on Exile SSF servers).
-                  </span>
+          {/* Clean Collapsible Setup Menu (Tooltip Style, Refresh Gear, and 30 Day GGG Sync) */}
+          {showSetupMenu && (
+            <div className="p-3.5 rounded-xl border border-indigo-500/35 bg-slate-950/90 space-y-3 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-mono text-slate-400">Item Tooltip Mode:</span>
+                  <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[11px] font-mono">
+                    <button
+                      type="button"
+                      onClick={() => handleSetInspectMode('popup')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
+                        inspectMode === 'popup'
+                          ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50 font-bold'
+                          : 'text-slate-400 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <MousePointerClick className="w-3 h-3" />
+                      <span>Hover Popup</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetInspectMode('side')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
+                        inspectMode === 'side'
+                          ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/50 font-bold'
+                          : 'text-slate-400 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <PanelRight className="w-3 h-3" />
+                      <span>Side Panel</span>
+                    </button>
+                  </div>
                 </div>
+
+                {canEdit && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {hasSavedCreds && selectedChar && (
+                      <button
+                        type="button"
+                        onClick={() => handleSyncCharacterGear()}
+                        disabled={syncing}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        <span>{syncing ? 'Syncing...' : 'Refresh Gear'}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowSyncDrawer((v) => !v)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{showSyncDrawer ? 'Hide GGG Credentials' : hasSavedCreds ? 'Edit GGG Sync' : 'Connect GGG Sync'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                <input
-                  type="text"
-                  value={accountInput}
-                  onChange={(e) => setAccountInput(e.target.value)}
-                  placeholder="PoE Account Tag (e.g. Leuie#0626)"
-                  className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
-                />
-                <input
-                  type="password"
-                  value={poesessid}
-                  onChange={(e) => setPoesessid(e.target.value)}
-                  placeholder="POESESSID (saved locally for 30 days)"
-                  className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadLiveCharacters}
-                    disabled={loadingList}
-                    className="flex-1 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] cursor-pointer disabled:opacity-50"
-                  >
-                    {loadingList ? 'Loading...' : '1. Fetch Chars'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSyncCharacterGear()}
-                    disabled={syncing || !selectedChar}
-                    className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer disabled:opacity-50"
-                  >
-                    {syncing ? 'Syncing...' : '2. Sync Gear'}
-                  </button>
-                </div>
-              </div>
+              {/* Nested 30 Day GGG Credentials Form */}
+              {canEdit && (showSyncDrawer || !hasSavedCreds) && (
+                <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-indigo-200">
+                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>
+                      Saved locally in your browser for 30 days per our Privacy Policy (never stored on Exile SSF servers).
+                    </span>
+                  </div>
 
-              {errorMsg && (
-                <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-500/40 rounded-lg px-3 py-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{errorMsg}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <input
+                      type="text"
+                      value={accountInput}
+                      onChange={(e) => setAccountInput(e.target.value)}
+                      placeholder="PoE Account Tag (e.g. Leuie#0626)"
+                      className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
+                    />
+                    <input
+                      type="password"
+                      value={poesessid}
+                      onChange={(e) => setPoesessid(e.target.value)}
+                      placeholder="POESESSID (saved locally for 30 days)"
+                      className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleLoadLiveCharacters}
+                        disabled={loadingList}
+                        className="flex-1 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                      >
+                        {loadingList ? 'Loading...' : '1. Fetch Chars'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncCharacterGear()}
+                        disabled={syncing || !selectedChar}
+                        className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                      >
+                        {syncing ? 'Syncing...' : '2. Sync Gear'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {errorMsg && (
+                    <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-500/40 rounded-lg px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
