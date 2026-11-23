@@ -207,20 +207,8 @@ function classifyPoEAffix(mod: string): 'Prefix' | 'Suffix' {
   return 'Prefix';
 }
 
-const getRarityFrameClasses = (frameType: number): string => {
-  switch (frameType) {
-    case 3:
-      return 'border-orange-500/75 bg-gradient-to-b from-orange-950/50 to-slate-950/90 shadow-[inset_0_0_16px_rgba(249,115,22,0.18)]';
-    case 2:
-      return 'border-amber-400/70 bg-gradient-to-b from-amber-950/40 to-slate-950/90 shadow-[inset_0_0_14px_rgba(251,191,36,0.14)]';
-    case 1:
-      return 'border-sky-400/70 bg-gradient-to-b from-sky-950/45 to-slate-950/90';
-    case 9:
-    case 10:
-      return 'border-emerald-400/75 bg-gradient-to-b from-emerald-950/45 to-slate-950/90';
-    default:
-      return 'border-slate-700/90 bg-slate-950/90';
-  }
+const getRarityFrameClasses = (_frameType: number): string => {
+  return 'border-slate-800/40 bg-slate-950/55 hover:bg-slate-900/75 hover:border-slate-700/70';
 };
 
 const getRarityTitleColor = (frameType: number): string => {
@@ -969,11 +957,11 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             }
           }
         }}
-        className={`relative w-full ${heightClass} rounded-lg border-2 flex flex-col items-center justify-center p-1.5 transition-all overflow-hidden group cursor-pointer ${
+        className={`relative w-full ${heightClass} rounded-lg border flex flex-col items-center justify-center p-1.5 transition-all overflow-hidden group cursor-pointer ${
           item
             ? getRarityFrameClasses(item.frameType)
-            : 'border-slate-800/90 bg-slate-950/75 hover:border-slate-700'
-        } ${isLocked ? 'ring-2 ring-amber-400/90' : ''}`}
+            : 'border-slate-800/40 bg-slate-950/45 hover:border-slate-700/60'
+        } ${isLocked ? 'ring-1 ring-amber-400/80' : ''}`}
       >
         {item ? (
           <>
