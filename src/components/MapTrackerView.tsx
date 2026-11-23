@@ -790,12 +790,12 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             </label>
           </div>
 
-          {/* Friendly Brave Browser 10 Second Unlock Card (Shown ONLY when browser disables live file handles) */}
-          {!supportsLiveHandles && (
+          {/* Friendly Brave / Chrome System Folder Helper */}
+          {!supportsLiveHandles ? (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/35 space-y-2 text-[11px] text-amber-100">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold text-amber-300">
-                  Using Brave? Unlock 100% Automatic Live Sync in 10 Seconds:
+                  Using Brave? Unlock Automatic Live Sync in 10 Seconds:
                 </span>
                 <button
                   type="button"
@@ -807,10 +807,34 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 </button>
               </div>
               <ol className="list-decimal pl-4 space-y-0.5 text-slate-300">
-                <li>Click <strong className="text-white">Copy Brave Flag URL</strong> above and paste it into your Brave address bar.</li>
-                <li>Change <strong className="text-white">File System Access API</strong> to <strong className="text-emerald-300">Enabled</strong> and click <strong className="text-white">Relaunch</strong>.</li>
-                <li>Return here and click <strong className="text-emerald-300">Start Live Auto Watch</strong> to track every map automatically! (Or simply drag &amp; drop <code className="text-sky-300">Client.txt</code> onto this box anytime.)</li>
+                <li>Click <strong className="text-white">Copy Brave Flag URL</strong> and paste it into your Brave address bar.</li>
+                <li>Set <strong className="text-white">File System Access API</strong> to <strong className="text-emerald-300">Enabled</strong> and click <strong className="text-white">Relaunch</strong>.</li>
+                <li>Return here and click <strong className="text-emerald-300">Start Live Auto Watch</strong>!</li>
               </ol>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/30 space-y-2 text-[11px] text-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-sky-300">
+                  Browser says "contains system files" in Program Files? (1 Time 5 Second Fix)
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyClientPath(
+                      'hardlink',
+                      'cmd /c "if exist \\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt\\" (mklink /H \\"%USERPROFILE%\\Documents\\PoE-Client.txt\\" \\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt\\") else (mklink /H \\"%USERPROFILE%\\Documents\\PoE-Client.txt\\" \\"C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs\\Client.txt\\")"'
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  {copiedPath === 'hardlink' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedPath === 'hardlink' ? 'Copied Fix Command!' : 'Copy 1 Click Fix'}</span>
+                </button>
+              </div>
+              <p className="text-slate-300 leading-relaxed">
+                Chrome &amp; Brave block live file handles inside <code className="text-amber-200">C:\Program Files (x86)</code>. Click <strong className="text-white">Copy 1 Click Fix</strong>, press <kbd className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px]">Win + R</kbd>, paste and press Enter. It creates a zero space live link at <strong className="text-emerald-300">Documents\PoE-Client.txt</strong> that updates automatically forever!
+              </p>
             </div>
           )}
         </section>
