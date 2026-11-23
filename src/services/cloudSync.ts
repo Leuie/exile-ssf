@@ -784,7 +784,7 @@ export async function fetchUserToolState<T = any>(
   try {
     const res = await fetch(
       `${getApiBase()}/api/tool-state?handle=${encodeURIComponent(handle.trim())}&key=${encodeURIComponent(toolKey.trim())}&_t=${Date.now()}`,
-      { method: 'GET', cache: 'no-store' }
+      { method: 'GET', cache: 'no-store', credentials: 'include' }
     );
     if (!res.ok) return null;
     const json = await res.json();
@@ -804,6 +804,7 @@ export async function saveUserToolState(
     const res = await fetch(`${getApiBase()}/api/tool-state`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ handle: handle.trim(), toolKey: toolKey.trim(), data })
     });
     return res.ok;

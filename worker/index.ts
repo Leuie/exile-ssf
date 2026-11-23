@@ -1534,8 +1534,8 @@ export default {
               headers: CORS_HEADERS
             });
           }
-          const session = await readVerifiedSession(request, env);
-          if (!session || (session.handle !== handle && !session.isAdmin)) {
+          const toolSession = await readVerifiedSession(request, env);
+          if (!toolSession || (toolSession.handle.trim().toLowerCase() !== handle && !toolSession.isAdmin)) {
             return new Response(JSON.stringify({ error: 'You may only save tool state for your own signed in account.' }), {
               status: 403,
               headers: CORS_HEADERS

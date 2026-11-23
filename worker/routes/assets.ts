@@ -856,23 +856,26 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
 
       const [stashRowsRes, mapRowsRes] = await Promise.all([
         env.EXILE_DB.prepare(`SELECT handle_lower, data, updated_at FROM farming_stash_state ORDER BY updated_at DESC LIMIT 100`).all(),
-        env.EXILE_DB.prepare(`SELECT handle_lower, data FROM map_tracker_sessions ORDER BY created_at DESC LIMIT 200`).all().catch(() => ({ results: [] }))
+        env.EXILE_DB.prepare(`SELECT handle_lower, data FROM user_tool_state WHERE tool_key = 'map_tracker_sessions' LIMIT 100`).all().catch(() => ({ results: [] }))
       ]);
 
-      // Aggregate Map Tracker telemetry per handle
+      // Aggregate Map Tracker telemetry per handle from user_tool_state (map_tracker_sessions array)
       const mapTelemetryByHandle = new Map<string, { totalMaps: number; totalMapSec: number; bestXpPerHr: number; mapSessions: number }>();
       for (const row of mapRowsRes?.results || []) {
         try {
           const h = String(row.handle_lower || '').toLowerCase();
-          const d = JSON.parse(row.data);
-          const maps = Number(d?.totalMaps || (Array.isArray(d?.runs) ? d.runs.length : 0) || 0);
-          const avgSec = Number(d?.avgMapSeconds || 0);
-          const xpHr = Number(d?.xpPerHour || 0);
+          const sessionsArr = JSON.parse(row.data);
+          if (!Array.isArray(sessionsArr)) continue;
           const cur = mapTelemetryByHandle.get(h) || { totalMaps: 0, totalMapSec: 0, bestXpPerHr: 0, mapSessions: 0 };
-          cur.totalMaps += maps;
-          cur.totalMapSec += maps * avgSec;
-          if (xpHr > cur.bestXpPerHr) cur.bestXpPerHr = xpHr;
-          cur.mapSessions += 1;
+          for (const d of sessionsArr) {
+            const maps = Number(d?.mapsCompleted || d?.totalMaps || 0);
+            const avgSec = Number(d?.avgMapSec || d?.avgMapSeconds || 0);
+            const xpHr = Number(d?.xpPerHrM || 0) * 1_000_000;
+            cur.totalMaps += maps;
+            cur.totalMapSec += maps * avgSec;
+            if (xpHr > cur.bestXpPerHr) cur.bestXpPerHr = xpHr;
+            cur.mapSessions += 1;
+          }
           mapTelemetryByHandle.set(h, cur);
         } catch {}
       }

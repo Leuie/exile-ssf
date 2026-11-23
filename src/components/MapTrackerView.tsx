@@ -132,8 +132,16 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const supportsLiveHandles = typeof window !== 'undefined' && typeof (window as any).showOpenFilePicker === 'function';
   const [charLeagueFilter, setCharLeagueFilter] = useState<string>('ALL');
 
-  // Cloud Saved Map Sessions
-  const [savedSessions, setSavedSessions] = useState<SavedMapSession[]>([]);
+  // Cloud Saved Map Sessions (with localStorage backup so sessions are never lost)
+  const [savedSessions, setSavedSessions] = useState<SavedMapSession[]>(() => {
+    try {
+      const raw = localStorage.getItem('exile_ssf_map_sessions_v1');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [cloudSynced, setCloudSynced] = useState<boolean>(false);
   const [savingCloud, setSavingCloud] = useState<boolean>(false);
 
@@ -177,11 +185,24 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   }, [selectedGame]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('exile_ssf_map_sessions_v1', JSON.stringify(savedSessions.slice(0, 40)));
+    } catch {}
+  }, [savedSessions]);
+
+  useEffect(() => {
     if (!userAccount?.displayName) return;
     let cancelled = false;
     fetchUserToolState<SavedMapSession[]>(userAccount.displayName, 'map_tracker_sessions').then((data) => {
       if (!cancelled && Array.isArray(data)) {
-        setSavedSessions(data);
+        setSavedSessions((prev) => {
+          const merged = new Map<string, SavedMapSession>();
+          for (const s of data) if (s?.id) merged.set(s.id, s);
+          for (const s of prev) if (s?.id && !merged.has(s.id)) merged.set(s.id, s);
+          return Array.from(merged.values())
+            .sort((a, b) => String(b.savedAtIso || '').localeCompare(String(a.savedAtIso || '')))
+            .slice(0, 40);
+        });
         setCloudSynced(true);
       }
     });

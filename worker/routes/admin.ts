@@ -182,7 +182,7 @@ export async function handleAdminAndGovernanceRoutes(ctx: AdminRouteContext): Pr
         db.prepare('SELECT league_id, data FROM wishlists').all(),
         db.prepare('SELECT COUNT(*) as cnt FROM accounts').first(),
         db.prepare('SELECT COUNT(*) as cnt FROM farming_sessions').first(),
-        db.prepare('SELECT COUNT(*) as cnt FROM map_tracker_sessions').first().catch(() => ({ cnt: 0 })),
+        db.prepare("SELECT data FROM user_tool_state WHERE tool_key = 'map_tracker_sessions'").all().catch(() => ({ results: [] })),
         db.prepare('SELECT id, data FROM feedback').all(),
         db.prepare("SELECT league_id, data FROM league_meta WHERE league_id LIKE 'staff:%' OR league_id LIKE 'league_override:%'").all()
       ]);
@@ -281,7 +281,14 @@ export async function handleAdminAndGovernanceRoutes(ctx: AdminRouteContext): Pr
             totalOpenWishes,
             totalFulfilledWishes,
             totalFarmingSessions: Number(farmingCountRes?.cnt || 0),
-            totalMapSessions: Number(mapCountRes?.cnt || 0),
+            totalMapSessions: (mapCountRes?.results || []).reduce((sum: number, r: any) => {
+              try {
+                const arr = JSON.parse(r.data);
+                return sum + (Array.isArray(arr) ? arr.length : 0);
+              } catch {
+                return sum;
+              }
+            }, 0),
             totalFeedback: feedbackList.length,
             openFeedback: feedbackList.filter((f: any) => f.status !== 'implemented').length
           },
