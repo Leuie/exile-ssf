@@ -12,7 +12,10 @@ import {
   Compass,
   ChevronDown,
   ChevronUp,
-  Settings2
+  Settings2,
+  X,
+  PanelRight,
+  MousePointerClick
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
@@ -34,6 +37,12 @@ export interface PaperdollGem {
   mods?: string[];
 }
 
+export interface PaperdollExtendedAffix {
+  name: string;
+  tier: string;
+  kind: 'Prefix' | 'Suffix' | '';
+}
+
 export interface PaperdollItem {
   id: string;
   inventoryId: string;
@@ -46,6 +55,7 @@ export interface PaperdollItem {
   ilvl: number;
   corrupted: boolean;
   properties?: Array<{ name: string; value: string }>;
+  extendedAffixes?: PaperdollExtendedAffix[];
   sockets: PaperdollSocket[];
   socketedGems: PaperdollGem[];
   implicitMods: string[];
@@ -100,6 +110,7 @@ export interface CharacterPaperdollViewProps {
 
 const POESESSID_STORAGE_KEY = 'exile_ssf_poesessid_optin_v1';
 const SYNCED_VITALS_STORAGE_KEY = 'exile_ssf_synced_gear_vitals_v1';
+const INSPECT_MODE_STORAGE_KEY = 'exile_ssf_paperdoll_inspect_mode_v1';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function readSavedSession30d(): { poesessid: string; accountName: string } {
@@ -148,6 +159,28 @@ function leaguePriorityScore(league: string): number {
   return 20;
 }
 
+// Accurate PoE Prefix vs Suffix classifier for Magic & Rare gear
+function classifyPoEAffix(mod: string): 'Prefix' | 'Suffix' {
+  const m = mod.toLowerCase();
+  // Suffix patterns (Resistances, Attributes, Speed, Crit, Suppression, Accuracy, Regen, Stun/Ailment, Flask suffixes)
+  if (
+    /resistance|resistances/i.test(m) ||
+    /\+\d+ to (strength|dexterity|intelligence|all attributes)/i.test(m) ||
+    /(attack speed|cast speed|attack and cast speed)/i.test(m) ||
+    /(critical strike chance|critical strike multiplier)/i.test(m) ||
+    /suppress spell damage/i.test(m) ||
+    /accuracy rating/i.test(m) ||
+    /(regenerate|regeneration rate|life regenerated|mana regeneration)/i.test(m) ||
+    /(stun and block recovery|stun threshold|chance to avoid|reduced effect of|cannot be frozen|cannot be chilled|cannot be shocked|immunity to|remove bleeding|remove poison|remove curses)/i.test(m) ||
+    /(reduced attribute requirements|light radius|chance to ignite|chance to freeze|chance to shock|chance to poison|chance to cause bleeding|damage over time multiplier|chaos damage over time|fire damage over time|physical damage over time)/i.test(m) ||
+    /(life gained for each enemy hit|life gained on kill|mana gained on kill|flask charges|reduced charges used|during effect)/i.test(m)
+  ) {
+    return 'Suffix';
+  }
+  // Prefix patterns (Life, ES, Armour, Evasion, Ward, Movement Speed, Flat/Increased Damage, Mana, +Gem Levels, Leech, Rarity)
+  return 'Prefix';
+}
+
 const getRarityFrameClasses = (frameType: number): string => {
   switch (frameType) {
     case 3:
@@ -177,6 +210,22 @@ const getRarityTitleColor = (frameType: number): string => {
       return 'text-emerald-300';
     default:
       return 'text-slate-100';
+  }
+};
+
+const getRarityBorderAccent = (frameType: number): string => {
+  switch (frameType) {
+    case 3:
+      return 'border-orange-500/70';
+    case 2:
+      return 'border-amber-400/70';
+    case 1:
+      return 'border-sky-400/70';
+    case 9:
+    case 10:
+      return 'border-emerald-400/70';
+    default:
+      return 'border-slate-700';
   }
 };
 
@@ -232,6 +281,279 @@ const SocketOverlay: React.FC<{ sockets: PaperdollSocket[] }> = ({ sockets }) =>
   );
 };
 
+interface ItemInspectorBodyProps {
+  item: PaperdollItem;
+  canEdit: boolean;
+  selectedGemIdx: number | null;
+  onSelectGemIdx: (idx: number | null) => void;
+  isPinnedPopup?: boolean;
+  onClosePinned?: () => void;
+}
+
+const cleanModList = (arr?: string[]) =>
+  (Array.isArray(arr) ? arr : []).filter((m) => typeof m === 'string' && m.trim() && m !== '[object Object]');
+
+const ItemInspectorBody: React.FC<ItemInspectorBodyProps> = ({
+  item,
+  canEdit,
+  selectedGemIdx,
+  onSelectGemIdx,
+  isPinnedPopup = false,
+  onClosePinned
+}) => {
+  const isRareOrMagic = item.frameType === 1 || item.frameType === 2;
+  const enchants = cleanModList(item.enchantMods);
+  const implicits = cleanModList(item.implicitMods);
+  const fractured = cleanModList(item.fracturedMods);
+  const explicits = cleanModList(item.explicitMods);
+  const crafted = cleanModList(item.craftedMods);
+
+  const hasStaleObjectMods = [...(item.explicitMods || []), ...(item.implicitMods || [])].some(
+    (m) => m === '[object Object]'
+  );
+
+  // Classify explicit + fractured + crafted mods into Prefixes and Suffixes on Magic / Rare items
+  const classifiedExplicits = explicits.map((text, idx) => {
+    const ext = item.extendedAffixes?.[idx];
+    const kind: 'Prefix' | 'Suffix' =
+      ext?.kind === 'Prefix' || ext?.kind === 'Suffix' ? ext.kind : classifyPoEAffix(text);
+    return { text, kind, tier: ext?.tier || '' };
+  });
+
+  const classifiedFractured = fractured.map((text) => ({
+    text,
+    kind: classifyPoEAffix(text)
+  }));
+
+  const classifiedCrafted = crafted.map((text) => ({
+    text,
+    kind: classifyPoEAffix(text)
+  }));
+
+  const prefixCount = isRareOrMagic
+    ? classifiedExplicits.filter((m) => m.kind === 'Prefix').length +
+      classifiedFractured.filter((m) => m.kind === 'Prefix').length +
+      classifiedCrafted.filter((m) => m.kind === 'Prefix').length
+    : 0;
+  const suffixCount = isRareOrMagic
+    ? classifiedExplicits.filter((m) => m.kind === 'Suffix').length +
+      classifiedFractured.filter((m) => m.kind === 'Suffix').length +
+      classifiedCrafted.filter((m) => m.kind === 'Suffix').length
+    : 0;
+
+  const sortedExplicits = isRareOrMagic
+    ? [
+        ...classifiedExplicits.filter((m) => m.kind === 'Prefix'),
+        ...classifiedExplicits.filter((m) => m.kind === 'Suffix')
+      ]
+    : classifiedExplicits;
+
+  return (
+    <div className="space-y-2.5 text-left">
+      {/* Header */}
+      <div className="border-b border-slate-800 pb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className={`text-sm font-bold leading-tight ${getRarityTitleColor(item.frameType)}`}>
+            {item.name || item.baseType}
+          </div>
+          {item.name && item.baseType && item.name !== item.baseType && (
+            <div className="text-[11px] font-mono text-slate-400">{item.baseType}</div>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] font-mono text-slate-500">
+            <span>iLvl {item.ilvl}</span>
+            <span>• {item.inventoryId}</span>
+            {isRareOrMagic && (prefixCount > 0 || suffixCount > 0) && (
+              <span className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-700 text-slate-300 font-bold">
+                <span className="text-emerald-300">{prefixCount}P</span>
+                {' / '}
+                <span className="text-purple-300">{suffixCount}S</span>
+              </span>
+            )}
+            {item.corrupted && <span className="text-rose-400 font-bold">Corrupted</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <a
+            href={buildPoeWikiUrl(item.name || item.baseType, 'poe1')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1"
+          >
+            <span>Wiki</span>
+            <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+          {isPinnedPopup && onClosePinned && (
+            <button
+              type="button"
+              onClick={onClosePinned}
+              className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              title="Close pinned item tooltip"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Base Properties */}
+      {Array.isArray(item.properties) && item.properties.length > 0 && (
+        <div className="space-y-0.5 text-[11px] font-mono border-b border-slate-800/70 pb-1.5">
+          {item.properties.map((prop, i) => (
+            <div key={i} className="text-slate-400">
+              <span>{prop.name}</span>
+              {prop.value && <span className="text-slate-100 font-semibold">: {prop.value}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasStaleObjectMods && canEdit && (
+        <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/35 text-[11px] text-amber-200">
+          Click Refresh Gear above to load full item stats and socket colors.
+        </div>
+      )}
+
+      {/* Enchants */}
+      {enchants.length > 0 && (
+        <div className="space-y-1 border-b border-slate-800/70 pb-1.5">
+          {enchants.map((m, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px] text-cyan-300">
+              <span className="mt-0.5 px-1 py-0.2 rounded bg-cyan-950/90 border border-cyan-500/40 text-[9px] font-mono font-bold text-cyan-300 shrink-0">
+                ENCH
+              </span>
+              <span>{m}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Implicits */}
+      {implicits.length > 0 && (
+        <div className="space-y-1 border-b border-slate-800/70 pb-1.5">
+          {implicits.map((m, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px] text-sky-300">
+              <span className="mt-0.5 px-1 py-0.2 rounded bg-sky-950/90 border border-sky-500/40 text-[9px] font-mono font-bold text-sky-300 shrink-0">
+                IMP
+              </span>
+              <span>{m}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Fractured, Explicit (Prefix / Suffix), & Crafted Mods */}
+      {(classifiedFractured.length > 0 || sortedExplicits.length > 0 || classifiedCrafted.length > 0) && (
+        <div className="space-y-1 text-[11px]">
+          {classifiedFractured.map((m, i) => (
+            <div key={`f-${i}`} className="flex items-start gap-1.5 text-amber-200">
+              <span className="mt-0.5 px-1 py-0.2 rounded bg-amber-950/90 border border-amber-400/50 text-[9px] font-mono font-bold text-amber-300 shrink-0">
+                {isRareOrMagic ? (m.kind === 'Prefix' ? 'FRAC P' : 'FRAC S') : 'FRAC'}
+              </span>
+              <span>{m.text}</span>
+            </div>
+          ))}
+
+          {sortedExplicits.map((m, i) => (
+            <div key={`e-${i}`} className="flex items-start gap-1.5 text-indigo-200">
+              {isRareOrMagic && (
+                <span
+                  className={`mt-0.5 px-1 py-0.2 rounded border text-[9px] font-mono font-bold shrink-0 ${
+                    m.kind === 'Prefix'
+                      ? 'bg-emerald-950/90 border-emerald-500/45 text-emerald-300'
+                      : 'bg-purple-950/90 border-purple-500/45 text-purple-300'
+                  }`}
+                  title={m.tier ? `${m.kind} (${m.tier})` : m.kind}
+                >
+                  {m.tier ? m.tier : m.kind === 'Prefix' ? 'PRE' : 'SUF'}
+                </span>
+              )}
+              <span>{m.text}</span>
+            </div>
+          ))}
+
+          {classifiedCrafted.map((m, i) => (
+            <div key={`c-${i}`} className="flex items-start gap-1.5 text-sky-200">
+              <span className="mt-0.5 px-1 py-0.2 rounded bg-sky-950/90 border border-sky-400/45 text-[9px] font-mono font-bold text-sky-300 shrink-0">
+                {isRareOrMagic ? (m.kind === 'Prefix' ? 'CRAFT P' : 'CRAFT S') : 'CRAFT'}
+              </span>
+              <span>{m.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Socketed Gems */}
+      {item.socketedGems.length > 0 && (
+        <div className="pt-2 border-t border-slate-800 space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400">
+            <span className="flex items-center gap-1">
+              <Layers className="w-3 h-3" />
+              <span>Socketed Gems ({item.socketedGems.length})</span>
+            </span>
+            <span className="text-slate-500 normal-case">
+              {isPinnedPopup ? 'Click gem for stats' : 'Click item to inspect gems'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {item.socketedGems.map((g, i) => {
+              const active = selectedGemIdx === i;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onSelectGemIdx(active ? null : i)}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-mono cursor-pointer transition-colors ${
+                    active
+                      ? 'bg-indigo-600/30 border-indigo-400 text-white'
+                      : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full border ${getSocketColorClasses(g.colour)}`} />
+                  {g.icon && <img src={g.icon} alt="" className="w-3.5 h-3.5 object-contain" />}
+                  <span>{g.name}</span>
+                  <span className="text-slate-400">
+                    {g.level > 0 ? `Lv${g.level}` : ''}
+                    {g.quality > 0 ? `/${g.quality}%` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedGemIdx !== null && item.socketedGems[selectedGemIdx] && (
+            <div className="p-2.5 rounded-lg bg-slate-900/90 border border-indigo-500/35 space-y-1 text-[11px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-indigo-200">
+                  {item.socketedGems[selectedGemIdx].name}
+                </span>
+                <a
+                  href={buildPoeWikiUrl(item.socketedGems[selectedGemIdx].name, 'poe1')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-mono text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                >
+                  <span>PoE Wiki</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+              {item.socketedGems[selectedGemIdx].description && (
+                <div className="text-slate-300 text-[10px]">
+                  {item.socketedGems[selectedGemIdx].description}
+                </div>
+              )}
+              {cleanModList(item.socketedGems[selectedGemIdx].mods).map((m, idx) => (
+                <div key={idx} className="text-sky-200 text-[10px]">
+                  {m}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   handle,
   poeAccountName,
@@ -249,6 +571,37 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   const [lockedItem, setLockedItem] = useState<PaperdollItem | null>(null);
   const [selectedGemIdx, setSelectedGemIdx] = useState<number | null>(null);
 
+  // User preference: 'popup' (default in game hover modal) or 'side' (side inspector panel)
+  const [inspectMode, setInspectMode] = useState<'popup' | 'side'>(() => {
+    try {
+      const saved = localStorage.getItem(INSPECT_MODE_STORAGE_KEY);
+      return saved === 'side' ? 'side' : 'popup';
+    } catch {
+      return 'popup';
+    }
+  });
+  const [popupCoords, setPopupCoords] = useState<{ left: number; top: number } | null>(null);
+
+  const handleSetInspectMode = (mode: 'popup' | 'side') => {
+    setInspectMode(mode);
+    setLockedItem(null);
+    setHoveredItem(null);
+    try {
+      localStorage.setItem(INSPECT_MODE_STORAGE_KEY, mode);
+    } catch {}
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLockedItem(null);
+        setHoveredItem(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const [accountInput, setAccountInput] = useState<string>(
     poeAccountName || initialSaved.accountName || ''
   );
@@ -259,7 +612,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   const [syncing, setSyncing] = useState<boolean>(false);
   const [loadingList, setLoadingList] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Auto hide GGG Sync drawer when user already has saved 30d credentials
   const [showSyncDrawer, setShowSyncDrawer] = useState<boolean>(false);
   const [vitalsPushed, setVitalsPushed] = useState<boolean>(false);
 
@@ -269,7 +621,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     }
   }, [poeAccountName, accountInput]);
 
-  // Load persisted character gear snapshots from Cloudflare D1 for this Exile Profile
   useEffect(() => {
     let cancelled = false;
     fetchUserToolState(handle, 'character_gear_snapshots')
@@ -285,7 +636,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     };
   }, [handle]);
 
-  // Build league grouped character selector prioritizing recent leagues & characters
+  // League grouped character selector prioritizing recent leagues & characters
   const groupedCharacters = useMemo(() => {
     interface CharOpt {
       name: string;
@@ -413,7 +764,26 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     return list;
   }, [activeSnapshot]);
 
-  const inspectedItem = hoveredItem || lockedItem;
+  const inspectedItem = lockedItem || hoveredItem;
+
+  const computePopupPosition = (el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    const tooltipW = 360;
+    const tooltipH = 380;
+    const pad = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = rect.right + pad;
+    if (left + tooltipW > vw - pad) {
+      left = Math.max(pad, rect.left - tooltipW - pad);
+    }
+    let top = rect.top;
+    if (top + tooltipH > vh - pad) {
+      top = Math.max(pad, vh - tooltipH - pad);
+    }
+    setPopupCoords({ left, top });
+  };
 
   const handleLoadLiveCharacters = async () => {
     if (!accountInput.trim() || !poesessid.trim()) {
@@ -495,7 +865,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
       setSelectedChar(charKey);
       setLockedItem(null);
       setSelectedGemIdx(null);
-      // Auto hide GGG Sync drawer after successful sync
       setShowSyncDrawer(false);
 
       if (canEdit) {
@@ -542,17 +911,34 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     return (
       <button
         type="button"
-        onMouseEnter={() => {
+        onMouseEnter={(e) => {
           if (item) {
-            setHoveredItem(item);
-            setSelectedGemIdx(null);
+            if (!lockedItem) {
+              setHoveredItem(item);
+              setSelectedGemIdx(null);
+              if (inspectMode === 'popup') {
+                computePopupPosition(e.currentTarget);
+              }
+            }
           }
         }}
-        onMouseLeave={() => setHoveredItem(null)}
-        onClick={() => {
+        onMouseLeave={() => {
+          if (!lockedItem) {
+            setHoveredItem(null);
+          }
+        }}
+        onClick={(e) => {
           if (item) {
-            setLockedItem(isLocked ? null : item);
-            setSelectedGemIdx(null);
+            if (isLocked) {
+              setLockedItem(null);
+            } else {
+              setLockedItem(item);
+              setHoveredItem(null);
+              setSelectedGemIdx(null);
+              if (inspectMode === 'popup') {
+                computePopupPosition(e.currentTarget);
+              }
+            }
           }
         }}
         className={`relative w-full ${heightClass} rounded-lg border-2 flex flex-col items-center justify-center p-1.5 transition-all overflow-hidden group cursor-pointer ${
@@ -560,7 +946,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             ? getRarityFrameClasses(item.frameType)
             : 'border-slate-800/90 bg-slate-950/75 hover:border-slate-700'
         } ${isLocked ? 'ring-2 ring-amber-400/90' : ''}`}
-        title={item ? `${item.name || item.baseType} (${item.baseType})` : `Empty ${label} slot`}
       >
         {item ? (
           <>
@@ -593,20 +978,10 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   const activeOffhand = slotItem(weaponSet === 1 ? 'Offhand' : 'Offhand2');
   const hasSavedCreds = Boolean(accountInput.trim() && poesessid.trim());
 
-  const cleanModList = (arr?: string[]) =>
-    (Array.isArray(arr) ? arr : []).filter((m) => typeof m === 'string' && m.trim() && m !== '[object Object]');
-
-  const hasStaleObjectMods = Boolean(
-    inspectedItem &&
-      [...(inspectedItem.explicitMods || []), ...(inspectedItem.implicitMods || [])].some(
-        (m) => m === '[object Object]'
-      )
-  );
-
   return (
     <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-slate-950 via-slate-900/95 to-slate-950 shadow-2xl space-y-4">
-      {/* Header & League Sorted Character Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/90 pb-3">
+      {/* Header, Tooltip Mode Toggle & League Sorted Character Selector */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-800/90 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
             <Shield className="w-5 h-5" />
@@ -616,17 +991,49 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
               Character
             </h2>
             <p className="text-[11px] font-mono text-slate-400">
-              Select any character to inspect equipped gear, stats, gem links, flasks, and live vitals.
+              Hover any equipped item for in game stats, Implicits, Prefixes, Suffixes &amp; Gems. Click to pin.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Hover Popup vs Side Panel User Toggle */}
+          <div
+            className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px] font-mono"
+            title="Choose how equipped item tooltips appear"
+          >
+            <button
+              type="button"
+              onClick={() => handleSetInspectMode('popup')}
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
+                inspectMode === 'popup'
+                  ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50 font-bold'
+                  : 'text-slate-400 hover:text-white border border-transparent'
+              }`}
+            >
+              <MousePointerClick className="w-3 h-3" />
+              <span>Hover Popup</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetInspectMode('side')}
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors ${
+                inspectMode === 'side'
+                  ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/50 font-bold'
+                  : 'text-slate-400 hover:text-white border border-transparent'
+              }`}
+            >
+              <PanelRight className="w-3 h-3" />
+              <span>Side Panel</span>
+            </button>
+          </div>
+
           <select
             value={selectedChar}
             onChange={(e) => {
               setSelectedChar(e.target.value);
               setLockedItem(null);
+              setHoveredItem(null);
               setSelectedGemIdx(null);
             }}
             className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-[220px] max-w-xs"
@@ -686,7 +1093,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
       {!collapsed && (
         <>
-          {/* Collapsible Live GGG Sync Drawer (Auto hides once session is saved for 30 days) */}
+          {/* Collapsible Live GGG Sync Drawer */}
           {canEdit && showSyncDrawer && (
             <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -742,7 +1149,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             </div>
           )}
 
-          {/* Main Paperdoll + Inspector Grid */}
+          {/* Main Paperdoll + Telemetry / Optional Side Panel Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Authentic PoE Inventory Paperdoll Frame */}
             <div className="lg:col-span-7 p-4 rounded-2xl border-2 border-amber-700/40 bg-[radial-gradient(ellipse_at_top,_rgba(30,41,59,0.65),_rgba(2,6,23,0.95))] shadow-inner space-y-3">
@@ -784,7 +1191,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
               {/* 3 Column Authentic PoE Equipment Grid */}
               <div className="grid grid-cols-12 gap-2.5 items-stretch">
-                {/* Left Column: Weapon + Ring 1 + Gloves */}
                 <div className="col-span-4 flex flex-col gap-2.5">
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="col-span-2">{renderSlot(activeWeapon, `Weapon ${weaponSet === 1 ? 'I' : 'II'}`, 'h-44')}</div>
@@ -795,14 +1201,12 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   <div className="pl-6">{renderSlot(slotItem('Gloves'), 'Gloves', 'h-24')}</div>
                 </div>
 
-                {/* Center Column: Helm + Body Armour + Belt */}
                 <div className="col-span-4 flex flex-col gap-2.5">
                   {renderSlot(slotItem('Helm'), 'Helm', 'h-24')}
                   {renderSlot(slotItem('BodyArmour'), 'Body Armour', 'h-32')}
                   {renderSlot(slotItem('Belt'), 'Belt', 'h-12')}
                 </div>
 
-                {/* Right Column: Amulet + Ring 2 + Offhand + Boots */}
                 <div className="col-span-4 flex flex-col gap-2.5">
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="col-span-1 flex flex-col gap-2 justify-end">
@@ -825,9 +1229,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
               </div>
             </div>
 
-            {/* Right Side: Live Item Tooltip Inspector & Character Vitals */}
+            {/* Right Column: Character Telemetry + (Side Inspector when Side Panel mode is active) */}
             <div className="lg:col-span-5 space-y-3">
-              {/* Vitals & Passive Summary Card */}
               {activeSnapshot ? (
                 <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/80 space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -913,162 +1316,80 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                 </div>
               )}
 
-              {/* PoE Item Stats, Mods & Socketed Gem Inspector */}
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/90 min-h-[260px] space-y-2.5">
-                {inspectedItem ? (
-                  <>
-                    <div className="border-b border-slate-800 pb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <div className={`text-sm font-bold leading-tight ${getRarityTitleColor(inspectedItem.frameType)}`}>
-                          {inspectedItem.name || inspectedItem.baseType}
-                        </div>
-                        {inspectedItem.name && inspectedItem.baseType && inspectedItem.name !== inspectedItem.baseType && (
-                          <div className="text-[11px] font-mono text-slate-400">{inspectedItem.baseType}</div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] font-mono text-slate-500">
-                          <span>iLvl {inspectedItem.ilvl}</span>
-                          <span>• {inspectedItem.inventoryId}</span>
-                          {inspectedItem.corrupted && <span className="text-rose-400 font-bold">Corrupted</span>}
-                        </div>
-                      </div>
-                      <a
-                        href={buildPoeWikiUrl(inspectedItem.name || inspectedItem.baseType, 'poe1')}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1 shrink-0"
-                      >
-                        <span>Wiki</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    </div>
-
-                    {/* Item Base Properties (Armour, Evasion, ES, Weapon DPS, Flask stats) */}
-                    {Array.isArray(inspectedItem.properties) && inspectedItem.properties.length > 0 && (
-                      <div className="space-y-0.5 text-[11px] font-mono border-b border-slate-800/70 pb-1.5">
-                        {inspectedItem.properties.map((prop, i) => (
-                          <div key={i} className="text-slate-400">
-                            <span>{prop.name}</span>
-                            {prop.value && <span className="text-slate-100 font-semibold">: {prop.value}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {hasStaleObjectMods && canEdit && (
-                      <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/35 text-[11px] text-amber-200 flex items-center justify-between gap-2">
-                        <span>Click Refresh Gear above to load full item stats and socket colors.</span>
-                      </div>
-                    )}
-
-                    {cleanModList(inspectedItem.enchantMods).length > 0 && (
-                      <div className="space-y-0.5 text-[11px] text-cyan-300">
-                        {cleanModList(inspectedItem.enchantMods).map((m, i) => (
-                          <div key={i}>{m}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    {cleanModList(inspectedItem.implicitMods).length > 0 && (
-                      <div className="space-y-0.5 text-[11px] text-sky-300 border-b border-slate-800/70 pb-1.5">
-                        {cleanModList(inspectedItem.implicitMods).map((m, i) => (
-                          <div key={i}>{m}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="space-y-0.5 text-[11px]">
-                      {cleanModList(inspectedItem.fracturedMods).map((m, i) => (
-                        <div key={`f-${i}`} className="text-amber-200">{m}</div>
-                      ))}
-                      {cleanModList(inspectedItem.explicitMods).map((m, i) => (
-                        <div key={`e-${i}`} className="text-indigo-200">{m}</div>
-                      ))}
-                      {cleanModList(inspectedItem.craftedMods).map((m, i) => (
-                        <div key={`c-${i}`} className="text-sky-200">{m} (crafted)</div>
-                      ))}
-                    </div>
-
-                    {/* Socketed Gems with Clickable Gem Stat Details */}
-                    {inspectedItem.socketedGems.length > 0 && (
-                      <div className="pt-2 border-t border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <Layers className="w-3 h-3" />
-                            <span>Socketed Gems ({inspectedItem.socketedGems.length})</span>
-                          </span>
-                          <span className="text-slate-500 normal-case">Click gem for stats</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {inspectedItem.socketedGems.map((g, i) => {
-                            const active = selectedGemIdx === i;
-                            return (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => setSelectedGemIdx(active ? null : i)}
-                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-mono cursor-pointer transition-colors ${
-                                  active
-                                    ? 'bg-indigo-600/30 border-indigo-400 text-white'
-                                    : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
-                                }`}
-                              >
-                                <span
-                                  className={`w-2 h-2 rounded-full border ${getSocketColorClasses(g.colour)}`}
-                                />
-                                {g.icon && <img src={g.icon} alt="" className="w-3.5 h-3.5 object-contain" />}
-                                <span>{g.name}</span>
-                                <span className="text-slate-400">
-                                  {g.level > 0 ? `Lv${g.level}` : ''}
-                                  {g.quality > 0 ? `/${g.quality}%` : ''}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {selectedGemIdx !== null && inspectedItem.socketedGems[selectedGemIdx] && (
-                          <div className="p-2.5 rounded-lg bg-slate-900/90 border border-indigo-500/35 space-y-1 text-[11px]">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-indigo-200">
-                                {inspectedItem.socketedGems[selectedGemIdx].name}
-                              </span>
-                              <a
-                                href={buildPoeWikiUrl(inspectedItem.socketedGems[selectedGemIdx].name, 'poe1')}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[10px] font-mono text-sky-400 hover:text-sky-300 flex items-center gap-1"
-                              >
-                                <span>PoE Wiki</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            </div>
-                            {inspectedItem.socketedGems[selectedGemIdx].description && (
-                              <div className="text-slate-300 text-[10px]">
-                                {inspectedItem.socketedGems[selectedGemIdx].description}
-                              </div>
-                            )}
-                            {cleanModList(inspectedItem.socketedGems[selectedGemIdx].mods).map((m, idx) => (
-                              <div key={idx} className="text-sky-200 text-[10px]">
-                                {m}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center text-xs text-slate-500 space-y-1.5">
-                    <Shield className="w-6 h-6 text-slate-700" />
-                    <div className="font-mono">Hover or click any equipped item slot</div>
-                    <div className="text-[11px] text-slate-600">
-                      Inspect full item stats, mods, socket links, and socketed gems.
-                    </div>
+              {/* Affix Legend Pill Card in Hover Popup Mode, OR Full Side Panel in Side Mode */}
+              {inspectMode === 'popup' ? (
+                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/75 space-y-2 text-[11px]">
+                  <div className="font-mono font-bold uppercase text-amber-300 text-[10px] tracking-wider">
+                    In Game Hover Tooltip Active
                   </div>
-                )}
-              </div>
+                  <p className="text-slate-400 leading-relaxed">
+                    Hover any equipped gear or flask slot to pop up its full tooltip right over the inventory. <strong className="text-slate-200">Click any slot</strong> to pin the popup open so you can click socketed gems or open PoE Wiki.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[9px] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-sky-950 border border-sky-500/40 text-sky-300 font-bold">IMP = Implicit</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-500/45 text-emerald-300 font-bold">PRE = Prefix</span>
+                    <span className="px-1.5 py-0.5 rounded bg-purple-950 border border-purple-500/45 text-purple-300 font-bold">SUF = Suffix</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-400/50 text-amber-300 font-bold">FRAC = Fractured</span>
+                    <span className="px-1.5 py-0.5 rounded bg-sky-950 border border-sky-400/45 text-sky-200 font-bold">CRAFT = Crafted</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/90 min-h-[260px]">
+                  {inspectedItem ? (
+                    <ItemInspectorBody
+                      item={inspectedItem}
+                      canEdit={canEdit}
+                      selectedGemIdx={selectedGemIdx}
+                      onSelectGemIdx={setSelectedGemIdx}
+                    />
+                  ) : (
+                    <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center text-xs text-slate-500 space-y-1.5">
+                      <Shield className="w-6 h-6 text-slate-700" />
+                      <div className="font-mono">Hover or click any equipped item slot</div>
+                      <div className="text-[11px] text-slate-600">
+                        Inspect full item stats, Implicits, Prefixes, Suffixes, and socketed gems.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Floating In Game Hover / Pinned Popup Modal (Hover Popup Mode) */}
+          {inspectMode === 'popup' && inspectedItem && popupCoords && (
+            <>
+              {lockedItem && (
+                <div
+                  className="fixed inset-0 z-40 bg-black/20"
+                  onClick={() => setLockedItem(null)}
+                />
+              )}
+              <div
+                style={{
+                  left: `${popupCoords.left}px`,
+                  top: `${popupCoords.top}px`
+                }}
+                className={`fixed z-50 w-[350px] max-w-[92vw] max-h-[82vh] overflow-y-auto p-3.5 rounded-xl border-2 bg-slate-950/98 shadow-[0_20px_60px_rgba(0,0,0,0.9)] backdrop-blur-md ${getRarityBorderAccent(
+                  inspectedItem.frameType
+                )} ${lockedItem ? 'pointer-events-auto' : 'pointer-events-none'}`}
+              >
+                {lockedItem && (
+                  <div className="mb-2 pb-1.5 border-b border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-amber-300">
+                    <span>Pinned Tooltip • Click gems or press Esc</span>
+                  </div>
+                )}
+                <ItemInspectorBody
+                  item={inspectedItem}
+                  canEdit={canEdit}
+                  selectedGemIdx={selectedGemIdx}
+                  onSelectGemIdx={setSelectedGemIdx}
+                  isPinnedPopup={Boolean(lockedItem)}
+                  onClosePinned={() => setLockedItem(null)}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

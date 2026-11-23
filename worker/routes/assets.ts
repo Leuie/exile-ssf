@@ -361,6 +361,18 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
             }))
           : [];
 
+        const extendedAffixes = Array.isArray(it?.extended?.mods?.explicit)
+          ? it.extended.mods.explicit.map((m: any) => ({
+              name: cleanStr(m?.name),
+              tier: cleanStr(m?.tier),
+              kind: String(m?.tier || '').toUpperCase().startsWith('P')
+                ? 'Prefix'
+                : String(m?.tier || '').toUpperCase().startsWith('S')
+                ? 'Suffix'
+                : ''
+            }))
+          : [];
+
         equipped.push({
           id: String(it?.id || `${invId}-${it?.x ?? 0}`),
           inventoryId: invId,
@@ -373,6 +385,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           ilvl: Number(it?.ilvl ?? 0),
           corrupted: Boolean(it?.corrupted),
           properties: extractItemProps(it),
+          extendedAffixes,
           sockets,
           socketedGems,
           implicitMods,
