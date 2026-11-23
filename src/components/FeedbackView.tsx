@@ -12,9 +12,11 @@ import {
   ChevronRight,
   Sparkles,
   Layers,
-  X
+  X,
+  Compass
 } from 'lucide-react';
 import { SITE_CHANGELOG, type ChangeTag } from '../data/siteChangelog';
+import { PLANNED_ROADMAP_CATEGORIES, PLANNED_ROADMAP_ITEMS } from '../data/plannedRoadmap';
 import type { SiteFeedbackItem, FeedbackCategory, UserAccount } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import { fetchCloudFeedback, saveCloudFeedbackItem } from '../services/cloudSync';
@@ -37,7 +39,8 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
 }) => {
   void onOpenAuthModal;
 
-  const [mode, setMode] = useState<'updates' | 'feedback'>('updates');
+  const [mode, setMode] = useState<'updates' | 'feedback' | 'roadmap'>('updates');
+  const [roadmapCategory, setRoadmapCategory] = useState<string>('ALL');
   const [selectedReleaseIdx, setSelectedReleaseIdx] = useState<number>(0);
   const [releaseSearch, setReleaseSearch] = useState<string>('');
   const [showAllReleases, setShowAllReleases] = useState<boolean>(false);
@@ -219,6 +222,18 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
             >
               <MessageSquarePlus className={`w-3.5 h-3.5 ${mode === 'feedback' ? 'text-emerald-300' : 'text-slate-500'}`} />
               <span>Community Feedback ({feedbackList.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('roadmap')}
+              className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                mode === 'roadmap'
+                  ? 'bg-indigo-600/30 text-white border border-indigo-400/60 shadow-sm'
+                  : 'text-slate-400 border border-transparent hover:text-white'
+              }`}
+            >
+              <Compass className={`w-3.5 h-3.5 ${mode === 'roadmap' ? 'text-purple-300' : 'text-slate-500'}`} />
+              <span>Planned Roadmap ({PLANNED_ROADMAP_ITEMS.length})</span>
             </button>
           </div>
 
@@ -476,6 +491,108 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
       )}
 
       {/* Submit Feedback Modal */}
+      {/* MODE 3: PLANNED ROADMAP & FEATURE BACKLOG (17 IDEAS) */}
+      {mode === 'roadmap' && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-purple-500/30 bg-[#0d111a] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+            <div>
+              <div className="text-sm font-bold text-purple-200 flex items-center gap-2">
+                <Compass className="w-4 h-4 text-purple-400" />
+                <span>Planned Feature Roadmap &amp; Build Backlog ({PLANNED_ROADMAP_ITEMS.length} Ideas)</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Upcoming tools, GSF social upgrades, Client.txt analytics, and platform polish queued for future releases.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => setRoadmapCategory('ALL')}
+                className={`px-2.5 py-1 rounded-lg border cursor-pointer ${
+                  roadmapCategory === 'ALL'
+                    ? 'bg-purple-600/30 border-purple-400 text-white font-bold'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                All ({PLANNED_ROADMAP_ITEMS.length})
+              </button>
+              {PLANNED_ROADMAP_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setRoadmapCategory(cat)}
+                  className={`px-2.5 py-1 rounded-lg border cursor-pointer ${
+                    roadmapCategory === cat
+                      ? 'bg-purple-600/30 border-purple-400 text-white font-bold'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {cat.split(' ').slice(0, 2).join(' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            {PLANNED_ROADMAP_CATEGORIES.filter(
+              (cat) => roadmapCategory === 'ALL' || roadmapCategory === cat
+            ).map((cat) => {
+              const items = PLANNED_ROADMAP_ITEMS.filter((i) => i.category === cat);
+              return (
+                <section
+                  key={cat}
+                  className="rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 space-y-3 shadow-lg"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-amber-300">
+                      {cat} ({items.length})
+                    </h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300">
+                      Queued for Future Build
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-purple-500/40 transition-colors flex flex-col justify-between gap-2.5"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-bold text-xs sm:text-sm text-white leading-snug">
+                              {item.title}
+                            </div>
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300 shrink-0">
+                              {item.scope}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/70">
+                          <span className="text-[10px] font-mono text-emerald-400">Status: Planned</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewTitle(item.title);
+                              setNewDesc(item.description);
+                              setNewCategory('feature_request');
+                              handleOpenSubmit();
+                            }}
+                            className="text-[10px] font-mono px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 cursor-pointer"
+                          >
+                            + Promote to Feedback Board
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {showSubmitModal && (
         <dialog
           ref={submitDialogRef}

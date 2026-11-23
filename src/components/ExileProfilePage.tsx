@@ -16,7 +16,9 @@ import {
   Trophy,
   Users,
   X,
-  Package
+  Package,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import type { ExileProfile, UserAccount, PersonalSessionGoal } from '../types';
 import {
@@ -53,6 +55,41 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [gameScope, setGameScope] = useState<'all' | 'poe1' | 'poe2'>('all');
   const [farmingSessions, setFarmingSessions] = useState<any[]>([]);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('exile_ssf_profile_collapsed_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleProfileSection = (key: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('exile_ssf_profile_collapsed_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const setAllProfileSections = (collapsed: boolean) => {
+    const next: Record<string, boolean> = {
+      character: collapsed,
+      roster: collapsed,
+      wishlists: collapsed,
+      services: collapsed,
+      achievements: collapsed,
+      toolkit: collapsed,
+      farming: collapsed,
+      honor: collapsed
+    };
+    setCollapsedSections(next);
+    try {
+      localStorage.setItem('exile_ssf_profile_collapsed_v1', JSON.stringify(next));
+    } catch {}
+  };
 
   // Inline Profile Editor State
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -754,12 +791,38 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
         </form>
       )}
 
-      {/* Character Equipment & Inventory Paperdoll (Live GGG Sync + Cloud Snapshots) */}
+      {/* Profile Section Collapse Master Bar */}
+      <div className="px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center gap-2 text-slate-400">
+          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+          <span>Profile Sections (Click any section chevron to collapse or expand)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAllProfileSections(false)}
+            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
+          >
+            Expand All
+          </button>
+          <button
+            type="button"
+            onClick={() => setAllProfileSections(true)}
+            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 cursor-pointer"
+          >
+            Collapse All
+          </button>
+        </div>
+      </div>
+
+      {/* Character (Live GGG Sync + Cloud Snapshots) */}
       <CharacterPaperdollView
         handle={profile.handle}
         poeAccountName={profile.poeAccountName}
         rosterCharacters={allCharacters}
         canEdit={canEdit}
+        collapsed={Boolean(collapsedSections.character)}
+        onToggleCollapse={() => toggleProfileSection('character')}
         onNotify={(msg) => {
           setCopyNotice(msg);
           setTimeout(() => setCopyNotice(null), 3000);
@@ -767,7 +830,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
       />
 
       {/* Main 2 Column Hub Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         {/* Panel 1: Character Roster */}
         <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-3">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -775,18 +838,27 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <Users className="w-4 h-4" />
               <span>Character Roster ({allCharacters.length})</span>
             </div>
-            {onNavigateLeague && (
+            <div className="flex items-center gap-2">
+              {onNavigateLeague && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateLeague(primaryNavLeagueId, 'roster')}
+                  className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Open League Roster →
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onNavigateLeague(primaryNavLeagueId, 'roster')}
-                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                onClick={() => toggleProfileSection('roster')}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
               >
-                Open League Roster →
+                {collapsedSections.roster ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
               </button>
-            )}
+            </div>
           </div>
 
-          {allCharacters.length === 0 ? (
+          {!collapsedSections.roster && (allCharacters.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-500 italic">
               No active league characters registered yet.
             </div>
@@ -833,7 +905,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 </div>
               ))}
             </div>
-          )}
+          ))}
         </div>
 
         {/* Panel 2: Open Wishlists & Active Bounties */}
@@ -845,18 +917,27 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 Open Wishlists ({openWishes.length}) {openBounties.length > 0 ? `• ${openBounties.length} Bounties` : ''}
               </span>
             </div>
-            {onNavigateLeague && (
+            <div className="flex items-center gap-2">
+              {onNavigateLeague && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateLeague(primaryNavLeagueId, 'wishlists')}
+                  className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Open Wishlists →
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onNavigateLeague(primaryNavLeagueId, 'wishlists')}
-                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                onClick={() => toggleProfileSection('wishlists')}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
               >
-                Open Wishlists →
+                {collapsedSections.wishlists ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
               </button>
-            )}
+            </div>
           </div>
 
-          {openWishes.length === 0 ? (
+          {!collapsedSections.wishlists && (openWishes.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-500 italic">
               No open wishlist items currently requested.
             </div>
@@ -903,7 +984,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 </div>
               ))}
             </div>
-          )}
+          ))}
         </div>
 
         {/* Panel 3: Boss Carries, Services & Verified Vouches */}
@@ -913,18 +994,29 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <Swords className="w-4 h-4" />
               <span>Services & Verified Vouches ({vouches.length})</span>
             </div>
-            {onNavigateLeague && (
+            <div className="flex items-center gap-2">
+              {onNavigateLeague && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateLeague(primaryNavLeagueId, 'bounties')}
+                  className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Open Bounties →
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onNavigateLeague(primaryNavLeagueId, 'bounties')}
-                className="text-[11px] font-mono text-slate-400 hover:text-white cursor-pointer"
+                onClick={() => toggleProfileSection('services')}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
               >
-                Open Bounties →
+                {collapsedSections.services ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
               </button>
-            )}
+            </div>
           </div>
 
-          {services.length > 0 && (
+          {!collapsedSections.services && (
+            <>
+              {services.length > 0 && (
             <div className="space-y-2">
               {services.map((svc) => (
                 <div key={svc.id} className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-950/15 text-xs space-y-1">
@@ -963,6 +1055,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               ))}
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* Panel 4: Achievements Showcase */}
@@ -972,10 +1066,19 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <Trophy className="w-4 h-4" />
               <span>Achievements ({unlockedAchievements.length} / {ACHIEVEMENT_CATALOG.length})</span>
             </div>
-            <span className="text-[11px] font-mono text-amber-300 font-bold">{totalHonorPoints} Honor Pts</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-amber-300 font-bold">{totalHonorPoints} Honor Pts</span>
+              <button
+                type="button"
+                onClick={() => toggleProfileSection('achievements')}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                {collapsedSections.achievements ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           </div>
 
-          {unlockedAchievements.length === 0 ? (
+          {!collapsedSections.achievements && (unlockedAchievements.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-500 italic">
               Achievements unlocked in Exile SSF private leagues will appear here and persist across future expansions.
             </div>
@@ -1007,22 +1110,39 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 </div>
               ))}
             </div>
-          )}
+          ))}
         </div>
       </div>
+
       {/* Personal Toolkit: Map Regex Generator & Farming Session Scratchpad */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <MapRegexBuilder
-          savedBricks={profile.mapRegexBricks || []}
-          canEdit={canEdit}
-          onSaveBricks={handleSaveMapRegexBricks}
-        />
-        <SessionScratchpad
-          savedGoals={profile.sessionGoals || []}
-          characters={allCharacters}
-          canEdit={canEdit}
-          onSaveGoals={handleSaveSessionGoals}
-        />
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-sky-300">
+            Personal Toolkit (Map Regex &amp; Session Scratchpad)
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleProfileSection('toolkit')}
+            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+          >
+            {collapsedSections.toolkit ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        {!collapsedSections.toolkit && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <MapRegexBuilder
+              savedBricks={profile.mapRegexBricks || []}
+              canEdit={canEdit}
+              onSaveBricks={handleSaveMapRegexBricks}
+            />
+            <SessionScratchpad
+              savedGoals={profile.sessionGoals || []}
+              characters={allCharacters}
+              canEdit={canEdit}
+              onSaveGoals={handleSaveSessionGoals}
+            />
+          </div>
+        )}
       </div>
 
       {/* Farming Telemetry & Season Trophy Case */}
@@ -1066,15 +1186,24 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 <Package className="w-4 h-4 text-amber-400" />
                 <span>Farming Telemetry & Season Trophy Case ({scopedSessions.length} Sessions)</span>
               </div>
-              <a
-                href="/farming"
-                className="text-[11px] font-mono text-amber-300 hover:text-amber-200 underline"
-              >
-                Open Farming Tracker →
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/farming"
+                  className="text-[11px] font-mono text-amber-300 hover:text-amber-200 underline"
+                >
+                  Open Farming Tracker →
+                </a>
+                <button
+                  type="button"
+                  onClick={() => toggleProfileSection('farming')}
+                  className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  {collapsedSections.farming ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
-            {scopedSessions.length === 0 ? (
+            {!collapsedSections.farming && (scopedSessions.length === 0 ? (
               <div className="p-5 text-center text-xs text-slate-500 italic">
                 No farming sessions saved yet for this game filter. Save a session on the Asset Tracker page to populate your lifetime productivity stats and Unique Trophy Case!
               </div>
@@ -1124,7 +1253,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
         );
       })()}
@@ -1136,12 +1265,21 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <Award className="w-4 h-4 text-amber-400" />
             <span>Honor Points History ({honorSummary.entries.length} Events • {totalHonorPoints} Total Pts)</span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">
-            +5 Found • +5 Delivery Confirmed • +5 Self Found • +25 Early 3.30 Pioneer
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-slate-400">
+              +5 Found • +5 Delivery Confirmed • +5 Self Found • +25 Early 3.30 Pioneer
+            </span>
+            <button
+              type="button"
+              onClick={() => toggleProfileSection('honor')}
+              className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+            >
+              {collapsedSections.honor ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
 
-        {honorSummary.entries.length === 0 ? (
+        {!collapsedSections.honor && (honorSummary.entries.length === 0 ? (
           <div className="p-6 text-center text-xs text-slate-500 italic">
             No Honor Points earned yet. Find a wanted item for a squadmate (+{HONOR_PER_ITEM_FOUND} pts) or unlock an Achievement to start your ledger!
           </div>
@@ -1181,7 +1319,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               </div>
             ))}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

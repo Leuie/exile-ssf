@@ -9,7 +9,10 @@ import {
   AlertTriangle,
   Lock,
   Activity,
-  Compass
+  Compass,
+  ChevronDown,
+  ChevronUp,
+  Settings2
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
@@ -27,6 +30,8 @@ export interface PaperdollGem {
   level: number;
   quality: number;
   support: boolean;
+  description?: string;
+  mods?: string[];
 }
 
 export interface PaperdollItem {
@@ -40,6 +45,7 @@ export interface PaperdollItem {
   frameType: number;
   ilvl: number;
   corrupted: boolean;
+  properties?: Array<{ name: string; value: string }>;
   sockets: PaperdollSocket[];
   socketedGems: PaperdollGem[];
   implicitMods: string[];
@@ -87,11 +93,60 @@ export interface CharacterPaperdollViewProps {
     gameTag?: string;
   }>;
   canEdit: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   onNotify?: (msg: string) => void;
 }
 
 const POESESSID_STORAGE_KEY = 'exile_ssf_poesessid_optin_v1';
 const SYNCED_VITALS_STORAGE_KEY = 'exile_ssf_synced_gear_vitals_v1';
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+function readSavedSession30d(): { poesessid: string; accountName: string } {
+  try {
+    const raw = localStorage.getItem(POESESSID_STORAGE_KEY);
+    if (!raw) return { poesessid: '', accountName: '' };
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      const exp = Number(parsed?.expiresAtMs || 0);
+      if (exp > 0 && Date.now() > exp) {
+        localStorage.removeItem(POESESSID_STORAGE_KEY);
+        return { poesessid: '', accountName: '' };
+      }
+      return {
+        poesessid: String(parsed?.poesessid || ''),
+        accountName: String(parsed?.accountName || '')
+      };
+    }
+    return { poesessid: raw, accountName: '' };
+  } catch {
+    return { poesessid: '', accountName: '' };
+  }
+}
+
+function saveSession30d(poesessid: string, accountName: string) {
+  try {
+    const now = Date.now();
+    localStorage.setItem(
+      POESESSID_STORAGE_KEY,
+      JSON.stringify({
+        poesessid: poesessid.trim(),
+        accountName: accountName.trim(),
+        savedAtMs: now,
+        expiresAtMs: now + THIRTY_DAYS_MS
+      })
+    );
+  } catch {}
+}
+
+function leaguePriorityScore(league: string): number {
+  const low = String(league || '').toLowerCase();
+  if (!low || low === 'roster') return 50;
+  if (/\(pl\d+\)/i.test(league) || low.includes('gsf') || low.includes('ravenwatch')) return 0;
+  if (low.includes('umbra') || low.includes('ancients')) return 5;
+  if (/^(standard|hardcore|ssf standard|ssf hardcore|ruthless)/i.test(low)) return 90;
+  return 20;
+}
 
 const getRarityFrameClasses = (frameType: number): string => {
   switch (frameType) {
@@ -128,10 +183,13 @@ const getRarityTitleColor = (frameType: number): string => {
 const getSocketColorClasses = (sColour: string): string => {
   switch (String(sColour || '').toUpperCase()) {
     case 'R':
+    case 'S':
       return 'bg-rose-600 border-rose-300';
     case 'G':
+    case 'D':
       return 'bg-emerald-600 border-emerald-300';
     case 'B':
+    case 'I':
       return 'bg-sky-600 border-sky-300';
     case 'W':
       return 'bg-slate-100 border-white';
@@ -161,9 +219,7 @@ const SocketOverlay: React.FC<{ sockets: PaperdollSocket[] }> = ({ sockets }) =>
           return (
             <div key={idx} className="relative flex items-center justify-center">
               {linkedToPrev && (
-                <span
-                  className="absolute -left-1.5 w-2 h-1 rounded-full bg-amber-300/90 shadow-[0_0_4px_rgba(251,191,36,0.9)]"
-                />
+                <span className="absolute -left-1.5 w-2 h-1 rounded-full bg-amber-300/90 shadow-[0_0_4px_rgba(251,191,36,0.9)]" />
               )}
               <span
                 className={`w-3.5 h-3.5 rounded-full border-2 shadow-md ${getSocketColorClasses(s.sColour)}`}
@@ -181,28 +237,29 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   poeAccountName,
   rosterCharacters,
   canEdit,
+  collapsed = false,
+  onToggleCollapse,
   onNotify
 }) => {
+  const initialSaved = useMemo(() => readSavedSession30d(), []);
   const [snapshots, setSnapshots] = useState<Record<string, CharacterGearSnapshot>>({});
   const [selectedChar, setSelectedChar] = useState<string>('');
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1);
   const [hoveredItem, setHoveredItem] = useState<PaperdollItem | null>(null);
   const [lockedItem, setLockedItem] = useState<PaperdollItem | null>(null);
+  const [selectedGemIdx, setSelectedGemIdx] = useState<number | null>(null);
 
-  const [accountInput, setAccountInput] = useState<string>(poeAccountName || '');
-  const [poesessid, setPoesessid] = useState<string>(() => {
-    try {
-      return localStorage.getItem(POESESSID_STORAGE_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  const [accountInput, setAccountInput] = useState<string>(
+    poeAccountName || initialSaved.accountName || ''
+  );
+  const [poesessid, setPoesessid] = useState<string>(initialSaved.poesessid || '');
   const [liveCharList, setLiveCharList] = useState<
     Array<{ name: string; league: string; className: string; level: number }>
   >([]);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [loadingList, setLoadingList] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Auto hide GGG Sync drawer when user already has saved 30d credentials
   const [showSyncDrawer, setShowSyncDrawer] = useState<boolean>(false);
   const [vitalsPushed, setVitalsPushed] = useState<boolean>(false);
 
@@ -220,10 +277,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
         if (cancelled) return;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
           setSnapshots(saved as Record<string, CharacterGearSnapshot>);
-          const keys = Object.keys(saved);
-          if (keys.length > 0 && !selectedChar) {
-            setSelectedChar(keys[0]);
-          }
         }
       })
       .catch(() => {});
@@ -232,48 +285,105 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     };
   }, [handle]);
 
-  // Build unified character selector choices from snapshots + roster + live GGG list
-  const characterOptions = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; subtitle: string; hasSnapshot: boolean }
-    >();
+  // Build league grouped character selector prioritizing recent leagues & characters
+  const groupedCharacters = useMemo(() => {
+    interface CharOpt {
+      name: string;
+      league: string;
+      level: number;
+      subtitle: string;
+      hasSnapshot: boolean;
+      syncedAtMs: number;
+    }
+    const map = new Map<string, CharOpt>();
+
     for (const [key, snap] of Object.entries(snapshots)) {
       const n = snap?.character?.name || key;
+      const lg = snap?.character?.league || 'Synced Characters';
+      const lvl = Number(snap?.character?.level || 1);
       map.set(n.toLowerCase(), {
         name: n,
-        subtitle: `Lv ${snap?.character?.level || '?'} ${snap?.character?.className || ''} (${snap?.character?.league || 'Synced'})`,
-        hasSnapshot: true
+        league: lg,
+        level: lvl,
+        subtitle: `Lv ${lvl} ${snap?.character?.className || ''}`.trim(),
+        hasSnapshot: true,
+        syncedAtMs: Date.parse(snap?.syncedAtIso || '') || 0
       });
     }
+
     for (const ch of liveCharList) {
       const k = ch.name.toLowerCase();
-      if (!map.has(k)) {
+      const existing = map.get(k);
+      if (!existing) {
         map.set(k, {
           name: ch.name,
-          subtitle: `Lv ${ch.level} ${ch.className} (${ch.league})`,
-          hasSnapshot: false
+          league: ch.league || 'Path of Exile',
+          level: Number(ch.level || 1),
+          subtitle: `Lv ${ch.level} ${ch.className}`.trim(),
+          hasSnapshot: false,
+          syncedAtMs: 0
         });
+      } else if (ch.league && existing.league === 'Synced Characters') {
+        existing.league = ch.league;
       }
     }
+
     for (const r of rosterCharacters) {
-      const k = r.characterName.trim().toLowerCase();
+      const n = r.characterName.trim();
+      const k = n.toLowerCase();
       if (k && !map.has(k)) {
         map.set(k, {
-          name: r.characterName.trim(),
-          subtitle: `Lv ${r.level} ${r.ascendancy} (${r.gameTag || 'Roster'})`,
-          hasSnapshot: false
+          name: n,
+          league: r.leagueId === 'poe1-330-umbra' ? 'Ravenwatch Covens of Umbra GSF (PL87651)' : r.gameTag || 'League Roster',
+          level: Number(r.level || 1),
+          subtitle: `Lv ${r.level} ${r.ascendancy}`.trim(),
+          hasSnapshot: false,
+          syncedAtMs: 0
         });
       }
     }
-    return Array.from(map.values());
+
+    const byLeague = new Map<string, CharOpt[]>();
+    for (const opt of map.values()) {
+      const list = byLeague.get(opt.league) || [];
+      list.push(opt);
+      byLeague.set(opt.league, list);
+    }
+
+    const groups = Array.from(byLeague.entries()).map(([league, chars]) => {
+      chars.sort((a, b) => {
+        if (b.syncedAtMs !== a.syncedAtMs) return b.syncedAtMs - a.syncedAtMs;
+        if (b.level !== a.level) return b.level - a.level;
+        return a.name.localeCompare(b.name);
+      });
+      const latestSync = Math.max(0, ...chars.map((c) => c.syncedAtMs));
+      return {
+        league,
+        chars,
+        priority: leaguePriorityScore(league),
+        latestSync
+      };
+    });
+
+    groups.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (b.latestSync !== a.latestSync) return b.latestSync - a.latestSync;
+      return a.league.localeCompare(b.league);
+    });
+
+    return groups;
   }, [snapshots, liveCharList, rosterCharacters]);
 
+  const flatCharacters = useMemo(
+    () => groupedCharacters.flatMap((g) => g.chars),
+    [groupedCharacters]
+  );
+
   useEffect(() => {
-    if (!selectedChar && characterOptions.length > 0) {
-      setSelectedChar(characterOptions[0].name);
+    if (!selectedChar && flatCharacters.length > 0) {
+      setSelectedChar(flatCharacters[0].name);
     }
-  }, [characterOptions, selectedChar]);
+  }, [flatCharacters, selectedChar]);
 
   const activeSnapshot: CharacterGearSnapshot | null = useMemo(() => {
     if (!selectedChar) return null;
@@ -313,6 +423,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     setLoadingList(true);
     setErrorMsg(null);
     try {
+      saveSession30d(poesessid, accountInput);
       const res = await fetch('/api/farming/character-xp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -327,10 +438,10 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
         throw new Error(json?.error || `HTTP ${res.status}`);
       }
       setLiveCharList(json.characters);
-      if (json.characters.length > 0) {
+      if (json.characters.length > 0 && !selectedChar) {
         setSelectedChar(json.characters[0].name);
       }
-      onNotify?.(`Loaded ${json.characters.length} live GGG characters!`);
+      onNotify?.(`Loaded ${json.characters.length} live GGG characters (session remembered 30 days)!`);
     } catch (e: any) {
       setErrorMsg(e?.message || 'Could not load characters from GGG.');
     } finally {
@@ -338,15 +449,17 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     }
   };
 
-  const handleSyncCharacterGear = async () => {
-    const targetName = selectedChar.trim();
+  const handleSyncCharacterGear = async (overrideCharName?: string) => {
+    const targetName = (overrideCharName || selectedChar).trim();
     if (!accountInput.trim() || !poesessid.trim() || !targetName) {
+      setShowSyncDrawer(true);
       setErrorMsg('Select a character and enter your PoE Account Tag and POESESSID.');
       return;
     }
     setSyncing(true);
     setErrorMsg(null);
     try {
+      saveSession30d(poesessid, accountInput);
       const res = await fetch('/api/farming/character-gear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -381,13 +494,16 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
       setSnapshots(updatedMap);
       setSelectedChar(charKey);
       setLockedItem(null);
+      setSelectedGemIdx(null);
+      // Auto hide GGG Sync drawer after successful sync
+      setShowSyncDrawer(false);
 
-      // Persist snapshot to Cloudflare D1 so squadmates can inspect this character anytime
       if (canEdit) {
         await saveUserToolState(handle, 'character_gear_snapshots', updatedMap);
       }
-      onNotify?.(`Synced ${charKey} equipped gear & saved to your Exile Profile!`);
+      onNotify?.(`Synced ${charKey} gear & saved to your Exile Profile!`);
     } catch (e: any) {
+      setShowSyncDrawer(true);
       setErrorMsg(e?.message || 'Failed to sync character gear.');
     } finally {
       setSyncing(false);
@@ -426,9 +542,19 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     return (
       <button
         type="button"
-        onMouseEnter={() => item && setHoveredItem(item)}
+        onMouseEnter={() => {
+          if (item) {
+            setHoveredItem(item);
+            setSelectedGemIdx(null);
+          }
+        }}
         onMouseLeave={() => setHoveredItem(null)}
-        onClick={() => item && setLockedItem(isLocked ? null : item)}
+        onClick={() => {
+          if (item) {
+            setLockedItem(isLocked ? null : item);
+            setSelectedGemIdx(null);
+          }
+        }}
         className={`relative w-full ${heightClass} rounded-lg border-2 flex flex-col items-center justify-center p-1.5 transition-all overflow-hidden group cursor-pointer ${
           item
             ? getRarityFrameClasses(item.frameType)
@@ -465,10 +591,21 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
   const activeWeapon = slotItem(weaponSet === 1 ? 'Weapon' : 'Weapon2');
   const activeOffhand = slotItem(weaponSet === 1 ? 'Offhand' : 'Offhand2');
+  const hasSavedCreds = Boolean(accountInput.trim() && poesessid.trim());
+
+  const cleanModList = (arr?: string[]) =>
+    (Array.isArray(arr) ? arr : []).filter((m) => typeof m === 'string' && m.trim() && m !== '[object Object]');
+
+  const hasStaleObjectMods = Boolean(
+    inspectedItem &&
+      [...(inspectedItem.explicitMods || []), ...(inspectedItem.implicitMods || [])].some(
+        (m) => m === '[object Object]'
+      )
+  );
 
   return (
     <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-slate-950 via-slate-900/95 to-slate-950 shadow-2xl space-y-4">
-      {/* Header & Character Selector */}
+      {/* Header & League Sorted Character Selector */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/90 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
@@ -476,10 +613,10 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-amber-200 tracking-wide uppercase">
-              Character Equipment & Inventory Paperdoll
+              Character
             </h2>
             <p className="text-[11px] font-mono text-slate-400">
-              Select any character to inspect equipped gear, gem links, flasks, and live gear vitals.
+              Select any character to inspect equipped gear, stats, gem links, flasks, and live vitals.
             </p>
           </div>
         </div>
@@ -490,357 +627,450 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             onChange={(e) => {
               setSelectedChar(e.target.value);
               setLockedItem(null);
+              setSelectedGemIdx(null);
             }}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-[200px]"
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-[220px] max-w-xs"
           >
-            {characterOptions.length === 0 ? (
+            {groupedCharacters.length === 0 ? (
               <option value="">No characters synced yet</option>
             ) : (
-              characterOptions.map((opt) => (
-                <option key={opt.name} value={opt.name}>
-                  {opt.hasSnapshot ? '★ ' : ''}
-                  {opt.name} ({opt.subtitle})
-                </option>
+              groupedCharacters.map((grp) => (
+                <optgroup key={grp.league} label={grp.league}>
+                  {grp.chars.map((opt) => (
+                    <option key={`${grp.league}-${opt.name}`} value={opt.name}>
+                      {opt.hasSnapshot ? '★ ' : ''}
+                      {opt.name} ({opt.subtitle})
+                    </option>
+                  ))}
+                </optgroup>
               ))
             )}
           </select>
+
+          {canEdit && hasSavedCreds && selectedChar && (
+            <button
+              type="button"
+              onClick={() => handleSyncCharacterGear()}
+              disabled={syncing}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow"
+              title="Refresh this character's live gear from GGG using your saved 30 day session"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Syncing...' : 'Refresh Gear'}</span>
+            </button>
+          )}
 
           {canEdit && (
             <button
               type="button"
               onClick={() => setShowSyncDrawer((v) => !v)}
-              className="px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              <span>{showSyncDrawer ? 'Hide GGG Sync' : 'Sync Live Gear'}</span>
+              <Settings2 className="w-3.5 h-3.5" />
+              <span>{showSyncDrawer ? 'Hide Sync' : hasSavedCreds ? 'GGG Sync' : 'Connect GGG Sync'}</span>
+            </button>
+          )}
+
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              title={collapsed ? 'Expand Character section' : 'Collapse Character section'}
+            >
+              {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
           )}
         </div>
       </div>
 
-      {/* Collapsible Live GGG Sync Drawer (Owner / Admin Only) */}
-      {canEdit && showSyncDrawer && (
-        <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-mono text-indigo-200">
-              <Lock className="w-3.5 h-3.5 text-emerald-400" />
-              <span>
-                Stateless GGG Gear Sync (POESESSID is sent directly to GGG and never stored on Exile SSF servers).
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-            <input
-              type="text"
-              value={accountInput}
-              onChange={(e) => setAccountInput(e.target.value)}
-              placeholder="PoE Account Tag (e.g. Leuie#0626)"
-              className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
-            />
-            <input
-              type="password"
-              value={poesessid}
-              onChange={(e) => setPoesessid(e.target.value)}
-              placeholder="POESESSID (auto fills if saved)"
-              className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleLoadLiveCharacters}
-                disabled={loadingList}
-                className="flex-1 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] cursor-pointer disabled:opacity-50"
-              >
-                {loadingList ? 'Loading...' : '1. Fetch Chars'}
-              </button>
-              <button
-                type="button"
-                onClick={handleSyncCharacterGear}
-                disabled={syncing || !selectedChar}
-                className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer disabled:opacity-50"
-              >
-                {syncing ? 'Syncing...' : '2. Sync Gear'}
-              </button>
-            </div>
-          </div>
-
-          {errorMsg && (
-            <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-500/40 rounded-lg px-3 py-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Main Paperdoll + Inspector Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Authentic PoE Inventory Paperdoll Frame */}
-        <div className="lg:col-span-7 p-4 rounded-2xl border-2 border-amber-700/40 bg-[radial-gradient(ellipse_at_top,_rgba(30,41,59,0.65),_rgba(2,6,23,0.95))] shadow-inner space-y-3">
-          {/* Top Ornate Banner */}
-          <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setWeaponSet(1)}
-                className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold border cursor-pointer ${
-                  weaponSet === 1
-                    ? 'bg-amber-500/25 border-amber-400 text-amber-200'
-                    : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                Set I
-              </button>
-              <button
-                type="button"
-                onClick={() => setWeaponSet(2)}
-                className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold border cursor-pointer ${
-                  weaponSet === 2
-                    ? 'bg-amber-500/25 border-amber-400 text-amber-200'
-                    : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                Set II
-              </button>
-            </div>
-            <div className="text-xs font-mono font-bold tracking-widest uppercase text-amber-300/90">
-              {activeSnapshot
-                ? `${activeSnapshot.character.name} • Lv ${activeSnapshot.character.level} ${activeSnapshot.character.className}`
-                : 'INVENTORY'}
-            </div>
-            <div className="text-[10px] font-mono text-slate-500">
-              {activeSnapshot ? `${activeSnapshot.equipped.length} items` : 'Empty'}
-            </div>
-          </div>
-
-          {/* 3 Column Authentic PoE Equipment Grid */}
-          <div className="grid grid-cols-12 gap-2.5 items-stretch">
-            {/* Left Column: Weapon + Ring 1 + Gloves */}
-            <div className="col-span-4 flex flex-col gap-2.5">
-              <div className="grid grid-cols-3 gap-2 items-end">
-                <div className="col-span-2">{renderSlot(activeWeapon, `Weapon ${weaponSet === 1 ? 'I' : 'II'}`, 'h-44')}</div>
-                <div className="col-span-1 flex flex-col justify-end">
-                  {renderSlot(slotItem('Ring'), 'Ring 1', 'h-16')}
-                </div>
-              </div>
-              <div className="pl-6">{renderSlot(slotItem('Gloves'), 'Gloves', 'h-24')}</div>
-            </div>
-
-            {/* Center Column: Helm + Body Armour + Belt */}
-            <div className="col-span-4 flex flex-col gap-2.5">
-              {renderSlot(slotItem('Helm'), 'Helm', 'h-24')}
-              {renderSlot(slotItem('BodyArmour'), 'Body Armour', 'h-32')}
-              {renderSlot(slotItem('Belt'), 'Belt', 'h-12')}
-            </div>
-
-            {/* Right Column: Amulet + Ring 2 + Offhand + Boots */}
-            <div className="col-span-4 flex flex-col gap-2.5">
-              <div className="grid grid-cols-3 gap-2 items-end">
-                <div className="col-span-1 flex flex-col gap-2 justify-end">
-                  {renderSlot(slotItem('Amulet'), 'Amulet', 'h-16')}
-                  {renderSlot(slotItem('Ring2'), 'Ring 2', 'h-16')}
-                </div>
-                <div className="col-span-2">{renderSlot(activeOffhand, `Offhand ${weaponSet === 1 ? 'I' : 'II'}`, 'h-44')}</div>
-              </div>
-              <div className="pr-6">{renderSlot(slotItem('Boots'), 'Boots', 'h-24')}</div>
-            </div>
-          </div>
-
-          {/* Bottom 5 Flask Tray */}
-          <div className="pt-2 border-t border-amber-500/20">
-            <div className="grid grid-cols-5 gap-2 max-w-md mx-auto">
-              {flasks.map((fl, idx) => (
-                <div key={idx}>{renderSlot(fl, `Flask ${idx + 1}`, 'h-20')}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Live Item Tooltip Inspector & Character Vitals */}
-        <div className="lg:col-span-5 space-y-3">
-          {/* Vitals & Passive Summary Card */}
-          {activeSnapshot ? (
-            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/80 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase text-emerald-300">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Gear & Passive Tree Telemetry</span>
-                </div>
-                <span className="text-[10px] font-mono text-slate-500">
-                  Synced {new Date(activeSnapshot.syncedAtIso).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <div className="text-sm font-bold text-white">{activeSnapshot.passives.allocatedCount}</div>
-                  <div className="text-[10px] font-mono text-slate-400">Passives</div>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <div className="text-sm font-bold text-indigo-300">{activeSnapshot.passives.jewelCount}</div>
-                  <div className="text-[10px] font-mono text-slate-400">Tree Jewels</div>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <div className="text-sm font-bold text-amber-300">{activeSnapshot.passives.voidstoneCount}/4</div>
-                  <div className="text-[10px] font-mono text-slate-400">Voidstones</div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
-                <span className="px-2 py-0.5 rounded bg-rose-950/60 border border-rose-500/30 text-rose-200">
-                  +{activeSnapshot.estimatedVitals.flatLife} Gear Life
-                </span>
-                <span className="px-2 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-200">
-                  +{activeSnapshot.estimatedVitals.flatEs} Gear ES
-                </span>
-                <span className="px-2 py-0.5 rounded bg-orange-950/60 border border-orange-500/30 text-orange-200">
-                  Fire +{activeSnapshot.estimatedVitals.fireRes}%
-                </span>
-                <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-200">
-                  Cold +{activeSnapshot.estimatedVitals.coldRes}%
-                </span>
-                <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-200">
-                  Light +{activeSnapshot.estimatedVitals.lightningRes}%
-                </span>
-                <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">
-                  Chaos +{activeSnapshot.estimatedVitals.chaosRes}%
-                </span>
-                {activeSnapshot.estimatedVitals.suppress > 0 && (
-                  <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-200">
-                    Suppress +{activeSnapshot.estimatedVitals.suppress}%
+      {!collapsed && (
+        <>
+          {/* Collapsible Live GGG Sync Drawer (Auto hides once session is saved for 30 days) */}
+          {canEdit && showSyncDrawer && (
+            <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono text-indigo-200">
+                  <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>
+                    Saved locally in your browser for 30 days per our Privacy Policy (never stored on Exile SSF servers).
                   </span>
-                )}
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handlePushVitalsToCalculators}
-                className="w-full py-2 px-3 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {vitalsPushed ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Saved for EHP Calculator & PoB Build Doctor!</span>
-                  </>
-                ) : (
-                  <>
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Load Vitals into EHP Calc & Build Doctor</span>
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/50 text-xs text-slate-400 space-y-1.5">
-              <div className="font-bold text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>No Gear Snapshot Synced Yet</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <input
+                  type="text"
+                  value={accountInput}
+                  onChange={(e) => setAccountInput(e.target.value)}
+                  placeholder="PoE Account Tag (e.g. Leuie#0626)"
+                  className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
+                />
+                <input
+                  type="password"
+                  value={poesessid}
+                  onChange={(e) => setPoesessid(e.target.value)}
+                  placeholder="POESESSID (saved locally for 30 days)"
+                  className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleLoadLiveCharacters}
+                    disabled={loadingList}
+                    className="flex-1 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingList ? 'Loading...' : '1. Fetch Chars'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSyncCharacterGear()}
+                    disabled={syncing || !selectedChar}
+                    className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                  >
+                    {syncing ? 'Syncing...' : '2. Sync Gear'}
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] leading-relaxed">
-                {canEdit
-                  ? 'Click Sync Live Gear above to pull your equipped items, gem links, flasks, and passive tree straight from Path of Exile.'
-                  : `When @${handle} syncs a character snapshot, their full Path of Exile equipment paperdoll will appear here.`}
-              </p>
+
+              {errorMsg && (
+                <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-500/40 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* PoE Item Mod Inspector Panel */}
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/90 min-h-[260px] space-y-2.5">
-            {inspectedItem ? (
-              <>
-                <div className="border-b border-slate-800 pb-2 flex items-start justify-between gap-2">
-                  <div>
-                    <div className={`text-sm font-bold leading-tight ${getRarityTitleColor(inspectedItem.frameType)}`}>
-                      {inspectedItem.name || inspectedItem.baseType}
-                    </div>
-                    {inspectedItem.name && inspectedItem.baseType && inspectedItem.name !== inspectedItem.baseType && (
-                      <div className="text-[11px] font-mono text-slate-400">{inspectedItem.baseType}</div>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] font-mono text-slate-500">
-                      <span>iLvl {inspectedItem.ilvl}</span>
-                      <span>• {inspectedItem.inventoryId}</span>
-                      {inspectedItem.corrupted && <span className="text-rose-400 font-bold">Corrupted</span>}
-                    </div>
-                  </div>
-                  <a
-                    href={buildPoeWikiUrl(inspectedItem.name || inspectedItem.baseType, 'poe1')}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1 shrink-0"
+          {/* Main Paperdoll + Inspector Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Authentic PoE Inventory Paperdoll Frame */}
+            <div className="lg:col-span-7 p-4 rounded-2xl border-2 border-amber-700/40 bg-[radial-gradient(ellipse_at_top,_rgba(30,41,59,0.65),_rgba(2,6,23,0.95))] shadow-inner space-y-3">
+              {/* Top Ornate Banner */}
+              <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setWeaponSet(1)}
+                    className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold border cursor-pointer ${
+                      weaponSet === 1
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                        : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+                    }`}
                   >
-                    <span>Wiki</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
+                    Set I
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeaponSet(2)}
+                    className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold border cursor-pointer ${
+                      weaponSet === 2
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                        : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    Set II
+                  </button>
                 </div>
-
-                {inspectedItem.enchantMods.length > 0 && (
-                  <div className="space-y-0.5 text-[11px] text-cyan-300">
-                    {inspectedItem.enchantMods.map((m, i) => (
-                      <div key={i}>{m}</div>
-                    ))}
-                  </div>
-                )}
-
-                {inspectedItem.implicitMods.length > 0 && (
-                  <div className="space-y-0.5 text-[11px] text-sky-300 border-b border-slate-800/70 pb-1.5">
-                    {inspectedItem.implicitMods.map((m, i) => (
-                      <div key={i}>{m}</div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-0.5 text-[11px]">
-                  {inspectedItem.fracturedMods.map((m, i) => (
-                    <div key={`f-${i}`} className="text-amber-200">{m}</div>
-                  ))}
-                  {inspectedItem.explicitMods.map((m, i) => (
-                    <div key={`e-${i}`} className="text-indigo-200">{m}</div>
-                  ))}
-                  {inspectedItem.craftedMods.map((m, i) => (
-                    <div key={`c-${i}`} className="text-sky-200">{m} (crafted)</div>
-                  ))}
+                <div className="text-xs font-mono font-bold tracking-widest uppercase text-amber-300/90">
+                  {activeSnapshot
+                    ? `${activeSnapshot.character.name} • Lv ${activeSnapshot.character.level} ${activeSnapshot.character.className}`
+                    : 'INVENTORY'}
                 </div>
+                <div className="text-[10px] font-mono text-slate-500">
+                  {activeSnapshot ? `${activeSnapshot.equipped.length} items` : 'Empty'}
+                </div>
+              </div>
 
-                {inspectedItem.socketedGems.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                    <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                      <Layers className="w-3 h-3" />
-                      <span>Socketed Gems ({inspectedItem.socketedGems.length})</span>
+              {/* 3 Column Authentic PoE Equipment Grid */}
+              <div className="grid grid-cols-12 gap-2.5 items-stretch">
+                {/* Left Column: Weapon + Ring 1 + Gloves */}
+                <div className="col-span-4 flex flex-col gap-2.5">
+                  <div className="grid grid-cols-3 gap-2 items-end">
+                    <div className="col-span-2">{renderSlot(activeWeapon, `Weapon ${weaponSet === 1 ? 'I' : 'II'}`, 'h-44')}</div>
+                    <div className="col-span-1 flex flex-col justify-end">
+                      {renderSlot(slotItem('Ring'), 'Ring 1', 'h-16')}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {inspectedItem.socketedGems.map((g, i) => (
-                        <a
-                          key={i}
-                          href={buildPoeWikiUrl(g.name, 'poe1')}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono text-slate-200"
-                        >
-                          {g.icon && <img src={g.icon} alt="" className="w-3.5 h-3.5 object-contain" />}
-                          <span>{g.name}</span>
-                          <span className="text-slate-400">
-                            {g.level > 0 ? `Lv${g.level}` : ''}
-                            {g.quality > 0 ? `/${g.quality}%` : ''}
-                          </span>
-                        </a>
+                  </div>
+                  <div className="pl-6">{renderSlot(slotItem('Gloves'), 'Gloves', 'h-24')}</div>
+                </div>
+
+                {/* Center Column: Helm + Body Armour + Belt */}
+                <div className="col-span-4 flex flex-col gap-2.5">
+                  {renderSlot(slotItem('Helm'), 'Helm', 'h-24')}
+                  {renderSlot(slotItem('BodyArmour'), 'Body Armour', 'h-32')}
+                  {renderSlot(slotItem('Belt'), 'Belt', 'h-12')}
+                </div>
+
+                {/* Right Column: Amulet + Ring 2 + Offhand + Boots */}
+                <div className="col-span-4 flex flex-col gap-2.5">
+                  <div className="grid grid-cols-3 gap-2 items-end">
+                    <div className="col-span-1 flex flex-col gap-2 justify-end">
+                      {renderSlot(slotItem('Amulet'), 'Amulet', 'h-16')}
+                      {renderSlot(slotItem('Ring2'), 'Ring 2', 'h-16')}
+                    </div>
+                    <div className="col-span-2">{renderSlot(activeOffhand, `Offhand ${weaponSet === 1 ? 'I' : 'II'}`, 'h-44')}</div>
+                  </div>
+                  <div className="pr-6">{renderSlot(slotItem('Boots'), 'Boots', 'h-24')}</div>
+                </div>
+              </div>
+
+              {/* Bottom 5 Flask Tray */}
+              <div className="pt-2 border-t border-amber-500/20">
+                <div className="grid grid-cols-5 gap-2 max-w-md mx-auto">
+                  {flasks.map((fl, idx) => (
+                    <div key={idx}>{renderSlot(fl, `Flask ${idx + 1}`, 'h-20')}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Live Item Tooltip Inspector & Character Vitals */}
+            <div className="lg:col-span-5 space-y-3">
+              {/* Vitals & Passive Summary Card */}
+              {activeSnapshot ? (
+                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase text-emerald-300">
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Gear &amp; Passive Tree Telemetry</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      Synced {new Date(activeSnapshot.syncedAtIso).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-sm font-bold text-white">{activeSnapshot.passives.allocatedCount}</div>
+                      <div className="text-[10px] font-mono text-slate-400">Passives</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-sm font-bold text-indigo-300">{activeSnapshot.passives.jewelCount}</div>
+                      <div className="text-[10px] font-mono text-slate-400">Tree Jewels</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-sm font-bold text-amber-300">{activeSnapshot.passives.voidstoneCount}/4</div>
+                      <div className="text-[10px] font-mono text-slate-400">Voidstones</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-rose-950/60 border border-rose-500/30 text-rose-200">
+                      +{activeSnapshot.estimatedVitals.flatLife} Gear Life
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-200">
+                      +{activeSnapshot.estimatedVitals.flatEs} Gear ES
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-orange-950/60 border border-orange-500/30 text-orange-200">
+                      Fire +{activeSnapshot.estimatedVitals.fireRes}%
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-200">
+                      Cold +{activeSnapshot.estimatedVitals.coldRes}%
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-200">
+                      Light +{activeSnapshot.estimatedVitals.lightningRes}%
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">
+                      Chaos +{activeSnapshot.estimatedVitals.chaosRes}%
+                    </span>
+                    {activeSnapshot.estimatedVitals.suppress > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-200">
+                        Suppress +{activeSnapshot.estimatedVitals.suppress}%
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handlePushVitalsToCalculators}
+                    className="w-full py-2 px-3 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {vitalsPushed ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Saved for EHP Calculator &amp; PoB Build Doctor!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Compass className="w-3.5 h-3.5" />
+                        <span>Load Vitals into EHP Calc &amp; Build Doctor</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/50 text-xs text-slate-400 space-y-1.5">
+                  <div className="font-bold text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>No Gear Snapshot Synced Yet</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    {canEdit
+                      ? 'Click Connect GGG Sync above to pull your equipped items, gem links, flasks, and passive tree straight from Path of Exile.'
+                      : `When @${handle} syncs a character snapshot, their full Path of Exile equipment will appear here.`}
+                  </p>
+                </div>
+              )}
+
+              {/* PoE Item Stats, Mods & Socketed Gem Inspector */}
+              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/90 min-h-[260px] space-y-2.5">
+                {inspectedItem ? (
+                  <>
+                    <div className="border-b border-slate-800 pb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <div className={`text-sm font-bold leading-tight ${getRarityTitleColor(inspectedItem.frameType)}`}>
+                          {inspectedItem.name || inspectedItem.baseType}
+                        </div>
+                        {inspectedItem.name && inspectedItem.baseType && inspectedItem.name !== inspectedItem.baseType && (
+                          <div className="text-[11px] font-mono text-slate-400">{inspectedItem.baseType}</div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] font-mono text-slate-500">
+                          <span>iLvl {inspectedItem.ilvl}</span>
+                          <span>• {inspectedItem.inventoryId}</span>
+                          {inspectedItem.corrupted && <span className="text-rose-400 font-bold">Corrupted</span>}
+                        </div>
+                      </div>
+                      <a
+                        href={buildPoeWikiUrl(inspectedItem.name || inspectedItem.baseType, 'poe1')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-indigo-300 flex items-center gap-1 shrink-0"
+                      >
+                        <span>Wiki</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+
+                    {/* Item Base Properties (Armour, Evasion, ES, Weapon DPS, Flask stats) */}
+                    {Array.isArray(inspectedItem.properties) && inspectedItem.properties.length > 0 && (
+                      <div className="space-y-0.5 text-[11px] font-mono border-b border-slate-800/70 pb-1.5">
+                        {inspectedItem.properties.map((prop, i) => (
+                          <div key={i} className="text-slate-400">
+                            <span>{prop.name}</span>
+                            {prop.value && <span className="text-slate-100 font-semibold">: {prop.value}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {hasStaleObjectMods && canEdit && (
+                      <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/35 text-[11px] text-amber-200 flex items-center justify-between gap-2">
+                        <span>Click Refresh Gear above to load full item stats and socket colors.</span>
+                      </div>
+                    )}
+
+                    {cleanModList(inspectedItem.enchantMods).length > 0 && (
+                      <div className="space-y-0.5 text-[11px] text-cyan-300">
+                        {cleanModList(inspectedItem.enchantMods).map((m, i) => (
+                          <div key={i}>{m}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {cleanModList(inspectedItem.implicitMods).length > 0 && (
+                      <div className="space-y-0.5 text-[11px] text-sky-300 border-b border-slate-800/70 pb-1.5">
+                        {cleanModList(inspectedItem.implicitMods).map((m, i) => (
+                          <div key={i}>{m}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-0.5 text-[11px]">
+                      {cleanModList(inspectedItem.fracturedMods).map((m, i) => (
+                        <div key={`f-${i}`} className="text-amber-200">{m}</div>
+                      ))}
+                      {cleanModList(inspectedItem.explicitMods).map((m, i) => (
+                        <div key={`e-${i}`} className="text-indigo-200">{m}</div>
+                      ))}
+                      {cleanModList(inspectedItem.craftedMods).map((m, i) => (
+                        <div key={`c-${i}`} className="text-sky-200">{m} (crafted)</div>
                       ))}
                     </div>
+
+                    {/* Socketed Gems with Clickable Gem Stat Details */}
+                    {inspectedItem.socketedGems.length > 0 && (
+                      <div className="pt-2 border-t border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Layers className="w-3 h-3" />
+                            <span>Socketed Gems ({inspectedItem.socketedGems.length})</span>
+                          </span>
+                          <span className="text-slate-500 normal-case">Click gem for stats</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {inspectedItem.socketedGems.map((g, i) => {
+                            const active = selectedGemIdx === i;
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setSelectedGemIdx(active ? null : i)}
+                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-mono cursor-pointer transition-colors ${
+                                  active
+                                    ? 'bg-indigo-600/30 border-indigo-400 text-white'
+                                    : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
+                                }`}
+                              >
+                                <span
+                                  className={`w-2 h-2 rounded-full border ${getSocketColorClasses(g.colour)}`}
+                                />
+                                {g.icon && <img src={g.icon} alt="" className="w-3.5 h-3.5 object-contain" />}
+                                <span>{g.name}</span>
+                                <span className="text-slate-400">
+                                  {g.level > 0 ? `Lv${g.level}` : ''}
+                                  {g.quality > 0 ? `/${g.quality}%` : ''}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {selectedGemIdx !== null && inspectedItem.socketedGems[selectedGemIdx] && (
+                          <div className="p-2.5 rounded-lg bg-slate-900/90 border border-indigo-500/35 space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-indigo-200">
+                                {inspectedItem.socketedGems[selectedGemIdx].name}
+                              </span>
+                              <a
+                                href={buildPoeWikiUrl(inspectedItem.socketedGems[selectedGemIdx].name, 'poe1')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-mono text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                              >
+                                <span>PoE Wiki</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            </div>
+                            {inspectedItem.socketedGems[selectedGemIdx].description && (
+                              <div className="text-slate-300 text-[10px]">
+                                {inspectedItem.socketedGems[selectedGemIdx].description}
+                              </div>
+                            )}
+                            {cleanModList(inspectedItem.socketedGems[selectedGemIdx].mods).map((m, idx) => (
+                              <div key={idx} className="text-sky-200 text-[10px]">
+                                {m}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center text-xs text-slate-500 space-y-1.5">
+                    <Shield className="w-6 h-6 text-slate-700" />
+                    <div className="font-mono">Hover or click any equipped item slot</div>
+                    <div className="text-[11px] text-slate-600">
+                      Inspect full item stats, mods, socket links, and socketed gems.
+                    </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center text-xs text-slate-500 space-y-1.5">
-                <Shield className="w-6 h-6 text-slate-700" />
-                <div className="font-mono">Hover or click any equipped item slot</div>
-                <div className="text-[11px] text-slate-600">
-                  Inspect full implicit/explicit mods, socket links, and socketed gems.
-                </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

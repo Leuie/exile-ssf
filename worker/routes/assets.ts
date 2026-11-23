@@ -228,6 +228,49 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       } catch {}
 
       const cleanStr = (s: any) => String(s || '').replace(/<<[^>]+>>/g, '').trim();
+      const extractModStrings = (arr: any): string[] => {
+        if (!Array.isArray(arr)) return [];
+        const out: string[] = [];
+        for (const entry of arr) {
+          if (typeof entry === 'string') {
+            const t = entry.trim();
+            if (t) out.push(t);
+          } else if (entry && typeof entry === 'object') {
+            const t = String(entry.text || entry.mod || entry.name || entry.description || '').trim();
+            if (t) out.push(t);
+          }
+        }
+        return out;
+      };
+      const extractItemProps = (it: any): Array<{ name: string; value: string }> => {
+        if (!Array.isArray(it?.properties)) return [];
+        const out: Array<{ name: string; value: string }> = [];
+        for (const p of it.properties) {
+          const name = cleanStr(p?.name).replace(/\{(\d+)\}/g, '').trim();
+          if (!name) continue;
+          const vals = Array.isArray(p?.values)
+            ? p.values.map((v: any) => (Array.isArray(v) ? String(v[0] ?? '') : String(v ?? ''))).filter(Boolean)
+            : [];
+          if (vals.length > 0) {
+            out.push({ name, value: vals.join(', ') });
+          } else if (name.length < 48) {
+            out.push({ name, value: '' });
+          }
+        }
+        return out.slice(0, 10);
+      };
+      const resolveSocketColour = (s: any): string => {
+        const sc = String(s?.sColour || '').trim().toUpperCase();
+        if (['R', 'G', 'B', 'A', 'DV'].includes(sc)) return sc;
+        const attr = String(s?.attr || '').trim().toUpperCase();
+        if (attr === 'S') return 'R';
+        if (attr === 'D') return 'G';
+        if (attr === 'I') return 'B';
+        if (attr === 'A') return 'A';
+        if (sc === 'W' || attr === 'G') return 'W';
+        return 'W';
+      };
+
       const rawItems: any[] = Array.isArray(itemsData.items) ? itemsData.items : [];
       const equippedSlots = new Set([
         'Weapon', 'Offhand', 'Weapon2', 'Offhand2', 'Helm', 'BodyArmour',
@@ -252,12 +295,19 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         if (fullName.includes('voidstone')) voidstoneCount += 1;
         if (!equippedSlots.has(invId)) continue;
 
+        const implicitMods = extractModStrings(it?.implicitMods);
+        const explicitMods = extractModStrings(it?.explicitMods);
+        const craftedMods = extractModStrings(it?.craftedMods);
+        const enchantMods = extractModStrings(it?.enchantMods);
+        const fracturedMods = extractModStrings(it?.fracturedMods);
+        const utilityMods = extractModStrings(it?.utilityMods);
         const allMods: string[] = [
-          ...(Array.isArray(it?.implicitMods) ? it.implicitMods : []),
-          ...(Array.isArray(it?.explicitMods) ? it.explicitMods : []),
-          ...(Array.isArray(it?.craftedMods) ? it.craftedMods : []),
-          ...(Array.isArray(it?.fracturedMods) ? it.fracturedMods : [])
-        ].map(String);
+          ...implicitMods,
+          ...explicitMods,
+          ...craftedMods,
+          ...fracturedMods,
+          ...utilityMods
+        ];
 
         if (invId !== 'Weapon2' && invId !== 'Offhand2' && invId !== 'Flask') {
           for (const mod of allMods) {
@@ -278,6 +328,15 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
             if (cRes) estimatedVitals.coldRes += Number(cRes[1]);
             const lRes = mod.match(/\+(\d+)% to Lightning Resistance/i);
             if (lRes) estimatedVitals.lightningRes += Number(lRes[1]);
+            const twoRes = mod.match(/\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances/i);
+            if (twoRes) {
+              const v = Number(twoRes[1]);
+              const r1 = twoRes[2].toLowerCase();
+              const r2 = twoRes[3].toLowerCase();
+              if (r1 === 'fire' || r2 === 'fire') estimatedVitals.fireRes += v;
+              if (r1 === 'cold' || r2 === 'cold') estimatedVitals.coldRes += v;
+              if (r1 === 'lightning' || r2 === 'lightning') estimatedVitals.lightningRes += v;
+            }
             const chRes = mod.match(/\+(\d+)% to Chaos Resistance/i);
             if (chRes) estimatedVitals.chaosRes += Number(chRes[1]);
             const supM = mod.match(/\+(\d+)% chance to Suppress Spell Damage/i);
@@ -286,17 +345,19 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
 
         const sockets = Array.isArray(it?.sockets)
-          ? it.sockets.map((s: any) => ({ group: Number(s?.group ?? 0), sColour: String(s?.sColour || 'W') }))
+          ? it.sockets.map((s: any) => ({ group: Number(s?.group ?? 0), sColour: resolveSocketColour(s) }))
           : [];
         const socketedGems = Array.isArray(it?.socketedItems)
           ? it.socketedItems.map((g: any) => ({
               name: cleanStr(g?.typeLine || g?.baseType || g?.name),
               icon: typeof g?.icon === 'string' ? g.icon : '',
-              colour: String(g?.colour || 'W'),
+              colour: String(g?.colour || 'W').toUpperCase(),
               socket: Number(g?.socket ?? 0),
               level: parsePropNumber(g, 'Level'),
               quality: parsePropNumber(g, 'Quality'),
-              support: Boolean(g?.support)
+              support: Boolean(g?.support),
+              description: cleanStr(g?.secDescrText || ''),
+              mods: extractModStrings(g?.explicitMods).slice(0, 6)
             }))
           : [];
 
@@ -311,13 +372,14 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           frameType: Number(it?.frameType ?? 0),
           ilvl: Number(it?.ilvl ?? 0),
           corrupted: Boolean(it?.corrupted),
+          properties: extractItemProps(it),
           sockets,
           socketedGems,
-          implicitMods: Array.isArray(it?.implicitMods) ? it.implicitMods.map(String) : [],
-          explicitMods: Array.isArray(it?.explicitMods) ? it.explicitMods.map(String) : [],
-          craftedMods: Array.isArray(it?.craftedMods) ? it.craftedMods.map(String) : [],
-          enchantMods: Array.isArray(it?.enchantMods) ? it.enchantMods.map(String) : [],
-          fracturedMods: Array.isArray(it?.fracturedMods) ? it.fracturedMods.map(String) : []
+          implicitMods,
+          explicitMods: [...utilityMods, ...explicitMods],
+          craftedMods,
+          enchantMods,
+          fracturedMods
         });
       }
 
