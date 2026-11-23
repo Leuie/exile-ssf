@@ -150,6 +150,9 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [hideBulkNoise, setHideBulkNoise] = useState<boolean>(false);
   const [chimeEnabled, setChimeEnabled] = useState<boolean>(true);
   const [desktopAlertsEnabled, setDesktopAlertsEnabled] = useState<boolean>(false);
+  const [includeEquippedGear, setIncludeEquippedGear] = useState<boolean>(
+    savedPrefs.includeEquippedGear !== undefined ? Boolean(savedPrefs.includeEquippedGear) : true
+  );
   const [showWeightsEditor, setShowWeightsEditor] = useState<boolean>(false);
   const [showAboutTracker, setShowAboutTracker] = useState<boolean>(false);
   const [ssfWeights, setSsfWeights] = useState<SsfWeightsConfig>(() => {
@@ -999,15 +1002,52 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
           }
         }
 
+        let equippedCharsScanned: string[] = [];
+        if (includeEquippedGear && game === 'poe1') {
+          setScanProgress({
+            current: selectedTabIndices.length,
+            total: selectedTabIndices.length + 1,
+            tabName: 'Equipped Character Gear'
+          });
+          try {
+            const eqRes = await fetch('/api/farming/equipped-assets', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                accountName: accountName.trim(),
+                league: leagueName.trim(),
+                realm: 'pc',
+                poesessid: poesessid.trim()
+              })
+            });
+            if (eqRes.ok) {
+              const eqData: any = await eqRes.json();
+              if (Array.isArray(eqData?.items) && eqData.items.length > 0) {
+                perTabResults.push(eqData.items);
+                totalScanned += eqData.items.length;
+                if (Array.isArray(eqData?.charactersScanned)) {
+                  equippedCharsScanned = eqData.charactersScanned;
+                }
+              }
+            }
+          } catch {}
+        }
+
         const mergedItems = mergeDropLists(perTabResults);
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setIsDemoMode(false);
         setLastSyncedAt(nowTime);
 
+        const eqSuffix =
+          equippedCharsScanned.length > 0
+            ? ` + worn gear on ${equippedCharsScanned.join(', ')}`
+            : '';
+
         if (mode === 'before') {
           setBeforeSnapshot({ at: nowTime, items: mergedItems });
           setCheckpoints([{ at: nowTime, totalItems: 0, totalChaos: 0 }]);
-          setStatusNotice({ type: 'ok', text: `Before Snapshot locked at ${nowTime} (${totalScanned} items across ${selectedTabIndices.length} tabs).` });
+          setStatusNotice({ type: 'ok', text: `Before Snapshot locked at ${nowTime} (${totalScanned} items across ${selectedTabIndices.length} tabs${eqSuffix}).` });
           setSetupOpen(false);
         } else {
           const resultingDrops = mode === 'after' && beforeSnapshot ? computeSnapshotDiff(beforeSnapshot.items, mergedItems) : mergedItems;
@@ -1017,7 +1057,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
           setCheckpoints((prev) => [...prev.slice(-11), { at: nowTime, totalItems: totalCount, totalChaos: estChaos }]);
           setStatusNotice({
             type: 'ok',
-            text: `Synced ${selectedTabIndices.length} tabs at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
+            text: `Synced ${selectedTabIndices.length} tabs${eqSuffix} at ${nowTime}: ${totalCount} items (~${estChaos.toLocaleString()}c on poe.ninja).`
           });
           setSetupOpen(false);
         }
@@ -1027,7 +1067,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       setScanProgress(null);
       setSnapshotting(false);
     },
-    [selectedTabIndices, accountName, leagueName, poesessid, acceptedRiskDisclaimer, stashTabs, beforeSnapshot, ninjaPrices]
+    [selectedTabIndices, accountName, leagueName, poesessid, acceptedRiskDisclaimer, stashTabs, beforeSnapshot, ninjaPrices, includeEquippedGear, game]
   );
 
   const runSnapshotRef = useRef(runSnapshot);
@@ -1632,6 +1672,22 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               >
                 <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
                 <span>Wealth &amp; Pace Analytics</span>
+              </button>
+            )}
+
+            {game === 'poe1' && (
+              <button
+                type="button"
+                onClick={() => setIncludeEquippedGear((v) => !v)}
+                title="Automatically include gear and socketed gems worn by your characters in this league when syncing"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  includeEquippedGear
+                    ? 'bg-indigo-500/20 border-indigo-400/50 text-indigo-200'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <ShieldCheck className={`w-3.5 h-3.5 ${includeEquippedGear ? 'text-emerald-300' : 'text-slate-500'}`} />
+                <span>{includeEquippedGear ? 'Equipped Gear: ON' : 'Equipped Gear: OFF'}</span>
               </button>
             )}
 

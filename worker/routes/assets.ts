@@ -476,14 +476,17 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           const cleanName = String(it?.name || '').replace(/<<[^>]+>>/g, '').trim();
           const cleanBase = String(it?.baseType || it?.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
           const shortName = cleanName || cleanBase || 'Unknown Item';
-          const meta: any = classifyStashItem(it);
+          const qty = Math.max(1, Number(it?.stackSize || 1));
           items.push({
             id: String(it?.id || `${idx}-${shortName}-${items.length}`),
+            name: cleanName,
             shortName,
             baseType: cleanBase,
-            category: meta.category,
-            quantity: Math.max(1, Number(it?.stackSize || 1)),
+            quantity: qty,
+            stackSize: qty,
+            ilvl: Number(it?.ilvl || 0),
             icon: typeof it?.icon === 'string' ? it.icon : '',
+            tabIndex: idx,
             tabName: tabLabel,
             frameType: Number(it?.frameType ?? 0)
           });
@@ -496,6 +499,236 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       );
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || 'Guild stash scan failed.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
+  // POST /api/farming/equipped-assets (Stateless GGG scan of all equipped gear & socketed gems for characters in a league)
+  if (url.pathname === '/api/farming/equipped-assets' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const rawAccountName = String(body.accountName || '').trim();
+      const rawLeague = String(body.league || '').trim();
+      const realm = String(body.realm || 'pc').trim().toLowerCase();
+      const poesessid = String(body.poesessid || '').trim();
+
+      if (!rawAccountName || !rawLeague || !poesessid) {
+        return new Response(
+          JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const league =
+        rawLeague.toUpperCase() === 'PL87651'
+          ? 'Ravenwatch Covens of Umbra GSF (PL87651)'
+          : resolveOfficialLadderName(rawLeague);
+
+      const gggHeaders = {
+        Cookie: `POESESSID=${poesessid}`,
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'application/json'
+      };
+
+      const accountCandidates = [rawAccountName];
+      if (rawAccountName.includes('#')) accountCandidates.push(rawAccountName.replace('#', '-'));
+      if (rawAccountName.includes('-')) accountCandidates.push(rawAccountName.replace('-', '#'));
+
+      let chars: any[] | null = null;
+      let matchedAccount = rawAccountName;
+      for (const acct of accountCandidates) {
+        const res = await fetch(
+          `https://www.pathofexile.com/character-window/get-characters?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}`,
+          { headers: gggHeaders }
+        );
+        if (res.ok) {
+          const parsed: any = await res.json().catch(() => null);
+          if (Array.isArray(parsed)) {
+            chars = parsed;
+            matchedAccount = acct;
+            break;
+          }
+        }
+      }
+
+      if (!chars) {
+        return new Response(
+          JSON.stringify({ status: 'ok', charactersScanned: [], items: [] }),
+          { headers: corsHeaders }
+        );
+      }
+
+      const targetLow = league.toLowerCase();
+      const rawLow = rawLeague.toLowerCase();
+      const leagueChars = chars
+        .filter((c: any) => {
+          const cLeague = String(c?.league || '').trim().toLowerCase();
+          return (
+            cLeague === targetLow ||
+            cLeague === rawLow ||
+            (rawLow.length >= 4 && cLeague.includes(rawLow)) ||
+            (targetLow.length >= 4 && cLeague.includes(targetLow))
+          );
+        })
+        .sort((a: any, b: any) => Number(b?.level || 0) - Number(a?.level || 0))
+        .slice(0, 6);
+
+      const equippedSlots = new Set([
+        'Weapon', 'Offhand', 'Weapon2', 'Offhand2', 'Helm', 'BodyArmour',
+        'Amulet', 'Ring', 'Ring2', 'Gloves', 'Belt', 'Boots', 'Flask', 'Trinket'
+      ]);
+
+      const aggregated = new Map<string, any>();
+      const charactersScanned: string[] = [];
+
+      const pushAsset = (entry: any) => {
+        const existing = aggregated.get(entry.key);
+        if (existing) {
+          existing.quantity += entry.quantity;
+        } else {
+          aggregated.set(entry.key, entry);
+        }
+      };
+
+      for (let i = 0; i < leagueChars.length; i++) {
+        const ch = leagueChars[i];
+        const charName = String(ch?.name || '').trim();
+        if (!charName) continue;
+        if (i > 0) await new Promise((r) => setTimeout(r, 260));
+
+        const gRes = await fetch(
+          `https://www.pathofexile.com/character-window/get-items?accountName=${encodeURIComponent(matchedAccount)}&character=${encodeURIComponent(charName)}&realm=${encodeURIComponent(realm)}`,
+          { headers: gggHeaders }
+        );
+        if (!gRes.ok) continue;
+        const gData: any = await gRes.json().catch(() => null);
+        if (!gData || !Array.isArray(gData.items)) continue;
+        charactersScanned.push(charName);
+        const tabLabel = `Equipped (${charName})`;
+
+        for (const it of gData.items) {
+          const invId = String(it?.inventoryId || '');
+          if (!equippedSlots.has(invId)) continue;
+
+          const cleanName = String(it?.name || '').replace(/<<[^>]+>>/g, '').trim();
+          const cleanBase = String(it?.baseType || it?.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
+          const shortName = cleanName || cleanBase || 'Unknown Item';
+          const displayName = cleanName && cleanName !== cleanBase ? `${cleanName} (${cleanBase})` : shortName;
+          const ft = Number(it?.frameType ?? 0);
+          const ilvl = Number(it?.ilvl || 0);
+          const quality = parsePropNumber(it, 'Quality');
+          const corrupted = Boolean(it?.corrupted);
+
+          const socketGroups = new Map<number, number>();
+          if (Array.isArray(it?.sockets)) {
+            for (const s of it.sockets) {
+              const g = Number(s?.group ?? 0);
+              socketGroups.set(g, (socketGroups.get(g) || 0) + 1);
+            }
+          }
+          const links = socketGroups.size > 0 ? Math.max(...Array.from(socketGroups.values())) : 0;
+          const isUnique = ft === 3 || ft === 9 || ft === 10;
+          const isFlask = invId === 'Flask' || /flask|tincture/i.test(cleanBase);
+          const category = isUnique ? 'Uniques' : 'Gear & Jewels';
+          const subCategory = isFlask
+            ? isUnique ? 'Unique Flasks & Tinctures' : 'Flasks & Tinctures'
+            : ['Ring', 'Ring2', 'Amulet', 'Belt'].includes(invId)
+            ? isUnique ? 'Unique Jewellery' : 'Jewellery'
+            : ['Weapon', 'Weapon2'].includes(invId)
+            ? isUnique ? 'Unique Weapons' : 'Weapons'
+            : isUnique
+            ? 'Unique Armour & Shields'
+            : 'Armour & Shields';
+
+          const key = `equipped::${charName.toLowerCase()}::${invId}::${displayName.toLowerCase()}::${links}L`;
+          pushAsset({
+            key,
+            name: displayName,
+            shortName,
+            baseType: cleanBase,
+            category,
+            subCategory,
+            gemLevel: 0,
+            gemQuality: 0,
+            quality,
+            maxStackSize: 1,
+            links,
+            mapTier: 0,
+            influenced: Boolean(it?.influences || it?.shaper || it?.elder || it?.fractured || it?.synthesised),
+            isVaal: false,
+            isTransfigured: false,
+            isAwakened: false,
+            isExceptional: false,
+            corrupted,
+            quantity: 1,
+            icon: typeof it?.icon === 'string' ? it.icon : '',
+            frameType: ft,
+            ilvl,
+            tabName: tabLabel
+          });
+
+          // Also count socketed gems worn inside equipped gear
+          if (Array.isArray(it?.socketedItems)) {
+            for (const g of it.socketedItems) {
+              const gName = String(g?.typeLine || g?.baseType || g?.name || '').replace(/<<[^>]+>>/g, '').trim();
+              if (!gName) continue;
+              const gLvl = parsePropNumber(g, 'Level');
+              const gQual = parsePropNumber(g, 'Quality');
+              const gCorrupted = Boolean(g?.corrupted);
+              const gLow = gName.toLowerCase();
+              const isAwakened = gLow.startsWith('awakened ');
+              const isVaal = gLow.startsWith('vaal ');
+              const isExceptional = /\b(empower|enlighten|enhance)\b/i.test(gLow);
+              const isTransfigured = /\bof\s+[a-z]/i.test(gName) && !/(herald of|purity of|aura of|aspect of)/i.test(gLow);
+              const gSub = isAwakened
+                ? 'Awakened Gems'
+                : isExceptional
+                ? 'Exceptional Gems'
+                : isVaal
+                ? 'Vaal Gems'
+                : isTransfigured
+                ? 'Transfigured Gems'
+                : 'Standard Gems';
+              const gKey = `equipped::Gems::${gName.toLowerCase()}::l${gLvl}::q${gQual}::c${gCorrupted ? 1 : 0}`;
+              pushAsset({
+                key: gKey,
+                name: gName,
+                shortName: gName,
+                baseType: gName,
+                category: 'Gems',
+                subCategory: gSub,
+                gemLevel: gLvl,
+                gemQuality: gQual,
+                quality: gQual,
+                maxStackSize: 1,
+                links: 0,
+                mapTier: 0,
+                influenced: false,
+                isVaal,
+                isTransfigured,
+                isAwakened,
+                isExceptional,
+                corrupted: gCorrupted,
+                quantity: 1,
+                icon: typeof g?.icon === 'string' ? g.icon : '',
+                frameType: 4,
+                ilvl: 0,
+                tabName: tabLabel
+              });
+            }
+          }
+        }
+      }
+
+      const items = Array.from(aggregated.values());
+      return new Response(
+        JSON.stringify({ status: 'ok', charactersScanned, items, syncedAtIso: now }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Equipped gear scan failed.' }), {
         status: 500,
         headers: corsHeaders
       });
