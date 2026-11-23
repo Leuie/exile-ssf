@@ -18,10 +18,29 @@ import type {
   LeagueFeedEvent
 } from '../types';
 
+export interface CommunityGatheringPlace {
+  id: string;
+  platform: 'Root' | 'Discord' | 'YouTube' | 'Twitch' | 'Website' | 'Guild' | 'Other';
+  badge: string;
+  title: string;
+  description: string;
+  url: string;
+  ctaLabel: string;
+}
+
+export interface LeagueCommunityHubConfig {
+  hubTitle: string;
+  badgeLabel?: string;
+  aboutText: string;
+  globalChannel: string;
+  places: CommunityGatheringPlace[];
+}
+
 export interface CloudLeagueMeta {
   quickLinks?: any[];
   faqList?: any[];
   archivesList?: PastPrivateLeague[];
+  communityHub?: LeagueCommunityHubConfig;
 }
 
 export interface CloudLeagueDataResponse {

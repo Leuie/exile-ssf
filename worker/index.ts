@@ -928,7 +928,7 @@ export default {
               { status: 401, headers: CORS_HEADERS }
             );
           }
-          const adminOnlyPaths = new Set(['/api/admin/webhook', '/api/admin/test-webhook', '/api/meta', '/api/alumni']);
+          const adminOnlyPaths = new Set(['/api/admin/webhook', '/api/admin/test-webhook', '/api/alumni']);
           if (adminOnlyPaths.has(url.pathname) && !verifiedSession.isAdmin) {
             return new Response(
               JSON.stringify({ error: 'Admin privileges required.' }),
@@ -1935,18 +1935,59 @@ export default {
         }
       }
 
-      // POST /api/meta
+      // POST /api/meta (Allowed for Site Super Admin, League Host, or League Moderator with canEditBannerLinks)
       if (url.pathname === '/api/meta' && request.method === 'POST') {
         try {
           const body = (await request.json()) as any;
-          const targetLeague = body.leagueId || leagueId;
+          const targetLeague = String(body.leagueId || leagueId || '').trim();
+          const callerHandle = String(session?.handle || '').trim().toLowerCase();
+          let allowed = Boolean(session?.isAdmin);
+          if (!allowed && callerHandle && targetLeague) {
+            const staffRow = await db
+              .prepare('SELECT host_handle, moderators_json FROM league_staff WHERE league_id = ?')
+              .bind(targetLeague)
+              .first();
+            if (staffRow) {
+              if (String(staffRow.host_handle || '').trim().toLowerCase() === callerHandle) {
+                allowed = true;
+              } else if (staffRow.moderators_json) {
+                const mods = JSON.parse(staffRow.moderators_json);
+                if (
+                  Array.isArray(mods) &&
+                  mods.some(
+                    (m: any) =>
+                      String(m?.handle || '').trim().toLowerCase() === callerHandle &&
+                      Boolean(m?.permissions?.canEditBannerAndLinks)
+                  )
+                ) {
+                  allowed = true;
+                }
+              }
+            } else {
+              const lgRow = await db.prepare('SELECT data FROM custom_leagues WHERE id = ?').bind(targetLeague).first();
+              if (lgRow?.data) {
+                const lg = JSON.parse(lgRow.data);
+                if (String(lg?.hostName || lg?.createdBy || '').trim().toLowerCase() === callerHandle) {
+                  allowed = true;
+                }
+              }
+            }
+          }
+          if (!allowed) {
+            return new Response(
+              JSON.stringify({ error: 'Only the League Host, authorized Moderator, or Site Admin can edit league settings.' }),
+              { status: 403, headers: CORS_HEADERS }
+            );
+          }
+
           const row = await db.prepare('SELECT data FROM league_meta WHERE league_id = ?').bind(targetLeague).first();
           const prev = row?.data ? JSON.parse(row.data) : {};
           const next = {
             ...prev,
             ...(body.quickLinks !== undefined ? { quickLinks: body.quickLinks } : {}),
             ...(body.faqList !== undefined ? { faqList: body.faqList } : {}),
-            ...(body.archivesList !== undefined ? { archivesList: body.archivesList } : {})
+            ...(body.archivesList !== undefined ? { archivesList: body.archivesList } : {}),
+            ...(body.communityHub !== undefined ? { communityHub: body.communityHub } : {})
           };
           await db
             .prepare('INSERT OR REPLACE INTO league_meta (league_id, data, updated_at) VALUES (?, ?, ?)')

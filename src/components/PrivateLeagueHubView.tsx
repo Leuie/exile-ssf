@@ -63,6 +63,8 @@ import type {
 } from '../types';
 import { fireConfetti } from '../utils/confetti';
 import type { ManagerSectionType } from './LeagueContentManagerModal';
+import { getDefaultCommunityHub } from './league/widgets/CommunityHubSection';
+import type { LeagueCommunityHubConfig } from '../services/cloudSync';
 const LeagueContentManagerModal = lazy(() => import('./LeagueContentManagerModal').then((m) => ({ default: m.LeagueContentManagerModal })));
 const FullGuideReaderView = lazy(() => import('./FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
 const WishlistsTab = lazy(() => import('./league/tabs/WishlistsTab').then((m) => ({ default: m.WishlistsTab })));
@@ -388,6 +390,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   const [bossRotas, setBossRotas] = useState<BossRotaListing[]>([]);
   const [leagueFirsts, setLeagueFirsts] = useState<LeagueFirstMilestone[]>([]);
   const [activityFeed, setActivityFeed] = useState<LeagueFeedEvent[]>([]);
+  const [customCommunityHub, setCustomCommunityHub] = useState<LeagueCommunityHubConfig | null>(null);
   const [showSheetsModal, setShowSheetsModal] = useState<boolean>(false);
 
   const handleIngestRosterRows = async (rows: IngestedRosterRow[]) => {
@@ -593,6 +596,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           if (Array.isArray(data.meta.quickLinks)) setQuickLinks(data.meta.quickLinks);
           if (Array.isArray(data.meta.faqList)) setFaqList(data.meta.faqList);
           if (Array.isArray(data.meta.archivesList)) setArchivesList(data.meta.archivesList);
+          setCustomCommunityHub(data.meta.communityHub || null);
+        } else {
+          setCustomCommunityHub(null);
         }
       }
     };
@@ -1455,30 +1461,47 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {/* Row 2: In Game Channel, Community Links & Membership Actions */}
         <div className="px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/40 bg-slate-900/40">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Quick in game channel copy */}
-            <button
-              type="button"
-              onClick={() => triggerCopy(activeLeagueInfo.globalChannel, 'In Game Channel')}
-              className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Click to copy in game chat command"
-            >
-              <MessageSquare className="w-3 h-3 text-slate-400" />
-              <span>{activeLeagueInfo.globalChannel}</span>
-              <Copy className="w-2.5 h-2.5 text-slate-500" />
-            </button>
+            {/* Quick in game channel copy (per league, hidden if host leaves blank) */}
+            {(() => {
+              const hub =
+                customCommunityHub ||
+                getDefaultCommunityHub(
+                  activeSessionId,
+                  currentSession?.name || activeLeagueInfo?.leagueName,
+                  activeLeagueInfo?.globalChannel
+                );
+              const primaryPlace = hub.places[0];
+              return (
+                <>
+                  {hub.globalChannel && (
+                    <button
+                      type="button"
+                      onClick={() => triggerCopy(hub.globalChannel, 'In Game Channel')}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] font-mono text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Click to copy in game chat command"
+                    >
+                      <MessageSquare className="w-3 h-3 text-slate-400" />
+                      <span>{hub.globalChannel}</span>
+                      <Copy className="w-2.5 h-2.5 text-slate-500" />
+                    </button>
+                  )}
 
-            {/* Ravenwatch Root */}
-            <a
-              href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/80 text-[11px] text-emerald-300 flex items-center gap-1.5 transition-colors"
-              title="Official GSF Gathering Place on Root"
-            >
-              <Users className="w-3 h-3 text-emerald-400" />
-              <span>Ravenwatch Root</span>
-              <ExternalLink className="w-2.5 h-2.5 text-emerald-500" />
-            </a>
+                  {primaryPlace && (
+                    <a
+                      href={primaryPlace.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-800/80 text-[11px] text-emerald-300 flex items-center gap-1.5 transition-colors"
+                      title={primaryPlace.badge || 'League Community Gathering Place'}
+                    >
+                      <Users className="w-3 h-3 text-emerald-400" />
+                      <span>{primaryPlace.title}</span>
+                      <ExternalLink className="w-2.5 h-2.5 text-emerald-500" />
+                    </a>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Official League Ladder */}
             {activeLeagueInfo.officialLeagueUrl && (
@@ -1749,37 +1772,62 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             <CommandCenterTab
               activeSessionId={activeSessionId}
               isPoE2Session={isPoE2Session}
-            activeLeagueInfo={activeLeagueInfo}
-            currentSession={currentSession}
-            roster={roster}
-            userAccount={userAccount}
-            isCurrentUserOnRoster={isCurrentUserOnRoster}
-            onOpenAuthModal={onOpenAuthModal}
-            triggerCopy={triggerCopy}
-            handleOpenInviteModal={handleOpenInviteModal}
-            handleOpenJoinModal={handleOpenJoinModal}
-            handleOpenIngestModal={handleOpenIngestModal}
-            quickLinks={quickLinks}
-            archivesList={archivesList}
-            faqList={faqList}
-            openManagerModal={openManagerModal}
-            isCurrentUserAdmin={isCurrentUserAdmin}
-            leagueFirsts={leagueFirsts}
-            onClaimLeagueFirst={(m) => {
-              setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
-              saveCloudLeagueFirst(activeSessionId, m);
-              fireConfetti();
-              setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
-              setTimeout(() => setCopyNotice(null), 3500);
-            }}
-          />
-          <LeagueStaffContactCard
-            leagueName={activeLeagueInfo.name}
-            staff={leagueStaff}
-            canManage={canAccessManageTab}
-            onOpenManageTab={() => handleSelectTab('manage')}
-            onOpenProfile={onOpenProfile}
-          />
+              activeLeagueInfo={activeLeagueInfo}
+              currentSession={currentSession}
+              roster={roster}
+              userAccount={userAccount}
+              isCurrentUserOnRoster={isCurrentUserOnRoster}
+              onOpenAuthModal={onOpenAuthModal}
+              triggerCopy={triggerCopy}
+              handleOpenInviteModal={handleOpenInviteModal}
+              handleOpenJoinModal={handleOpenJoinModal}
+              handleOpenIngestModal={handleOpenIngestModal}
+              quickLinks={quickLinks}
+              archivesList={archivesList}
+              faqList={faqList}
+              openManagerModal={openManagerModal}
+              isCurrentUserAdmin={isCurrentUserAdmin}
+              leagueFirsts={leagueFirsts}
+              staffSection={
+                <LeagueStaffContactCard
+                  leagueName={currentSession?.name || activeLeagueInfo.leagueName || activeLeagueInfo.name || 'this league'}
+                  staff={leagueStaff}
+                  canManage={canAccessManageTab}
+                  onOpenManageTab={() => handleSelectTab('manage')}
+                  onOpenProfile={onOpenProfile}
+                />
+              }
+              communityHub={
+                customCommunityHub ||
+                getDefaultCommunityHub(
+                  activeSessionId,
+                  currentSession?.name || activeLeagueInfo?.leagueName,
+                  activeLeagueInfo?.globalChannel
+                )
+              }
+              canEditCommunityHub={Boolean(
+                isCurrentUserAdmin || isLeagueHost || myModEntry?.permissions?.canEditBannerAndLinks
+              )}
+              onSaveCommunityHub={async (nextHub) => {
+                const ok = await saveCloudLeagueMeta(activeSessionId, { communityHub: nextHub });
+                if (ok) {
+                  setCustomCommunityHub(nextHub);
+                  setCopyNotice('Saved League Community Hub & Global Chat to Cloudflare D1!');
+                  setTimeout(() => setCopyNotice(null), 3000);
+                } else {
+                  setCopyNotice('Sign in as League Host or authorized Moderator to save Community Hub.');
+                  setTimeout(() => setCopyNotice(null), 3500);
+                }
+                return ok;
+              }}
+              onClaimLeagueFirst={(m) => {
+                setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
+                saveCloudLeagueFirst(activeSessionId, m);
+                fireConfetti();
+                setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
+                setTimeout(() => setCopyNotice(null), 3500);
+              }}
+            />
           </div>
         )}
 
@@ -1787,7 +1835,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
         {activeTab === 'manage' && canAccessManageTab && (
           <LeagueManageTab
             leagueId={activeSessionId}
-            leagueName={activeLeagueInfo.name}
+            leagueName={currentSession?.name || activeLeagueInfo.leagueName || activeLeagueInfo.name || activeSessionId}
             patchVersion={activeLeagueInfo.version || '3.30'}
             officialLeagueUrl={activeLeagueInfo.officialLeagueUrl}
             roster={roster}

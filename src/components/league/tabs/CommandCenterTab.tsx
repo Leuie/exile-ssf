@@ -7,8 +7,6 @@ import {
   Compass,
   ChevronDown,
   ChevronUp,
-  Users,
-  Copy,
   BookOpen,
   History,
   HelpCircle,
@@ -21,8 +19,13 @@ import type {
   PastPrivateLeague,
   LeagueFirstMilestone
 } from '../../../types';
+import type { LeagueCommunityHubConfig } from '../../../services/cloudSync';
 import { LeagueHeroBanner } from '../../LeagueHeroBanner';
 import type { ManagerSectionType } from '../../LeagueContentManagerModal';
+import {
+  CommunityHubSection,
+  isRavenwatchLeague
+} from '../widgets/CommunityHubSection';
 
 export interface CommandCenterTabProps {
   activeSessionId: string;
@@ -44,6 +47,10 @@ export interface CommandCenterTabProps {
   isCurrentUserAdmin?: boolean;
   leagueFirsts?: LeagueFirstMilestone[];
   onClaimLeagueFirst?: (milestone: LeagueFirstMilestone) => void;
+  staffSection?: React.ReactNode;
+  communityHub: LeagueCommunityHubConfig;
+  canEditCommunityHub?: boolean;
+  onSaveCommunityHub?: (next: LeagueCommunityHubConfig) => Promise<boolean>;
 }
 
 export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
@@ -65,7 +72,11 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
   openManagerModal,
   isCurrentUserAdmin = false,
   leagueFirsts = [],
-  onClaimLeagueFirst
+  onClaimLeagueFirst,
+  staffSection,
+  communityHub,
+  canEditCommunityHub = false,
+  onSaveCommunityHub
 }) => {
   // Collapsible Sections State
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -350,6 +361,9 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
         </div>
       </div>
 
+      {/* League Leadership & Contact Team (Placed directly above Onboarding Guide) */}
+      {staffSection}
+
       {/* 4 Step Onboarding Guide */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden shadow-lg">
         <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
@@ -392,7 +406,9 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
               <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/60 space-y-1">
                 <div className="font-mono text-indigo-400 font-bold">04. Join In Game Chat</div>
                 <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Type /global 5712 on launch day to coordinate mapping, lab carries, and crafts.
+                  {communityHub.globalChannel
+                    ? `Type ${communityHub.globalChannel} on launch day to coordinate mapping, lab carries, and crafts.`
+                    : 'Join your league community gathering place or host chat channel to coordinate mapping, lab carries, and crafts.'}
                 </p>
               </div>
             </div>
@@ -400,104 +416,15 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
         )}
       </div>
 
-      {/* Ravenwatch and NOIR Guild Community Hub */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-lg">
-        <div className="p-4 border-b border-slate-800/80 bg-slate-900/80 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-              Ravenwatch and NOIR Guild Community Hub
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-              Official Gather Place
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => toggleSection('community')}
-            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-          >
-            {collapsedSections['community'] ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          </button>
-        </div>
-
-        {!collapsedSections['community'] && (
-          <div className="p-5 space-y-4">
-            <div className="p-4 rounded-xl border border-emerald-950/80 bg-emerald-950/20 text-xs text-slate-300 leading-relaxed space-y-2">
-              <p className="font-medium text-slate-200">
-                Ravenwatch is the chill community of ARPG and MMO gamers run by the NOIR guild, founded and created by Leuie in January 2018. The Ravenwatch server was established in February 2026 during the &quot;Discord Exit&quot;.
-              </p>
-              <p className="text-slate-300">
-                It welcomes gamers from all over the world. We are more than just gamers, and our community is a place where we can show that. We are here to help you connect, laugh, and grow your circle in a positive, meaningful way. NOIR manages the guild community, and Ravenwatch serves as our dedicated ARPG and MMO gaming server.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <a
-                href="https://rootapp.gg/AC1NPUuJiQqlyDvGbgH-8A"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3.5 rounded-xl border border-emerald-800/60 bg-emerald-950/40 hover:bg-emerald-900/50 transition-all flex flex-col justify-between space-y-2 group"
-              >
-                <div>
-                  <div className="text-[10px] font-mono text-emerald-400 uppercase font-bold">Official GSF Community</div>
-                  <div className="font-bold text-sm text-white mt-0.5 flex items-center gap-1.5">
-                    <span>Ravenwatch on Root</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1">
-                    Primary gathering place for GSF coordination, trade requests, voice hangouts, and starter builds.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-emerald-300 font-mono">
-                  <span>Join Ravenwatch</span>
-                  <ExternalLink className="w-3 h-3" />
-                </div>
-              </a>
-
-              <a
-                href="https://rootapp.gg/AC01VYpHiAq1rM0An8FDzw"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-slate-800/80 transition-all flex flex-col justify-between space-y-2 group"
-              >
-                <div>
-                  <div className="text-[10px] font-mono text-indigo-400 uppercase font-bold">Guild Headquarters</div>
-                  <div className="font-bold text-sm text-white mt-0.5">
-                    <span>NOIR Guild HQ</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    The home of NOIR Guild. Connect with guild runners, officers, and community veterans on Root.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-indigo-300 font-mono">
-                  <span>Open NOIR HQ</span>
-                  <ExternalLink className="w-3 h-3" />
-                </div>
-              </a>
-
-              <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 flex flex-col justify-between space-y-2">
-                <div>
-                  <div className="text-[10px] font-mono text-amber-400 uppercase font-bold">In Game Global Chat</div>
-                  <div className="font-bold text-sm text-white mt-0.5 font-mono">
-                    <span>/global 5712</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Click below to copy the chat channel command to paste directly in Path of Exile on launch.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => triggerCopy('/global 5712', 'In Game Channel')}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Copy className="w-3 h-3" />
-                  <span>Copy Channel Command</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Customizable Per League Community Hub & In Game Global Chat */}
+      <CommunityHubSection
+        hubConfig={communityHub}
+        collapsed={Boolean(collapsedSections['community'])}
+        onToggleCollapse={() => toggleSection('community')}
+        canEdit={canEditCommunityHub}
+        onSaveHub={async (next) => (onSaveCommunityHub ? onSaveCommunityHub(next) : false)}
+        triggerCopy={triggerCopy}
+      />
 
       {/* Essential Official Quick Links */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden space-y-0">
@@ -561,7 +488,9 @@ export const CommandCenterTab: React.FC<CommandCenterTabProps> = ({
           <div className="flex items-center gap-2">
             <History className="w-3.5 h-3.5 text-indigo-400" />
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
-              NOIR Private League Archives
+              {isRavenwatchLeague(activeSessionId, currentSession?.name)
+                ? 'NOIR Private League Archives'
+                : 'Private League Archives'}
             </span>
             <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono text-[10px]">
               {archivesList.length} Previous Leagues
