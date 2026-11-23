@@ -28,6 +28,7 @@ import {
 import { getMemberCharacters } from './league/tabs/RosterTab';
 import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
 import { SessionScratchpad } from './league/widgets/SessionScratchpad';
+import { CharacterPaperdollView } from './profile/CharacterPaperdollView';
 import { ACHIEVEMENT_CATALOG, buildRetroactiveHonorHistory, HONOR_PER_ITEM_FOUND } from '../utils/achievements';
 import { fireConfetti } from '../utils/confetti';
 
@@ -752,6 +753,18 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           </div>
         </form>
       )}
+
+      {/* Character Equipment & Inventory Paperdoll (Live GGG Sync + Cloud Snapshots) */}
+      <CharacterPaperdollView
+        handle={profile.handle}
+        poeAccountName={profile.poeAccountName}
+        rosterCharacters={allCharacters}
+        canEdit={canEdit}
+        onNotify={(msg) => {
+          setCopyNotice(msg);
+          setTimeout(() => setCopyNotice(null), 3000);
+        }}
+      />
 
       {/* Main 2 Column Hub Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

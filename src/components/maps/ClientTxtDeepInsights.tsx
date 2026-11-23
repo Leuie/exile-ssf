@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Flame,
   Layers,
@@ -7,8 +7,28 @@ import {
   Skull,
   Sparkles,
   TrendingUp,
-  Zap
+  Zap,
+  MessageSquare,
+  Trophy,
+  CheckCircle2
 } from 'lucide-react';
+
+export interface GsfTradeTelemetry {
+  incomingWhispers: number;
+  outgoingWhispers: number;
+  tradesAccepted: number;
+  tradingTimeSec: number;
+  afkHideoutSec: number;
+}
+
+export interface CapturedLeagueFirstProof {
+  id: string;
+  title: string;
+  category: 'Boss' | 'Level' | 'Milestone';
+  charName: string;
+  timestampIso: string;
+  label: string;
+}
 
 export interface LevelUpEvent {
   charName: string;
@@ -36,6 +56,9 @@ export interface DeepParsedRun {
 interface ClientTxtDeepInsightsProps {
   runs: DeepParsedRun[];
   levelUps: LevelUpEvent[];
+  tradeTelemetry?: GsfTradeTelemetry;
+  capturedProofs?: CapturedLeagueFirstProof[];
+  onClaimLeagueFirst?: (proof: CapturedLeagueFirstProof) => Promise<boolean>;
 }
 
 function fmtDur(sec: number): string {
@@ -60,8 +83,13 @@ function resolveCampaignAct(areaCode?: string): number | null {
 
 export const ClientTxtDeepInsights: React.FC<ClientTxtDeepInsightsProps> = ({
   runs,
-  levelUps
+  levelUps,
+  tradeTelemetry,
+  capturedProofs = [],
+  onClaimLeagueFirst
 }) => {
+  const [claimedProofIds, setClaimedProofIds] = useState<Record<string, boolean>>({});
+  const [claimingProofId, setClaimingProofId] = useState<string | null>(null);
   // Chronological order (oldest -> newest)
   const chronoRuns = useMemo(() => [...runs].reverse(), [runs]);
   const activeRuns = useMemo(() => chronoRuns.filter((r) => r.kind !== 'Hideout / Town'), [chronoRuns]);
@@ -398,6 +426,129 @@ export const ClientTxtDeepInsights: React.FC<ClientTxtDeepInsightsProps> = ({
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 5 & 6. Live GSF Trade & Whisper Counter + Automatic League Firsts Proof Capture */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Live GSF Trade & Whisper Counter */}
+        <div className="rounded-2xl border border-indigo-500/30 bg-[#0d111a] p-4 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between text-xs">
+            <div className="font-bold text-slate-200 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Live GSF Trade &amp; Whisper Counter</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">Client.txt Local</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="text-lg font-mono font-bold text-emerald-300">
+                {tradeTelemetry?.tradesAccepted ?? 0}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">Trades Accepted</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="text-lg font-mono font-bold text-sky-300">
+                {tradeTelemetry?.incomingWhispers ?? 0}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">@From Whispers</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="text-lg font-mono font-bold text-amber-300">
+                {tradeTelemetry?.outgoingWhispers ?? 0}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">@To Whispers</div>
+            </div>
+          </div>
+
+          {(() => {
+            const trSec = tradeTelemetry?.tradingTimeSec ?? 0;
+            const afkSec = tradeTelemetry?.afkHideoutSec ?? 0;
+            const totalHo = Math.max(1, trSec + afkSec);
+            const trPct = Math.round((trSec / totalHo) * 100);
+            const afkPct = 100 - trPct;
+            return (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-indigo-300">Active GSF Trading: {fmtDur(trSec)} ({trPct}%)</span>
+                  <span className="text-slate-400">AFK Hideout: {fmtDur(afkSec)} ({afkPct}%)</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-950 overflow-hidden border border-slate-800 flex">
+                  <div className="h-full bg-indigo-500 transition-all" style={{ width: `${trPct}%` }} />
+                  <div className="h-full bg-slate-700 transition-all" style={{ width: `${afkPct}%` }} />
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Automatic League Firsts Proof Capture */}
+        <div className="rounded-2xl border border-amber-500/30 bg-[#0d111a] p-4 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between text-xs">
+            <div className="font-bold text-amber-200 flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <span>Automatic League Firsts Proof Capture</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">
+              {capturedProofs.length} Detected
+            </span>
+          </div>
+
+          {capturedProofs.length === 0 ? (
+            <div className="py-5 text-center text-xs text-slate-500">
+              Level 90/95/100 dings and Pinnacle Boss encounters (Maven, Exarch, Eater, Shaper, Elder, Sirus) will appear here with exact timestamps for one click Hall of Fame claims.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+              {capturedProofs.map((proof) => {
+                const claimed = Boolean(claimedProofIds[proof.id]);
+                const busy = claimingProofId === proof.id;
+                return (
+                  <div
+                    key={proof.id}
+                    className="p-2.5 rounded-xl bg-slate-950/90 border border-amber-500/30 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-bold text-amber-200 truncate">{proof.title}</div>
+                      <div className="text-[10px] font-mono text-slate-400">
+                        {proof.charName ? `${proof.charName} • ` : ''}
+                        {proof.label} ({proof.category})
+                      </div>
+                    </div>
+                    {onClaimLeagueFirst && (
+                      <button
+                        type="button"
+                        disabled={claimed || busy}
+                        onClick={async () => {
+                          setClaimingProofId(proof.id);
+                          const ok = await onClaimLeagueFirst(proof);
+                          setClaimingProofId(null);
+                          if (ok) {
+                            setClaimedProofIds((prev) => ({ ...prev, [proof.id]: true }));
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer flex items-center gap-1 ${
+                          claimed
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                        }`}
+                      >
+                        {claimed ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Claimed!</span>
+                          </>
+                        ) : (
+                          <span>{busy ? 'Claiming...' : 'Claim Hall of Fame'}</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

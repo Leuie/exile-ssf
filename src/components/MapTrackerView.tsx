@@ -22,8 +22,8 @@ import {
   Flame,
   Hammer
 } from 'lucide-react';
-import type { UserAccount } from '../types';
-import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
+import type { UserAccount, LeagueFirstMilestone } from '../types';
+import { fetchUserToolState, saveUserToolState, saveCloudLeagueFirst } from '../services/cloudSync';
 import {
   POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
@@ -37,7 +37,9 @@ import {
 } from './maps/MapAnalyticsCharts';
 import {
   ClientTxtDeepInsights,
-  type LevelUpEvent
+  type LevelUpEvent,
+  type GsfTradeTelemetry,
+  type CapturedLeagueFirstProof
 } from './maps/ClientTxtDeepInsights';
 
 interface MapTrackerViewProps {
@@ -133,6 +135,14 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [runs, setRuns] = useState<ParsedAreaRun[]>([]);
   const [levelUps, setLevelUps] = useState<LevelUpEvent[]>([]);
   const [deathTimestamps, setDeathTimestamps] = useState<number[]>([]);
+  const [tradeTelemetry, setTradeTelemetry] = useState<GsfTradeTelemetry>({
+    incomingWhispers: 0,
+    outgoingWhispers: 0,
+    tradesAccepted: 0,
+    tradingTimeSec: 0,
+    afkHideoutSec: 0
+  });
+  const [capturedProofs, setCapturedProofs] = useState<CapturedLeagueFirstProof[]>([]);
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
@@ -245,6 +255,11 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         const parsedLevels: LevelUpEvent[] = [];
         let pendingGen: { level: number; code: string; seed: string; ts: number } | null = null;
         const lastLevelTsByChar = new Map<string, number>();
+        let incomingWhispers = 0;
+        let outgoingWhispers = 0;
+        let tradesAccepted = 0;
+        const tradeActivityTimestamps: number[] = [];
+        const proofsMap = new Map<string, CapturedLeagueFirstProof>();
 
         const detectNpcMechanic = (ln: string): string | null => {
           if (/Einhar, Beastmaster:/i.test(ln)) return 'Bestiary';
@@ -298,6 +313,15 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             }
           } else if (/has been slain\./i.test(line)) {
             deaths.push(ts);
+          } else if (/\]\s*@From\s+/i.test(line)) {
+            incomingWhispers += 1;
+            tradeActivityTimestamps.push(ts);
+          } else if (/\]\s*@To\s+/i.test(line)) {
+            outgoingWhispers += 1;
+            tradeActivityTimestamps.push(ts);
+          } else if (/:\s*Trade accepted\./i.test(line)) {
+            tradesAccepted += 1;
+            tradeActivityTimestamps.push(ts);
           } else {
             const lvlMatch = line.match(/:\s*([^\s:]+)\s+\(([^)]+)\)\s+is now level (\d+)/i);
             if (lvlMatch) {
@@ -315,9 +339,41 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 label: new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 durationSec
               });
+              if (level === 90 || level === 95 || level === 100) {
+                const pKey = `lvl-${level}-${charName.toLowerCase()}`;
+                if (!proofsMap.has(pKey)) {
+                  proofsMap.set(pKey, {
+                    id: `proof-${pKey}-${ts}`,
+                    title: `First Level ${level} (${className})`,
+                    category: 'Level',
+                    charName,
+                    timestampIso: new Date(ts).toISOString(),
+                    label: new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  });
+                }
+              }
             } else if (zoneEvents.length > 0) {
               const mech = detectNpcMechanic(line);
-              if (mech) zoneEvents[zoneEvents.length - 1].mechanics.add(mech);
+              if (mech) {
+                zoneEvents[zoneEvents.length - 1].mechanics.add(mech);
+                if (['Maven', 'Searing Exarch', 'Eater of Worlds', 'Pinnacle Boss'].includes(mech)) {
+                  const bossTitle =
+                    mech === 'Pinnacle Boss'
+                      ? line.match(/\b(The Shaper|The Elder|Sirus, Awakener[^:]*|Venarius):/i)?.[1] || 'Pinnacle Boss'
+                      : mech;
+                  const bKey = `boss-${bossTitle.toLowerCase()}`;
+                  if (!proofsMap.has(bKey)) {
+                    proofsMap.set(bKey, {
+                      id: `proof-${bKey}-${ts}`,
+                      title: `${bossTitle} Encounter`,
+                      category: 'Boss',
+                      charName: selectedCharName || userAccount?.characterName || userAccount?.displayName || '',
+                      timestampIso: new Date(ts).toISOString(),
+                      label: new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    });
+                  }
+                }
+              }
             }
           }
         }
@@ -344,9 +400,28 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           });
         }
 
+        // Separate GSF Trading Time from AFK Hideout Time
+        let tradingTimeSec = 0;
+        let afkHideoutSec = 0;
+        for (const r of builtRuns) {
+          if (r.kind !== 'Hideout / Town') continue;
+          const endMs = r.enteredAtMs + r.durationSec * 1000;
+          const hadTradeEvt = tradeActivityTimestamps.some((t) => t >= r.enteredAtMs && t <= endMs);
+          if (hadTradeEvt) tradingTimeSec += r.durationSec;
+          else afkHideoutSec += r.durationSec;
+        }
+
         setRuns(builtRuns.reverse());
         setLevelUps(parsedLevels);
         setDeathTimestamps(deaths);
+        setTradeTelemetry({
+          incomingWhispers,
+          outgoingWhispers,
+          tradesAccepted,
+          tradingTimeSec,
+          afkHideoutSec
+        });
+        setCapturedProofs(Array.from(proofsMap.values()).reverse());
         setLastFileReadAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         if (!silent) {
           const mapCount = builtRuns.filter((r) => r.kind !== 'Hideout / Town').length;
@@ -1073,7 +1148,39 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         strategyRows={strategyRows}
       />
 
-      <ClientTxtDeepInsights runs={runs} levelUps={levelUps} />
+      <ClientTxtDeepInsights
+        runs={runs}
+        levelUps={levelUps}
+        tradeTelemetry={tradeTelemetry}
+        capturedProofs={capturedProofs}
+        onClaimLeagueFirst={async (proof) => {
+          const targetLeagueId = game === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
+          const handle = userAccount?.displayName || proof.charName || 'Exile';
+          const milestone: LeagueFirstMilestone = {
+            id: `lf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            leagueId: targetLeagueId,
+            milestoneKey: proof.title.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+            title: proof.title,
+            winnerDisplayName: handle,
+            winnerCharacterName: proof.charName || userAccount?.characterName || handle,
+            proofNote: `Auto captured from local Client.txt at ${proof.label}.`,
+            achievedAtIso: proof.timestampIso
+          };
+          const ok = await saveCloudLeagueFirst(targetLeagueId, milestone);
+          if (ok) {
+            setNotice({
+              type: 'ok',
+              text: `Claimed "${proof.title}" on the Private League Hall of Fame!`
+            });
+          } else {
+            setNotice({
+              type: 'err',
+              text: 'Sign in required to claim League Firsts on the Hall of Fame.'
+            });
+          }
+          return ok;
+        }}
+      />
 
       {/* Recent Area Runs Table & Cloud Saved Sessions */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">

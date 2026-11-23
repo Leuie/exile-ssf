@@ -916,6 +916,8 @@ export default {
           '/api/auth/logout',
           '/api/farming/detect-leagues',
           '/api/farming/character-xp',
+          '/api/farming/character-gear',
+          '/api/farming/guild-stash',
           '/api/farming/stash-tabs',
           '/api/farming/stash-snapshot'
         ]);

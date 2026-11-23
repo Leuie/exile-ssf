@@ -14,6 +14,14 @@ export interface AssetRouteContext {
 export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Response | null> {
   const { url, request, env, now, corsHeaders, initD1Schema, resolveOfficialLadderName, readVerifiedSession } = ctx;
 
+  const parsePropNumber = (it: any, propName: string): number => {
+    if (!Array.isArray(it?.properties)) return 0;
+    const found = it.properties.find((p: any) => String(p?.name || '').toLowerCase() === propName.toLowerCase());
+    if (!found || !Array.isArray(found.values) || !found.values[0]) return 0;
+    const match = String(found.values[0][0] || '').match(/\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
   // POST /api/farming/detect-leagues (Stateless GGG character league detector; never stores POESESSID)
   if (url.pathname === '/api/farming/detect-leagues' && request.method === 'POST') {
     try {
@@ -150,6 +158,282 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       );
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || 'Failed to poll character XP.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
+  // POST /api/farming/character-gear (Stateless GGG get-items + get-passive-skills for Paperdoll, PoB Doctor & EHP Calc)
+  if (url.pathname === '/api/farming/character-gear' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const rawAccountName = String(body.accountName || '').trim();
+      const characterName = String(body.characterName || '').trim();
+      const realm = String(body.realm || 'pc').trim().toLowerCase();
+      const poesessid = String(body.poesessid || '').trim();
+
+      if (!rawAccountName || !characterName || !poesessid) {
+        return new Response(
+          JSON.stringify({ error: 'Account Name, Character Name, and POESESSID are required.' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const gggHeaders = {
+        Cookie: `POESESSID=${poesessid}`,
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'application/json'
+      };
+
+      const accountCandidates = [rawAccountName];
+      if (rawAccountName.includes('#')) accountCandidates.push(rawAccountName.replace('#', '-'));
+
+      let itemsData: any = null;
+      let matchedAccount = rawAccountName;
+      let lastStatus = 0;
+
+      for (const acct of accountCandidates) {
+        const ep = `https://www.pathofexile.com/character-window/get-items?accountName=${encodeURIComponent(acct)}&character=${encodeURIComponent(characterName)}&realm=${encodeURIComponent(realm)}`;
+        const r = await fetch(ep, { headers: gggHeaders });
+        lastStatus = r.status;
+        if (r.ok) {
+          const parsed: any = await r.json().catch(() => null);
+          if (parsed && !parsed.error && Array.isArray(parsed.items)) {
+            itemsData = parsed;
+            matchedAccount = acct;
+            break;
+          }
+        }
+      }
+
+      if (!itemsData) {
+        return new Response(
+          JSON.stringify({
+            error:
+              lastStatus === 429
+                ? 'GGG rate limit reached (429). Wait 20 seconds and retry.'
+                : `Could not load gear for "${characterName}" (HTTP ${lastStatus}). Verify Account Name, Character Name, and POESESSID.`
+          }),
+          { status: lastStatus || 400, headers: corsHeaders }
+        );
+      }
+
+      // Also fetch passive tree & jewels in parallel (best effort)
+      let passiveData: any = null;
+      try {
+        const pEp = `https://www.pathofexile.com/character-window/get-passive-skills?accountName=${encodeURIComponent(matchedAccount)}&character=${encodeURIComponent(characterName)}&realm=${encodeURIComponent(realm)}`;
+        const pr = await fetch(pEp, { headers: gggHeaders });
+        if (pr.ok) passiveData = await pr.json().catch(() => null);
+      } catch {}
+
+      const cleanStr = (s: any) => String(s || '').replace(/<<[^>]+>>/g, '').trim();
+      const rawItems: any[] = Array.isArray(itemsData.items) ? itemsData.items : [];
+      const equippedSlots = new Set([
+        'Weapon', 'Offhand', 'Weapon2', 'Offhand2', 'Helm', 'BodyArmour',
+        'Amulet', 'Ring', 'Ring2', 'Gloves', 'Belt', 'Boots', 'Flask', 'Trinket'
+      ]);
+
+      const equipped: any[] = [];
+      let voidstoneCount = 0;
+      const estimatedVitals = {
+        flatLife: 0,
+        flatEs: 0,
+        fireRes: 0,
+        coldRes: 0,
+        lightningRes: 0,
+        chaosRes: 0,
+        suppress: 0
+      };
+
+      for (const it of rawItems) {
+        const invId = String(it?.inventoryId || '');
+        const fullName = `${cleanStr(it?.name)} ${cleanStr(it?.typeLine)}`.toLowerCase();
+        if (fullName.includes('voidstone')) voidstoneCount += 1;
+        if (!equippedSlots.has(invId)) continue;
+
+        const allMods: string[] = [
+          ...(Array.isArray(it?.implicitMods) ? it.implicitMods : []),
+          ...(Array.isArray(it?.explicitMods) ? it.explicitMods : []),
+          ...(Array.isArray(it?.craftedMods) ? it.craftedMods : []),
+          ...(Array.isArray(it?.fracturedMods) ? it.fracturedMods : [])
+        ].map(String);
+
+        if (invId !== 'Weapon2' && invId !== 'Offhand2' && invId !== 'Flask') {
+          for (const mod of allMods) {
+            const lifeM = mod.match(/\+(\d+) to maximum Life/i);
+            if (lifeM) estimatedVitals.flatLife += Number(lifeM[1]);
+            const esM = mod.match(/\+(\d+) to maximum Energy Shield/i);
+            if (esM) estimatedVitals.flatEs += Number(esM[1]);
+            const allResM = mod.match(/\+(\d+)% to all Elemental Resistances/i);
+            if (allResM) {
+              const v = Number(allResM[1]);
+              estimatedVitals.fireRes += v;
+              estimatedVitals.coldRes += v;
+              estimatedVitals.lightningRes += v;
+            }
+            const fRes = mod.match(/\+(\d+)% to Fire Resistance/i);
+            if (fRes) estimatedVitals.fireRes += Number(fRes[1]);
+            const cRes = mod.match(/\+(\d+)% to Cold Resistance/i);
+            if (cRes) estimatedVitals.coldRes += Number(cRes[1]);
+            const lRes = mod.match(/\+(\d+)% to Lightning Resistance/i);
+            if (lRes) estimatedVitals.lightningRes += Number(lRes[1]);
+            const chRes = mod.match(/\+(\d+)% to Chaos Resistance/i);
+            if (chRes) estimatedVitals.chaosRes += Number(chRes[1]);
+            const supM = mod.match(/\+(\d+)% chance to Suppress Spell Damage/i);
+            if (supM) estimatedVitals.suppress += Number(supM[1]);
+          }
+        }
+
+        const sockets = Array.isArray(it?.sockets)
+          ? it.sockets.map((s: any) => ({ group: Number(s?.group ?? 0), sColour: String(s?.sColour || 'W') }))
+          : [];
+        const socketedGems = Array.isArray(it?.socketedItems)
+          ? it.socketedItems.map((g: any) => ({
+              name: cleanStr(g?.typeLine || g?.baseType || g?.name),
+              icon: typeof g?.icon === 'string' ? g.icon : '',
+              colour: String(g?.colour || 'W'),
+              socket: Number(g?.socket ?? 0),
+              level: parsePropNumber(g, 'Level'),
+              quality: parsePropNumber(g, 'Quality'),
+              support: Boolean(g?.support)
+            }))
+          : [];
+
+        equipped.push({
+          id: String(it?.id || `${invId}-${it?.x ?? 0}`),
+          inventoryId: invId,
+          x: Number(it?.x ?? 0),
+          name: cleanStr(it?.name),
+          baseType: cleanStr(it?.baseType || it?.typeLine),
+          typeLine: cleanStr(it?.typeLine),
+          icon: typeof it?.icon === 'string' ? it.icon : '',
+          frameType: Number(it?.frameType ?? 0),
+          ilvl: Number(it?.ilvl ?? 0),
+          corrupted: Boolean(it?.corrupted),
+          sockets,
+          socketedGems,
+          implicitMods: Array.isArray(it?.implicitMods) ? it.implicitMods.map(String) : [],
+          explicitMods: Array.isArray(it?.explicitMods) ? it.explicitMods.map(String) : [],
+          craftedMods: Array.isArray(it?.craftedMods) ? it.craftedMods.map(String) : [],
+          enchantMods: Array.isArray(it?.enchantMods) ? it.enchantMods.map(String) : [],
+          fracturedMods: Array.isArray(it?.fracturedMods) ? it.fracturedMods.map(String) : []
+        });
+      }
+
+      const passiveHashes = Array.isArray(passiveData?.hashes) ? passiveData.hashes : [];
+      const passiveJewels = Array.isArray(passiveData?.items) ? passiveData.items : [];
+      const charInfo = itemsData.character || {};
+
+      return new Response(
+        JSON.stringify({
+          status: 'ok',
+          syncedAtIso: now,
+          character: {
+            name: String(charInfo.name || characterName),
+            league: String(charInfo.league || ''),
+            className: String(charInfo.class || ''),
+            level: Number(charInfo.level || 1),
+            experience: Number(charInfo.experience || 0)
+          },
+          equipped,
+          passives: {
+            allocatedCount: passiveHashes.length,
+            jewelCount: passiveJewels.length,
+            voidstoneCount: Math.min(4, voidstoneCount)
+          },
+          estimatedVitals
+        }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Failed to fetch character gear.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
+  // POST /api/farming/guild-stash (Stateless GGG Guild Stash tab list & scanner for Private League Wishlist matching)
+  if (url.pathname === '/api/farming/guild-stash' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const rawAccountName = String(body.accountName || '').trim();
+      const rawLeague = String(body.league || '').trim();
+      const realm = String(body.realm || 'pc').trim().toLowerCase();
+      const poesessid = String(body.poesessid || '').trim();
+      const tabIndices: number[] = Array.isArray(body.tabIndices)
+        ? body.tabIndices.map(Number).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 10)
+        : [0];
+
+      if (!rawAccountName || !rawLeague || !poesessid) {
+        return new Response(
+          JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const league =
+        rawLeague.toUpperCase() === 'PL87651'
+          ? 'Ravenwatch Covens of Umbra GSF (PL87651)'
+          : resolveOfficialLadderName(rawLeague);
+
+      const gggHeaders = {
+        Cookie: `POESESSID=${poesessid}`,
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'application/json'
+      };
+
+      const acct = rawAccountName.includes('#') ? rawAccountName.replace('#', '-') : rawAccountName;
+      const items: any[] = [];
+      let tabs: any[] = [];
+
+      for (let i = 0; i < tabIndices.length; i++) {
+        const idx = tabIndices[i];
+        const ep = `https://www.pathofexile.com/character-window/get-guild-stash-items?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=${i === 0 ? 1 : 0}&tabIndex=${idx}`;
+        const r = await fetch(ep, { headers: gggHeaders });
+        if (!r.ok) {
+          if (i === 0) {
+            return new Response(
+              JSON.stringify({ error: `GGG Guild Stash API returned HTTP ${r.status}. Make sure you belong to a guild in "${league}".` }),
+              { status: r.status, headers: corsHeaders }
+            );
+          }
+          continue;
+        }
+        const data: any = await r.json().catch(() => null);
+        if (i === 0 && Array.isArray(data?.tabs)) {
+          tabs = data.tabs.map((t: any) => ({
+            index: Number(t.i),
+            name: String(t.n || `Guild Tab ${Number(t.i) + 1}`),
+            type: String(t.type || 'NormalStash')
+          }));
+        }
+        const tabLabel = tabs.find((t) => t.index === idx)?.name || `Guild Tab ${idx + 1}`;
+        for (const it of Array.isArray(data?.items) ? data.items : []) {
+          const cleanName = String(it?.name || '').replace(/<<[^>]+>>/g, '').trim();
+          const cleanBase = String(it?.baseType || it?.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
+          const shortName = cleanName || cleanBase || 'Unknown Item';
+          const meta: any = classifyStashItem(it);
+          items.push({
+            id: String(it?.id || `${idx}-${shortName}-${items.length}`),
+            shortName,
+            baseType: cleanBase,
+            category: meta.category,
+            quantity: Math.max(1, Number(it?.stackSize || 1)),
+            icon: typeof it?.icon === 'string' ? it.icon : '',
+            tabName: tabLabel,
+            frameType: Number(it?.frameType ?? 0)
+          });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ status: 'ok', league, tabs, items, syncedAtIso: now }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Guild stash scan failed.' }), {
         status: 500,
         headers: corsHeaders
       });

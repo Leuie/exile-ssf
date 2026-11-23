@@ -93,6 +93,7 @@ import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
 import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
 import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
+import { GuildStashScannerPanel } from './assets/GuildStashScannerPanel';
 
 interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -722,12 +723,17 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     const updated: LookingForItem = { ...wish, status: 'HAVE', fulfilledBy: finder, fulfilledAtIso: new Date().toISOString() };
     setClaimedWishIds((prev) => ({ ...prev, [wish.id]: true }));
     try {
-      await fetch('/api/wishlist', {
+      const wishRes = await fetch('/api/wishlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ leagueId: linkedLeagueId, item: updated })
       });
+      if (!wishRes.ok) {
+        setClaimedWishIds((prev) => ({ ...prev, [wish.id]: false }));
+        setStatusNotice({ type: 'err', text: 'Sign in required to mark wishlist items as found.' });
+        return;
+      }
       await fetch('/api/feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -739,13 +745,17 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
             type: 'item_fulfilled',
             actorHandle: finder,
             title: `Found ${wish.itemName} for @${wish.displayName || wish.characterName}`,
-            detail: `Detected automatically during ${strategyTag} farming session.`,
+            detail: `Detected automatically during ${strategyTag} farming session (+5 Honor).`,
             createdAtIso: new Date().toISOString()
           }
         })
       });
-      setStatusNotice({ type: 'ok', text: `Marked "${wish.itemName}" found for @${wish.displayName || wish.characterName}!` });
+      setStatusNotice({
+        type: 'ok',
+        text: `Marked "${wish.itemName}" found for @${wish.displayName || wish.characterName} (+5 Honor awarded)!`
+      });
     } catch {
+      setClaimedWishIds((prev) => ({ ...prev, [wish.id]: false }));
       setStatusNotice({ type: 'err', text: 'Sign in required to update league wishlist.' });
     }
   };
@@ -1824,12 +1834,24 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                   onClick={() => handleClaimWishlistMatch(m.wish)}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer ${isClaimed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
                 >
-                  {isClaimed ? 'Claimed' : 'Mark Found'}
+                  {isClaimed ? 'Fulfilled (+5 Honor)' : 'Mark Found (+5 Honor)'}
                 </button>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Private League Guild Stash Wishlist Scanner */}
+      {game === 'poe1' && (
+        <GuildStashScannerPanel
+          accountName={accountName}
+          leagueName={leagueName}
+          poesessid={poesessid}
+          openWishlistItems={wishlistItems.filter((w) => w.status !== 'HAVE')}
+          claimedWishIds={claimedWishIds}
+          onClaimWishlist={handleClaimWishlistMatch}
+        />
       )}
 
       {/* TOP 2 CARD HERO ROW */}

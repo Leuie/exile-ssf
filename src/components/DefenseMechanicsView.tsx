@@ -191,6 +191,25 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
   const [suppressionCapped, setSuppressionCapped] = useState<boolean>(true);
   const [hasFortify, setHasFortify] = useState<boolean>(false);
 
+  // Auto load synced Character Paperdoll vitals if pushed from Exile Profile
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('exile_ssf_synced_gear_vitals_v1');
+      if (!raw) return;
+      const synced = JSON.parse(raw);
+      const vitals = synced?.vitals;
+      if (!vitals) return;
+      const lvl = Number(synced.level || 85);
+      const estBaseLife = 50 + lvl * 12;
+      const estPool = Math.max(1200, Math.round((estBaseLife + Number(vitals.flatLife || 0)) * 2.1 + Number(vitals.flatEs || 0) * 1.4));
+      setHpPool(estPool);
+      setSuppressionCapped(Number(vitals.suppress || 0) >= 85);
+      setLoadedCharLabel(
+        `Loaded live GGG gear from ${synced.characterName || 'Character'} (Lv ${lvl} ${synced.className || ''}, ~${estPool.toLocaleString()} est. pool)`
+      );
+    } catch {}
+  }, []);
+
   const handleSwitchGame = (next: GameMode) => {
     setGameMode(next);
     if (next === 'poe1') {

@@ -36,6 +36,8 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
   const [isIframeFullscreen, setIsIframeFullscreen] = useState<boolean>(false);
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [cloudSynced, setCloudSynced] = useState<boolean>(false);
+  const [syncingVoidstones, setSyncingVoidstones] = useState<boolean>(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState<AtlasProgressState>(() => {
     try {
       const saved = localStorage.getItem('exile_ssf_atlas_progress_v1');
@@ -73,6 +75,84 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
 
   const voidstoneCount = Object.values(progress.voidstones).filter(Boolean).length;
   void selectedGame;
+
+  const handleAutoSyncVoidstones = async () => {
+    setSyncingVoidstones(true);
+    setSyncMessage(null);
+    try {
+      // First check if a synced Character Paperdoll snapshot already exists locally
+      const cachedRaw = localStorage.getItem('exile_ssf_synced_gear_vitals_v1');
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        const detected = Number(cached?.passives?.voidstoneCount ?? -1);
+        if (detected >= 0) {
+          const nextVoidstones = {
+            exarch: detected >= 1,
+            eater: detected >= 2,
+            maven: detected >= 3,
+            uberElder: detected >= 4
+          };
+          updateProgress({ ...progress, voidstones: nextVoidstones });
+          setSyncMessage(
+            `Synced ${detected}/4 Voidstones from ${cached.characterName || 'your synced character'}!`
+          );
+          setSyncingVoidstones(false);
+          return;
+        }
+      }
+
+      // Otherwise attempt live GGG character sync using saved POESESSID
+      const sessRaw = localStorage.getItem('exile_ssf_poesessid_optin_v1') || '';
+      const poesessid = sessRaw.startsWith('{') ? JSON.parse(sessRaw)?.poesessid || '' : sessRaw;
+      const prefsRaw = localStorage.getItem('exile_ssf_asset_prefs_v1');
+      const accountName =
+        (prefsRaw ? JSON.parse(prefsRaw)?.accountName : '') || userAccount?.poeAccountName || '';
+
+      if (!poesessid || !accountName) {
+        setSyncMessage(
+          'Sync your character once on your Exile Profile (or enter POESESSID in Asset Tracker) to auto sync Voidstones.'
+        );
+        setSyncingVoidstones(false);
+        return;
+      }
+
+      const charsRes = await fetch('/api/farming/character-xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName, poesessid, realm: 'pc' })
+      });
+      const charsJson: any = await charsRes.json();
+      const topChar = Array.isArray(charsJson?.characters) ? charsJson.characters[0] : null;
+      if (!topChar?.name) {
+        throw new Error(charsJson?.error || 'No characters found on GGG account.');
+      }
+
+      const gearRes = await fetch('/api/farming/character-gear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName, characterName: topChar.name, poesessid, realm: 'pc' })
+      });
+      const gearJson: any = await gearRes.json();
+      if (!gearRes.ok || gearJson?.status !== 'ok') {
+        throw new Error(gearJson?.error || 'Could not read character Voidstones.');
+      }
+      const detected = Math.min(4, Math.max(0, Number(gearJson?.passives?.voidstoneCount || 0)));
+      updateProgress({
+        ...progress,
+        voidstones: {
+          exarch: detected >= 1,
+          eater: detected >= 2,
+          maven: detected >= 3,
+          uberElder: detected >= 4
+        }
+      });
+      setSyncMessage(`Live synced ${detected}/4 Voidstones from ${topChar.name} (Lv ${topChar.level})!`);
+    } catch (e: any) {
+      setSyncMessage(e?.message || 'Auto Voidstone sync failed.');
+    } finally {
+      setSyncingVoidstones(false);
+    }
+  };
 
   const stages = [
     {
@@ -153,7 +233,16 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
             <Gem className="w-4 h-4 text-amber-400" />
             <span>My Atlas Progression Tracker</span>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <button
+              type="button"
+              onClick={handleAutoSyncVoidstones}
+              disabled={syncingVoidstones}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingVoidstones ? 'animate-spin' : ''}`} />
+              <span>{syncingVoidstones ? 'Syncing...' : 'Auto Sync Voidstones'}</span>
+            </button>
             <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-bold">
               {voidstoneCount}/4 Voidstones
             </span>
@@ -162,6 +251,11 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
             </span>
           </div>
         </div>
+        {syncMessage && (
+          <div className="px-3 py-2 rounded-xl bg-slate-950/90 border border-indigo-500/35 text-xs font-mono text-indigo-200">
+            {syncMessage}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">

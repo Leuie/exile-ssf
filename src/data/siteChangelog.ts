@@ -16,6 +16,21 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-23-paperdoll-telemetry',
+    version: 'v3.30.10',
+    title: 'PoE Character Paperdoll Inventory, Guild Stash Wishlist Scanner, Auto Voidstone Sync & Client.txt Proof Capture',
+    dateEst: 'Nov 23, 2026 • 12:45 AM EST',
+    summary: 'Launched an authentic Path of Exile Character Equipment Paperdoll with Character Selector on Exile Profiles, added a Private League Guild Stash Scanner with one click +5 Honor Wishlist fulfillment, wired Auto Voidstone Sync on Atlas Tracker, and expanded Client.txt telemetry with a GSF Trade & Whisper Counter and Automatic League Firsts Proof Capture.',
+    changes: [
+      { tag: 'Added', text: 'Authentic Path of Exile Character Equipment & Inventory Paperdoll on Exile Profiles with Weapon Set I/II toggle, all 12 gear slots + 5 Flasks, socket & link overlays, live hover/click item mod & socketed gem inspector, Character Selector, Cloudflare D1 snapshot persistence, and one click push of live gear vitals into Defense Mechanics EHP Calculator.' },
+      { tag: 'Added', text: 'Private League Guild Stash Scanner inside Asset Tracker (/api/farming/guild-stash) scanning up to 8 GSF Guild Stash tabs and highlighting every item matching a squadmate\'s open Wishlist.' },
+      { tag: 'Improved', text: 'Auto Wishlist Fulfillment Detector in Asset Tracker now awards +5 Honor on one click Mark Found (+5 Honor) from both personal stash syncs and Guild Stash scans.' },
+      { tag: 'Added', text: 'Auto Sync Voidstones button inside Atlas Tracker reading your synced character\'s Voidstones directly to auto check Exarch, Eater, Maven, and Uber Elder milestones.' },
+      { tag: 'Added', text: 'Live GSF Trade & Whisper Counter inside Map Tracker parsing @From / @To whispers and Trade accepted events from local Client.txt to separate Active GSF Trading Time from AFK Hideout Time.' },
+      { tag: 'Added', text: 'Automatic League Firsts Proof Capture inside Map Tracker detecting Level 90/95/100 dings and Pinnacle Boss encounters with exact timestamps and a one click Claim on Hall of Fame button.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-22-governance',
     version: 'v3.30.9',
     title: 'Macro Site Super Admin Console, Sitewide Notice Banners & Per League Host/Moderator Governance',
