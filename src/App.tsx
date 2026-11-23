@@ -755,6 +755,7 @@ export const App: React.FC = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         userAccount={userAccount}
+        forceReauth={serverSessionExpired}
         onSaveAccount={handleSaveAccount}
         onSignOut={handleSignOut}
       />

@@ -16,12 +16,13 @@ import {
 import { ASCENDANCY_CATALOG } from '../data/privateLeagueData';
 import type { UserAccount, LeagueRosterMember, ContactPlatform } from '../types';
 import { fireConfetti } from '../utils/confetti';
-import { cloudAuthAdminLogin } from '../services/cloudSync';
+import { cloudAuthAdminLogin, cloudAuthLogin, cloudAuthRegister } from '../services/cloudSync';
 
 interface AuthRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   userAccount: UserAccount | null;
+  forceReauth?: boolean;
   onSaveAccount: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onSignOut: () => void;
   existingRosterMember?: LeagueRosterMember;
@@ -48,6 +49,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   isOpen,
   onClose,
   userAccount,
+  forceReauth = false,
   onSaveAccount,
   onSignOut,
   existingRosterMember
@@ -152,7 +154,14 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       setPobUrl(userAccount.pobUrl || '');
       setAtlasContent(userAccount.atlasContent?.join(', ') || '');
       setNotes(userAccount.notes || '');
-      setStep('link_poe_profile');
+      if (forceReauth) {
+        setAuthMethod(userAccount.provider === 'google' ? 'google' : 'app');
+        setAppAuthMode('signin');
+        setAppUsername(userAccount.displayName || '');
+        setStep('auth_choice');
+      } else {
+        setStep('link_poe_profile');
+      }
     } else {
       setStep('auth_choice');
       setAuthError(null);
@@ -175,7 +184,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
         setNotes(existingRosterMember.notes || '');
       }
     }
-  }, [userAccount, existingRosterMember, isOpen]);
+  }, [userAccount, existingRosterMember, isOpen, forceReauth]);
 
   // Open / close native <dialog> via showModal()
   useEffect(() => {
@@ -381,20 +390,56 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
         } catch {}
       }
 
-      setTimeout(() => {
+      // Attempt server side Google email login (mints encrypted HttpOnly exile_session cookie for non admin accounts)
+      try {
+        const gRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            identifier: emailClean,
+            password: '__google_email_oauth__',
+            googleEmailSignIn: true
+          })
+        });
+        if (gRes.ok) {
+          const gData: any = await gRes.json();
+          if (gData?.success && gData?.userAccount) {
+            setIsProcessing(false);
+            onSaveAccount(gData.userAccount, gData.rosterEntry || matched?.rosterEntry);
+            fireConfetti();
+            dialogRef.current?.close();
+            return;
+          }
+        }
+      } catch {}
+
+      if (matched) {
+        // Legacy localStorage Google user: migrate to Cloudflare D1 so server mints a fresh 30 day cookie
+        const regRes = await cloudAuthRegister({
+          username: matched.username || matched.userAccount.displayName,
+          email: emailClean,
+          password: '',
+          userAccount: matched.userAccount,
+          rosterEntry: matched.rosterEntry
+        });
         setIsProcessing(false);
-        if (matched) {
-          // Existing user with this Google email
-          onSaveAccount(matched.userAccount, matched.rosterEntry);
+        if (regRes.success && regRes.userAccount) {
+          onSaveAccount(regRes.userAccount, regRes.rosterEntry || matched.rosterEntry);
           fireConfetti();
           dialogRef.current?.close();
-        } else {
-          // New exile: advance to profile setup and link PoE profile
-          setAuthMethod('google');
-          setDisplayName(emailClean.split('@')[0]);
-          setStep('link_poe_profile');
+          return;
         }
-      }, 350);
+        onSaveAccount(matched.userAccount, matched.rosterEntry);
+        fireConfetti();
+        dialogRef.current?.close();
+      } else {
+        setIsProcessing(false);
+        // New exile: advance to profile setup and link PoE profile
+        setAuthMethod('google');
+        setDisplayName(emailClean.split('@')[0]);
+        setStep('link_poe_profile');
+      }
     } catch {
       setIsProcessing(false);
       setAuthMethod('google');
@@ -441,17 +486,59 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     const storedList: StoredAppAccount[] = storedRaw ? JSON.parse(storedRaw) : [];
 
     if (appAuthMode === 'signin') {
+      // 1. Primary: Verify credentials against Cloudflare D1 and mint 30 day encrypted HttpOnly exile_session cookie
+      const cloudRes = await cloudAuthLogin(userClean, appPassword);
+      if (cloudRes.success && cloudRes.userAccount) {
+        setIsProcessing(false);
+        const fallbackRoster: LeagueRosterMember = cloudRes.rosterEntry || {
+          id: `roster-${cloudRes.userAccount.id || Date.now()}`,
+          slotNumber: 18,
+          leagueMode: cloudRes.userAccount.leagueMode || 'Private',
+          displayName: cloudRes.userAccount.displayName || userClean,
+          preferredContact: cloudRes.userAccount.preferredContact || 'app',
+          poeAccountName: cloudRes.userAccount.poeAccountName || '',
+          characterName: cloudRes.userAccount.characterName || userClean,
+          className: cloudRes.userAccount.className || 'Exile',
+          ascendancy: cloudRes.userAccount.ascendancy || 'Unassigned',
+          availableAtLaunch: cloudRes.userAccount.availableAtLaunch || 'Yes',
+          level: Number(cloudRes.userAccount.level || 1),
+          buildName: cloudRes.userAccount.buildName || 'Undecided Starter',
+          atlasContent: cloudRes.userAccount.atlasContent || ['Expedition', 'Harvest'],
+          notes: cloudRes.userAccount.notes || '',
+          inviteStatus: cloudRes.userAccount.inviteStatus || 'Accepted',
+          isOnline: true
+        };
+        onSaveAccount(cloudRes.userAccount, fallbackRoster);
+        fireConfetti();
+        dialogRef.current?.close();
+        return;
+      }
+
+      // 2. Seamless migration for legacy localStorage accounts created before D1 cookies
       const found = storedList.find(
         (a) => a.username.toLowerCase() === userClean.toLowerCase() && a.passwordHash === passwordHash
       );
-      setIsProcessing(false);
       if (found) {
-        onSaveAccount(found.userAccount, found.rosterEntry);
-        fireConfetti();
-        dialogRef.current?.close();
-      } else {
-        setAuthError('Invalid Exile SSF username or password.');
+        const regRes = await cloudAuthRegister({
+          username: found.username,
+          email: found.userAccount?.email,
+          password: appPassword,
+          userAccount: found.userAccount,
+          rosterEntry: found.rosterEntry
+        });
+        setIsProcessing(false);
+        if (regRes.success && regRes.userAccount) {
+          onSaveAccount(regRes.userAccount, regRes.rosterEntry || found.rosterEntry);
+          fireConfetti();
+          dialogRef.current?.close();
+          return;
+        }
+        setAuthError(regRes.error || cloudRes.error || 'Could not refresh cloud session.');
+        return;
       }
+
+      setIsProcessing(false);
+      setAuthError(cloudRes.error || 'Invalid Exile SSF username or password.');
     } else {
       // Create Account mode
       if (appPassword !== appPasswordConfirm) {
@@ -596,6 +683,23 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       }
       localStorage.setItem('poe_clean330_accounts', JSON.stringify(storedList));
     } catch {}
+
+    // Persist new or updated non admin account to Cloudflare D1 and mint 30 day encrypted HttpOnly cookie
+    if (!isLeuie) {
+      setIsProcessing(true);
+      const regRes = await cloudAuthRegister({
+        username: cleanDisplay,
+        email: newAccount.email,
+        password: appPassword || '',
+        userAccount: newAccount,
+        rosterEntry: newRosterEntry
+      });
+      setIsProcessing(false);
+      if (!regRes.success && !userAccount) {
+        setAuthError(regRes.error || 'Could not register account in Cloudflare D1.');
+        return;
+      }
+    }
 
     onSaveAccount(newAccount, newRosterEntry);
     fireConfetti();

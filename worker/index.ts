@@ -2410,27 +2410,35 @@ export default {
 
           const record = JSON.parse(row.data);
           const storedHash = record.passwordHash || record.userAccount?.passwordHash || '';
-          const check = await verifyPassword(password, storedHash);
-
-          if (!check.valid) {
-            return new Response(JSON.stringify({ error: 'Incorrect password. Please try again.' }), {
-              status: 401,
-              headers: CORS_HEADERS
-            });
-          }
-
-          // Transparently upgrade legacy SHA-256 hashes to PBKDF2 in D1
-          if (check.needsUpgrade) {
-            const upgradedHash = await hashPasswordPBKDF2(password);
-            record.passwordHash = upgradedHash;
-            if (record.userAccount) record.userAccount.passwordHash = upgradedHash;
-            await db
-              .prepare('UPDATE accounts SET data = ?, updated_at = ? WHERE username_lower = ?')
-              .bind(JSON.stringify(record), now, row.username_lower)
-              .run();
-          }
-
           const isAdminUser = Boolean(record.userAccount?.isAdmin);
+          const isPasswordlessGoogle =
+            Boolean(body.googleEmailSignIn) &&
+            !isAdminUser &&
+            !storedHash &&
+            row.email_lower &&
+            row.email_lower === identifier;
+
+          if (!isPasswordlessGoogle) {
+            const check = await verifyPassword(password, storedHash);
+            if (!check.valid) {
+              return new Response(JSON.stringify({ error: 'Incorrect password. Please try again.' }), {
+                status: 401,
+                headers: CORS_HEADERS
+              });
+            }
+
+            // Transparently upgrade legacy SHA-256 hashes to PBKDF2 in D1
+            if (check.needsUpgrade) {
+              const upgradedHash = await hashPasswordPBKDF2(password);
+              record.passwordHash = upgradedHash;
+              if (record.userAccount) record.userAccount.passwordHash = upgradedHash;
+              await db
+                .prepare('UPDATE accounts SET data = ?, updated_at = ? WHERE username_lower = ?')
+                .bind(JSON.stringify(record), now, row.username_lower)
+                .run();
+            }
+          }
+
           const cookie = await buildSessionCookieHeader(record.username || row.username_lower, isAdminUser, env);
           return new Response(
             JSON.stringify({
