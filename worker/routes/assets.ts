@@ -278,6 +278,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       ]);
 
       const equipped: any[] = [];
+      const abyssJewelsFromGear: any[] = [];
       let voidstoneCount = 0;
       const estimatedVitals = {
         flatLife: 0,
@@ -287,6 +288,100 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         lightningRes: 0,
         chaosRes: 0,
         suppress: 0
+      };
+      const gearStats = {
+        strength: 0,
+        dexterity: 0,
+        intelligence: 0,
+        armour: 0,
+        evasion: 0,
+        energyShield: 0,
+        movementSpeed: 0,
+        blockChance: 0,
+        lifeRegen: 0
+      };
+
+      const normalizeJewelItem = (j: any, invLabel: string) => ({
+        id: String(j?.id || `${invLabel}-${Math.random().toString(36).slice(2, 7)}`),
+        inventoryId: invLabel,
+        x: Number(j?.x ?? 0),
+        name: cleanStr(j?.name),
+        baseType: cleanStr(j?.baseType || j?.typeLine),
+        typeLine: cleanStr(j?.typeLine),
+        icon: typeof j?.icon === 'string' ? j.icon : '',
+        frameType: Number(j?.frameType ?? 0),
+        ilvl: Number(j?.ilvl ?? 0),
+        corrupted: Boolean(j?.corrupted),
+        properties: extractItemProps(j),
+        sockets: [],
+        socketedGems: [],
+        implicitMods: extractModStrings(j?.implicitMods),
+        explicitMods: [...extractModStrings(j?.utilityMods), ...extractModStrings(j?.explicitMods)],
+        craftedMods: extractModStrings(j?.craftedMods),
+        enchantMods: extractModStrings(j?.enchantMods),
+        fracturedMods: extractModStrings(j?.fracturedMods)
+      });
+
+      const accumulateModStats = (mods: string[]) => {
+        for (const mod of mods) {
+          const lifeM = mod.match(/\+(\d+) to maximum Life/i);
+          if (lifeM) estimatedVitals.flatLife += Number(lifeM[1]);
+          const esM = mod.match(/\+(\d+) to maximum Energy Shield/i);
+          if (esM) estimatedVitals.flatEs += Number(esM[1]);
+          const allResM = mod.match(/\+(\d+)% to all Elemental Resistances/i);
+          if (allResM) {
+            const v = Number(allResM[1]);
+            estimatedVitals.fireRes += v;
+            estimatedVitals.coldRes += v;
+            estimatedVitals.lightningRes += v;
+          }
+          const fRes = mod.match(/\+(\d+)% to Fire Resistance/i);
+          if (fRes) estimatedVitals.fireRes += Number(fRes[1]);
+          const cRes = mod.match(/\+(\d+)% to Cold Resistance/i);
+          if (cRes) estimatedVitals.coldRes += Number(cRes[1]);
+          const lRes = mod.match(/\+(\d+)% to Lightning Resistance/i);
+          if (lRes) estimatedVitals.lightningRes += Number(lRes[1]);
+          const twoRes = mod.match(/\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances/i);
+          if (twoRes) {
+            const v = Number(twoRes[1]);
+            const r1 = twoRes[2].toLowerCase();
+            const r2 = twoRes[3].toLowerCase();
+            if (r1 === 'fire' || r2 === 'fire') estimatedVitals.fireRes += v;
+            if (r1 === 'cold' || r2 === 'cold') estimatedVitals.coldRes += v;
+            if (r1 === 'lightning' || r2 === 'lightning') estimatedVitals.lightningRes += v;
+          }
+          const chRes = mod.match(/\+(\d+)% to Chaos Resistance/i);
+          if (chRes) estimatedVitals.chaosRes += Number(chRes[1]);
+          const supM = mod.match(/\+(\d+)% chance to Suppress Spell Damage/i);
+          if (supM) estimatedVitals.suppress += Number(supM[1]);
+
+          const allAttr = mod.match(/\+(\d+) to all Attributes/i);
+          if (allAttr) {
+            const v = Number(allAttr[1]);
+            gearStats.strength += v;
+            gearStats.dexterity += v;
+            gearStats.intelligence += v;
+          }
+          const strM = mod.match(/\+(\d+) to Strength(?! and)/i);
+          if (strM) gearStats.strength += Number(strM[1]);
+          const dexM = mod.match(/\+(\d+) to Dexterity(?! and)/i);
+          if (dexM) gearStats.dexterity += Number(dexM[1]);
+          const intM = mod.match(/\+(\d+) to Intelligence(?! and)/i);
+          if (intM) gearStats.intelligence += Number(intM[1]);
+          const twoAttr = mod.match(/\+(\d+) to (Strength|Dexterity|Intelligence) and (Strength|Dexterity|Intelligence)/i);
+          if (twoAttr) {
+            const v = Number(twoAttr[1]);
+            const a1 = twoAttr[2].toLowerCase();
+            const a2 = twoAttr[3].toLowerCase();
+            if (a1 === 'strength' || a2 === 'strength') gearStats.strength += v;
+            if (a1 === 'dexterity' || a2 === 'dexterity') gearStats.dexterity += v;
+            if (a1 === 'intelligence' || a2 === 'intelligence') gearStats.intelligence += v;
+          }
+          const msM = mod.match(/(\d+)% increased Movement Speed/i);
+          if (msM) gearStats.movementSpeed += Number(msM[1]);
+          const regenM = mod.match(/Regenerate ([\d.]+) Life per second/i);
+          if (regenM) gearStats.lifeRegen += Number(regenM[1]);
+        }
       };
 
       for (const it of rawItems) {
@@ -310,56 +405,42 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         ];
 
         if (invId !== 'Weapon2' && invId !== 'Offhand2' && invId !== 'Flask') {
-          for (const mod of allMods) {
-            const lifeM = mod.match(/\+(\d+) to maximum Life/i);
-            if (lifeM) estimatedVitals.flatLife += Number(lifeM[1]);
-            const esM = mod.match(/\+(\d+) to maximum Energy Shield/i);
-            if (esM) estimatedVitals.flatEs += Number(esM[1]);
-            const allResM = mod.match(/\+(\d+)% to all Elemental Resistances/i);
-            if (allResM) {
-              const v = Number(allResM[1]);
-              estimatedVitals.fireRes += v;
-              estimatedVitals.coldRes += v;
-              estimatedVitals.lightningRes += v;
-            }
-            const fRes = mod.match(/\+(\d+)% to Fire Resistance/i);
-            if (fRes) estimatedVitals.fireRes += Number(fRes[1]);
-            const cRes = mod.match(/\+(\d+)% to Cold Resistance/i);
-            if (cRes) estimatedVitals.coldRes += Number(cRes[1]);
-            const lRes = mod.match(/\+(\d+)% to Lightning Resistance/i);
-            if (lRes) estimatedVitals.lightningRes += Number(lRes[1]);
-            const twoRes = mod.match(/\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances/i);
-            if (twoRes) {
-              const v = Number(twoRes[1]);
-              const r1 = twoRes[2].toLowerCase();
-              const r2 = twoRes[3].toLowerCase();
-              if (r1 === 'fire' || r2 === 'fire') estimatedVitals.fireRes += v;
-              if (r1 === 'cold' || r2 === 'cold') estimatedVitals.coldRes += v;
-              if (r1 === 'lightning' || r2 === 'lightning') estimatedVitals.lightningRes += v;
-            }
-            const chRes = mod.match(/\+(\d+)% to Chaos Resistance/i);
-            if (chRes) estimatedVitals.chaosRes += Number(chRes[1]);
-            const supM = mod.match(/\+(\d+)% chance to Suppress Spell Damage/i);
-            if (supM) estimatedVitals.suppress += Number(supM[1]);
-          }
+          accumulateModStats(allMods);
+          gearStats.armour += parsePropNumber(it, 'Armour');
+          gearStats.evasion += parsePropNumber(it, 'Evasion Rating');
+          gearStats.energyShield += parsePropNumber(it, 'Energy Shield');
+          const blk = parsePropNumber(it, 'Chance to Block');
+          if (blk > gearStats.blockChance) gearStats.blockChance = blk;
         }
 
         const sockets = Array.isArray(it?.sockets)
           ? it.sockets.map((s: any) => ({ group: Number(s?.group ?? 0), sColour: resolveSocketColour(s) }))
           : [];
-        const socketedGems = Array.isArray(it?.socketedItems)
-          ? it.socketedItems.map((g: any) => ({
+        const rawSocketed = Array.isArray(it?.socketedItems) ? it.socketedItems : [];
+        const socketedGems: any[] = [];
+        for (const g of rawSocketed) {
+          const gBase = cleanStr(g?.baseType || g?.typeLine);
+          if (g?.abyssJewel || /eye jewel/i.test(gBase)) {
+            const normJ = normalizeJewelItem(g, 'Abyss Jewel');
+            abyssJewelsFromGear.push(normJ);
+            if (invId !== 'Weapon2' && invId !== 'Offhand2') {
+              accumulateModStats([...normJ.implicitMods, ...normJ.explicitMods]);
+            }
+          } else {
+            socketedGems.push({
               name: cleanStr(g?.typeLine || g?.baseType || g?.name),
               icon: typeof g?.icon === 'string' ? g.icon : '',
               colour: String(g?.colour || 'W').toUpperCase(),
               socket: Number(g?.socket ?? 0),
+              group: sockets[Number(g?.socket ?? 0)]?.group ?? 0,
               level: parsePropNumber(g, 'Level'),
               quality: parsePropNumber(g, 'Quality'),
               support: Boolean(g?.support),
               description: cleanStr(g?.secDescrText || ''),
               mods: extractModStrings(g?.explicitMods).slice(0, 6)
-            }))
-          : [];
+            });
+          }
+        }
 
         const extendedAffixes = Array.isArray(it?.extended?.mods?.explicit)
           ? it.extended.mods.explicit.map((m: any) => ({
@@ -396,8 +477,192 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         });
       }
 
-      const passiveHashes = Array.isArray(passiveData?.hashes) ? passiveData.hashes : [];
-      const passiveJewels = Array.isArray(passiveData?.items) ? passiveData.items : [];
+      const passiveHashes: number[] = Array.isArray(passiveData?.hashes)
+        ? passiveData.hashes.map(Number).filter(Number.isFinite)
+        : [];
+      const masteryEffectsMap: Record<string, number> =
+        passiveData?.mastery_effects && typeof passiveData.mastery_effects === 'object'
+          ? passiveData.mastery_effects
+          : {};
+      const passiveJewelsRaw: any[] = Array.isArray(passiveData?.items) ? passiveData.items : [];
+
+      const clusterJewels: any[] = [];
+      const baseJewels: any[] = [];
+      const abyssJewels: any[] = [...abyssJewelsFromGear];
+
+      for (const j of passiveJewelsRaw) {
+        const b = cleanStr(j?.baseType || j?.typeLine).toLowerCase();
+        if (b.includes('cluster jewel')) {
+          clusterJewels.push(normalizeJewelItem(j, 'Cluster Jewel'));
+        } else if (j?.abyssJewel || b.includes('eye jewel')) {
+          const norm = normalizeJewelItem(j, 'Abyss Jewel');
+          abyssJewels.push(norm);
+          accumulateModStats([...norm.implicitMods, ...norm.explicitMods]);
+        } else {
+          const norm = normalizeJewelItem(j, 'Base Jewel');
+          baseJewels.push(norm);
+          accumulateModStats([...norm.implicitMods, ...norm.explicitMods]);
+        }
+      }
+
+      // Resolve Ascendancy nodes, Keystones, Masteries, and SVG Passive Tree Constellation from GGG's official skilltree-export (cached 7d in KV)
+      let ascendancyNodes: Array<{ id: number; name: string; icon: string; stats: string[]; ascendancyName?: string }> = [];
+      let keystones: Array<{ id: number; name: string; icon: string; stats: string[] }> = [];
+      let masteries: Array<{ id: number; name: string; effectStats: string[] }> = [];
+      let treePoints: Array<[number, number, number]> = []; // [x, y, flag: 0=unallocated, 1=allocated, 2=notable/keystone allocated]
+      let treeEdges: Array<[number, number, number, number]> = [];
+
+      if (passiveHashes.length > 0) {
+        try {
+          const kvKey = 'poe1:skilltree:compact:v1';
+          let compactTree: any = null;
+          if (env.EXILE_KV) {
+            const cached = await env.EXILE_KV.get(kvKey);
+            if (cached) {
+              compactTree = JSON.parse(cached);
+            }
+          }
+          if (!compactTree) {
+            const treeRes = await fetch(
+              'https://raw.githubusercontent.com/grindinggear/skilltree-export/master/data.json',
+              { headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)' } }
+            );
+            if (treeRes.ok) {
+              const rawTree: any = await treeRes.json();
+              const orbitRadii: number[] = rawTree?.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
+              const skillsPerOrbit: number[] = rawTree?.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+              const groups = rawTree?.groups || {};
+              const rawNodes = rawTree?.nodes || {};
+              const nodeMeta: Record<string, any> = {};
+              const bgPoints: Array<[number, number, number]> = [];
+
+              for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
+                if (!nd || idStr === 'root' || nd.isProxy || nd.classStartIndex !== undefined) continue;
+                const grp = groups[String(nd.group)];
+                let nx = 0;
+                let ny = 0;
+                if (grp && typeof grp.x === 'number' && typeof grp.y === 'number') {
+                  const orb = Number(nd.orbit || 0);
+                  const r = orbitRadii[orb] || 0;
+                  const count = skillsPerOrbit[orb] || 1;
+                  const angle = (2 * Math.PI * Number(nd.orbitIndex || 0)) / count;
+                  nx = Math.round((grp.x + r * Math.sin(angle)) / 10);
+                  ny = Math.round((grp.y - r * Math.cos(angle)) / 10);
+                }
+
+                const isAsc = Boolean(nd.ascendancyName);
+                const isKey = Boolean(nd.isKeystone);
+                const isMas = Boolean(nd.isMastery);
+                const isNot = Boolean(nd.isNotable);
+
+                if (!isAsc && !isMas && grp) {
+                  bgPoints.push([Number(idStr), nx, ny]);
+                }
+
+                // Store rich metadata for Ascendancy, Keystones, Masteries, and lightweight coords/out for allocated graph
+                if (isAsc || isKey || isMas) {
+                  const mEffects: Record<string, string[]> = {};
+                  if (Array.isArray(nd.masteryEffects)) {
+                    for (const me of nd.masteryEffects) {
+                      if (me?.effect) mEffects[String(me.effect)] = Array.isArray(me.stats) ? me.stats : [];
+                    }
+                  }
+                  nodeMeta[idStr] = {
+                    n: String(nd.name || ''),
+                    i: typeof nd.icon === 'string' ? nd.icon : '',
+                    s: Array.isArray(nd.stats) ? nd.stats : [],
+                    a: isAsc ? String(nd.ascendancyName) : '',
+                    k: isKey ? 1 : 0,
+                    m: isMas ? 1 : 0,
+                    me: isMas ? mEffects : undefined,
+                    x: nx,
+                    y: ny,
+                    o: Array.isArray(nd.out) ? nd.out.map(Number).filter(Number.isFinite) : []
+                  };
+                } else {
+                  nodeMeta[idStr] = {
+                    x: nx,
+                    y: ny,
+                    nt: isNot ? 1 : 0,
+                    s: Array.isArray(nd.stats) ? nd.stats.slice(0, 3) : [],
+                    o: Array.isArray(nd.out) ? nd.out.map(Number).filter(Number.isFinite) : []
+                  };
+                }
+              }
+
+              compactTree = { nodes: nodeMeta, bg: bgPoints };
+              if (env.EXILE_KV) {
+                try {
+                  await env.EXILE_KV.put(kvKey, JSON.stringify(compactTree), { expirationTtl: 86400 * 7 });
+                } catch {}
+              }
+            }
+          }
+
+          if (compactTree?.nodes) {
+            const allocSet = new Set(passiveHashes);
+            const cNodes = compactTree.nodes;
+
+            for (const h of passiveHashes) {
+              const meta = cNodes[String(h)];
+              if (!meta) continue;
+              if (Array.isArray(meta.s)) {
+                accumulateModStats(meta.s);
+              }
+              if (meta.a && meta.n) {
+                ascendancyNodes.push({
+                  id: h,
+                  name: meta.n,
+                  icon: meta.i ? `https://web.poecdn.com/image/${meta.i.replace(/^Art\//i, 'Art/')}` : '',
+                  stats: meta.s || [],
+                  ascendancyName: meta.a
+                });
+              } else if (meta.k && meta.n) {
+                keystones.push({
+                  id: h,
+                  name: meta.n,
+                  icon: meta.i ? `https://web.poecdn.com/image/${meta.i.replace(/^Art\//i, 'Art/')}` : '',
+                  stats: meta.s || []
+                });
+              } else if (meta.m && meta.n) {
+                const chosenEffectId = masteryEffectsMap[String(h)];
+                const effStats =
+                  chosenEffectId && meta.me?.[String(chosenEffectId)]
+                    ? meta.me[String(chosenEffectId)]
+                    : [];
+                masteries.push({
+                  id: h,
+                  name: meta.n,
+                  effectStats: effStats
+                });
+              }
+
+              // Add allocated edges on main tree
+              if (!meta.a && !meta.m && Array.isArray(meta.o)) {
+                for (const targetId of meta.o) {
+                  if (allocSet.has(targetId) && targetId > h) {
+                    const tMeta = cNodes[String(targetId)];
+                    if (tMeta && !tMeta.a && !tMeta.m) {
+                      treeEdges.push([meta.x, meta.y, tMeta.x, tMeta.y]);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Build lightweight background + allocated points array for SVG rendering
+            if (Array.isArray(compactTree.bg)) {
+              for (const [id, x, y] of compactTree.bg) {
+                const isAlloc = allocSet.has(id);
+                const m = cNodes[String(id)];
+                const flag = isAlloc ? (m?.k || m?.nt ? 2 : 1) : 0;
+                treePoints.push([x, y, flag]);
+              }
+            }
+          }
+        } catch {}
+      }
+
       const charInfo = itemsData.character || {};
 
       return new Response(
@@ -412,10 +677,21 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
             experience: Number(charInfo.experience || 0)
           },
           equipped,
+          jewels: {
+            cluster: clusterJewels,
+            base: baseJewels,
+            abyss: abyssJewels
+          },
+          gearStats,
           passives: {
             allocatedCount: passiveHashes.length,
-            jewelCount: passiveJewels.length,
-            voidstoneCount: Math.min(4, voidstoneCount)
+            jewelCount: clusterJewels.length + baseJewels.length + abyssJewels.length,
+            voidstoneCount: Math.min(4, voidstoneCount),
+            ascendancyNodes,
+            keystones,
+            masteries,
+            treePoints,
+            treeEdges
           },
           estimatedVitals
         }),

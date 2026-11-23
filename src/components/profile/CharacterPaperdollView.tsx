@@ -19,6 +19,11 @@ import {
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
+import {
+  CharacterPassiveTreeAndSkills,
+  type ResolvedPassiveNode,
+  type ResolvedMastery
+} from './CharacterPassiveTreeAndSkills';
 
 export interface PaperdollSocket {
   group: number;
@@ -75,10 +80,31 @@ export interface CharacterGearSnapshot {
     experience: number;
   };
   equipped: PaperdollItem[];
+  jewels?: {
+    cluster: PaperdollItem[];
+    base: PaperdollItem[];
+    abyss: PaperdollItem[];
+  };
+  gearStats?: {
+    strength: number;
+    dexterity: number;
+    intelligence: number;
+    armour: number;
+    evasion: number;
+    energyShield: number;
+    movementSpeed: number;
+    blockChance: number;
+    lifeRegen: number;
+  };
   passives: {
     allocatedCount: number;
     jewelCount: number;
     voidstoneCount: number;
+    ascendancyNodes?: ResolvedPassiveNode[];
+    keystones?: ResolvedPassiveNode[];
+    masteries?: ResolvedMastery[];
+    treePoints?: Array<[number, number, number]>;
+    treeEdges?: Array<[number, number, number, number]>;
   };
   estimatedVitals: {
     flatLife: number;
@@ -848,6 +874,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
         syncedAtIso: json.syncedAtIso,
         character: json.character,
         equipped: json.equipped || [],
+        jewels: json.jewels || { cluster: [], base: [], abyss: [] },
+        gearStats: json.gearStats || undefined,
         passives: json.passives || { allocatedCount: 0, jewelCount: 0, voidstoneCount: 0 },
         estimatedVitals: json.estimatedVitals || {
           flatLife: 0,
@@ -1227,62 +1255,214 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Cluster Jewels, Base Jewels & Abyss Jewels Strip (poe.ninja style) */}
+              {activeSnapshot && (
+                <div className="pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(
+                    [
+                      { key: 'cluster', label: 'CLUSTER JEWELS', list: activeSnapshot.jewels?.cluster || [] },
+                      { key: 'base', label: 'BASE JEWELS', list: activeSnapshot.jewels?.base || [] },
+                      { key: 'abyss', label: 'ABYSS JEWELS', list: activeSnapshot.jewels?.abyss || [] }
+                    ] as const
+                  ).map((tray) => (
+                    <div key={tray.key} className="space-y-1.5">
+                      <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                        {tray.label} ({tray.list.length})
+                      </div>
+                      {tray.list.length === 0 ? (
+                        <div className="h-12 rounded-lg border border-dashed border-slate-800 bg-slate-950/50 flex items-center justify-center text-[10px] font-mono text-slate-600">
+                          None
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {tray.list.map((jw) => (
+                            <div key={jw.id} className="w-12">
+                              {renderSlot(jw, tray.label, 'h-12')}
+                              <div className="text-[9px] font-mono text-slate-400 truncate text-center mt-0.5">
+                                {jw.name || jw.baseType}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Right Column: Character Telemetry + (Side Inspector when Side Panel mode is active) */}
+            {/* Right Column: poe.ninja style Character Stats Sheet + (Optional Side Panel) */}
             <div className="lg:col-span-5 space-y-3">
               {activeSnapshot ? (
-                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/80 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase text-emerald-300">
-                      <Activity className="w-3.5 h-3.5" />
-                      <span>Gear &amp; Passive Tree Telemetry</span>
+                <div className="p-4 rounded-xl border border-slate-800 bg-[#0b101b] space-y-3 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase text-slate-200">
+                      <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Stats</span>
                     </div>
                     <span className="text-[10px] font-mono text-slate-500">
                       Synced {new Date(activeSnapshot.syncedAtIso).toLocaleDateString()}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                      <div className="text-sm font-bold text-white">{activeSnapshot.passives.allocatedCount}</div>
-                      <div className="text-[10px] font-mono text-slate-400">Passives</div>
+                  {/* CHARACTER */}
+                  <div className="space-y-1 text-xs">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                      Character
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                      <div className="text-sm font-bold text-indigo-300">{activeSnapshot.passives.jewelCount}</div>
-                      <div className="text-[10px] font-mono text-slate-400">Tree Jewels</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Attributes (Gear + Tree)</span>
+                      <span className="font-mono font-bold">
+                        <span className="text-rose-400">{activeSnapshot.gearStats?.strength ?? 0}</span>
+                        <span className="text-slate-600"> / </span>
+                        <span className="text-emerald-400">{activeSnapshot.gearStats?.dexterity ?? 0}</span>
+                        <span className="text-slate-600"> / </span>
+                        <span className="text-sky-400">{activeSnapshot.gearStats?.intelligence ?? 0}</span>
+                      </span>
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                      <div className="text-sm font-bold text-amber-300">{activeSnapshot.passives.voidstoneCount}/4</div>
-                      <div className="text-[10px] font-mono text-slate-400">Voidstones</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Movement Speed</span>
+                      <span className="font-mono font-bold text-slate-100">
+                        {100 + Number(activeSnapshot.gearStats?.movementSpeed || 0)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Passives / Jewels / Voidstones</span>
+                      <span className="font-mono font-bold text-amber-300">
+                        {activeSnapshot.passives.allocatedCount} / {activeSnapshot.passives.jewelCount} / {activeSnapshot.passives.voidstoneCount}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
-                    <span className="px-2 py-0.5 rounded bg-rose-950/60 border border-rose-500/30 text-rose-200">
-                      +{activeSnapshot.estimatedVitals.flatLife} Gear Life
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-sky-950/60 border border-sky-500/30 text-sky-200">
-                      +{activeSnapshot.estimatedVitals.flatEs} Gear ES
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-orange-950/60 border border-orange-500/30 text-orange-200">
-                      Fire +{activeSnapshot.estimatedVitals.fireRes}%
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-200">
-                      Cold +{activeSnapshot.estimatedVitals.coldRes}%
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-200">
-                      Light +{activeSnapshot.estimatedVitals.lightningRes}%
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">
-                      Chaos +{activeSnapshot.estimatedVitals.chaosRes}%
-                    </span>
-                    {activeSnapshot.estimatedVitals.suppress > 0 && (
-                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-200">
-                        Suppress +{activeSnapshot.estimatedVitals.suppress}%
+                  {/* DEFENSIVE */}
+                  <div className="space-y-1 text-xs pt-2 border-t border-slate-800/80">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                      Defensive
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Flat Life (Gear + Tree)</span>
+                      <span className="font-mono font-bold text-rose-300">
+                        +{activeSnapshot.estimatedVitals.flatLife.toLocaleString()}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Energy Shield (Base + Flat)</span>
+                      <span className="font-mono font-bold text-sky-300">
+                        {((activeSnapshot.gearStats?.energyShield || 0) + activeSnapshot.estimatedVitals.flatEs).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Armour (Gear Base)</span>
+                      <span className="font-mono font-bold text-slate-200">
+                        {(activeSnapshot.gearStats?.armour || 0) > 0
+                          ? activeSnapshot.gearStats!.armour.toLocaleString()
+                          : '0'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Evasion Rating (Gear Base)</span>
+                      <span className="font-mono font-bold text-slate-200">
+                        {(activeSnapshot.gearStats?.evasion || 0) > 0
+                          ? activeSnapshot.gearStats!.evasion.toLocaleString()
+                          : '0'}
+                      </span>
+                    </div>
+                    {(activeSnapshot.gearStats?.blockChance || 0) > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Shield Block</span>
+                        <span className="font-mono font-bold text-slate-200">
+                          {activeSnapshot.gearStats!.blockChance}%
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Resistances (F / C / L / Ch)</span>
+                      <span className="font-mono font-bold">
+                        <span className="text-orange-400">{activeSnapshot.estimatedVitals.fireRes}%</span>
+                        <span className="text-slate-600"> / </span>
+                        <span className="text-cyan-400">{activeSnapshot.estimatedVitals.coldRes}%</span>
+                        <span className="text-slate-600"> / </span>
+                        <span className="text-amber-300">{activeSnapshot.estimatedVitals.lightningRes}%</span>
+                        <span className="text-slate-600"> / </span>
+                        <span className="text-purple-400">{activeSnapshot.estimatedVitals.chaosRes}%</span>
+                      </span>
+                    </div>
+                    {activeSnapshot.estimatedVitals.suppress > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Spell Suppression</span>
+                        <span className="font-mono font-bold text-emerald-300">
+                          {activeSnapshot.estimatedVitals.suppress}%
+                        </span>
+                      </div>
+                    )}
+                    {(activeSnapshot.gearStats?.lifeRegen || 0) > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Life Regen</span>
+                        <span className="font-mono font-bold text-emerald-300">
+                          {Math.round(activeSnapshot.gearStats!.lifeRegen)}/s
+                        </span>
+                      </div>
                     )}
                   </div>
+
+                  {/* MAIN SKILLS (Auto detected from largest linked active gem setups) */}
+                  {(() => {
+                    const mainSkills: Array<{ name: string; icon: string; links: number; level: number; quality: number }> = [];
+                    for (const it of activeSnapshot.equipped) {
+                      if (!Array.isArray(it.socketedGems) || it.socketedGems.length === 0) continue;
+                      const byGrp = new Map<number, PaperdollGem[]>();
+                      for (const g of it.socketedGems) {
+                        const gIdx = typeof (g as any).group === 'number' ? (g as any).group : it.sockets?.[g.socket]?.group ?? 0;
+                        const list = byGrp.get(gIdx) || [];
+                        list.push(g);
+                        byGrp.set(gIdx, list);
+                      }
+                      for (const grp of byGrp.values()) {
+                        const actives = grp.filter((g) => !g.support);
+                        if (actives.length > 0 && grp.length >= 3) {
+                          for (const act of actives) {
+                            mainSkills.push({
+                              name: act.name,
+                              icon: act.icon || '',
+                              links: grp.length,
+                              level: act.level,
+                              quality: act.quality
+                            });
+                          }
+                        }
+                      }
+                    }
+                    mainSkills.sort((a, b) => b.links - a.links || b.level - a.level);
+                    const topSkills = mainSkills.slice(0, 2);
+                    if (topSkills.length === 0) return null;
+                    return (
+                      <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                        <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                          Main Skills
+                        </div>
+                        {topSkills.map((sk, idx) => (
+                          <div
+                            key={`${sk.name}-${idx}`}
+                            className="p-2 rounded-lg bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {sk.icon && <img src={sk.icon} alt="" className="w-5 h-5 object-contain shrink-0" />}
+                              <div className="min-w-0">
+                                <div className="font-bold text-white truncate">{sk.name}</div>
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  Lv {sk.level}{sk.quality > 0 ? ` / ${sk.quality}%` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/20 border border-indigo-400/40 text-[10px] font-mono font-bold text-indigo-200 shrink-0">
+                              {sk.links}L
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   <button
                     type="button"
@@ -1355,6 +1535,36 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
               )}
             </div>
           </div>
+
+          {/* Toggleable Passive Tree, Ascendancy & Keystones, Masteries, and Skills */}
+          {activeSnapshot && (
+            <CharacterPassiveTreeAndSkills
+              characterName={activeSnapshot.character.name}
+              accountName={accountInput || poeAccountName}
+              allocatedCount={activeSnapshot.passives.allocatedCount}
+              ascendancyNodes={activeSnapshot.passives.ascendancyNodes}
+              keystones={activeSnapshot.passives.keystones}
+              masteries={activeSnapshot.passives.masteries}
+              treePoints={activeSnapshot.passives.treePoints}
+              treeEdges={activeSnapshot.passives.treeEdges}
+              equipped={activeSnapshot.equipped}
+              onInspectItem={(item, el, pin) => {
+                if (pin) {
+                  setLockedItem(item);
+                  setHoveredItem(null);
+                  setSelectedGemIdx(null);
+                  if (inspectMode === 'popup') computePopupPosition(el);
+                } else if (!lockedItem) {
+                  setHoveredItem(item);
+                  setSelectedGemIdx(null);
+                  if (inspectMode === 'popup') computePopupPosition(el);
+                }
+              }}
+              onClearHover={() => {
+                if (!lockedItem) setHoveredItem(null);
+              }}
+            />
+          )}
 
           {/* Floating In Game Hover / Pinned Popup Modal (Hover Popup Mode) */}
           {inspectMode === 'popup' && inspectedItem && popupCoords && (
