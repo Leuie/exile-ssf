@@ -99,6 +99,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [editTimezone, setEditTimezone] = useState<string>('');
   const [editPoeAccount, setEditPoeAccount] = useState<string>('');
   const [editPoeUrl, setEditPoeUrl] = useState<string>('');
+  const [editRootHandle, setEditRootHandle] = useState<string>('');
+  const [editRootUrl, setEditRootUrl] = useState<string>('');
   const [editDiscord, setEditDiscord] = useState<string>('');
   const [editDiscordUrl, setEditDiscordUrl] = useState<string>('');
   const [editTwitch, setEditTwitch] = useState<string>('');
@@ -123,6 +125,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           setEditTimezone(res.profile.timezone || '');
           setEditPoeAccount(res.profile.poeAccountName || '');
           setEditPoeUrl(res.profile.poeProfileUrl || '');
+          setEditRootHandle(res.profile.rootHandle || '');
+          setEditRootUrl(res.profile.rootUrl || '');
           setEditDiscord(res.profile.discordHandle || '');
           setEditDiscordUrl(res.profile.discordUrl || '');
           setEditTwitch(res.profile.twitchUrl || '');
@@ -200,6 +204,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
         (editPoeAccount.trim()
           ? `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(editPoeAccount.trim().split('#')[0])}`
           : undefined),
+      rootHandle: editRootHandle.trim().replace(/^@/, '') || undefined,
+      rootUrl: editRootUrl.trim() || undefined,
       discordHandle: editDiscord.trim() || undefined,
       discordUrl: editDiscordUrl.trim() || undefined,
       twitchUrl: editTwitch.trim() || undefined,
@@ -442,20 +448,37 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
 
             {/* Circular Social & Platform Icon Buttons (Official Brand Icons) */}
             <div className="flex items-center gap-2">
-              {/* Circular Root App Button (Official Root Logo — Copies Root Tag) */}
-              <button
-                type="button"
-                onClick={() => triggerCopy(`@${profile.rootHandle || profile.handle}`, 'Root Tag')}
-                title={`Copy Root App Tag (@${profile.rootHandle || profile.handle})`}
-                aria-label="Copy Root App Tag"
-                className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-emerald-400/60 flex items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-md overflow-hidden p-1.5"
-              >
-                <img
-                  src="/images/root-logo.svg"
-                  alt="Root App"
-                  className="w-full h-full object-contain"
-                />
-              </button>
+              {/* Circular Root App Button (Official Root Logo — Opens Root URL or copies Root Tag) */}
+              {profile.rootUrl ? (
+                <a
+                  href={profile.rootUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open Root App (@${profile.rootHandle || profile.handle})`}
+                  aria-label="Open Root App Profile"
+                  className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-emerald-400/60 flex items-center justify-center transition-all hover:scale-105 shadow-md overflow-hidden p-1.5"
+                >
+                  <img
+                    src="/images/root-logo.svg"
+                    alt="Root App"
+                    className="w-full h-full object-contain"
+                  />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => triggerCopy(`@${profile.rootHandle || profile.handle}`, 'Root Tag')}
+                  title={`Copy Root App Tag (@${profile.rootHandle || profile.handle})`}
+                  aria-label="Copy Root App Tag"
+                  className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-emerald-400/60 flex items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-md overflow-hidden p-1.5"
+                >
+                  <img
+                    src="/images/root-logo.svg"
+                    alt="Root App"
+                    className="w-full h-full object-contain"
+                  />
+                </button>
+              )}
 
               {/* Circular Discord Button (Official Discord Brand — Opens URL in new tab or copies handle) */}
               {(profile.discordUrl || profile.discordHandle) &&
@@ -831,6 +854,32 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   onChange={(e) => setEditPoeUrl(e.target.value)}
                   placeholder="Auto generated from PoE Account Tag if left blank"
                   className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Root App Handle (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={editRootHandle}
+                  onChange={(e) => setEditRootHandle(e.target.value)}
+                  placeholder={`Defaults to @${profile.handle}`}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Root App Profile or Server URL (Opens in New Tab)
+                </label>
+                <input
+                  type="url"
+                  value={editRootUrl}
+                  onChange={(e) => setEditRootUrl(e.target.value)}
+                  placeholder="https://rootapp.gg/..."
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
 

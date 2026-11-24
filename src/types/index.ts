@@ -519,6 +519,7 @@ export interface ExileProfile {
   poeAccountName?: string;
   poeProfileUrl?: string;
   rootHandle?: string;
+  rootUrl?: string;
   discordHandle?: string;
   discordUrl?: string;
   twitchUrl?: string;
