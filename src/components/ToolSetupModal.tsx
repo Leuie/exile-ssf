@@ -136,8 +136,8 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
   const needsPoeSession = prefs.assetTracker || prefs.characterArmory || prefs.buildsHub;
   const hardlinkCmd =
     hardlinkPlatform === 'steam'
-      ? `mklink /H "%USERPROFILE%\\Documents\\PoE_Client.txt" "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt"`
-      : `mklink /H "%USERPROFILE%\\Documents\\PoE_Client.txt" "C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs\\Client.txt"`;
+      ? `cmd /c mklink /H "%USERPROFILE%\\Documents\\PoE_Client.txt" "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt"`
+      : `cmd /c mklink /H "%USERPROFILE%\\Documents\\PoE_Client.txt" "C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs\\Client.txt"`;
 
   const handleCopyHardlink = () => {
     navigator.clipboard?.writeText(hardlinkCmd);
@@ -521,7 +521,7 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Chromium &amp; Brave block selecting files directly inside <code className="text-slate-300">Program Files</code>. Run this 1 line Command Prompt helper once to link <code className="text-sky-300">Client.txt</code> into your <code className="text-sky-300">Documents</code> folder, then pick or drag it inside Map Tracker:
+                    Chromium &amp; Brave block selecting files directly inside <code className="text-slate-300">Program Files</code>. Run this 1 line helper in <strong className="text-slate-200">PowerShell or Command Prompt</strong> once to link <code className="text-sky-300">Client.txt</code> into your <code className="text-sky-300">Documents</code> folder, then pick or drag it inside Map Tracker:
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 p-2 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-sky-200 font-mono truncate">
