@@ -48,6 +48,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   const [poeAccountName, setPoeAccountName] = useState<string>('');
   const [poeProfileUrl, setPoeProfileUrl] = useState<string>('');
   const [characterName, setCharacterName] = useState<string>('');
+  const [rootHandle, setRootHandle] = useState<string>('');
   const [discordName, setDiscordName] = useState<string>('');
   const [steamName, setSteamName] = useState<string>('');
   const customTag = '';
@@ -155,6 +156,12 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
     }
 
     const cleanCharName = characterName.trim() || `${cleanDisplay}_Umbra`;
+    const cleanRoot = rootHandle.trim()
+      ? rootHandle.trim().startsWith('@')
+        ? rootHandle.trim()
+        : `@${rootHandle.trim()}`
+      : undefined;
+
     const cleanDiscord = discordName.trim()
       ? discordName.trim().startsWith('@')
         ? discordName.trim()
@@ -180,6 +187,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       poeAccountName: cleanPoeAccount,
       poeProfileUrl: poeProfileUrl.trim() || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanPoeAccount.split('#')[0])}`,
       characterName: cleanCharName,
+      rootHandle: cleanRoot,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
       customTag: customTag.trim() || undefined,
@@ -207,6 +215,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       poeAccountName: cleanPoeAccount,
       poeProfileUrl: newAccount.poeProfileUrl,
       characterName: cleanCharName,
+      rootHandle: cleanRoot,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
       customTag: customTag.trim() || undefined,
@@ -524,6 +533,19 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
                   <option value="discord">Discord DM</option>
                   <option value="steam">Steam Community</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Root App Handle (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. @yourroot (optional)"
+                  value={rootHandle}
+                  onChange={(e) => setRootHandle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
               </div>
 
               <div>

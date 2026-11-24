@@ -97,6 +97,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   const [modalEditDisplayName, setModalEditDisplayName] = useState<string>('');
   const [modalEditPoeAccount, setModalEditPoeAccount] = useState<string>('');
   const [modalEditCharName, setModalEditCharName] = useState<string>('');
+  const [modalEditRoot, setModalEditRoot] = useState<string>('');
   const [modalEditDiscord, setModalEditDiscord] = useState<string>('');
   const [modalEditSlotNumber, setModalEditSlotNumber] = useState<number>(1);
   const [modalEditAsc, setModalEditAsc] = useState<string>('Elementalist');
@@ -163,6 +164,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     setModalEditDisplayName(member.displayName || '');
     setModalEditPoeAccount(member.poeAccountName || '');
     setModalEditCharName(member.characterName || '');
+    setModalEditRoot(member.rootHandle || '');
     setModalEditDiscord(member.discordName || '');
     setModalEditSlotNumber(member.slotNumber || 1);
     setModalEditAsc(member.ascendancy || 'Elementalist');
@@ -441,6 +443,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
     const cleanAccountName = modalEditPoeAccount.trim() || selectedPlayerModal.poeAccountName;
     const cleanCharName = modalEditCharName.trim() || selectedPlayerModal.characterName;
     const cleanDisplayName = modalEditDisplayName.trim() || selectedPlayerModal.displayName;
+    const cleanRoot = modalEditRoot.trim() || selectedPlayerModal.rootHandle;
     const cleanDiscord = modalEditDiscord.trim() || selectedPlayerModal.discordName;
     const cleanSlot = Number(modalEditSlotNumber) || selectedPlayerModal.slotNumber;
 
@@ -448,6 +451,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
       ...selectedPlayerModal,
       displayName: isCurrentUserAdmin ? cleanDisplayName : selectedPlayerModal.displayName,
       slotNumber: isCurrentUserAdmin ? cleanSlot : selectedPlayerModal.slotNumber,
+      rootHandle: isCurrentUserAdmin ? cleanRoot : selectedPlayerModal.rootHandle,
       discordName: isCurrentUserAdmin ? cleanDiscord : selectedPlayerModal.discordName,
       poeAccountName: cleanAccountName,
       poeProfileUrl: `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanAccountName.split('#')[0])}`,
@@ -892,6 +896,19 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                         value={modalEditSlotNumber}
                         onChange={(e) => setModalEditSlotNumber(Number(e.target.value) || 1)}
                         className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-emerald-300 block mb-1">
+                        Root App Tag
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. @exile_root"
+                        value={modalEditRoot}
+                        onChange={(e) => setModalEditRoot(e.target.value)}
+                        className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
                       />
                     </div>
 

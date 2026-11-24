@@ -459,9 +459,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-emerald-400/60 flex items-center justify-center transition-all hover:scale-105 shadow-md overflow-hidden p-1.5"
                 >
                   <img
-                    src="/images/root-logo.svg"
+                    src="/images/root-logo.png"
                     alt="Root App"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain rounded-full"
                   />
                 </a>
               ) : (
@@ -473,9 +473,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                   className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-emerald-400/60 flex items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-md overflow-hidden p-1.5"
                 >
                   <img
-                    src="/images/root-logo.svg"
+                    src="/images/root-logo.png"
                     alt="Root App"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain rounded-full"
                   />
                 </button>
               )}

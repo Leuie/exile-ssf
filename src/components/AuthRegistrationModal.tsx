@@ -97,6 +97,9 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
   const [characterName, setCharacterName] = useState<string>(
     userAccount?.characterName || existingRosterMember?.characterName || ''
   );
+  const [rootHandle, setRootHandle] = useState<string>(
+    userAccount?.rootHandle || existingRosterMember?.rootHandle || ''
+  );
   const [discordName, setDiscordName] = useState<string>(
     userAccount?.discordName || existingRosterMember?.discordName || ''
   );
@@ -143,6 +146,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       setPoeAccountName(userAccount.poeAccountName || '');
       setPoeProfileUrl(userAccount.poeProfileUrl || '');
       setCharacterName(userAccount.characterName || '');
+      setRootHandle(userAccount.rootHandle || '');
       setDiscordName(userAccount.discordName || '');
       setSteamName(userAccount.steamName || '');
       setCustomTag(userAccount.customTag || '');
@@ -588,6 +592,12 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
     }
 
     const cleanCharName = characterName.trim() || `${cleanDisplay}_Umbra`;
+    const cleanRoot = rootHandle.trim()
+      ? rootHandle.trim().startsWith('@')
+        ? rootHandle.trim()
+        : `@${rootHandle.trim()}`
+      : undefined;
+
     const cleanDiscord = discordName.trim()
       ? discordName.trim().startsWith('@')
         ? discordName.trim()
@@ -611,6 +621,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       poeAccountName: cleanPoeAccount,
       poeProfileUrl: poeProfileUrl.trim() || `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(cleanPoeAccount.split('#')[0])}`,
       characterName: cleanCharName,
+      rootHandle: cleanRoot,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
       customTag: customTag.trim() || undefined,
@@ -639,6 +650,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       poeAccountName: cleanPoeAccount,
       poeProfileUrl: newAccount.poeProfileUrl,
       characterName: cleanCharName,
+      rootHandle: cleanRoot,
       discordName: cleanDiscord,
       steamName: steamName.trim() || undefined,
       customTag: customTag.trim() || undefined,
@@ -1202,6 +1214,19 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
                     value={characterName}
                     onChange={(e) => setCharacterName(e.target.value)}
                     className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Root App Handle (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. @yourroot (optional)"
+                    value={rootHandle}
+                    onChange={(e) => setRootHandle(e.target.value)}
+                    className="w-full bg-white dark:bg-[#1a1a2e] border border-slate-300 dark:border-[#2d2d44] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 

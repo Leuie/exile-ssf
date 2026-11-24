@@ -147,6 +147,7 @@ export interface LeagueParticipantAlumnus {
   id: string;
   displayName: string;
   poeAccountName: string;
+  rootHandle?: string;
   discordName?: string;
   steamName?: string;
   preferredContact: ContactPlatform;
@@ -190,6 +191,7 @@ export interface UserAccount {
   poeAccountName: string; // Linked PoE Account Tag (e.g. Account#1234)
   poeProfileUrl?: string; // Linked PoE Profile from pathofexile.com
   characterName: string;
+  rootHandle?: string;
   discordName?: string;
   steamName?: string;
   customTag?: string;
@@ -219,6 +221,7 @@ export interface LeagueRosterMember {
   poeAccountName: string;
   poeProfileUrl?: string;
   characterName: string;
+  rootHandle?: string;
   discordName?: string;
   steamName?: string;
   customTag?: string;
@@ -283,6 +286,7 @@ export interface LookingForItem {
   characterName: string;
   displayName?: string; // Root Web App User Tag
   preferredContact?: ContactPlatform;
+  rootHandle?: string;
   discordName?: string;
   poeAccountName?: string;
   itemName: string;
