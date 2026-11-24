@@ -63,7 +63,7 @@ export interface SavedAtlasTree {
 }
 
 const LOCAL_ATLAS_TREES_KEY = 'exile_ssf_atlas_skill_trees_v1';
-const MAX_ATLAS_POINTS = 132;
+const MAX_ATLAS_POINTS = 150;
 const SPRITE_WORLD_SCALE = 0.26075;
 
 let cachedAtlasGraph: AtlasGraphData | null = null;
@@ -225,10 +225,12 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
 
   const allocatedSet = useMemo(() => new Set<number>(allocatedIds), [allocatedIds]);
 
+  // Static graph geometry & adjacency (depends ONLY on graph so allocating nodes NEVER resets zoom/pan!)
   const parsedGraph = useMemo(() => {
     if (!graph) return null;
     const nodes: ParsedAtlasNode[] = [];
     const byId = new Map<number, ParsedAtlasNode>();
+    const startNodeIds = new Set<number>();
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
@@ -251,36 +253,60 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       };
       nodes.push(nd);
       byId.set(id, nd);
+      if (kind === 5) startNodeIds.add(id);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     }
 
-    const edges: Array<{ a: ParsedAtlasNode; b: ParsedAtlasNode; allocated: boolean }> = [];
+    const edges: Array<{ a: ParsedAtlasNode; b: ParsedAtlasNode }> = [];
+    const adj = new Map<number, number[]>();
+    const addAdj = (u: number, v: number) => {
+      const arr = adj.get(u) || [];
+      arr.push(v);
+      adj.set(u, arr);
+    };
+
     for (const [fromId, toId] of graph.edges) {
       const a = byId.get(fromId);
       const b = byId.get(toId);
       if (!a || !b) continue;
       if (a.kind === 4 || b.kind === 4) continue;
-      edges.push({
-        a,
-        b,
-        allocated: allocatedSet.has(a.id) && allocatedSet.has(b.id)
-      });
+      edges.push({ a, b });
+      addAdj(a.id, b.id);
+      addAdj(b.id, a.id);
     }
 
     return {
       nodes,
       byId,
       edges,
+      adj,
+      startNodeIds,
       groupBgs: graph.groupBgs || [],
       groupCenters: graph.groupCenters || {},
       orbitRadii: graph.orbitRadii || [0, 8, 16, 34, 49, 66, 85],
       sprites: graph.sprites || {},
       bounds: { minX, maxX, minY, maxY }
     };
-  }, [graph, allocatedSet]);
+  }, [graph]);
+
+  // Nodes currently eligible to allocate (directly connected to Start or an already-allocated node)
+  const allocatableSet = useMemo(() => {
+    const set = new Set<number>();
+    if (!parsedGraph) return set;
+    const roots = new Set<number>([...parsedGraph.startNodeIds, ...allocatedIds]);
+    for (const rId of roots) {
+      const neighbors = parsedGraph.adj.get(rId) || [];
+      for (const nId of neighbors) {
+        if (!allocatedSet.has(nId) && !parsedGraph.startNodeIds.has(nId)) {
+          set.add(nId);
+        }
+      }
+    }
+    return set;
+  }, [parsedGraph, allocatedIds, allocatedSet]);
 
   const resetView = useCallback(() => {
     const el = containerRef.current;
@@ -453,12 +479,18 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
         ctx.lineTo(b.x, b.y);
       };
 
+      const isEdgeAllocated = (a: ParsedAtlasNode, b: ParsedAtlasNode) => {
+        const aActive = allocatedSet.has(a.id) || parsedGraph.startNodeIds.has(a.id);
+        const bActive = allocatedSet.has(b.id) || parsedGraph.startNodeIds.has(b.id);
+        return aActive && bActive && (allocatedSet.has(a.id) || allocatedSet.has(b.id));
+      };
+
       // 2. Unallocated Atlas Paths
       ctx.beginPath();
       ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
       ctx.lineWidth = Math.max(1.8, 2.8 / Math.sqrt(zoom));
       for (const e of parsedGraph.edges) {
-        if (e.allocated) continue;
+        if (isEdgeAllocated(e.a, e.b)) continue;
         traceEdge(e.a, e.b);
       }
       ctx.stroke();
@@ -470,7 +502,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       ctx.lineWidth = Math.max(6.5, 9 / Math.sqrt(zoom));
       ctx.lineCap = 'round';
       for (const e of parsedGraph.edges) {
-        if (!e.allocated) continue;
+        if (!isEdgeAllocated(e.a, e.b)) continue;
         traceEdge(e.a, e.b);
       }
       ctx.stroke();
@@ -480,7 +512,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       ctx.lineWidth = Math.max(3.2, 4.6 / Math.sqrt(zoom));
       ctx.lineCap = 'round';
       for (const e of parsedGraph.edges) {
-        if (!e.allocated) continue;
+        if (!isEdgeAllocated(e.a, e.b)) continue;
         traceEdge(e.a, e.b);
       }
       ctx.stroke();
@@ -546,15 +578,28 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           ctx.fill();
         }
 
+        const canAlloc = !isAlloc && allocatableSet.has(nd.id);
         let frameKey = '';
         if (nd.kind === 2) {
-          frameKey = isAlloc ? 'KeystoneFrameAllocated' : 'KeystoneFrameUnallocated';
+          frameKey = isAlloc
+            ? 'KeystoneFrameAllocated'
+            : canAlloc
+            ? 'KeystoneFrameCanAllocate'
+            : 'KeystoneFrameUnallocated';
         } else if (nd.kind === 1) {
-          frameKey = isAlloc ? 'NotableFrameAllocated' : 'NotableFrameUnallocated';
+          frameKey = isAlloc
+            ? 'NotableFrameAllocated'
+            : canAlloc
+            ? 'NotableFrameCanAllocate'
+            : 'NotableFrameUnallocated';
         } else if (nd.kind === 3) {
-          frameKey = isAlloc ? 'WormholeFrameAllocated' : 'WormholeFrameUnallocated';
+          frameKey = isAlloc
+            ? 'WormholeFrameAllocated'
+            : canAlloc
+            ? 'WormholeFrameCanAllocate'
+            : 'WormholeFrameUnallocated';
         } else if (nd.kind === 0) {
-          frameKey = isAlloc ? 'PSSkillFrameActive' : 'PSSkillFrame';
+          frameKey = isAlloc ? 'PSSkillFrameActive' : canAlloc ? 'PSSkillFrameHighlighted' : 'PSSkillFrame';
         }
 
         const drewFrame = frameKey ? drawSpriteCentered(frameSheet, frameKey, nd.x, nd.y, 1.0) : false;
@@ -576,7 +621,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     }
 
     ctx.restore();
-  }, [parsedGraph, allocatedSet, zoom, pan, matchingIds, isMaximized, spriteTick]);
+  }, [parsedGraph, allocatedSet, allocatableSet, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
   const findHitNode = (clientX: number, clientY: number) => {
     if (!parsedGraph || !canvasRef.current) return null;
@@ -652,13 +697,45 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const wasClick = dragRef.current.active && !dragRef.current.moved;
     dragRef.current.active = false;
-    if (!wasClick) return;
+    if (!wasClick || !parsedGraph) return;
     const hit = findHitNode(e.clientX, e.clientY);
     if (!hit) return;
+
+    const targetId = hit.node.id;
     setAllocatedIds((prev) => {
-      if (prev.includes(hit.node.id)) return prev.filter((id) => id !== hit.node.id);
+      // Refunding an allocated node: only allow if all remaining nodes stay connected to Start
+      if (prev.includes(targetId)) {
+        const remaining = new Set(prev.filter((id) => id !== targetId));
+        if (remaining.size === 0) return [];
+        const visited = new Set<number>();
+        const queue: number[] = [...parsedGraph.startNodeIds];
+        for (const s of queue) visited.add(s);
+        while (queue.length > 0) {
+          const cur = queue.shift()!;
+          for (const nb of parsedGraph.adj.get(cur) || []) {
+            if (!visited.has(nb) && remaining.has(nb)) {
+              visited.add(nb);
+              queue.push(nb);
+            }
+          }
+        }
+        // Check every remaining allocated node is still reachable from Start
+        for (const id of remaining) {
+          if (!visited.has(id)) {
+            return prev; // Cannot break path continuity
+          }
+        }
+        return Array.from(remaining);
+      }
+
+      // Allocating a new node: must be directly connected to Start or an already-allocated node
       if (prev.length >= MAX_ATLAS_POINTS) return prev;
-      return [...prev, hit.node.id];
+      const neighbors = parsedGraph.adj.get(targetId) || [];
+      const isConnected = neighbors.some(
+        (nb) => parsedGraph.startNodeIds.has(nb) || prev.includes(nb)
+      );
+      if (!isConnected) return prev;
+      return [...prev, targetId];
     });
   };
 
@@ -818,10 +895,16 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
               className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${
                 hoveredNode.allocated
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-slate-800 text-slate-400'
+                  : allocatableSet.has(hoveredNode.node.id)
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                  : 'bg-slate-800 text-slate-500'
               }`}
             >
-              {hoveredNode.allocated ? 'Allocated' : 'Click to Allocate'}
+              {hoveredNode.allocated
+                ? 'Allocated'
+                : allocatableSet.has(hoveredNode.node.id)
+                ? 'Click to Allocate'
+                : 'Path Required'}
             </span>
           </div>
           <div className="text-[10px] font-mono text-slate-400">
