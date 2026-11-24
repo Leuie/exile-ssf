@@ -259,7 +259,28 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       }
     }
 
-    // Evenly space all Ascendancy wheels on a clean outer ring around the main tree so zero wheels overlap
+    // Class Ascendancies grouped by home starting quadrant so each stays aligned with its class
+    const CLASS_QUADRANTS: Array<{ names: string[]; angleDeg: number; radiusOffset: number; tangentStep: number }> = [
+      // Witch (Top)
+      { names: ['Occultist', 'Elementalist', 'Necromancer'], angleDeg: -90, radiusOffset: 245, tangentStep: 255 },
+      // Shadow (Top-Right)
+      { names: ['Assassin', 'Trickster', 'Saboteur'], angleDeg: -22, radiusOffset: 270, tangentStep: 255 },
+      // Ranger (Bottom-Right)
+      { names: ['Deadeye', 'Pathfinder', 'Warden', 'Raider'], angleDeg: 26, radiusOffset: 295, tangentStep: 255 },
+      // Duelist (Bottom)
+      { names: ['Slayer', 'Champion', 'Gladiator'], angleDeg: 90, radiusOffset: 245, tangentStep: 255 },
+      // Marauder (Bottom-Left)
+      { names: ['Juggernaut', 'Berserker', 'Chieftain'], angleDeg: 156, radiusOffset: 270, tangentStep: 255 },
+      // Templar (Top-Left)
+      { names: ['Inquisitor', 'Hierophant', 'Guardian'], angleDeg: -156, radiusOffset: 270, tangentStep: 255 },
+      // Scion (Outer Top-Left / Lower-Left flank)
+      { names: ['Ascendant', 'Reliquarian', 'Luminary'], angleDeg: 122, radiusOffset: 300, tangentStep: 255 }
+    ];
+
+    const classAscNameSet = new Set<string>(CLASS_QUADRANTS.flatMap((q) => q.names));
+
+    // Position Class Ascendancies cleanly in their home quadrants (zero overlap)
+    // and Bloodline Ascendancies in 2 evenly spaced horizontal rows at the bottom
     if (ascCenters.length > 0 && Number.isFinite(minX) && Number.isFinite(maxX)) {
       const treeCx = (minX + maxX) / 2;
       const treeCy = (minY + maxY) / 2;
@@ -270,31 +291,69 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         if (d > maxMainR) maxMainR = d;
       }
 
-      // Sort Ascendancies by their natural angle around the tree so each class stays near its home quadrant
-      const sortedAsc = [...ascCenters]
-        .map((ac) => ({ ...ac, angle: Math.atan2(ac.y - treeCy, ac.x - treeCx) }))
-        .sort((a, b) => a.angle - b.angle);
-
-      const minArcSpacing = 285; // ~220px wheel diameter + ~65px clean breathing room
-      const ringR = Math.max(maxMainR + 230, (sortedAsc.length * minArcSpacing) / (2 * Math.PI));
-      const baseAngle = sortedAsc[0].angle;
-      const step = (2 * Math.PI) / sortedAsc.length;
-
+      const ascByName = new Map(ascCenters.map((ac) => [ac.name, ac]));
       const ascDelta = new Map<string, { dx: number; dy: number }>();
       const repositionedCenters: Array<{ x: number; y: number; name: string; isActive: boolean }> = [];
+      let lowestClassAscY = maxY + 260;
 
-      sortedAsc.forEach((ac, idx) => {
-        const targetAngle = baseAngle + idx * step;
-        const targetX = Math.round(treeCx + ringR * Math.cos(targetAngle));
-        const targetY = Math.round(treeCy + ringR * Math.sin(targetAngle));
-        ascDelta.set(ac.name, { dx: targetX - ac.x, dy: targetY - ac.y });
-        repositionedCenters.push({
-          x: targetX,
-          y: targetY,
-          name: ac.name,
-          isActive: ac.isActive
+      // 1. Place Class Ascendancies in their home quadrants without overlap
+      for (const quad of CLASS_QUADRANTS) {
+        const present = quad.names
+          .map((n) => ascByName.get(n))
+          .filter((v): v is { x: number; y: number; name: string; isActive: boolean } => Boolean(v));
+        if (present.length === 0) continue;
+
+        const rad = (quad.angleDeg * Math.PI) / 180;
+        const dist = maxMainR + quad.radiusOffset;
+        const anchorX = treeCx + dist * Math.cos(rad);
+        const anchorY = treeCy + dist * Math.sin(rad);
+        // Unit tangent vector perpendicular to radial direction
+        const tx = -Math.sin(rad);
+        const ty = Math.cos(rad);
+        const mid = (present.length - 1) / 2;
+
+        present.forEach((ac, idx) => {
+          const offset = (idx - mid) * quad.tangentStep;
+          const targetX = Math.round(anchorX + tx * offset);
+          const targetY = Math.round(anchorY + ty * offset);
+          if (targetY > lowestClassAscY) lowestClassAscY = targetY;
+          ascDelta.set(ac.name, { dx: targetX - ac.x, dy: targetY - ac.y });
+          repositionedCenters.push({
+            x: targetX,
+            y: targetY,
+            name: ac.name,
+            isActive: ac.isActive
+          });
         });
-      });
+      }
+
+      // 2. Place Bloodline / secondary Ascendancies in 2 evenly spaced horizontal rows at the bottom
+      const bloodlines = ascCenters
+        .filter((ac) => !classAscNameSet.has(ac.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (bloodlines.length > 0) {
+        const row1Count = Math.ceil(bloodlines.length / 2);
+        const rows = [bloodlines.slice(0, row1Count), bloodlines.slice(row1Count)];
+        const colSpacing = 275;
+        const rowSpacing = 275;
+        const startY = lowestClassAscY + 320;
+
+        rows.forEach((row, rIdx) => {
+          const mid = (row.length - 1) / 2;
+          const rowY = Math.round(startY + rIdx * rowSpacing);
+          row.forEach((ac, cIdx) => {
+            const targetX = Math.round(treeCx + (cIdx - mid) * colSpacing);
+            ascDelta.set(ac.name, { dx: targetX - ac.x, dy: rowY - ac.y });
+            repositionedCenters.push({
+              x: targetX,
+              y: rowY,
+              name: ac.name,
+              isActive: ac.isActive
+            });
+          });
+        });
+      }
 
       // Shift every Ascendancy node and its group center by its wheel's delta
       const shiftedGroups = new Set<string>();
