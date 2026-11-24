@@ -252,6 +252,72 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       }
     }
 
+    const shiftedGroupCenters: Record<string, [number, number]> = {};
+    if (graph.groupCenters) {
+      for (const [k, v] of Object.entries(graph.groupCenters)) {
+        shiftedGroupCenters[k] = [v[0], v[1]];
+      }
+    }
+
+    // Evenly space all Ascendancy wheels on a clean outer ring around the main tree so zero wheels overlap
+    if (ascCenters.length > 0 && Number.isFinite(minX) && Number.isFinite(maxX)) {
+      const treeCx = (minX + maxX) / 2;
+      const treeCy = (minY + maxY) / 2;
+      let maxMainR = 0;
+      for (const nd of nodes) {
+        if (nd.ascName) continue;
+        const d = Math.hypot(nd.x - treeCx, nd.y - treeCy);
+        if (d > maxMainR) maxMainR = d;
+      }
+
+      // Sort Ascendancies by their natural angle around the tree so each class stays near its home quadrant
+      const sortedAsc = [...ascCenters]
+        .map((ac) => ({ ...ac, angle: Math.atan2(ac.y - treeCy, ac.x - treeCx) }))
+        .sort((a, b) => a.angle - b.angle);
+
+      const minArcSpacing = 285; // ~220px wheel diameter + ~65px clean breathing room
+      const ringR = Math.max(maxMainR + 230, (sortedAsc.length * minArcSpacing) / (2 * Math.PI));
+      const baseAngle = sortedAsc[0].angle;
+      const step = (2 * Math.PI) / sortedAsc.length;
+
+      const ascDelta = new Map<string, { dx: number; dy: number }>();
+      const repositionedCenters: Array<{ x: number; y: number; name: string; isActive: boolean }> = [];
+
+      sortedAsc.forEach((ac, idx) => {
+        const targetAngle = baseAngle + idx * step;
+        const targetX = Math.round(treeCx + ringR * Math.cos(targetAngle));
+        const targetY = Math.round(treeCy + ringR * Math.sin(targetAngle));
+        ascDelta.set(ac.name, { dx: targetX - ac.x, dy: targetY - ac.y });
+        repositionedCenters.push({
+          x: targetX,
+          y: targetY,
+          name: ac.name,
+          isActive: ac.isActive
+        });
+      });
+
+      // Shift every Ascendancy node and its group center by its wheel's delta
+      const shiftedGroups = new Set<string>();
+      for (const nd of nodes) {
+        if (!nd.ascName) continue;
+        const delta = ascDelta.get(nd.ascName);
+        if (!delta) continue;
+        nd.x += delta.dx;
+        nd.y += delta.dy;
+        const gKey = String(nd.groupId);
+        if (!shiftedGroups.has(gKey) && shiftedGroupCenters[gKey]) {
+          shiftedGroups.add(gKey);
+          shiftedGroupCenters[gKey] = [
+            shiftedGroupCenters[gKey][0] + delta.dx,
+            shiftedGroupCenters[gKey][1] + delta.dy
+          ];
+        }
+      }
+
+      ascCenters.length = 0;
+      ascCenters.push(...repositionedCenters);
+    }
+
     const edges: Array<{ a: ParsedNode; b: ParsedNode; allocated: boolean; isInactiveAsc: boolean }> = [];
     for (const [fromId, toId] of graph.edges) {
       if (!visibleIds.has(fromId) || !visibleIds.has(toId)) continue;
@@ -276,7 +342,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       activeAscName,
       ascCenters,
       groupBgs: graph.groupBgs || [],
-      groupCenters: graph.groupCenters || {},
+      groupCenters: shiftedGroupCenters,
       orbitRadii: graph.orbitRadii || [0, 8, 16, 34, 49, 66, 85],
       sprites: graph.sprites || {},
       bounds: { minX, maxX, minY, maxY }
