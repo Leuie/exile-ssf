@@ -685,6 +685,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           gearStats,
           passives: {
             allocatedCount: passiveHashes.length,
+            allocatedHashes: passiveHashes,
             jewelCount: clusterJewels.length + baseJewels.length + abyssJewels.length,
             voidstoneCount: Math.min(4, voidstoneCount),
             ascendancyNodes,
@@ -699,6 +700,104 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       );
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || 'Failed to fetch character gear.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
+  // GET /api/farming/skilltree-graph (Full official GGG skilltree-export graph for interactive zoom/pan Armory Passive Tree, cached 7d in KV)
+  if (url.pathname === '/api/farming/skilltree-graph' && request.method === 'GET') {
+    try {
+      const kvKey = 'poe1:skilltree:fullgraph:v2';
+      if (env.EXILE_KV) {
+        const cached = await env.EXILE_KV.get(kvKey);
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=86400'
+            }
+          });
+        }
+      }
+
+      const treeRes = await fetch(
+        'https://raw.githubusercontent.com/grindinggear/skilltree-export/master/data.json',
+        { headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)' } }
+      );
+      if (!treeRes.ok) {
+        return new Response(JSON.stringify({ error: 'Could not load official PoE skilltree-export data.' }), {
+          status: 502,
+          headers: corsHeaders
+        });
+      }
+
+      const rawTree: any = await treeRes.json();
+      const orbitRadii: number[] = rawTree?.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
+      const skillsPerOrbit: number[] = rawTree?.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+      const groups = rawTree?.groups || {};
+      const rawNodes = rawTree?.nodes || {};
+
+      // kind: 0=small, 1=notable, 2=keystone, 3=jewel, 4=mastery, 5=classStart
+      const nodes: Array<[number, number, number, number, string, string[]]> = [];
+      const validIds = new Set<number>();
+
+      for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
+        if (!nd || idStr === 'root' || nd.isProxy || nd.ascendancyName) continue;
+        const grp = groups[String(nd.group)];
+        if (!grp || typeof grp.x !== 'number' || typeof grp.y !== 'number') continue;
+        const idNum = Number(idStr);
+        if (!Number.isFinite(idNum)) continue;
+
+        const orb = Number(nd.orbit || 0);
+        const r = orbitRadii[orb] || 0;
+        const count = skillsPerOrbit[orb] || 1;
+        const angle = (2 * Math.PI * Number(nd.orbitIndex || 0)) / count;
+        const nx = Math.round((grp.x + r * Math.sin(angle)) / 10);
+        const ny = Math.round((grp.y - r * Math.cos(angle)) / 10);
+
+        let kind = 0;
+        if (nd.classStartIndex !== undefined) kind = 5;
+        else if (nd.isKeystone) kind = 2;
+        else if (nd.isJewelSocket) kind = 3;
+        else if (nd.isMastery) kind = 4;
+        else if (nd.isNotable) kind = 1;
+
+        const name = String(nd.name || '');
+        const stats = Array.isArray(nd.stats) ? nd.stats.slice(0, 6).map(String) : [];
+
+        nodes.push([idNum, nx, ny, kind, name, stats]);
+        validIds.add(idNum);
+      }
+
+      const edges: Array<[number, number]> = [];
+      for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
+        const fromId = Number(idStr);
+        if (!validIds.has(fromId) || !Array.isArray(nd?.out)) continue;
+        for (const outIdRaw of nd.out) {
+          const toId = Number(outIdRaw);
+          if (validIds.has(toId) && toId > fromId) {
+            edges.push([fromId, toId]);
+          }
+        }
+      }
+
+      const payload = JSON.stringify({ nodes, edges });
+      if (env.EXILE_KV) {
+        try {
+          await env.EXILE_KV.put(kvKey, payload, { expirationTtl: 86400 * 7 });
+        } catch {}
+      }
+
+      return new Response(payload, {
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=86400'
+        }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Skill tree graph error.' }), {
         status: 500,
         headers: corsHeaders
       });

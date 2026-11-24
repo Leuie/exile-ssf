@@ -39,7 +39,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
 }) => {
   const defaultHandle = (initialHandle || userAccount?.displayName || '').replace(/^@/, '').trim();
   const [activeHandle, setActiveHandle] = useState<string>(defaultHandle);
-  const [handleInput, setHandleInput] = useState<string>(defaultHandle);
+  const [handleInput, setHandleInput] = useState<string>('');
   const [activeCharName, setActiveCharName] = useState<string>(initialCharacterName || '');
   const [profileData, setProfileData] = useState<CloudExileProfileResponse | null>(null);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
@@ -55,10 +55,8 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
     const clean = (initialHandle || '').replace(/^@/, '').trim();
     if (clean && clean.toLowerCase() !== activeHandle.toLowerCase()) {
       setActiveHandle(clean);
-      setHandleInput(clean);
     } else if (!activeHandle && userAccount?.displayName) {
       setActiveHandle(userAccount.displayName);
-      setHandleInput(userAccount.displayName);
     }
   }, [initialHandle, userAccount?.displayName]);
 
@@ -147,6 +145,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
     if (!clean) return;
     setActiveHandle(clean);
     setActiveCharName('');
+    setHandleInput('');
     onSyncArmoryUrl?.(clean);
   };
 

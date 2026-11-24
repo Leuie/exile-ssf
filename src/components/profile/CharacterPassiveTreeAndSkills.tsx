@@ -3,7 +3,6 @@ import {
   Sparkles,
   Maximize2,
   X,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
   Layers,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
 import type { PaperdollItem, PaperdollGem } from './CharacterPaperdollView';
+import { OfficialPassiveTreeCanvas } from './OfficialPassiveTreeCanvas';
 
 export interface ResolvedPassiveNode {
   id: number;
@@ -29,8 +29,8 @@ export interface ResolvedMastery {
 
 export interface CharacterPassiveTreeAndSkillsProps {
   characterName: string;
-  accountName?: string;
   allocatedCount: number;
+  allocatedHashes?: number[];
   ascendancyNodes?: ResolvedPassiveNode[];
   keystones?: ResolvedPassiveNode[];
   masteries?: ResolvedMastery[];
@@ -122,84 +122,10 @@ const getGemDotColor = (colour: string): string => {
   }
 };
 
-const PassiveTreeSvg: React.FC<{
-  points: Array<[number, number, number]>;
-  edges: Array<[number, number, number, number]>;
-  className?: string;
-}> = ({ points, edges, className = 'w-full h-[360px]' }) => {
-  const viewBox = useMemo(() => {
-    if (points.length === 0) return '-1000 -1000 2000 2000';
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const [x, y] of points) {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-    const pad = 80;
-    return `${minX - pad} ${minY - pad} ${Math.max(200, maxX - minX + pad * 2)} ${Math.max(200, maxY - minY + pad * 2)}`;
-  }, [points]);
-
-  return (
-    <svg
-      viewBox={viewBox}
-      className={`${className} bg-[#060912] rounded-xl border border-slate-800/90`}
-      preserveAspectRatio="xMidYMid meet"
-    >
-      {/* Unallocated background constellation */}
-      {points.map((pt, idx) =>
-        pt[2] === 0 ? (
-          <circle
-            key={`bg-${idx}`}
-            cx={pt[0]}
-            cy={pt[1]}
-            r={4.2}
-            fill="#334155"
-            opacity={0.55}
-          />
-        ) : null
-      )}
-
-      {/* Allocated golden path edges */}
-      {edges.map((e, idx) => (
-        <line
-          key={`ed-${idx}`}
-          x1={e[0]}
-          y1={e[1]}
-          x2={e[2]}
-          y2={e[3]}
-          stroke="#f59e0b"
-          strokeWidth={6}
-          strokeLinecap="round"
-          opacity={0.85}
-        />
-      ))}
-
-      {/* Allocated passive nodes */}
-      {points.map((pt, idx) =>
-        pt[2] > 0 ? (
-          <circle
-            key={`al-${idx}`}
-            cx={pt[0]}
-            cy={pt[1]}
-            r={pt[2] === 2 ? 12 : 7}
-            fill={pt[2] === 2 ? '#fde047' : '#f59e0b'}
-            stroke={pt[2] === 2 ? '#ffffff' : '#fef3c7'}
-            strokeWidth={pt[2] === 2 ? 2.5 : 1.2}
-          />
-        ) : null
-      )}
-    </svg>
-  );
-};
-
 export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkillsProps> = ({
   characterName,
-  accountName,
   allocatedCount,
+  allocatedHashes = [],
   ascendancyNodes = [],
   keystones = [],
   masteries = [],
@@ -252,10 +178,6 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
     [skillRows]
   );
 
-  const poeOfficialUrl = accountName
-    ? `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(accountName.replace('#', '-'))}/characters?characterName=${encodeURIComponent(characterName)}`
-    : '';
-
   return (
     <div className="space-y-4">
       {/* PASSIVE TREE + ASCENDANCY & KEYSTONES + MASTERIES */}
@@ -272,25 +194,14 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
           </div>
 
           <div className="flex items-center gap-2">
-            {poeOfficialUrl && (
-              <a
-                href={poeOfficialUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-mono text-sky-300 flex items-center gap-1"
-              >
-                <span>Open on PoE</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            {treePoints.length > 0 && showTree && (
+            {showTree && (
               <button
                 type="button"
                 onClick={() => setEnlargeTree(true)}
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-mono text-amber-300 flex items-center gap-1 cursor-pointer"
               >
                 <Maximize2 className="w-3 h-3" />
-                <span>Enlarge</span>
+                <span>Maximize</span>
               </button>
             )}
             <button
@@ -306,26 +217,18 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
 
         {showTree && (
           <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            {/* Left: Interactive Passive Tree SVG Constellation */}
+            {/* Left: Interactive Official PoE Passive Tree Canvas */}
             <div className="lg:col-span-7 relative">
-              {treePoints.length > 0 ? (
-                <div className="relative">
-                  <PassiveTreeSvg points={treePoints} edges={treeEdges} className="w-full h-[380px]" />
-                  <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-slate-950/85 border border-slate-800 text-[10px] font-mono text-slate-400">
-                    Gold = Allocated Path ({allocatedCount} nodes)
-                  </div>
-                </div>
-              ) : (
-                <div className="h-[260px] rounded-xl border border-dashed border-slate-800 bg-slate-950/70 flex flex-col items-center justify-center text-center p-6 space-y-1.5">
-                  <GitBranch className="w-6 h-6 text-slate-600" />
-                  <div className="text-xs font-mono text-slate-300">
-                    Passive Tree Constellation Ready
-                  </div>
-                  <div className="text-[11px] text-slate-500 max-w-sm">
-                    Click <strong className="text-emerald-300">Refresh Gear</strong> above to pull this character&apos;s live passive tree layout, Ascendancy nodes, Keystones, and Masteries.
-                  </div>
-                </div>
-              )}
+              <OfficialPassiveTreeCanvas
+                allocatedHashes={allocatedHashes}
+                fallbackPoints={treePoints}
+                fallbackEdges={treeEdges}
+                allocatedCount={allocatedCount}
+                characterName={characterName}
+                className="w-full h-[420px]"
+                isMaximized={false}
+                onToggleMaximize={() => setEnlargeTree(true)}
+              />
             </div>
 
             {/* Right: Ascendancy & Keystones + Masteries */}
@@ -555,11 +458,11 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
       {/* Fullscreen Enlarged Passive Tree Modal */}
       {enlargeTree && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5"
           onClick={() => setEnlargeTree(false)}
         >
           <div
-            className="w-full max-w-5xl rounded-2xl border border-amber-500/40 bg-[#070b14] p-4 space-y-3 shadow-2xl"
+            className="w-full max-w-[95vw] rounded-2xl border border-amber-500/40 bg-[#070b14] p-4 space-y-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -575,7 +478,16 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <PassiveTreeSvg points={treePoints} edges={treeEdges} className="w-full h-[72vh]" />
+            <OfficialPassiveTreeCanvas
+              allocatedHashes={allocatedHashes}
+              fallbackPoints={treePoints}
+              fallbackEdges={treeEdges}
+              allocatedCount={allocatedCount}
+              characterName={characterName}
+              className="w-full h-[80vh]"
+              isMaximized={true}
+              onToggleMaximize={() => setEnlargeTree(false)}
+            />
           </div>
         </div>
       )}

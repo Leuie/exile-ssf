@@ -20,6 +20,10 @@ import {
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
 import {
+  readUnifiedPoeSession,
+  saveUnifiedPoeSession
+} from '../../utils/poeSession';
+import {
   CharacterPassiveTreeAndSkills,
   type ResolvedPassiveNode,
   type ResolvedMastery
@@ -98,6 +102,7 @@ export interface CharacterGearSnapshot {
   };
   passives: {
     allocatedCount: number;
+    allocatedHashes?: number[];
     jewelCount: number;
     voidstoneCount: number;
     ascendancyNodes?: ResolvedPassiveNode[];
@@ -137,46 +142,19 @@ export interface CharacterPaperdollViewProps {
   onActiveCharacterChange?: (charName: string) => void;
 }
 
-const POESESSID_STORAGE_KEY = 'exile_ssf_poesessid_optin_v1';
 const SYNCED_VITALS_STORAGE_KEY = 'exile_ssf_synced_gear_vitals_v1';
 const INSPECT_MODE_STORAGE_KEY = 'exile_ssf_paperdoll_inspect_mode_v1';
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function readSavedSession30d(): { poesessid: string; accountName: string } {
-  try {
-    const raw = localStorage.getItem(POESESSID_STORAGE_KEY);
-    if (!raw) return { poesessid: '', accountName: '' };
-    if (raw.startsWith('{')) {
-      const parsed = JSON.parse(raw);
-      const exp = Number(parsed?.expiresAtMs || 0);
-      if (exp > 0 && Date.now() > exp) {
-        localStorage.removeItem(POESESSID_STORAGE_KEY);
-        return { poesessid: '', accountName: '' };
-      }
-      return {
-        poesessid: String(parsed?.poesessid || ''),
-        accountName: String(parsed?.accountName || '')
-      };
-    }
-    return { poesessid: raw, accountName: '' };
-  } catch {
-    return { poesessid: '', accountName: '' };
-  }
+  const sess = readUnifiedPoeSession();
+  return {
+    poesessid: sess?.poesessid || '',
+    accountName: sess?.accountName || ''
+  };
 }
 
 function saveSession30d(poesessid: string, accountName: string) {
-  try {
-    const now = Date.now();
-    localStorage.setItem(
-      POESESSID_STORAGE_KEY,
-      JSON.stringify({
-        poesessid: poesessid.trim(),
-        accountName: accountName.trim(),
-        savedAtMs: now,
-        expiresAtMs: now + THIRTY_DAYS_MS
-      })
-    );
-  } catch {}
+  saveUnifiedPoeSession({ poesessid, accountName });
 }
 
 function leaguePriorityScore(league: string): number {
@@ -672,6 +650,17 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
       setAccountInput(poeAccountName);
     }
   }, [poeAccountName, accountInput]);
+
+  // Listen for Unified Tool Setup updates so Armory immediately picks up saved POESESSID
+  useEffect(() => {
+    const onToolSetupUpdated = () => {
+      const sess = readSavedSession30d();
+      if (sess.poesessid) setPoesessid(sess.poesessid);
+      if (sess.accountName) setAccountInput(sess.accountName);
+    };
+    window.addEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+    return () => window.removeEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1639,8 +1628,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           {activeSnapshot && (
             <CharacterPassiveTreeAndSkills
               characterName={activeSnapshot.character.name}
-              accountName={accountInput || poeAccountName}
               allocatedCount={activeSnapshot.passives.allocatedCount}
+              allocatedHashes={activeSnapshot.passives.allocatedHashes}
               ascendancyNodes={activeSnapshot.passives.ascendancyNodes}
               keystones={activeSnapshot.passives.keystones}
               masteries={activeSnapshot.passives.masteries}

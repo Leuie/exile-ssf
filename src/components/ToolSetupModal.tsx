@@ -19,7 +19,12 @@ import {
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 import { saveUserToolState } from '../services/cloudSync';
-import { POESESSID_OPTIN_STORAGE_KEY, PREFS_STORAGE_KEY } from './assets/assetEngine';
+import { PREFS_STORAGE_KEY } from './assets/assetEngine';
+import {
+  readUnifiedPoeSession,
+  saveUnifiedPoeSession,
+  clearUnifiedPoeSession
+} from '../utils/poeSession';
 
 export interface UnifiedToolPrefs {
   assetTracker: boolean;
@@ -32,7 +37,6 @@ export interface UnifiedToolPrefs {
 }
 
 export const UNIFIED_TOOL_PREFS_KEY = 'exile_ssf_unified_tool_prefs_v1';
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function readUnifiedToolPrefs(): UnifiedToolPrefs {
   try {
@@ -62,25 +66,11 @@ export function readUnifiedToolPrefs(): UnifiedToolPrefs {
 }
 
 function readSavedPoesessid(): { poesessid: string; accountName: string } {
-  try {
-    const raw = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
-    if (!raw) return { poesessid: '', accountName: '' };
-    if (raw.startsWith('{')) {
-      const parsed = JSON.parse(raw);
-      const exp = Number(parsed?.expiresAtMs || 0);
-      if (exp > 0 && Date.now() > exp) {
-        localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY);
-        return { poesessid: '', accountName: '' };
-      }
-      return {
-        poesessid: String(parsed?.poesessid || ''),
-        accountName: String(parsed?.accountName || '')
-      };
-    }
-    return { poesessid: raw, accountName: '' };
-  } catch {
-    return { poesessid: '', accountName: '' };
-  }
+  const sess = readUnifiedPoeSession();
+  return {
+    poesessid: sess?.poesessid || '',
+    accountName: sess?.accountName || ''
+  };
 }
 
 interface ToolSetupModalProps {
@@ -202,19 +192,15 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
         })
       );
 
-      // Save POESESSID strictly in browser localStorage (30 day opt-in, never on server)
+      // Save POESESSID strictly in browser localStorage (30 day opt in, shared across all tools, never on server)
       if (rememberSession && poesessid.trim()) {
-        localStorage.setItem(
-          POESESSID_OPTIN_STORAGE_KEY,
-          JSON.stringify({
-            poesessid: poesessid.trim(),
-            accountName: nextPrefs.accountName,
-            savedAtMs: Date.now(),
-            expiresAtMs: Date.now() + THIRTY_DAYS_MS
-          })
-        );
+        saveUnifiedPoeSession({
+          poesessid: poesessid.trim(),
+          accountName: nextPrefs.accountName,
+          leagueName: nextPrefs.leagueName
+        });
       } else if (!rememberSession) {
-        localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY);
+        clearUnifiedPoeSession();
       }
     } catch {}
 

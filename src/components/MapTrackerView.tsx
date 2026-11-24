@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Compass,
-  Clock,
   Play,
   Square,
   Upload,
@@ -9,20 +8,19 @@ import {
   CloudUpload,
   Skull,
   Sparkles,
-  ExternalLink,
-  Copy,
-  Check,
   RefreshCw,
   Calendar,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
   X,
   Trash2,
   Activity,
   Flame,
-  Hammer
+  Hammer,
+  Sliders,
+  BarChart3,
+  ListChecks,
+  Filter
 } from 'lucide-react';
 import type { UserAccount, LeagueFirstMilestone, PersonalSessionGoal, ExileProfile } from '../types';
 import {
@@ -34,8 +32,9 @@ import {
 } from '../services/cloudSync';
 import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
 import { SessionScratchpad } from './league/widgets/SessionScratchpad';
+import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
+import { readUnifiedPoeSession } from '../utils/poeSession';
 import {
-  POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
   STRATEGY_PRESETS,
   POE2_STRATEGY_PRESETS
@@ -155,7 +154,6 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [capturedProofs, setCapturedProofs] = useState<CapturedLeagueFirstProof[]>([]);
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
-  const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const supportsLiveHandles = typeof window !== 'undefined' && typeof (window as any).showOpenFilePicker === 'function';
@@ -174,7 +172,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const [cloudSynced, setCloudSynced] = useState<boolean>(false);
   const [savingCloud, setSavingCloud] = useState<boolean>(false);
 
-  // Automatic GGG XP/hr Polling State
+  // Automatic GGG XP/hr Polling State (powered by Unified Tool Setup)
   const savedAssetPrefs = useMemo(() => {
     try {
       const raw = localStorage.getItem(PREFS_STORAGE_KEY);
@@ -183,19 +181,23 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       return {};
     }
   }, []);
-  const savedOptInSess = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
-      return raw ? JSON.parse(raw)?.poesessid || '' : '';
-    } catch {
-      return '';
-    }
-  }, []);
+  const savedUnifiedSess = useMemo(() => readUnifiedPoeSession(), []);
 
   const [accountName, setAccountName] = useState<string>(
-    savedAssetPrefs.accountName || userAccount?.poeAccountName || ''
+    savedUnifiedSess?.accountName || savedAssetPrefs.accountName || userAccount?.poeAccountName || ''
   );
-  const [poesessid, setPoesessid] = useState<string>(savedOptInSess);
+  const [poesessid, setPoesessid] = useState<string>(savedUnifiedSess?.poesessid || '');
+
+  useEffect(() => {
+    const onToolSetupUpdated = () => {
+      const sess = readUnifiedPoeSession();
+      if (sess?.poesessid) setPoesessid(sess.poesessid);
+      else setPoesessid('');
+      if (sess?.accountName) setAccountName(sess.accountName);
+    };
+    window.addEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+    return () => window.removeEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+  }, []);
   const [characters, setCharacters] = useState<PolledCharacter[]>([]);
   const [selectedCharName, setSelectedCharName] = useState<string>('');
   const [xpCheckpoints, setXpCheckpoints] = useState<XpCheckpoint[]>([]);
@@ -241,7 +243,6 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   }, [userAccount?.displayName]);
 
   // Mapping Toolkit (Map Regex Builder & Session Scratchpad) synced to Exile Profile in D1
-  const [toolkitOpen, setToolkitOpen] = useState<boolean>(true);
   const [toolkitProfile, setToolkitProfile] = useState<ExileProfile | null>(null);
   const [savedBricks, setSavedBricks] = useState<string[]>(() => {
     try {
@@ -706,12 +707,6 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       .sort((a, b) => b.mapsPerHr - a.mapsPerHr);
   }, [savedSessions]);
 
-  const copyClientPath = (id: string, path: string) => {
-    navigator.clipboard?.writeText(path);
-    setCopiedPath(id);
-    setTimeout(() => setCopiedPath(null), 1800);
-  };
-
   // Group polled GGG characters cleanly by league (prioritizing active/private leagues over Standard/Hardcore)
   const characterLeagues = useMemo(() => {
     const map = new Map<string, PolledCharacter[]>();
@@ -850,31 +845,88 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         )}
       </header>
 
-      {/* Timekeeper's Map Device Speedrun Tip Banner */}
-      <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-r from-amber-950/25 via-slate-900/90 to-slate-900 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-400 shrink-0">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div className="space-y-0.5 text-xs">
-            <div className="font-bold text-amber-200 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>In Game Speedrun Tip: Timekeeper's Map Device (Path of Exile 1 Store)</span>
-            </div>
-            <p className="text-slate-300 leading-relaxed">
-              Want a live area timer directly inside Path of Exile 1 while you map? The <strong>Timekeeper's Map Device</strong> displays exactly how long you have been in any area, including <strong>Betrayal Safehouses</strong> and <strong>The Temple of Atzoatl</strong>, making it a great companion to Map Tracker.
-            </p>
-          </div>
+      {/* Compact Client.txt Live Action Bar (Setup lives in Unified Tool Setup) */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDraggingFile(true);
+        }}
+        onDragLeave={() => setIsDraggingFile(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDraggingFile(false);
+          const f = e.dataTransfer?.files?.[0];
+          if (f) parseClientTxtFromStartDate(f, false);
+        }}
+        className={`rounded-2xl border p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5 shadow-md transition-colors ${
+          isDraggingFile ? 'border-emerald-400 bg-emerald-950/25' : 'border-slate-800 bg-[#0d111a]'
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setCalendarOpen(true)}
+            className="flex items-center gap-2 bg-slate-950 hover:bg-slate-900 px-3 py-2 rounded-xl border border-amber-500/40 cursor-pointer transition-colors"
+          >
+            <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-slate-400 font-mono text-[11px]">Since:</span>
+            <span className="text-white font-mono font-bold">{formattedStartDate}</span>
+          </button>
+
+          {supportsLiveHandles && (
+            !watchingLive ? (
+              <button
+                type="button"
+                onClick={handleStartLiveWatch}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black inline-flex items-center gap-1.5 cursor-pointer shadow"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Start Live Watch</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setWatchingLive(false)}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black inline-flex items-center gap-1.5 cursor-pointer shadow"
+              >
+                <Square className="w-3.5 h-3.5" />
+                <span>Stop Live Watch</span>
+              </button>
+            )
+          )}
+
+          <label className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-400/50 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer">
+            <Upload className="w-3.5 h-3.5 text-sky-300" />
+            <span>Drop or Pick Client.txt</span>
+            <input
+              type="file"
+              accept=".txt"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) parseClientTxtFromStartDate(f, false);
+                e.target.value = '';
+              }}
+            />
+          </label>
         </div>
-        <a
-          href="https://www.pathofexile.com/shop/item/TimekeepersMapDeviceVariations"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold inline-flex items-center gap-1.5 shrink-0 self-start md:self-center"
-        >
-          <span>View in PoE 1 Store</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {lastFileReadAt && (
+            <span className="text-[10px] font-mono text-emerald-300 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              Updated {lastFileReadAt}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('exile-open-tool-setup'))}
+            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-indigo-400/60 text-slate-200 font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Configure PoE Account, POESESSID, and Client.txt in Unified Tool Setup"
+          >
+            <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Tool Setup</span>
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -892,501 +944,350 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         </div>
       )}
 
-      {/* Top KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Maps Run</div>
-          <div className="text-2xl font-black font-mono text-white mt-1">{mapRuns.length}</div>
-          <div className="text-[10px] font-mono text-sky-400 mt-0.5">{specialZonesCount} Special Zones</div>
-        </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Mapping Pace</div>
-          <div className="text-2xl font-black font-mono text-emerald-300 mt-1">{mapsPerHr}</div>
-          <div className="text-[10px] font-mono text-slate-400 mt-0.5">maps / hour</div>
-        </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Avg Map Time</div>
-          <div className="text-2xl font-black font-mono text-amber-300 mt-1">{formatDuration(avgMapSec)}</div>
-          <div className="text-[10px] font-mono text-slate-400 mt-0.5">active map avg</div>
-        </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Hideout Downtime</div>
-          <div className={`text-2xl font-black font-mono mt-1 ${hideoutPct > 35 ? 'text-rose-400' : 'text-sky-300'}`}>
-            {hideoutPct}%
-          </div>
-          <div className="text-[10px] font-mono text-slate-400 mt-0.5">{formatDuration(totalHideoutSec)} in town</div>
-        </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Live XP / Hour</div>
-          <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
-            {latestXpHr >= 1_000_000 ? `${(latestXpHr / 1_000_000).toFixed(1)}M` : latestXpHr > 0 ? `${Math.round(latestXpHr / 1000)}k` : '0'}
-          </div>
-          <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-            {latestChar ? `Lv ${latestChar.level} ${latestChar.name}` : 'Poll GGG XP below'}
-          </div>
-        </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a]">
-          <div className="text-[10px] font-mono uppercase text-slate-400">Deaths Logged</div>
-          <div className={`text-2xl font-black font-mono mt-1 ${deathTimestamps.length > 0 ? 'text-rose-400' : 'text-emerald-300'}`}>
-            {deathTimestamps.length}
-          </div>
-          <div className="text-[10px] font-mono text-slate-400 mt-0.5">since {startDate}</div>
-        </div>
-      </div>
-
-      {/* Control Deck: Client.txt Live Watcher + GGG XP/hr Poller */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Left: Kid Simple 3 Step Client.txt Setup + Drag & Drop */}
-        <section
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingFile(true);
-          }}
-          onDragLeave={() => setIsDraggingFile(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDraggingFile(false);
-            const f = e.dataTransfer?.files?.[0];
-            if (f) parseClientTxtFromStartDate(f, false);
-          }}
-          className={`rounded-2xl border p-4 space-y-3.5 shadow-lg transition-colors ${
-            isDraggingFile ? 'border-emerald-400 bg-emerald-950/20' : 'border-slate-800 bg-[#0d111a]'
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-mono uppercase font-bold text-sky-400 flex items-center gap-1.5">
-              <Activity className="w-4 h-4" />
-              <span>1. Connect Your Client.txt (100% Local)</span>
-            </div>
-            {lastFileReadAt && (
-              <span className="text-[10px] font-mono text-emerald-300">Updated {lastFileReadAt}</span>
-            )}
-          </div>
-
-          {/* Super Simple 3 Step Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setCalendarOpen(true)}
-              className="flex items-center justify-between gap-2 bg-slate-950 hover:bg-slate-900 px-3 py-2 rounded-xl border border-amber-500/40 text-left cursor-pointer transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="text-slate-400 font-mono text-[11px]">Step 1 • Start Date:</span>
-              </span>
-              <span className="text-white font-mono font-bold">{formattedStartDate}</span>
-            </button>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => copyClientPath('steam', 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs')}
-                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
-              >
-                {copiedPath === 'steam' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
-                <span>{copiedPath === 'steam' ? 'Copied!' : 'Steam Folder'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => copyClientPath('standalone', 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs')}
-                className="flex-1 px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-sky-400 text-slate-200 text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
-              >
-                {copiedPath === 'standalone' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
-                <span>{copiedPath === 'standalone' ? 'Copied!' : 'Standalone Folder'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Step 2: Big Friendly Action Area (Auto Detects Browser Capability) */}
-          <div className="flex flex-wrap items-center gap-2.5 text-xs">
-            {supportsLiveHandles ? (
-              !watchingLive ? (
-                <button
-                  type="button"
-                  onClick={handleStartLiveWatch}
-                  className="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black inline-flex items-center justify-center gap-2 cursor-pointer shadow"
-                >
-                  <Play className="w-4 h-4" />
-                  <span>Step 2 • Start Live Auto Watch (Every 12s)</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setWatchingLive(false)}
-                  className="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black inline-flex items-center justify-center gap-2 cursor-pointer shadow"
-                >
-                  <Square className="w-4 h-4" />
-                  <span>Stop Live Auto Watch</span>
-                </button>
-              )
-            ) : null}
-
-            <label className="flex-1 min-w-[180px] px-4 py-2.5 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/35 border border-indigo-400/50 text-white font-bold inline-flex items-center justify-center gap-2 cursor-pointer text-center">
-              <Upload className="w-4 h-4 text-sky-300" />
-              <span>{supportsLiveHandles ? 'Or Drop / Pick Client.txt' : 'Step 2 • Drop or Pick Client.txt'}</span>
-              <input
-                type="file"
-                accept=".txt"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) parseClientTxtFromStartDate(f, false);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-
-          {/* Friendly Brave / Chrome System Folder Helper */}
-          {!supportsLiveHandles ? (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/35 space-y-2 text-[11px] text-amber-100">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-bold text-amber-300">
-                  Using Brave? Unlock Automatic Live Sync in 10 Seconds:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => copyClientPath('brave_flag', 'brave://flags/#file-system-access-api')}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedPath === 'brave_flag' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedPath === 'brave_flag' ? 'Copied Flag URL!' : 'Copy Brave Flag URL'}</span>
-                </button>
+      {/* Draggable, Resizable, Collapsible Map Tracker Workspace Grid */}
+      <ToolWidgetGrid
+        storageKey="map_tracker"
+        widgets={[
+          {
+            id: 'kpis',
+            title: 'Session Telemetry KPIs',
+            icon: <Activity className="w-3.5 h-3.5 text-emerald-400" />,
+            defaultSpan: 12,
+            render: () => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Maps Run</div>
+                  <div className="text-xl font-black font-mono text-white mt-0.5">{mapRuns.length}</div>
+                  <div className="text-[10px] font-mono text-sky-400">{specialZonesCount} Special Zones</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Mapping Pace</div>
+                  <div className="text-xl font-black font-mono text-emerald-300 mt-0.5">{mapsPerHr}</div>
+                  <div className="text-[10px] font-mono text-slate-400">maps / hour</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Avg Map Time</div>
+                  <div className="text-xl font-black font-mono text-amber-300 mt-0.5">{formatDuration(avgMapSec)}</div>
+                  <div className="text-[10px] font-mono text-slate-400">active map avg</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Hideout Downtime</div>
+                  <div className={`text-xl font-black font-mono mt-0.5 ${hideoutPct > 35 ? 'text-rose-400' : 'text-sky-300'}`}>
+                    {hideoutPct}%
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400">{formatDuration(totalHideoutSec)} in town</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Live XP / Hour</div>
+                  <div className="text-xl font-black font-mono text-emerald-400 mt-0.5">
+                    {latestXpHr >= 1_000_000 ? `${(latestXpHr / 1_000_000).toFixed(1)}M` : latestXpHr > 0 ? `${Math.round(latestXpHr / 1000)}k` : '0'}
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400 truncate">
+                    {latestChar ? `Lv ${latestChar.level} ${latestChar.name}` : 'Poll XP to track'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/75">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">Deaths Logged</div>
+                  <div className={`text-xl font-black font-mono mt-0.5 ${deathTimestamps.length > 0 ? 'text-rose-400' : 'text-emerald-300'}`}>
+                    {deathTimestamps.length}
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400">since {startDate}</div>
+                </div>
               </div>
-              <ol className="list-decimal pl-4 space-y-0.5 text-slate-300">
-                <li>Click <strong className="text-white">Copy Brave Flag URL</strong> and paste it into your Brave address bar.</li>
-                <li>Set <strong className="text-white">File System Access API</strong> to <strong className="text-emerald-300">Enabled</strong> and click <strong className="text-white">Relaunch</strong>.</li>
-                <li>Return here and click <strong className="text-emerald-300">Start Live Auto Watch</strong>!</li>
-              </ol>
-            </div>
-          ) : (
-            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/30 space-y-2 text-[11px] text-slate-200">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-bold text-sky-300">
-                  Browser says "contains system files" in Program Files? (1 Time 5 Second Fix)
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyClientPath(
-                      'hardlink',
-                      'cmd /c "if exist \\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt\\" (mklink /H \\"%USERPROFILE%\\Documents\\PoE-Client.txt\\" \\"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile\\logs\\Client.txt\\") else (mklink /H \\"%USERPROFILE%\\Documents\\PoE-Client.txt\\" \\"C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs\\Client.txt\\")"'
-                    )
-                  }
-                  className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer shrink-0"
-                >
-                  {copiedPath === 'hardlink' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedPath === 'hardlink' ? 'Copied Fix Command!' : 'Copy 1 Click Fix'}</span>
-                </button>
-              </div>
-              <p className="text-slate-300 leading-relaxed">
-                Chrome &amp; Brave block live file handles inside <code className="text-amber-200">C:\Program Files (x86)</code>. Click <strong className="text-white">Copy 1 Click Fix</strong>, press <kbd className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px]">Win + R</kbd>, paste and press Enter. It creates a zero space live link at <strong className="text-emerald-300">Documents\PoE-Client.txt</strong> that updates automatically forever!
-              </p>
-            </div>
-          )}
-        </section>
+            )
+          },
+          {
+            id: 'xp_and_save',
+            title: 'Live XP Poller & Cloud Save',
+            icon: <CloudUpload className="w-3.5 h-3.5 text-emerald-400" />,
+            defaultSpan: 6,
+            render: () => (
+              <div className="space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] border ${
+                      accountName && poesessid
+                        ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300'
+                        : 'bg-amber-500/15 border-amber-500/35 text-amber-300'
+                    }`}>
+                      {accountName && poesessid ? `Connected: ${accountName}` : 'Connect POESESSID in Tool Setup'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                    <span className="text-slate-400">Auto XP:</span>
+                    <select
+                      value={xpAutoMinutes}
+                      onChange={(e) => setXpAutoMinutes(Number(e.target.value))}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5 text-white cursor-pointer"
+                    >
+                      <option value={0}>Off</option>
+                      <option value={5}>5m</option>
+                      <option value={15}>15m</option>
+                      <option value={30}>30m</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={pollingXp}
+                      onClick={() => handlePollCharacterXp(false)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${pollingXp ? 'animate-spin' : ''}`} />
+                      <span>Poll XP</span>
+                    </button>
+                  </div>
+                </div>
 
-        {/* Right: Automatic GGG XP/hr Poller + Save Session */}
-        <section className="rounded-2xl border border-slate-800 bg-[#0d111a] p-4 space-y-3.5 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-mono uppercase font-bold text-emerald-400">
-              2. Live GGG Character XP/hr &amp; Cloud Save
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] font-mono">
-              <span className="text-slate-400">Auto XP:</span>
-              <select
-                value={xpAutoMinutes}
-                onChange={(e) => setXpAutoMinutes(Number(e.target.value))}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5 text-white cursor-pointer"
-              >
-                <option value={0}>Off</option>
-                <option value={5}>5m</option>
-                <option value={15}>15m</option>
-                <option value={30}>30m</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
-            <input
-              type="text"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Account (e.g. Leuie#0626)"
-              className="sm:col-span-4 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white"
-            />
-            <input
-              type="password"
-              value={poesessid}
-              onChange={(e) => setPoesessid(e.target.value)}
-              placeholder="POESESSID (Auto filled if opted in)"
-              className="sm:col-span-5 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono"
-            />
-            <button
-              type="button"
-              disabled={pollingXp}
-              onClick={() => handlePollCharacterXp(false)}
-              className="sm:col-span-3 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold inline-flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${pollingXp ? 'animate-spin' : ''}`} />
-              <span>Poll XP</span>
-            </button>
-          </div>
-
-          {characters.length > 0 && (
-            <div className="space-y-2 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-mono uppercase text-slate-400">League:</span>
-                <select
-                  value={charLeagueFilter}
-                  onChange={(e) => {
-                    const nextLg = e.target.value;
-                    setCharLeagueFilter(nextLg);
-                    const matchGroup = nextLg === 'ALL' ? characterLeagues[0] : characterLeagues.find(([lg]) => lg === nextLg);
-                    if (matchGroup && matchGroup[1][0]) {
-                      setSelectedCharName(matchGroup[1][0].name);
-                      setXpCheckpoints([]);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer max-w-[260px]"
-                >
-                  <option value="ALL" className="bg-slate-950">All Leagues ({characterLeagues.length})</option>
-                  {characterLeagues.map(([lg, list]) => (
-                    <option key={lg} value={lg} className="bg-slate-950">
-                      {lg} ({list.length})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-mono uppercase text-slate-400">Character:</span>
-                <select
-                  value={selectedCharName}
-                  onChange={(e) => {
-                    setSelectedCharName(e.target.value);
-                    setXpCheckpoints([]);
-                  }}
-                  className="flex-1 min-w-[200px] px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-semibold cursor-pointer"
-                >
-                  {filteredCharacterLeagues.map(([lg, list]) => (
-                    <optgroup key={lg} label={lg} className="bg-slate-950 text-amber-300">
-                      {list.map((c) => (
-                        <option key={c.name} value={c.name} className="bg-slate-950 text-slate-100">
-                          {c.name} (Lv {c.level} {c.className})
+                {characters.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select
+                      value={charLeagueFilter}
+                      onChange={(e) => {
+                        const nextLg = e.target.value;
+                        setCharLeagueFilter(nextLg);
+                        const matchGroup = nextLg === 'ALL' ? characterLeagues[0] : characterLeagues.find(([lg]) => lg === nextLg);
+                        if (matchGroup && matchGroup[1][0]) {
+                          setSelectedCharName(matchGroup[1][0].name);
+                          setXpCheckpoints([]);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer"
+                    >
+                      <option value="ALL" className="bg-slate-950">All Leagues ({characterLeagues.length})</option>
+                      {characterLeagues.map(([lg, list]) => (
+                        <option key={lg} value={lg} className="bg-slate-950">
+                          {lg} ({list.length})
                         </option>
                       ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
+                    </select>
 
-          <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
-            <input
-              type="text"
-              value={sessionTitle}
-              onChange={(e) => setSessionTitle(e.target.value)}
-              placeholder="Session name"
-              className="flex-1 min-w-[140px] px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white"
-            />
-            <select
-              value={strategyTag}
-              onChange={(e) => setStrategyTag(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer"
-            >
-              {activeStrategyPresets.map((st) => (
-                <option key={st} value={st} className="bg-slate-950">{st}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              disabled={savingCloud || mapRuns.length === 0}
-              onClick={handleSaveSessionToCloud}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              <span>{savingCloud ? 'Saving...' : 'Save Session'}</span>
-            </button>
-          </div>
-        </section>
-      </div>
-
-      {/* Charts 4 & 5: Live XP/hr Timeline + Atlas Strategy Speed Comparison */}
-      <MapAnalyticsCharts
-        runs={runs}
-        hideoutPct={hideoutPct}
-        xpCheckpoints={xpCheckpoints}
-        deathTimestamps={deathTimestamps}
-        strategyRows={strategyRows}
-      />
-
-      <ClientTxtDeepInsights
-        runs={runs}
-        levelUps={levelUps}
-        tradeTelemetry={tradeTelemetry}
-        capturedProofs={capturedProofs}
-        onClaimLeagueFirst={async (proof) => {
-          const targetLeagueId = game === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
-          const handle = userAccount?.displayName || proof.charName || 'Exile';
-          const milestone: LeagueFirstMilestone = {
-            id: `lf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            leagueId: targetLeagueId,
-            milestoneKey: proof.title.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-            title: proof.title,
-            winnerDisplayName: handle,
-            winnerCharacterName: proof.charName || userAccount?.characterName || handle,
-            proofNote: `Auto captured from local Client.txt at ${proof.label}.`,
-            achievedAtIso: proof.timestampIso
-          };
-          const ok = await saveCloudLeagueFirst(targetLeagueId, milestone);
-          if (ok) {
-            setNotice({
-              type: 'ok',
-              text: `Claimed "${proof.title}" on the Private League Hall of Fame!`
-            });
-          } else {
-            setNotice({
-              type: 'err',
-              text: 'Sign in required to claim League Firsts on the Hall of Fame.'
-            });
-          }
-          return ok;
-        }}
-      />
-
-      {/* Recent Area Runs Table & Cloud Saved Sessions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        <section className="lg:col-span-8 rounded-2xl border border-slate-800 bg-[#0d111a] overflow-hidden shadow-lg">
-          <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex items-center justify-between">
-            <span className="text-xs font-mono uppercase font-bold text-slate-200">
-              Recent Areas Entered Since {startDate} ({mapRuns.length} Maps)
-            </span>
-            <span className="text-[11px] font-mono text-slate-400">Newest first</span>
-          </div>
-
-          {mapRuns.length === 0 ? (
-            <div className="p-10 text-center text-xs text-slate-400">
-              Click <strong>Start Live Watch (Client.txt)</strong> or <strong>One Time Read</strong> above to populate your recent maps, Betrayal Safehouses, and Temple runs.
-            </div>
-          ) : (
-            <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-slate-950 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
-                  <tr>
-                    <th className="p-2.5">Entered</th>
-                    <th className="p-2.5">Area / Map</th>
-                    <th className="p-2.5">Category</th>
-                    <th className="p-2.5 text-right">Duration</th>
-                    <th className="p-2.5 text-right">Deaths</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {mapRuns.slice(0, 120).map((run) => (
-                    <tr key={run.id} className="hover:bg-slate-800/35">
-                      <td className="p-2.5 font-mono text-slate-400">{run.enteredLabel}</td>
-                      <td className="p-2.5 font-semibold text-white">{run.areaName}</td>
-                      <td className="p-2.5">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                            run.kind === 'Betrayal Safehouse' || run.kind === 'Temple of Atzoatl'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                              : run.kind === 'Boss / Special'
-                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                              : 'bg-slate-900 text-slate-300 border-slate-700'
-                          }`}
-                        >
-                          {run.kind}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-right font-mono text-sky-300 font-bold">{formatDuration(run.durationSec)}</td>
-                      <td className="p-2.5 text-right font-mono">
-                        {run.deathsInRun > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-rose-400 font-bold">
-                            <Skull className="w-3 h-3" /> {run.deathsInRun}
-                          </span>
-                        ) : (
-                          <span className="text-slate-600">0</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Cloud Saved Mapping History */}
-        <aside className="lg:col-span-4 rounded-2xl border border-slate-800 bg-[#0d111a] p-4 space-y-3 shadow-lg">
-          <div className="text-xs font-mono uppercase font-bold text-amber-400">
-            Saved Cloud Map History ({savedSessions.length})
-          </div>
-          {savedSessions.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500">
-              No saved map sessions yet. Parse your Client.txt and click Save Session above.
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
-              {savedSessions.map((s) => (
-                <div key={s.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-2">
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="text-xs font-bold text-white truncate">{s.title}</div>
-                    <div className="text-[10px] font-mono text-amber-300">{s.strategy}</div>
-                    <div className="text-[10px] font-mono text-slate-400">
-                      {s.mapsCompleted} maps • {s.mapsPerHr}/hr • {formatDuration(s.avgMapSec)} avg • {s.hideoutPct}% town
-                    </div>
+                    <select
+                      value={selectedCharName}
+                      onChange={(e) => {
+                        setSelectedCharName(e.target.value);
+                        setXpCheckpoints([]);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-semibold cursor-pointer"
+                    >
+                      {filteredCharacterLeagues.map(([lg, list]) => (
+                        <optgroup key={lg} label={lg} className="bg-slate-950 text-amber-300">
+                          {list.map((c) => (
+                            <option key={c.name} value={c.name} className="bg-slate-950 text-slate-100">
+                              {c.name} (Lv {c.level} {c.className})
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
                   </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={sessionTitle}
+                    onChange={(e) => setSessionTitle(e.target.value)}
+                    placeholder="Session name"
+                    className="flex-1 min-w-[130px] px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                  />
+                  <select
+                    value={strategyTag}
+                    onChange={(e) => setStrategyTag(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer"
+                  >
+                    {activeStrategyPresets.map((st) => (
+                      <option key={st} value={st} className="bg-slate-950">{st}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
-                    onClick={() => handleDeleteSession(s.id)}
-                    className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
-                    title="Delete saved session"
+                    disabled={savingCloud || mapRuns.length === 0}
+                    onClick={handleSaveSessionToCloud}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <CloudUpload className="w-3.5 h-3.5" />
+                    <span>{savingCloud ? 'Saving...' : 'Save Session'}</span>
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {/* Mapping Toolkit: Map Regex Builder & Session Scratchpad (Moved from Exile Profile) */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3 shadow-lg">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-          <div className="flex items-center gap-2">
-            <Hammer className="w-4 h-4 text-sky-400" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-sky-300">
-              Mapping Toolkit (Map Regex Builder &amp; Session Scratchpad)
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setToolkitOpen((v) => !v)}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
-          >
-            <span>{toolkitOpen ? 'Collapse' : 'Expand'}</span>
-            {toolkitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-        {toolkitOpen && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <MapRegexBuilder
-              savedBricks={savedBricks}
-              canEdit={true}
-              onSaveBricks={handleSaveMapBricks}
-            />
-            <SessionScratchpad
-              savedGoals={savedGoals}
-              characters={[]}
-              canEdit={true}
-              onSaveGoals={handleSaveSessionGoals}
-            />
-          </div>
-        )}
-      </div>
+              </div>
+            )
+          },
+          {
+            id: 'saved_history',
+            title: `Saved Cloud Map History (${savedSessions.length})`,
+            icon: <Cloud className="w-3.5 h-3.5 text-amber-400" />,
+            defaultSpan: 6,
+            render: () =>
+              savedSessions.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-500">
+                  No saved map sessions yet. Parse your Client.txt and click Save Session.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-0.5">
+                  {savedSessions.map((s) => (
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="text-xs font-bold text-white truncate">{s.title}</div>
+                        <div className="text-[10px] font-mono text-amber-300">{s.strategy}</div>
+                        <div className="text-[10px] font-mono text-slate-400">
+                          {s.mapsCompleted} maps • {s.mapsPerHr}/hr • {formatDuration(s.avgMapSec)} avg • {s.hideoutPct}% town
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSession(s.id)}
+                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                        title="Delete saved session"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+          },
+          {
+            id: 'analytics_charts',
+            title: 'XP/hr Timeline & Strategy Pace Charts',
+            icon: <BarChart3 className="w-3.5 h-3.5 text-sky-400" />,
+            defaultSpan: 12,
+            render: () => (
+              <MapAnalyticsCharts
+                runs={runs}
+                hideoutPct={hideoutPct}
+                xpCheckpoints={xpCheckpoints}
+                deathTimestamps={deathTimestamps}
+                strategyRows={strategyRows}
+              />
+            )
+          },
+          {
+            id: 'recent_runs',
+            title: `Recent Areas Entered Since ${startDate} (${mapRuns.length} Maps)`,
+            icon: <Compass className="w-3.5 h-3.5 text-indigo-400" />,
+            defaultSpan: 12,
+            render: () =>
+              mapRuns.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Click <strong>Start Live Watch</strong> or <strong>Drop or Pick Client.txt</strong> above to populate your recent maps, Betrayal Safehouses, and Temple runs.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[380px] overflow-y-auto rounded-xl border border-slate-800/80">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-slate-950 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="p-2.5">Entered</th>
+                        <th className="p-2.5">Area / Map</th>
+                        <th className="p-2.5">Category</th>
+                        <th className="p-2.5 text-right">Duration</th>
+                        <th className="p-2.5 text-right">Deaths</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {mapRuns.slice(0, 120).map((run) => (
+                        <tr key={run.id} className="hover:bg-slate-800/35">
+                          <td className="p-2.5 font-mono text-slate-400">{run.enteredLabel}</td>
+                          <td className="p-2.5 font-semibold text-white">{run.areaName}</td>
+                          <td className="p-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                run.kind === 'Betrayal Safehouse' || run.kind === 'Temple of Atzoatl'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : run.kind === 'Boss / Special'
+                                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                                  : 'bg-slate-900 text-slate-300 border-slate-700'
+                              }`}
+                            >
+                              {run.kind}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-sky-300 font-bold">{formatDuration(run.durationSec)}</td>
+                          <td className="p-2.5 text-right font-mono">
+                            {run.deathsInRun > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-rose-400 font-bold">
+                                <Skull className="w-3 h-3" /> {run.deathsInRun}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">0</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+          },
+          {
+            id: 'deep_insights',
+            title: 'Deep Client.txt Insights & League First Proofs',
+            icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
+            defaultSpan: 12,
+            defaultCollapsed: true,
+            render: () => (
+              <ClientTxtDeepInsights
+                runs={runs}
+                levelUps={levelUps}
+                tradeTelemetry={tradeTelemetry}
+                capturedProofs={capturedProofs}
+                onClaimLeagueFirst={async (proof) => {
+                  const targetLeagueId = game === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
+                  const handle = userAccount?.displayName || proof.charName || 'Exile';
+                  const milestone: LeagueFirstMilestone = {
+                    id: `lf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    leagueId: targetLeagueId,
+                    milestoneKey: proof.title.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                    title: proof.title,
+                    winnerDisplayName: handle,
+                    winnerCharacterName: proof.charName || userAccount?.characterName || handle,
+                    proofNote: `Auto captured from local Client.txt at ${proof.label}.`,
+                    achievedAtIso: proof.timestampIso
+                  };
+                  const ok = await saveCloudLeagueFirst(targetLeagueId, milestone);
+                  if (ok) {
+                    setNotice({
+                      type: 'ok',
+                      text: `Claimed "${proof.title}" on the Private League Hall of Fame!`
+                    });
+                  } else {
+                    setNotice({
+                      type: 'err',
+                      text: 'Sign in required to claim League Firsts on the Hall of Fame.'
+                    });
+                  }
+                  return ok;
+                }}
+              />
+            )
+          },
+          {
+            id: 'map_regex',
+            title: 'Map Regex Builder',
+            icon: <Filter className="w-3.5 h-3.5 text-sky-400" />,
+            defaultSpan: 6,
+            render: () => (
+              <MapRegexBuilder
+                savedBricks={savedBricks}
+                canEdit={true}
+                onSaveBricks={handleSaveMapBricks}
+              />
+            )
+          },
+          {
+            id: 'session_scratchpad',
+            title: 'Session Scratchpad & Goals',
+            icon: <ListChecks className="w-3.5 h-3.5 text-emerald-400" />,
+            defaultSpan: 6,
+            render: () => (
+              <SessionScratchpad
+                savedGoals={savedGoals}
+                characters={[]}
+                canEdit={true}
+                onSaveGoals={handleSaveSessionGoals}
+              />
+            )
+          }
+        ] as ToolWidgetDefinition[]}
+      />
 
       {/* Custom Start Date Calendar Modal */}
       {calendarOpen && (

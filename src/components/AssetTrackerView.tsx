@@ -93,6 +93,12 @@ import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
 import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
 import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
+import {
+  readUnifiedPoeSession,
+  saveUnifiedPoeSession,
+  isPoeDisclaimerAcknowledged,
+  markPoeDisclaimerAcknowledged
+} from '../utils/poeSession';
 
 interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -186,33 +192,11 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [leagueName, setLeagueName] = useState<string>(
     savedPrefs.leagueName || 'Ravenwatch Covens of Umbra GSF (PL87651)'
   );
-  // Opt in local POESESSID persistence (OFF by default; never sent to any database or KV)
-  const savedPoesessidOptIn = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed.poesessid === 'string' && parsed.poesessid.trim()
-        ? { poesessid: parsed.poesessid.trim(), accepted: Boolean(parsed.accepted) }
-        : null;
-    } catch {
-      return null;
-    }
-  }, []);
+  // Unified local POESESSID persistence (30 day expiry, shared across all tools, never sent to any database)
+  const savedPoesessidOptIn = useMemo(() => readUnifiedPoeSession(), []);
 
-  // 30 day POESESSID disclaimer acknowledgment check
-  const DISCLAIMER_ACK_KEY = 'exile_ssf_poesessid_disclaimer_ack_v1';
-  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-  const savedDisclaimerValid = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(DISCLAIMER_ACK_KEY);
-      if (!raw) return false;
-      const parsed = JSON.parse(raw);
-      return Boolean(parsed?.acknowledgedAtMs && Date.now() - Number(parsed.acknowledgedAtMs) < THIRTY_DAYS_MS);
-    } catch {
-      return false;
-    }
-  }, []);
+  // Permanent one-time POESESSID disclaimer acknowledgment check
+  const savedDisclaimerValid = useMemo(() => isPoeDisclaimerAcknowledged(), []);
 
   const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
@@ -228,13 +212,15 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
           if (parsed?.accountName) setAccountName(parsed.accountName);
           if (parsed?.leagueName) setLeagueName(parsed.leagueName);
         }
-        const rawPoe = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
-        if (rawPoe) {
-          const parsedPoe = JSON.parse(rawPoe);
-          if (parsedPoe?.poesessid) {
-            setPoesessid(String(parsedPoe.poesessid).trim());
-            setRememberPoesessid(true);
-          }
+        const sess = readUnifiedPoeSession();
+        if (sess?.poesessid) {
+          setPoesessid(sess.poesessid);
+          setRememberPoesessid(true);
+          setAcceptedRiskDisclaimer(true);
+          setShowDisclaimerBanner(false);
+        } else {
+          setPoesessid('');
+          setRememberPoesessid(false);
         }
       } catch {}
     };
@@ -249,15 +235,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
 
   const handleToggleDisclaimer = (checked: boolean) => {
     setAcceptedRiskDisclaimer(checked);
-    try {
-      if (checked) {
-        localStorage.setItem(DISCLAIMER_ACK_KEY, JSON.stringify({ acknowledgedAtMs: Date.now() }));
-        setShowDisclaimerBanner(false);
-      } else {
-        localStorage.removeItem(DISCLAIMER_ACK_KEY);
-        setShowDisclaimerBanner(true);
-      }
-    } catch {}
+    if (checked) {
+      markPoeDisclaimerAcknowledged();
+      setShowDisclaimerBanner(false);
+    }
   };
   const [stashTabs, setStashTabs] = useState<StashTabMeta[]>(
     Array.isArray(savedWorkspace.stashTabs) ? savedWorkspace.stashTabs : []
@@ -358,17 +339,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   }, [accountName, leagueName, linkedLeagueId, selectedTabIndices, canonicalMapping, strategyTag, valueSystem, autoSyncMinutes, optInWealthLadder]);
 
   useEffect(() => {
-    try {
-      if (rememberPoesessid && poesessid.trim()) {
-        localStorage.setItem(
-          POESESSID_OPTIN_STORAGE_KEY,
-          JSON.stringify({ poesessid: poesessid.trim(), accepted: acceptedRiskDisclaimer })
-        );
-      } else if (!rememberPoesessid) {
-        localStorage.removeItem(POESESSID_OPTIN_STORAGE_KEY);
-      }
-    } catch {}
-  }, [rememberPoesessid, poesessid, acceptedRiskDisclaimer]);
+    if (rememberPoesessid && poesessid.trim()) {
+      saveUnifiedPoeSession({ poesessid: poesessid.trim(), accountName, leagueName });
+    }
+  }, [rememberPoesessid, poesessid, accountName, leagueName]);
 
   // Persist real synced loot locally (never persist DEMO data or POESESSID)
   useEffect(() => {

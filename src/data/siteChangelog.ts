@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-official-tree-and-grid',
+    version: 'v3.34.1',
+    title: 'Interactive Official PoE Passive Skill Tree, Draggable Map Tracker Workspace Grid & Unified POESESSID Sync',
+    dateEst: 'Nov 24, 2026 • 5:10 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Armory & Maps Upgrade',
+    summary: 'Upgraded Character Armory with an interactive zoom, pan, search, and fullscreen canvas powered by official GGG skilltree-export data, redesigned Map Tracker into a collapsible drag and drop resizable workspace grid, fixed unified POESESSID sharing across all tools with a permanent one time disclaimer, and cleared the sticky Armory search input.',
+    changes: [
+      { tag: 'Added', text: 'Interactive Official PoE Passive Skill Tree canvas in Character Armory with mouse wheel zoom, drag to pan, live node search highlighting, rich stat hover tooltips, Focus Allocated, and fullscreen Maximize.' },
+      { tag: 'Added', text: 'Reusable ToolWidgetGrid on Map Tracker: every section can now be collapsed or expanded, drag and drop reordered, resized (1/4, 1/3, 1/2, 2/3, Full), or snapped to 2x2, 3 Col, 4x2, and Full presets.' },
+      { tag: 'Fixed', text: 'Unified POESESSID browser storage across Tool Setup, Asset Tracker, Character Armory, and Map Tracker so entering your session once retains access for 30 days across every tool, and made the POESESSID disclaimer permanent once dismissed.' },
+      { tag: 'Fixed', text: 'Cleared the Character Armory search box by default so your own handle no longer sticks inside the Inspect @Handle input.' },
+      { tag: 'Improved', text: 'Removed redundant inline setup steps from Map Tracker in favor of a compact Client.txt action bar + Tool Setup button.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-unified-tool-setup',
     version: 'v3.34.0',
     title: 'Unified Tool Setup Wizard, Asset Tracker Fix, Guild Stash Scanner Removal & Tool Data Reset',

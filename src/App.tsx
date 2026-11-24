@@ -508,6 +508,12 @@ export const App: React.FC = () => {
     };
   }, [userAccount]);
 
+  useEffect(() => {
+    const onOpenToolSetup = () => setIsToolSetupOpen(true);
+    window.addEventListener('exile-open-tool-setup', onOpenToolSetup);
+    return () => window.removeEventListener('exile-open-tool-setup', onOpenToolSetup);
+  }, []);
+
   const handleSaveAccount = (account: UserAccount, rosterEntry: LeagueRosterMember) => {
     setUserAccount(account);
     setServerSessionExpired(false);
