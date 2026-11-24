@@ -41,6 +41,57 @@ export interface CharacterPassiveTreeAndSkillsProps {
   onClearHover?: () => void;
 }
 
+function buildPassiveWikiIconUrl(nodeName: string): string {
+  const clean = (nodeName || '').trim().replace(/\s+/g, '_');
+  if (!clean) return '';
+  return `https://www.poewiki.net/wiki/Special:FilePath/${encodeURIComponent(clean)}_passive_skill_icon.png`;
+}
+
+const PassiveNodeIcon: React.FC<{
+  name: string;
+  kind: 'ascendancy' | 'keystone' | 'mastery';
+}> = ({ name, kind }) => {
+  const [failed, setFailed] = useState(false);
+  const src = buildPassiveWikiIconUrl(name);
+
+  const borderClass =
+    kind === 'ascendancy'
+      ? 'border-amber-500/35 bg-amber-500/15 text-amber-300'
+      : kind === 'keystone'
+      ? 'border-purple-500/35 bg-purple-500/15 text-purple-300'
+      : 'border-emerald-500/35 bg-emerald-500/15 text-emerald-300';
+
+  if (!src || failed) {
+    return (
+      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${borderClass}`}>
+        {kind === 'ascendancy' ? (
+          <Flame className="w-4 h-4" />
+        ) : kind === 'keystone' ? (
+          <Sparkles className="w-4 h-4" />
+        ) : (
+          <Layers className="w-4 h-4" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className={`w-8 h-8 rounded-lg object-contain bg-slate-950 border shrink-0 p-0.5 ${
+        kind === 'ascendancy'
+          ? 'border-amber-500/35'
+          : kind === 'keystone'
+          ? 'border-purple-500/35'
+          : 'border-emerald-500/35'
+      }`}
+    />
+  );
+};
+
 const SLOT_SKILL_ORDER = [
   'BodyArmour',
   'Weapon',
@@ -302,17 +353,7 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
                         key={`asc-${nd.id}`}
                         className="p-2.5 rounded-lg bg-slate-900/90 border border-amber-500/25 flex items-start gap-2.5"
                       >
-                        {nd.icon ? (
-                          <img
-                            src={nd.icon}
-                            alt=""
-                            className="w-8 h-8 rounded-lg object-contain bg-slate-950 border border-amber-500/30 shrink-0 p-0.5"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
-                            <Flame className="w-4 h-4" />
-                          </div>
-                        )}
+                        <PassiveNodeIcon name={nd.name} kind="ascendancy" />
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <div className="flex items-center justify-between gap-2">
                             <a
@@ -341,17 +382,7 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
                         key={`key-${nd.id}`}
                         className="p-2.5 rounded-lg bg-slate-900/90 border border-purple-500/30 flex items-start gap-2.5"
                       >
-                        {nd.icon ? (
-                          <img
-                            src={nd.icon}
-                            alt=""
-                            className="w-8 h-8 rounded-lg object-contain bg-slate-950 border border-purple-500/30 shrink-0 p-0.5"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
-                            <Sparkles className="w-4 h-4" />
-                          </div>
-                        )}
+                        <PassiveNodeIcon name={nd.name} kind="keystone" />
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <div className="flex items-center justify-between gap-2">
                             <a
@@ -393,18 +424,21 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
                     {masteries.map((m) => (
                       <div
                         key={m.id}
-                        className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 space-y-0.5"
+                        className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 flex items-start gap-2.5"
                       >
-                        <div className="text-[11px] font-bold text-emerald-200">{m.name}</div>
-                        {m.effectStats.length > 0 ? (
-                          m.effectStats.map((st, idx) => (
-                            <div key={idx} className="text-[10px] text-slate-300 leading-snug">
-                              {st}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-[10px] text-slate-500 font-mono">Allocated Mastery</div>
-                        )}
+                        <PassiveNodeIcon name={m.name} kind="mastery" />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="text-[11px] font-bold text-emerald-200">{m.name}</div>
+                          {m.effectStats.length > 0 ? (
+                            m.effectStats.map((st, idx) => (
+                              <div key={idx} className="text-[10px] text-slate-300 leading-snug">
+                                {st}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-[10px] text-slate-500 font-mono">Allocated Mastery</div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

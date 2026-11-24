@@ -5,7 +5,6 @@ import {
   Share2,
   CheckCircle2,
   User,
-  Users,
   Sparkles,
   LogIn,
   Flame
@@ -13,7 +12,6 @@ import {
 import type { UserAccount, CommunityGuide } from '../types';
 import {
   fetchCloudProfile,
-  fetchCloudLeagueData,
   fetchUserToolState,
   saveCloudGuide,
   type CloudExileProfileResponse
@@ -45,7 +43,6 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
   const [activeCharName, setActiveCharName] = useState<string>(initialCharacterName || '');
   const [profileData, setProfileData] = useState<CloudExileProfileResponse | null>(null);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
-  const [squadHandles, setSquadHandles] = useState<Array<{ handle: string; charName: string; ascendancy: string; level: number }>>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [publishingBuild, setPublishingBuild] = useState<boolean>(false);
 
@@ -76,32 +73,6 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
       ? `${activeCharName ? `${activeCharName} (@${activeHandle})` : `@${activeHandle}`} | Character Armory | Exile SSF`
       : 'Character Armory | Exile SSF';
   }, [activeHandle, activeCharName]);
-
-  // Load active squad handles for 1 click switching
-  useEffect(() => {
-    let cancelled = false;
-    const leagueId = selectedGame === 'poe2' ? 'poe2-05-alpha' : 'poe1-330-umbra';
-    fetchCloudLeagueData(leagueId).then((res) => {
-      if (cancelled || !res?.roster) return;
-      const seen = new Set<string>();
-      const list: Array<{ handle: string; charName: string; ascendancy: string; level: number }> = [];
-      for (const m of res.roster) {
-        const h = (m.displayName || '').trim();
-        if (!h || seen.has(h.toLowerCase())) continue;
-        seen.add(h.toLowerCase());
-        list.push({
-          handle: h,
-          charName: m.characterName || '',
-          ascendancy: m.ascendancy || '',
-          level: m.level || 1
-        });
-      }
-      setSquadHandles(list.slice(0, 14));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedGame]);
 
   // Fetch profile metadata & roster characters for the active handle
   useEffect(() => {
@@ -359,38 +330,6 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
           </div>
         </div>
 
-        {/* Quick Squad Roster Switcher */}
-        {squadHandles.length > 0 && (
-          <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 flex items-center gap-1 shrink-0">
-              <Users className="w-3 h-3" />
-              <span>Squad:</span>
-            </span>
-            {squadHandles.map((m) => {
-              const isSelected = activeHandle.toLowerCase() === m.handle.toLowerCase();
-              return (
-                <button
-                  key={m.handle}
-                  type="button"
-                  onClick={() => {
-                    setActiveHandle(m.handle);
-                    setHandleInput(m.handle);
-                    setActiveCharName(m.charName);
-                    onSyncArmoryUrl?.(m.handle, m.charName);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg border text-[11px] font-mono whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
-                    isSelected
-                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 font-bold'
-                      : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
-                  }`}
-                >
-                  @{m.handle}
-                  {m.ascendancy ? <span className="text-slate-500 ml-1">({m.ascendancy})</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Toast Feedback */}

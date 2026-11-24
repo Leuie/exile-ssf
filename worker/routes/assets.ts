@@ -613,7 +613,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
                 ascendancyNodes.push({
                   id: h,
                   name: meta.n,
-                  icon: meta.i ? `https://web.poecdn.com/image/${meta.i.replace(/^Art\//i, 'Art/')}` : '',
+                  icon: `https://www.poewiki.net/wiki/Special:FilePath/${encodeURIComponent(meta.n.trim().replace(/\s+/g, '_'))}_passive_skill_icon.png`,
                   stats: meta.s || [],
                   ascendancyName: meta.a
                 });
@@ -621,7 +621,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
                 keystones.push({
                   id: h,
                   name: meta.n,
-                  icon: meta.i ? `https://web.poecdn.com/image/${meta.i.replace(/^Art\//i, 'Art/')}` : '',
+                  icon: `https://www.poewiki.net/wiki/Special:FilePath/${encodeURIComponent(meta.n.trim().replace(/\s+/g, '_'))}_passive_skill_icon.png`,
                   stats: meta.s || []
                 });
               } else if (meta.m && meta.n) {
