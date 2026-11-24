@@ -6,7 +6,6 @@ import {
   Copy,
   Edit3,
   ExternalLink,
-  Globe,
   MessageSquare,
   Save,
   ShieldCheck,
@@ -20,7 +19,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import type { ExileProfile, UserAccount, PersonalSessionGoal } from '../types';
+import type { ExileProfile, UserAccount } from '../types';
 import {
   fetchCloudProfile,
   saveCloudProfile,
@@ -29,8 +28,6 @@ import {
   type CloudExileProfileResponse
 } from '../services/cloudSync';
 import { getMemberCharacters } from './league/tabs/RosterTab';
-import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
-import { SessionScratchpad } from './league/widgets/SessionScratchpad';
 import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 import { ACHIEVEMENT_CATALOG, buildRetroactiveHonorHistory, HONOR_PER_ITEM_FOUND } from '../utils/achievements';
 import { fireConfetti } from '../utils/confetti';
@@ -103,7 +100,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [editPoeAccount, setEditPoeAccount] = useState<string>('');
   const [editPoeUrl, setEditPoeUrl] = useState<string>('');
   const [editDiscord, setEditDiscord] = useState<string>('');
+  const [editDiscordUrl, setEditDiscordUrl] = useState<string>('');
   const [editTwitch, setEditTwitch] = useState<string>('');
+  const [editYoutubeUrl, setEditYoutubeUrl] = useState<string>('');
   const [editFavClass, setEditFavClass] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -125,7 +124,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           setEditPoeAccount(res.profile.poeAccountName || '');
           setEditPoeUrl(res.profile.poeProfileUrl || '');
           setEditDiscord(res.profile.discordHandle || '');
+          setEditDiscordUrl(res.profile.discordUrl || '');
           setEditTwitch(res.profile.twitchUrl || '');
+          setEditYoutubeUrl(res.profile.youtubeUrl || '');
           setEditFavClass(res.profile.favoriteClass || '');
         }
         setLoading(false);
@@ -200,7 +201,9 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           ? `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(editPoeAccount.trim().split('#')[0])}`
           : undefined),
       discordHandle: editDiscord.trim() || undefined,
+      discordUrl: editDiscordUrl.trim() || undefined,
       twitchUrl: editTwitch.trim() || undefined,
+      youtubeUrl: editYoutubeUrl.trim() || undefined,
       favoriteClass: editFavClass.trim() || undefined
     };
 
@@ -282,25 +285,6 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
     leagueId: rosterEntries[0]?.leagueId || 'poe1-330-umbra'
   });
 
-  const handleSaveMapRegexBricks = async (bricks: string[]) => {
-    if (!data?.profile) return;
-    const updated: ExileProfile = { ...data.profile, mapRegexBricks: bricks };
-    const ok = await saveCloudProfile(updated);
-    if (ok) {
-      setData({ ...data, profile: updated });
-      setCopyNotice('Saved your Map Regex brick mods to Cloudflare D1!');
-      setTimeout(() => setCopyNotice(null), 2500);
-    }
-  };
-
-  const handleSaveSessionGoals = async (goals: PersonalSessionGoal[]) => {
-    if (!data?.profile) return;
-    const updated: ExileProfile = { ...data.profile, sessionGoals: goals };
-    const ok = await saveCloudProfile(updated);
-    if (ok) {
-      setData({ ...data, profile: updated });
-    }
-  };
   const totalHonorPoints = honorSummary.totalHonorPoints;
 
   const primaryIgn = allCharacters[0]?.characterName || profile.handle;
@@ -455,32 +439,94 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
               <span>Whisper</span>
             </button>
-            <button
-              type="button"
-              onClick={() => triggerCopy(`@${profile.rootHandle || profile.handle}`, 'Root Tag')}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1.5 cursor-pointer"
-            >
-              <Globe className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Root Tag</span>
-            </button>
-            {profile.twitchUrl && (
-              <a
-                href={profile.twitchUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-mono flex items-center gap-1.5"
+
+            {/* Circular Social & Platform Icon Buttons */}
+            <div className="flex items-center gap-1.5">
+              {/* Circular Root App Button (Copies Root Tag) */}
+              <button
+                type="button"
+                onClick={() => triggerCopy(`@${profile.rootHandle || profile.handle}`, 'Root Tag')}
+                title={`Copy Root App Tag (@${profile.rootHandle || profile.handle})`}
+                aria-label="Copy Root App Tag"
+                className="w-9 h-9 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/45 text-emerald-300 flex items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-sm"
               >
-                <span>Stream</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-3.2c-1.8-.3-3.2-1.8-3.4-3.7-.1-.6.4-1.1 1-1.1.5 0 .9.4 1 .9.2 1.1 1.1 2 2.4 2s2.2-.9 2.4-2c.1-.5.5-.9 1-.9.6 0 1.1.5 1 1.1-.2 1.9-1.6 3.4-3.4 3.7v3.2c0 .6-.4 1-1 1s-1-.4-1-1zm1-8.5c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+                </svg>
+              </button>
+
+              {/* Circular Discord Button (Opens Discord URL in new tab, or copies handle) */}
+              {(profile.discordUrl || profile.discordHandle) &&
+                (profile.discordUrl || (profile.discordHandle && /^https?:\/\//i.test(profile.discordHandle)) ? (
+                  <a
+                    href={profile.discordUrl || profile.discordHandle}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={profile.discordHandle ? `Discord (${profile.discordHandle})` : 'Open Discord Profile'}
+                    aria-label="Open Discord Profile"
+                    className="w-9 h-9 rounded-full bg-[#5865F2]/20 hover:bg-[#5865F2]/35 border border-[#5865F2]/55 text-[#8ea1ff] flex items-center justify-center transition-all hover:scale-105 shadow-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                    </svg>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => triggerCopy(profile.discordHandle || '', 'Discord Handle')}
+                    title={`Copy Discord Handle (${profile.discordHandle})`}
+                    aria-label="Copy Discord Handle"
+                    className="w-9 h-9 rounded-full bg-[#5865F2]/20 hover:bg-[#5865F2]/35 border border-[#5865F2]/55 text-[#8ea1ff] flex items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                    </svg>
+                  </button>
+                ))}
+
+              {/* Circular Twitch Button */}
+              {profile.twitchUrl && (
+                <a
+                  href={profile.twitchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Watch Twitch Stream"
+                  aria-label="Watch Twitch Stream"
+                  className="w-9 h-9 rounded-full bg-[#9146FF]/20 hover:bg-[#9146FF]/35 border border-[#9146FF]/55 text-[#bf94ff] flex items-center justify-center transition-all hover:scale-105 shadow-sm"
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                    <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                  </svg>
+                </a>
+              )}
+
+              {/* Circular YouTube Button */}
+              {profile.youtubeUrl && (
+                <a
+                  href={profile.youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open YouTube Channel"
+                  aria-label="Open YouTube Channel"
+                  className="w-9 h-9 rounded-full bg-[#FF0000]/20 hover:bg-[#FF0000]/35 border border-[#FF0000]/55 text-[#ff6b6b] flex items-center justify-center transition-all hover:scale-105 shadow-sm"
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                  </svg>
+                </a>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Cross Game Synergy Switcher (PoE 1 + PoE 2 Combined or Filtered) */}
+        {/* Unified Exile Passport (Lifetime PoE 1 & PoE 2 Metrics) */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800/80">
-          <div className="text-[11px] font-mono text-slate-400">
-            Cross Game Profile Scope (PoE 1 &amp; PoE 2 metrics combined by default)
+          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+            <Award className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Exile Passport</span>
+            <span className="text-[10px] font-normal normal-case text-slate-400 hidden sm:inline">
+              • Lifetime PoE 1 &amp; PoE 2 private league metrics
+            </span>
           </div>
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             <button
@@ -519,35 +565,60 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           </div>
         </div>
 
-        {/* Reputation & Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <div className="text-[10px] font-mono uppercase text-amber-400">Verified Vouches</div>
-            <div className="text-lg font-bold text-white mt-0.5">★ {vouches.length}</div>
-            <div className="text-[10px] text-slate-400">Community trust score</div>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <div className="text-[10px] font-mono uppercase text-emerald-400">Wishes Fulfilled</div>
-            <div className="text-lg font-bold text-white mt-0.5">
-              {Math.max(fulfilledByMe.length, achProfile?.lifetimeFulfilledCount || 0)}
+        {/* Unified Exile Passport Metrics Grid */}
+        {(() => {
+          const peakLevel = Math.max(
+            0,
+            ...allCharacters.map((c) => Number(c.level || 0)),
+            ...Object.values(armorySnapshots).map((s) => Number(s.character?.level || 0))
+          );
+          const scopedRunsCount = farmingSessions.filter(
+            (s) => gameScope === 'all' || (s.game || 'poe1') === gameScope
+          ).length;
+
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-amber-400">Verified Vouches</div>
+                <div className="text-lg font-bold text-white mt-0.5">★ {vouches.length}</div>
+                <div className="text-[10px] text-slate-400">Community trust</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-emerald-400">Wishes Fulfilled</div>
+                <div className="text-lg font-bold text-white mt-0.5">
+                  {Math.max(fulfilledByMe.length, achProfile?.lifetimeFulfilledCount || 0)}
+                </div>
+                <div className="text-[10px] text-slate-400">Squad drops found</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-indigo-400">Characters</div>
+                <div className="text-lg font-bold text-white mt-0.5">
+                  {Math.max(allCharacters.length, Object.keys(armorySnapshots).length)}
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {peakLevel > 0 ? `Peak Lv ${peakLevel}` : 'Active roster'}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-sky-400">Synced Gear</div>
+                <div className="text-lg font-bold text-white mt-0.5">{Object.keys(armorySnapshots).length}</div>
+                <div className="text-[10px] text-slate-400">D1 Armory builds</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-cyan-400">Farming Runs</div>
+                <div className="text-lg font-bold text-white mt-0.5">{scopedRunsCount}</div>
+                <div className="text-[10px] text-slate-400">Saved sessions</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <div className="text-[10px] font-mono uppercase text-purple-400">Honor Score</div>
+                <div className="text-lg font-bold text-white mt-0.5">{totalHonorPoints} pts</div>
+                <div className="text-[10px] text-slate-400 truncate">
+                  {unlockedAchievements.length} Achv • +{honorSummary.fulfillmentBonusPoints} Finds
+                </div>
+              </div>
             </div>
-            <div className="text-[10px] text-slate-400">Squad drops provided</div>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <div className="text-[10px] font-mono uppercase text-indigo-400">Characters Tracked</div>
-            <div className="text-lg font-bold text-white mt-0.5">{allCharacters.length}</div>
-            <div className="text-[10px] text-slate-400">
-              {data?.alumniRecord ? `${data.alumniRecord.totalLeaguesCount} past seasons` : 'Active roster slot'}
-            </div>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <div className="text-[10px] font-mono uppercase text-purple-400">Honor Score</div>
-            <div className="text-lg font-bold text-white mt-0.5">{totalHonorPoints} pts</div>
-            <div className="text-[10px] text-slate-400">
-              {unlockedAchievements.length} Achievements • +{honorSummary.fulfillmentBonusPoints} from Finds (+{HONOR_PER_ITEM_FOUND}/ea)
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
 
       {/* Upgraded Profile Studio Editor (Owner or Admin) */}
@@ -776,13 +847,39 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
 
               <div>
                 <label className="text-[11px] font-mono text-slate-300 block mb-1">
-                  Twitch / YouTube Link (Optional)
+                  Discord Profile or Server URL (Opens in New Tab)
+                </label>
+                <input
+                  type="url"
+                  value={editDiscordUrl}
+                  onChange={(e) => setEditDiscordUrl(e.target.value)}
+                  placeholder="https://discord.com/users/... or https://discord.gg/..."
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  Twitch Channel URL (Optional)
                 </label>
                 <input
                   type="url"
                   value={editTwitch}
                   onChange={(e) => setEditTwitch(e.target.value)}
                   placeholder="https://twitch.tv/..."
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono text-slate-300 block mb-1">
+                  YouTube Channel URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={editYoutubeUrl}
+                  onChange={(e) => setEditYoutubeUrl(e.target.value)}
+                  placeholder="https://youtube.com/@..."
                   className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -830,61 +927,6 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
           >
             Collapse All
           </button>
-        </div>
-      </div>
-
-      {/* Multi League Historical Career Passport */}
-      <div className="p-4 rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0e1320] via-[#121828] to-[#0e1320] shadow-lg space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
-            <Award className="w-4 h-4 text-amber-400" />
-            <span>Multi League Career Passport</span>
-          </div>
-          <span className="text-[10px] font-mono text-slate-400">
-            Lifetime stats across all PoE 1 &amp; PoE 2 private leagues
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Characters</div>
-            <div className="text-base font-black text-white mt-0.5">
-              {Math.max(allCharacters.length, Object.keys(armorySnapshots).length)}
-            </div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Peak Level</div>
-            <div className="text-base font-black text-amber-300 mt-0.5">
-              {Math.max(
-                0,
-                ...allCharacters.map((c) => Number(c.level || 0)),
-                ...Object.values(armorySnapshots).map((s) => Number(s.character?.level || 0))
-              ) || '—'}
-            </div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Synced Gear</div>
-            <div className="text-base font-black text-sky-300 mt-0.5">
-              {Object.keys(armorySnapshots).length}
-            </div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Verified Vouches</div>
-            <div className="text-base font-black text-emerald-300 mt-0.5">
-              {(data?.vouches || []).length}
-            </div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Farming Runs</div>
-            <div className="text-base font-black text-purple-300 mt-0.5">
-              {farmingSessions.length}
-            </div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-[10px] font-mono uppercase text-slate-400">Lifetime Honor</div>
-            <div className="text-base font-black text-amber-400 mt-0.5">
-              {honorSummary.totalHonorPoints}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1284,37 +1326,6 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Personal Toolkit: Map Regex Generator & Farming Session Scratchpad */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-sky-300">
-            Personal Toolkit (Map Regex &amp; Session Scratchpad)
-          </span>
-          <button
-            type="button"
-            onClick={() => toggleProfileSection('toolkit')}
-            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
-          >
-            {collapsedSections.toolkit ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-        {!collapsedSections.toolkit && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <MapRegexBuilder
-              savedBricks={profile.mapRegexBricks || []}
-              canEdit={canEdit}
-              onSaveBricks={handleSaveMapRegexBricks}
-            />
-            <SessionScratchpad
-              savedGoals={profile.sessionGoals || []}
-              characters={allCharacters}
-              canEdit={canEdit}
-              onSaveGoals={handleSaveSessionGoals}
-            />
-          </div>
-        )}
       </div>
 
       {/* Farming Telemetry & Season Trophy Case */}

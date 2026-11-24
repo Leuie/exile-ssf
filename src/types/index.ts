@@ -520,7 +520,9 @@ export interface ExileProfile {
   poeProfileUrl?: string;
   rootHandle?: string;
   discordHandle?: string;
+  discordUrl?: string;
   twitchUrl?: string;
+  youtubeUrl?: string;
   favoriteClass?: string;
   mapRegexBricks?: string[];
   sessionGoals?: PersonalSessionGoal[];

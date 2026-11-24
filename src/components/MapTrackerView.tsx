@@ -16,14 +16,24 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   X,
   Trash2,
   Activity,
   Flame,
   Hammer
 } from 'lucide-react';
-import type { UserAccount, LeagueFirstMilestone } from '../types';
-import { fetchUserToolState, saveUserToolState, saveCloudLeagueFirst } from '../services/cloudSync';
+import type { UserAccount, LeagueFirstMilestone, PersonalSessionGoal, ExileProfile } from '../types';
+import {
+  fetchUserToolState,
+  saveUserToolState,
+  saveCloudLeagueFirst,
+  fetchCloudProfile,
+  saveCloudProfile
+} from '../services/cloudSync';
+import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
+import { SessionScratchpad } from './league/widgets/SessionScratchpad';
 import {
   POESESSID_OPTIN_STORAGE_KEY,
   PREFS_STORAGE_KEY,
@@ -229,6 +239,70 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       cancelled = true;
     };
   }, [userAccount?.displayName]);
+
+  // Mapping Toolkit (Map Regex Builder & Session Scratchpad) synced to Exile Profile in D1
+  const [toolkitOpen, setToolkitOpen] = useState<boolean>(true);
+  const [toolkitProfile, setToolkitProfile] = useState<ExileProfile | null>(null);
+  const [savedBricks, setSavedBricks] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('exile_ssf_map_regex_bricks_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [savedGoals, setSavedGoals] = useState<PersonalSessionGoal[]>(() => {
+    try {
+      const raw = localStorage.getItem('exile_ssf_session_goals_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const handle = userAccount?.displayName?.trim();
+    if (!handle) {
+      setToolkitProfile(null);
+      return;
+    }
+    let cancelled = false;
+    fetchCloudProfile(handle)
+      .then((res) => {
+        if (cancelled || !res?.profile) return;
+        setToolkitProfile(res.profile);
+        if (Array.isArray(res.profile.mapRegexBricks)) setSavedBricks(res.profile.mapRegexBricks);
+        if (Array.isArray(res.profile.sessionGoals)) setSavedGoals(res.profile.sessionGoals);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const handleSaveMapBricks = async (bricks: string[]) => {
+    setSavedBricks(bricks);
+    try {
+      localStorage.setItem('exile_ssf_map_regex_bricks_v1', JSON.stringify(bricks));
+    } catch {}
+    if (toolkitProfile) {
+      const updated: ExileProfile = { ...toolkitProfile, mapRegexBricks: bricks };
+      const ok = await saveCloudProfile(updated);
+      if (ok) setToolkitProfile(updated);
+    }
+  };
+
+  const handleSaveSessionGoals = async (goals: PersonalSessionGoal[]) => {
+    setSavedGoals(goals);
+    try {
+      localStorage.setItem('exile_ssf_session_goals_v1', JSON.stringify(goals));
+    } catch {}
+    if (toolkitProfile) {
+      const updated: ExileProfile = { ...toolkitProfile, sessionGoals: goals };
+      const ok = await saveCloudProfile(updated);
+      if (ok) setToolkitProfile(updated);
+    }
+  };
 
   const parseClientTxtFromStartDate = useCallback(
     async (file: File, silent = false) => {
@@ -1278,6 +1352,42 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           )}
         </aside>
       </div>
+
+      {/* Mapping Toolkit: Map Regex Builder & Session Scratchpad (Moved from Exile Profile) */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Hammer className="w-4 h-4 text-sky-400" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-sky-300">
+              Mapping Toolkit (Map Regex Builder &amp; Session Scratchpad)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToolkitOpen((v) => !v)}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 cursor-pointer transition-colors"
+          >
+            <span>{toolkitOpen ? 'Collapse' : 'Expand'}</span>
+            {toolkitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        {toolkitOpen && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <MapRegexBuilder
+              savedBricks={savedBricks}
+              canEdit={true}
+              onSaveBricks={handleSaveMapBricks}
+            />
+            <SessionScratchpad
+              savedGoals={savedGoals}
+              characters={[]}
+              canEdit={true}
+              onSaveGoals={handleSaveSessionGoals}
+            />
+          </div>
+        )}
+      </div>
+
       {/* Custom Start Date Calendar Modal */}
       {calendarOpen && (
         <div

@@ -19,6 +19,21 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-profile-polish',
+    version: 'v3.33.1',
+    title: 'Unified Exile Passport, Circular Social Icons (Root, Discord, Twitch, YouTube) & Map Tracker Toolkit Migration',
+    dateEst: 'Nov 24, 2026 • 1:35 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Profile & UX Polish',
+    summary: 'Condensed Cross Game Profile Scope and Multi League Career Passport into one unified Exile Passport, upgraded Profile social actions to circular Root, Discord, Twitch, and YouTube buttons, and moved the Map Regex Builder & Session Scratchpad directly into Map Tracker.',
+    changes: [
+      { tag: 'Improved', text: 'Merged Cross Game Profile Scope and Multi League Career Passport into a single unified Exile Passport inside the Exile Profile hero card with 6 non overlapping lifetime PoE 1 & PoE 2 metric tiles.' },
+      { tag: 'Added', text: 'Circular Root App, Discord, Twitch, and YouTube icon buttons on the Exile Profile header with dedicated Discord URL and YouTube Channel URL fields in Edit Profile.' },
+      { tag: 'Improved', text: 'Moved Map Regex Builder and Session Scratchpad out of Exile Profile into a dedicated collapsible Mapping Toolkit section inside Map Tracker with automatic D1 + localStorage sync.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-d1-integrations-phase2',
     version: 'v3.33.0',
     title: 'D1 Character Engine Cross Site Integrations: Roster Inspect, Wishlist Already Equipped, Zero Export PoB Audit, Builds Hub Publish & Ctrl+K Dark Mode Fix',
