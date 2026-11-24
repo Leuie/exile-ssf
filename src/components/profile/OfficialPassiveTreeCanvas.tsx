@@ -222,17 +222,17 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       }
     }
 
-    // Keep all main-tree nodes + the character's active Ascendancy wheel (if any)
+    // Keep ALL main-tree nodes + ALL Ascendancy wheels (active Ascendancy highlighted!)
     const nodes: ParsedNode[] = [];
     const visibleIds = new Set<number>();
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
-    let ascCenter: { x: number; y: number; name: string } | null = null;
+    const ascCenters: Array<{ x: number; y: number; name: string; isActive: boolean }> = [];
+    const seenAscCenters = new Set<string>();
 
     for (const nd of allNodes) {
-      if (nd.ascName && nd.ascName !== activeAscName) continue;
       nodes.push(nd);
       visibleIds.add(nd.id);
       if (!nd.ascName) {
@@ -240,17 +240,19 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         if (nd.x > maxX) maxX = nd.x;
         if (nd.y < minY) minY = nd.y;
         if (nd.y > maxY) maxY = nd.y;
-      } else if (nd.isAscStart) {
+      } else if (nd.isAscStart && !seenAscCenters.has(nd.ascName)) {
+        seenAscCenters.add(nd.ascName);
         const gc = graph.groupCenters?.[String(nd.groupId)];
-        ascCenter = {
+        ascCenters.push({
           x: gc ? gc[0] : nd.x,
           y: gc ? gc[1] : nd.y,
-          name: nd.ascName
-        };
+          name: nd.ascName,
+          isActive: nd.ascName === activeAscName
+        });
       }
     }
 
-    const edges: Array<{ a: ParsedNode; b: ParsedNode; allocated: boolean }> = [];
+    const edges: Array<{ a: ParsedNode; b: ParsedNode; allocated: boolean; isInactiveAsc: boolean }> = [];
     for (const [fromId, toId] of graph.edges) {
       if (!visibleIds.has(fromId) || !visibleIds.has(toId)) continue;
       const a = byId.get(fromId);
@@ -258,10 +260,12 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       if (!a || !b) continue;
       // Skip mastery center connection lines (mastery centers float inside clusters)
       if (a.kind === 4 || b.kind === 4) continue;
+      const isInactiveAsc = Boolean(a.ascName && a.ascName !== activeAscName);
       edges.push({
         a,
         b,
-        allocated: allocatedSet.has(a.id) && allocatedSet.has(b.id)
+        allocated: allocatedSet.has(a.id) && allocatedSet.has(b.id),
+        isInactiveAsc
       });
     }
 
@@ -270,7 +274,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       byId,
       edges,
       activeAscName,
-      ascCenter,
+      ascCenters,
       groupBgs: graph.groupBgs || [],
       groupCenters: graph.groupCenters || {},
       orbitRadii: graph.orbitRadii || [0, 8, 16, 34, 49, 66, 85],
@@ -433,7 +437,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     ctx.scale(zoom, zoom);
 
     if (parsedGraph) {
-      const { sprites, groupBgs, groupCenters, orbitRadii, ascCenter } = parsedGraph;
+      const { sprites, groupBgs, groupCenters, orbitRadii, ascCenters, activeAscName } = parsedGraph;
       const hasHashes = allocatedSet.size > 0;
 
       // 1. Official Group Wheel Backgrounds (PSGroupBackground1 / 2 / 3)
@@ -464,12 +468,28 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         }
       }
 
-      // 2. Active Ascendancy Wheel Artwork (e.g. ClassesJuggernaut, ClassesSlayer, ClassesPathfinder)
-      if (ascCenter && sprites.ascendancy) {
-        ctx.save();
-        ctx.globalAlpha = 0.88;
-        drawSpriteCentered(sprites.ascendancy, `Classes${ascCenter.name}`, ascCenter.x, ascCenter.y, 1.0);
-        ctx.restore();
+      // 2. All Ascendancy Wheel Artworks (dimmed for unchosen, full brightness + golden halo for active Ascendancy)
+      if (ascCenters.length > 0 && sprites.ascendancy) {
+        for (const ac of ascCenters) {
+          ctx.save();
+          if (ac.isActive) {
+            // Glowing golden halo denoting the character's active Ascendancy
+            const coord = sprites.ascendancy.coords?.[`Classes${ac.name}`];
+            const ringR = coord ? (Math.max(coord.w, coord.h) * SPRITE_WORLD_SCALE) / 2 + 8 : 115;
+            ctx.beginPath();
+            ctx.arc(ac.x, ac.y, ringR, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.14)';
+            ctx.fill();
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = Math.max(4, 5.5 / Math.sqrt(zoom));
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+          } else {
+            ctx.globalAlpha = 0.42;
+          }
+          drawSpriteCentered(sprites.ascendancy, `Classes${ac.name}`, ac.x, ac.y, 1.0);
+          ctx.restore();
+        }
       }
 
       // Helper to trace an edge (true curved circular orbit arc when nodes share group & orbit!)
@@ -497,7 +517,17 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       ctx.strokeStyle = 'rgba(100, 116, 139, 0.48)';
       ctx.lineWidth = Math.max(1.8, 2.8 / Math.sqrt(zoom));
       for (const e of parsedGraph.edges) {
-        if (e.allocated) continue;
+        if (e.allocated || e.isInactiveAsc) continue;
+        traceEdge(e.a, e.b);
+      }
+      ctx.stroke();
+
+      // Subtle edges for unchosen Ascendancy wheels
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.24)';
+      ctx.lineWidth = Math.max(1.4, 2.2 / Math.sqrt(zoom));
+      for (const e of parsedGraph.edges) {
+        if (e.allocated || !e.isInactiveAsc) continue;
         traceEdge(e.a, e.b);
       }
       ctx.stroke();
@@ -640,7 +670,17 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
 
       for (const nd of parsedGraph.nodes) {
         const isAlloc = hasHashes && allocatedSet.has(nd.id);
-        if (!isAlloc) drawNode(nd, false, matchingIds.has(nd.id));
+        if (!isAlloc) {
+          const isInactiveAsc = Boolean(nd.ascName && nd.ascName !== activeAscName);
+          if (isInactiveAsc) {
+            ctx.save();
+            ctx.globalAlpha = 0.48;
+            drawNode(nd, false, matchingIds.has(nd.id));
+            ctx.restore();
+          } else {
+            drawNode(nd, false, matchingIds.has(nd.id));
+          }
+        }
       }
       if (hasHashes) {
         for (const nd of parsedGraph.nodes) {
