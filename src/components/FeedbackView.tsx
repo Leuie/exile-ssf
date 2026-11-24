@@ -44,6 +44,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
   const [selectedReleaseIdx, setSelectedReleaseIdx] = useState<number>(0);
   const [releaseSearch, setReleaseSearch] = useState<string>('');
   const [showAllReleases, setShowAllReleases] = useState<boolean>(false);
+  const [releaseTierFilter, setReleaseTierFilter] = useState<'all' | 'major' | 'minor'>('all');
 
   // Real Community Feedback synced from Cloudflare D1 (zero fake seeded entries)
   const [feedbackList, setFeedbackList] = useState<SiteFeedbackItem[]>([]);
@@ -95,7 +96,21 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
     } catch {}
   }, [upvotedIds]);
 
-  const activeRelease = SITE_CHANGELOG[selectedReleaseIdx] || SITE_CHANGELOG[0];
+  const majorReleasesCount = useMemo(() => SITE_CHANGELOG.filter((r) => r.isMajor).length, []);
+  const minorReleasesCount = useMemo(() => SITE_CHANGELOG.filter((r) => !r.isMajor).length, []);
+
+  const displayedReleases = useMemo(() => {
+    if (releaseTierFilter === 'major') return SITE_CHANGELOG.filter((r) => r.isMajor);
+    if (releaseTierFilter === 'minor') return SITE_CHANGELOG.filter((r) => !r.isMajor);
+    return SITE_CHANGELOG;
+  }, [releaseTierFilter]);
+
+  const activeRelease = displayedReleases[selectedReleaseIdx] || displayedReleases[0] || SITE_CHANGELOG[0];
+
+  const handleSelectTierFilter = (tier: 'all' | 'major' | 'minor') => {
+    setReleaseTierFilter(tier);
+    setSelectedReleaseIdx(0);
+  };
 
   const filteredReleaseChanges = useMemo(() => {
     const q = releaseSearch.trim().toLowerCase();
@@ -251,6 +266,50 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
       {/* MODE 1: SITE UPDATES (PATCH NOTES READER LAYOUT) */}
       {mode === 'updates' && (
         <>
+          {/* Release Tier Filter: All vs Major Milestones vs Patches */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => handleSelectTierFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  releaseTierFilter === 'all'
+                    ? 'bg-indigo-600/30 text-white border border-indigo-400/50 shadow-sm'
+                    : 'text-slate-400 hover:text-white border border-transparent'
+                }`}
+              >
+                All Releases ({SITE_CHANGELOG.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTierFilter('major')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  releaseTierFilter === 'major'
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/50 shadow-sm shadow-amber-950/20'
+                    : 'text-slate-400 hover:text-amber-200 border border-transparent'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Major Milestones ({majorReleasesCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTierFilter('minor')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  releaseTierFilter === 'minor'
+                    ? 'bg-sky-500/20 text-sky-200 border border-sky-400/50 shadow-sm'
+                    : 'text-slate-400 hover:text-sky-200 border border-transparent'
+                }`}
+              >
+                Patches &amp; QoL ({minorReleasesCount})
+              </button>
+            </div>
+
+            <div className="text-[11px] font-mono text-slate-400 hidden sm:block">
+              Showing {displayedReleases.length} {releaseTierFilter === 'major' ? 'Major Milestones' : releaseTierFilter === 'minor' ? 'Patches' : 'Total Releases'}
+            </div>
+          </div>
+
           {/* Release Selector Bar + Prev / Next Stepper */}
           <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-inner">
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
@@ -263,9 +322,9 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                 }}
                 className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-900 border border-indigo-400/40 text-xs sm:text-sm font-bold text-white focus:outline-none cursor-pointer"
               >
-                {SITE_CHANGELOG.map((rel, idx) => (
+                {displayedReleases.map((rel, idx) => (
                   <option key={rel.id} value={idx} className="bg-slate-950 text-slate-100">
-                    {rel.version} ({rel.dateEst}) : {rel.title}
+                    {rel.isMajor ? '⭐ [MAJOR] ' : '▫️ '} {rel.version} ({rel.dateEst.split(' • ')[0]}) : {rel.title}
                   </option>
                 ))}
               </select>
@@ -285,7 +344,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
               </button>
 
               <span className="text-[11px] font-mono text-slate-400 px-1">
-                {selectedReleaseIdx + 1} of {SITE_CHANGELOG.length}
+                {displayedReleases.length > 0 ? selectedReleaseIdx + 1 : 0} of {displayedReleases.length}
               </span>
 
               <div className="flex items-center gap-1">
@@ -300,8 +359,8 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={selectedReleaseIdx >= SITE_CHANGELOG.length - 1}
-                  onClick={() => setSelectedReleaseIdx((i) => Math.min(SITE_CHANGELOG.length - 1, i + 1))}
+                  disabled={selectedReleaseIdx >= displayedReleases.length - 1}
+                  onClick={() => setSelectedReleaseIdx((i) => Math.min(displayedReleases.length - 1, i + 1))}
                   title="Older update"
                   className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-600 text-slate-200 disabled:opacity-40 cursor-pointer"
                 >
@@ -312,28 +371,51 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
           </div>
 
           {/* Active Release(s) Reader */}
-          {(showAllReleases ? SITE_CHANGELOG : [activeRelease]).map((rel) => {
+          {(showAllReleases ? displayedReleases : [activeRelease]).map((rel) => {
             const items = showAllReleases
               ? rel.changes
               : filteredReleaseChanges;
             return (
               <div
                 key={rel.id}
-                className="w-full rounded-2xl border border-slate-800 bg-[#0d1016] shadow-xl overflow-hidden"
+                className={`w-full rounded-2xl border transition-all overflow-hidden ${
+                  rel.isMajor
+                    ? 'border-amber-500/40 bg-gradient-to-b from-[#131826] via-[#0d1016] to-[#0d1016] shadow-xl shadow-amber-950/15'
+                    : 'border-slate-800 bg-[#0d1016] shadow-xl'
+                }`}
               >
-                <div className="px-5 py-4 bg-slate-900/90 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="space-y-1 min-w-0">
+                <div className={`px-5 py-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                  rel.isMajor ? 'bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-purple-500/10 border-amber-500/30' : 'bg-slate-900/90 border-slate-800'
+                }`}>
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border bg-amber-500/20 text-amber-300 border-amber-500/40">
+                      <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${
+                        rel.isMajor
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}>
                         {rel.version}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700/80 text-[11px] font-mono text-sky-300">
+                      {rel.isMajor ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/25 to-purple-500/25 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold tracking-wide shadow-sm">
+                          <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>MAJOR MILESTONE</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950 border border-slate-700/80 text-sky-300 font-mono text-[10px] font-bold">
+                          <span>{rel.badge || 'PATCH / QOL'}</span>
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700/80 text-[11px] font-mono text-slate-300">
                         <Clock className="w-3 h-3 text-sky-400 shrink-0" />
                         <span>Posted: {rel.dateEst}</span>
                       </span>
                     </div>
-                    <h2 className="text-lg sm:text-xl font-black text-white">{rel.title}</h2>
-                    <p className="text-xs text-slate-400">{rel.summary}</p>
+                    <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                      {rel.isMajor && <Sparkles className="w-4 h-4 text-amber-400 shrink-0 inline" />}
+                      <span>{rel.title}</span>
+                    </h2>
+                    <p className="text-xs text-slate-300 leading-relaxed">{rel.summary}</p>
                   </div>
 
                   {!showAllReleases && (

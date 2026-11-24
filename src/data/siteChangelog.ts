@@ -11,23 +11,51 @@ export interface SiteChangelogRelease {
   title: string;
   dateEst: string;
   summary: string;
+  isMajor: boolean;
+  tier: 'major' | 'minor';
+  badge?: string;
   changes: SiteChangelogItem[];
 }
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-character-engine',
+    version: 'v3.31.0',
+    title: 'Interactive PoE Character Inspection Engine, poe.ninja Style Passive Tree & Jewels, Universal Non Admin D1 Cloud Sync & Asset Tracker Gear Net Worth',
+    dateEst: 'Nov 24, 2026 • 3:15 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
+    summary: 'Full interactive character inspection suite featuring an interactive passive skill tree with Ascendancy, Keystones, and Masteries; poe.ninja style Cluster, Base, and Abyss Jewels; in game hover tooltips with explicit Implicit/Prefix/Suffix affix tier badges; live gear and socketed gem net worth inclusion in Asset Tracker; universal signed D1 session cookies for non admin accounts; and customizable Community Hub & Global Chat per league.',
+    changes: [
+      { tag: 'Added', text: 'poe.ninja style Cluster, Base, and Abyss Jewel inspector displaying full jewel mod rolls, jewel sockets, and cluster passives directly on character profiles.' },
+      { tag: 'Added', text: 'Interactive toggleable Passive Skill Tree visualizer on Exile Profiles with Ascendancy nodes, allocated Keystones, Masteries, and socketed skill gem setups.' },
+      { tag: 'Added', text: 'In game hover item tooltips with Side Panel toggle and explicit Implicit, Prefix, and Suffix tier affix badges for authentic Path of Exile gear inspecting.' },
+      { tag: 'Added', text: 'Character equipment and socketed gems now factor directly into Asset Tracker stash snapshots and net worth calculations.' },
+      { tag: 'Added', text: 'Universal Cloudflare D1 session sync for non admin exiles, wiring App & Google login, registration, and token renewals to signed exile_session cookies.' },
+      { tag: 'Added', text: 'Per league customizable Community Hub and Global Chat with leadership cards positioned prominently above onboarding.' },
+      { tag: 'Added', text: '7 D1 Character Engine cross site integrations added to the permanent Planned Roadmap (24 items total).' },
+      { tag: 'Improved', text: 'Profile remembers last opened character across visits, and utility controls (Tooltip Mode, Refresh Gear, GGG Sync) are tucked inside a clean Setup dropdown.' },
+      { tag: 'Improved', text: 'Removed colored outlines around character equipment, flask, and jewel slots for a cleaner, modern poe.ninja style visual aesthetic.' },
+      { tag: 'Fixed', text: 'Resolved case sensitive cloud map session persistence and fixed GGG item stats and socket links parsing.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-23-paperdoll-telemetry',
     version: 'v3.30.10',
     title: 'PoE Character Paperdoll Inventory, Guild Stash Wishlist Scanner, Auto Voidstone Sync & Client.txt Proof Capture',
     dateEst: 'Nov 23, 2026 • 12:45 AM EST',
-    summary: 'Launched an authentic Path of Exile Character Equipment Paperdoll with Character Selector on Exile Profiles, added a Private League Guild Stash Scanner with one click +5 Honor Wishlist fulfillment, wired Auto Voidstone Sync on Atlas Tracker, and expanded Client.txt telemetry with a GSF Trade & Whisper Counter and Automatic League Firsts Proof Capture.',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
+    summary: 'Launched an authentic Path of Exile Character Equipment Paperdoll with Character Selector on Exile Profiles, added a Private League Guild Stash Scanner with 1 click +5 Honor Wishlist fulfillment, wired Auto Voidstone Sync on Atlas Tracker, and expanded Client.txt telemetry with a GSF Trade & Whisper Counter and Automatic League Firsts Proof Capture.',
     changes: [
-      { tag: 'Added', text: 'Authentic Path of Exile Character Equipment & Inventory Paperdoll on Exile Profiles with Weapon Set I/II toggle, all 12 gear slots + 5 Flasks, socket & link overlays, live hover/click item mod & socketed gem inspector, Character Selector, Cloudflare D1 snapshot persistence, and one click push of live gear vitals into Defense Mechanics EHP Calculator.' },
+      { tag: 'Added', text: 'Authentic Path of Exile Character Equipment & Inventory Paperdoll on Exile Profiles with Weapon Set I/II toggle, all 12 gear slots + 5 Flasks, socket & link overlays, live hover/click item mod & socketed gem inspector, Character Selector, Cloudflare D1 snapshot persistence, and 1 click push of live gear vitals into Defense Mechanics EHP Calculator.' },
       { tag: 'Added', text: 'Private League Guild Stash Scanner inside Asset Tracker (/api/farming/guild-stash) scanning up to 8 GSF Guild Stash tabs and highlighting every item matching a squadmate\'s open Wishlist.' },
-      { tag: 'Improved', text: 'Auto Wishlist Fulfillment Detector in Asset Tracker now awards +5 Honor on one click Mark Found (+5 Honor) from both personal stash syncs and Guild Stash scans.' },
+      { tag: 'Improved', text: 'Auto Wishlist Fulfillment Detector in Asset Tracker now awards +5 Honor on 1 click Mark Found (+5 Honor) from both personal stash syncs and Guild Stash scans.' },
       { tag: 'Added', text: 'Auto Sync Voidstones button inside Atlas Tracker reading your synced character\'s Voidstones directly to auto check Exarch, Eater, Maven, and Uber Elder milestones.' },
       { tag: 'Added', text: 'Live GSF Trade & Whisper Counter inside Map Tracker parsing @From / @To whispers and Trade accepted events from local Client.txt to separate Active GSF Trading Time from AFK Hideout Time.' },
-      { tag: 'Added', text: 'Automatic League Firsts Proof Capture inside Map Tracker detecting Level 90/95/100 dings and Pinnacle Boss encounters with exact timestamps and a one click Claim on Hall of Fame button.' }
+      { tag: 'Added', text: 'Automatic League Firsts Proof Capture inside Map Tracker detecting Level 90/95/100 dings and Pinnacle Boss encounters with exact timestamps and a 1 click Claim on Hall of Fame button.' }
     ]
   },
   {
@@ -35,13 +63,16 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.9',
     title: 'Macro Site Super Admin Console, Sitewide Notice Banners & Per League Host/Moderator Governance',
     dateEst: 'Nov 22, 2026 • 6:50 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Governance & Admin',
     summary: 'Separated global platform administration (/admin) from per league moderation (/league/:id/manage), launched a sitewide broadcast banner manager for holidays and maintenance, and added per league Host Admin + up to 3 Moderators with granular permissions and public contact cards.',
     changes: [
       { tag: 'Added', text: 'Macro Site Super Admin Console (/admin) showing platform wide D1 metrics across ALL hosted private leagues, a searchable All Private Leagues Manager (Feature, Archive, Reassign Host), KV Edge Cache force refreshes, and global Community Feedback triage & deletion.' },
       { tag: 'Added', text: 'Sitewide Broadcast Banner system (/api/site-banner + SiteNoticeBanner) letting Site Admin publish custom dismissible banners across all pages with 5 themes (Info, Maintenance, Event, Urgent, Holiday) and optional CTA links.' },
       { tag: 'Added', text: 'Per League Management Console (/league/:id/manage) visible only to each league\'s Host Admin, nominated Moderators, or Site Super Admin, housing that league\'s health, exports, ladder sync, awards, announcements, per league Webhook, and Staff Manager.' },
       { tag: 'Added', text: 'Up to 3 Moderators per private league nominated by the League Host with per moderator permission toggles (Edit Webhook, Edit Banner & Links, Grant Event Awards, Post Announcements, Manage Roster, Manage Wishlists).' },
-      { tag: 'Added', text: 'Public League Leadership & Contact Team card on every league\'s Command Center displaying the Host Admin and Moderators with one click Root, Discord, Email (mailto), and Exile Profile contact buttons.' }
+      { tag: 'Added', text: 'Public League Leadership & Contact Team card on every league\'s Command Center displaying the Host Admin and Moderators with 1 click Root, Discord, Email (mailto), and Exile Profile contact buttons.' }
     ]
   },
   {
@@ -49,9 +80,12 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.8',
     title: 'Opt In Hall of Fame Wealth Ladder, PoE Wiki Item Links, Header Reorganization & Tool Guides',
     dateEst: 'Nov 22, 2026 • 5:50 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Enhancement & QoL',
     summary: 'Launched the Opt In Wealth & Pace Ladder on Hall of Fame pulling live Asset Tracker and Map Tracker telemetry, made every item name clickable to PoE Wiki, reorganized Asset Tracker header controls, and added What Is This guides to Map Tracker and Builds Hub.',
     changes: [
-      { tag: 'Added', text: 'Opt In Wealth & Pace Ladder on Hall of Fame (/league/:id/hall-of-fame) featuring Gold/Silver/Bronze podium cards, Headline Jackpot Drops with official artwork, inline SVG wealth sparklines, sortable Net Worth / Div per hr / Maps / S Tier / XP per hr standings, and one click opt in controls (/api/farming/wealth-ladder).' },
+      { tag: 'Added', text: 'Opt In Wealth & Pace Ladder on Hall of Fame (/league/:id/hall-of-fame) featuring Gold/Silver/Bronze podium cards, Headline Jackpot Drops with official artwork, inline SVG wealth sparklines, sortable Net Worth / Div per hr / Maps / S Tier / XP per hr standings, and 1 click opt in controls (/api/farming/wealth-ladder).' },
       { tag: 'Added', text: 'Clickable PoE Wiki links on every item name across Asset Tracker (Table & Grid views) and Wealth Analytics Top 12 Assets opening poewiki.net or poe2wiki.net in a new tab.' },
       { tag: 'Added', text: 'Collapsible "What Is This?" onboarding guides on Map Tracker and Builds Hub, plus a complete 4 card guide update on Asset Tracker.' },
       { tag: 'Improved', text: 'Reorganized Asset Tracker header: Audio Chime and Notifications moved to top right; Save Cloud, Export .xlsx, and Focus Mode aligned right below them; Setup (renamed from Setup & Session ID), SSF Utility / poe.ninja toggle, Weights, Wealth & Pace Analytics, and Join Wealth Ladder aligned left.' }
@@ -62,6 +96,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.7',
     title: 'Full Page Wealth & Pace Analytics & Per League Cloud Sync',
     dateEst: 'Nov 22, 2026 • 5:00 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
     summary: 'Launched a dedicated full page Wealth & Pace Analytics view (/assets/analytics) with backlinks to Asset Tracker and Exile Profiles, backed by per league Cloudflare D1 cloud storage.',
     changes: [
       { tag: 'Added', text: 'Full page Wealth & Pace Analytics dashboard (/assets/analytics) with 5 executive KPI cards, interactive full width Wealth Timeline (Live Checkpoints & Saved Sessions toggle), Category Breakdown donut + table, Top Yielding Tabs leaderboard, and Top 12 Most Valuable Assets showcase.' },
@@ -75,6 +112,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.6',
     title: 'Site Wide Audit Upgrades: Wishlist Autocomplete, Fixed .xlsx Export, Caching & PoE 2 Presets',
     dateEst: 'Nov 22, 2026 • 4:30 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Performance & Audit',
     summary: 'Migrated poe.ninja economy APIs to live /poe1/api/economy routes, fixed Export Live League Workbook (.xlsx), added live 3,541 item autocomplete with icon previews on Wishlists, hardened Worker CORS scoping, and trimmed unused font & dead component overhead.',
     changes: [
       { tag: 'Added', text: 'Live 3,541 item autocomplete with official web.poecdn.com artwork previews inside the Add Wanted Item modal on Wishlists.' },
@@ -92,6 +132,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.5',
     title: 'Changelog & Feedback Hub Redesign & Complete Release History',
     dateEst: 'Nov 22, 2026 • 3:30 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Changelog Hub',
     summary: 'Redesigned the Feedback page into a Patch Notes style Changelog & Feedback hub with complete timestamped release history going all the way back to the Nov 1, 2026 initial launch, and removed all fake seeded feedback entries.',
     changes: [
       { tag: 'Added', text: 'Patch Notes style Changelog & Feedback hub (/feedback) featuring a release dropdown, previous/next stepper, full timeline toggle, search filter, and EST release timestamps.' },
@@ -105,9 +148,12 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.4',
     title: 'Private League Hub Overhaul, Dedicated Mechanics Matrix & Wishlist Icons',
     dateEst: 'Nov 22, 2026 • 3:05 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
     summary: 'Separated Atlas Mechanics and Hall of Fame into dedicated Private League Hub pages, added automatic 12 hour ladder sync, and brought official Path of Exile item icons onto Wishlist cards.',
     changes: [
-      { tag: 'Added', text: 'Dedicated Mechanics tab inside Private League Hub covering all 25 Atlas & Endgame mechanics (including Bestiary, Abyss, Beyond, Torment, Settlers, and more) with one click Claim / Drop lane syncing to D1.' },
+      { tag: 'Added', text: 'Dedicated Mechanics tab inside Private League Hub covering all 25 Atlas & Endgame mechanics (including Bestiary, Abyss, Beyond, Torment, Settlers, and more) with 1 click Claim / Drop lane syncing to D1.' },
       { tag: 'Added', text: 'Dedicated Hall of Fame tab right after Roster for League Firsts milestones.' },
       { tag: 'Added', text: 'Official Path of Exile item icons in the top right of Wishlist cards powered by live poe.ninja CDN icon mapping.' },
       { tag: 'Added', text: 'Embedded ExileCon 2026 Keynote and 3.30 Covens of Umbra Launch videos directly on the Command Center.' },
@@ -120,6 +166,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.3',
     title: 'Asset Tracker 18 Slot Baseline, New Map Tracker & Live GGG XP/hr Telemetry',
     dateEst: 'Nov 22, 2026 • 2:20 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Tooling Expansion',
     summary: 'Split mapping telemetry into its own dedicated Map Tracker page with realtime Client.txt watching and live GGG XP/hr polling, while upgrading Asset Tracker with standardized 18 slot tab mapping and pure SVG charts.',
     changes: [
       { tag: 'Added', text: 'New dedicated Map Tracker page (/maps) with a custom Start Date calendar modal, 3 step Client.txt live watch guide, per map duration, hideout downtime %, death tracking, and Timekeeper Map Device speedrun callout.' },
@@ -138,12 +187,15 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.2',
     title: 'Unified Builds Hub, Live pobb.in Build Doctor & 13 Tool Cloud Sync Upgrade',
     dateEst: 'Nov 22, 2026 • 1:15 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Builds & Guides',
     summary: 'Condensed Community Guides and SSF Starters into one vetted Builds Hub with live Mobalytics and Maxroll pulling, upgraded PoB Build Doctor to sync straight into your League Roster, and connected all 13 compendium tools to Cloudflare D1.',
     changes: [
-      { tag: 'Added', text: 'Live pobb.in and pastebin.com URL resolver in PoB Build Doctor plus one click Sync to Private League Roster (Main or Alt) and Parsed Character Vitals strip.' },
+      { tag: 'Added', text: 'Live pobb.in and pastebin.com URL resolver in PoB Build Doctor plus 1 click Sync to Private League Roster (Main or Alt) and Parsed Character Vitals strip.' },
       { tag: 'Added', text: 'Live Mobalytics and Maxroll.gg build guide puller (/api/builds/external) for both PoE 1 and PoE 2.' },
       { tag: 'Added', text: 'Cloudflare D1 user_tool_state cloud sync powering saved Regex Presets, Crafting Bench unlock checklists, Atlas Voidstone tracker, Campaign & Lab progress, and pinned Tools Directory favorites.' },
-      { tag: 'Added', text: 'One click Load My League PoB Stats inside the Defense Mechanics interactive EHP Calculator.' },
+      { tag: 'Added', text: '1 click Load My League PoB Stats inside the Defense Mechanics interactive EHP Calculator.' },
       { tag: 'Improved', text: 'Consolidated PoE Wiki, PoEDB, and PoE Ninja portals with dynamic My Character & Wishlist quick lookup chips and fixed stale Settlers URLs to current challenge league.' },
       { tag: 'Fixed', text: 'Moved the Sidebar collapse toggle inside the header to prevent full screen clipping, normalized NZDT/NZST timezone labels, and reset seeded fake likes and ratings on build guides.' }
     ]
@@ -153,6 +205,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.30.1',
     title: 'Global Session Security Gate, Privacy Policy, D1 Stash Sync & SSF Weights',
     dateEst: 'Nov 22, 2026 • 3:45 AM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Security & Weights',
     summary: 'Hardened all state changing API endpoints with signed exile_session verification, published the Privacy Policy, added cross device D1 stash persistence, and introduced editable SSF Utility weights.',
     changes: [
       { tag: 'Added', text: 'Global exile_session mutation gate enforcing verified session cookies and owner/admin checks across all POST, PUT, and DELETE Worker routes.' },
@@ -165,9 +220,12 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   },
   {
     id: 'rel-2026-11-21-late',
-    version: 'v3.29.9',
-    title: 'Farming & Drop Tracker Launch, Regex Studio & Live GGG Patch Notes',
+    version: 'v3.30.0',
+    title: 'Asset Tracker Launch, Regex Studio for PoE 1 & PoE 2 & Live GGG Patch Notes',
     dateEst: 'Nov 21, 2026 • 11:55 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
     summary: 'Launched the original stateless Stash & Client.txt Farming Tracker, Regex Studio for PoE 1 & PoE 2, live GGG Patch Notes reader, and deployment resilient error recovery.',
     changes: [
       { tag: 'Added', text: 'Launched Farming & Drop Tracker with stateless dump tab diffing, Client.txt auto watcher (15s polling, live zone badge, Steam & Standalone path helpers), Focus Mode, sparkline chart, Direct Browser JSON fallback, xlsx export, and Private League wishlist drop matcher.' },
@@ -183,6 +241,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.29.8',
     title: 'Security Hardening, Universal PoE 1 & PoE 2 Homepage, Google Sheets & Profile Studio',
     dateEst: 'Nov 21, 2026 • 10:50 PM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Security Hardening',
     summary: 'Upgraded authentication to HttpOnly HMAC sessions, redesigned the homepage as a universal PoE 1 & PoE 2 hub, and added Google Sheets export/ingestion plus Profile Studio.',
     changes: [
       { tag: 'Added', text: 'HttpOnly HMAC session cookies, server side admin authentication, strict CORS, SSRF guards, and locked down public account endpoints.' },
@@ -195,6 +256,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.29.7',
     title: 'Cloudflare D1 SQLite Architecture, Live League Feed, Exile Profiles & Root Webhooks',
     dateEst: 'Nov 21, 2026 • 4:45 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
     summary: 'Migrated multiplayer data to a 16 table Cloudflare D1 SQLite database with PBKDF2 authentication, launched Exile Profiles and Live League Feed, and wired up Root webhooks and cron ladder syncing.',
     changes: [
       { tag: 'Added', text: 'Migrated core storage to 16 table Cloudflare D1 SQLite architecture with PBKDF2 salted password hashing.' },
@@ -209,6 +273,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.29.6',
     title: 'Squad Bounty Board, Modular Private League Tabs, Multi Character Roster & OpenGraph SEO',
     dateEst: 'Nov 21, 2026 • 1:30 AM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Bounties & Roster',
     summary: 'Launched the Squad Bounty Board, refactored Private League Hub into modular sub route tabs, added multi character tracking per account, and enabled dynamic Worker OpenGraph SEO.',
     changes: [
       { tag: 'Added', text: 'Dedicated Squad Bounty Board with wishlist loopbacks, incentivized rewards, and persistent cross league achievements.' },
@@ -223,6 +290,9 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     version: 'v3.29.5',
     title: 'Private League Hub Directory, Live Cloudflare KV Multiplayer Sync & Guide Reader',
     dateEst: 'Nov 11, 2026 • 3:45 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
     summary: 'Connected live Cloudflare KV edge storage for multiplayer roster and wishlist syncing, introduced the Private League Hub directory, and launched the full width secondary monitor guide reader.',
     changes: [
       { tag: 'Added', text: 'Private League Hub directory (/privateleaguehub) with shareable unique league routes, direct league invite modals, and fast join onboarding.' },
@@ -233,10 +303,32 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     ]
   },
   {
+    id: 'rel-2026-11-02-auth',
+    version: 'v1.1.0',
+    title: 'Dedicated Auth Portals (/login, /register, /admin), SHA-256 Security & Unified Wishlists',
+    dateEst: 'Nov 2, 2026 • 2:30 AM EST',
+    isMajor: false,
+    tier: 'minor',
+    badge: 'Auth & Security',
+    summary: 'Created dedicated, isolated authentication portals for /login, /register, and /admin, eliminated auto admin login on new devices, implemented client side SHA-256 admin password verification with 1 click Google account linking, and merged Who Needs This Item with Wishlists & Needs.',
+    changes: [
+      { tag: 'Added', text: 'Dedicated /login page supporting Google Auth and custom Exile SSF app username and password without admin prompts.' },
+      { tag: 'Added', text: 'Dedicated /register page with a two step onboarding flow linking Path of Exile public profile URL, account name, IGN, primary contact channel, and starter ascendancy.' },
+      { tag: 'Added', text: 'Dedicated /admin executive portal with browser side SHA-256 password verification and 1 click Google account linking.' },
+      { tag: 'Added', text: 'Cryptographic SHA-256 utility in src/utils/crypto.ts ensuring zero plain text admin secrets exist in source code or git history.' },
+      { tag: 'Improved', text: 'Unified "Who Needs This Item?" and "Wishlists & Needs" into a single comprehensive Squad Wishlist tab with By Item, By Player, and Table view modes.' },
+      { tag: 'Fixed', text: 'Prevented new visitors from defaulting to the @Leuie host admin account on unauthenticated visits.' },
+      { tag: 'Fixed', text: 'Simplified unauthenticated action buttons across sidebar and league headers to display strictly "Login".' }
+    ]
+  },
+  {
     id: 'rel-2026-11-01-launch',
     version: 'v1.0.0',
-    title: 'Initial Launch of Exile SSF Compendium, GSF Portal & Authentication',
+    title: 'Initial Production Launch of Exile SSF Compendium, GSF Portal & Authentication',
     dateEst: 'Nov 1, 2026 • 10:45 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Genesis Launch',
     summary: 'First production release of Exile SSF on exilessf.app featuring the SSF Compendium, Group Self Found (GSF) portal, guide ingestion engine, and secure account authentication.',
     changes: [
       { tag: 'Added', text: 'Launched Exile SSF (exilessf.app) on Cloudflare Workers with full SSF Compendium, GSF portal, guide ingestion engine, private league crowdfund ingestion, and community feedback hub.' },
