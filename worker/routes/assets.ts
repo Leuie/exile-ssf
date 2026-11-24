@@ -637,10 +637,10 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
                 });
               }
 
-              // Add allocated edges on main tree
+              // Add allocated edges on main tree (GGG stores edges one-way in node.out, so check both directions)
               if (!meta.a && !meta.m && Array.isArray(meta.o)) {
                 for (const targetId of meta.o) {
-                  if (allocSet.has(targetId) && targetId > h) {
+                  if (allocSet.has(targetId)) {
                     const tMeta = cNodes[String(targetId)];
                     if (tMeta && !tMeta.a && !tMeta.m) {
                       treeEdges.push([meta.x, meta.y, tMeta.x, tMeta.y]);
@@ -706,10 +706,10 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
-  // GET /api/farming/skilltree-graph (Full official GGG skilltree-export graph for interactive zoom/pan Armory Passive Tree, cached 7d in KV)
+  // GET /api/farming/skilltree-graph (Full official GGG skilltree-export graph + official sprite sheets, curved orbits, group backgrounds & ascendancy art, cached 7d in KV)
   if (url.pathname === '/api/farming/skilltree-graph' && request.method === 'GET') {
     try {
-      const kvKey = 'poe1:skilltree:fullgraph:v2';
+      const kvKey = 'poe1:skilltree:fullgraph:v3';
       if (env.EXILE_KV) {
         const cached = await env.EXILE_KV.get(kvKey);
         if (cached) {
@@ -736,15 +736,60 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       const rawTree: any = await treeRes.json();
       const orbitRadii: number[] = rawTree?.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
       const skillsPerOrbit: number[] = rawTree?.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+      const scaledRadii = orbitRadii.map((r) => Math.round(r / 10));
       const groups = rawTree?.groups || {};
       const rawNodes = rawTree?.nodes || {};
 
+      // Extract official GGG sprite sheets at 0.3835 scale (fast, crisp, authentic PoE art)
+      const pickSheet = (sheetName: string) => {
+        const s = rawTree?.sprites?.[sheetName]?.['0.3835'];
+        if (!s || !s.filename || !s.coords) return null;
+        return { url: String(s.filename), coords: s.coords };
+      };
+
+      const sprites = {
+        normalActive: pickSheet('normalActive'),
+        normalInactive: pickSheet('normalInactive'),
+        notableActive: pickSheet('notableActive'),
+        notableInactive: pickSheet('notableInactive'),
+        keystoneActive: pickSheet('keystoneActive'),
+        keystoneInactive: pickSheet('keystoneInactive'),
+        mastery: pickSheet('mastery'),
+        masteryActive: pickSheet('masteryActiveSelected'),
+        frame: pickSheet('frame'),
+        groupBackground: pickSheet('groupBackground'),
+        startNode: pickSheet('startNode'),
+        ascendancy: pickSheet('ascendancy')
+      };
+
+      // Group backgrounds (cluster wheels)
+      // Tuple: [groupId, gx, gy, bgImage, isHalfImage]
+      const groupBgs: Array<[number, number, number, string, number]> = [];
+      const groupCenters: Record<string, [number, number]> = {};
+      for (const [gidStr, grp] of Object.entries<any>(groups)) {
+        if (!grp || typeof grp.x !== 'number' || typeof grp.y !== 'number') continue;
+        const gx = Math.round(grp.x / 10);
+        const gy = Math.round(grp.y / 10);
+        groupCenters[gidStr] = [gx, gy];
+        if (grp.background?.image) {
+          groupBgs.push([
+            Number(gidStr),
+            gx,
+            gy,
+            String(grp.background.image),
+            grp.background.isHalfImage ? 1 : 0
+          ]);
+        }
+      }
+
       // kind: 0=small, 1=notable, 2=keystone, 3=jewel, 4=mastery, 5=classStart
-      const nodes: Array<[number, number, number, number, string, string[]]> = [];
+      // Tuple: [id, x, y, kind, name, stats, icon, groupId, orbit, angleRad, ascName, isAscStart]
+      const nodes: Array<[number, number, number, number, string, string[], string, number, number, number, string, number]> = [];
       const validIds = new Set<number>();
+      const nodeAscMap = new Map<number, string>();
 
       for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
-        if (!nd || idStr === 'root' || nd.isProxy || nd.ascendancyName) continue;
+        if (!nd || idStr === 'root' || nd.isProxy) continue;
         const grp = groups[String(nd.group)];
         if (!grp || typeof grp.x !== 'number' || typeof grp.y !== 'number') continue;
         const idNum = Number(idStr);
@@ -766,24 +811,56 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
 
         const name = String(nd.name || '');
         const stats = Array.isArray(nd.stats) ? nd.stats.slice(0, 6).map(String) : [];
+        const icon = typeof nd.icon === 'string' ? nd.icon : '';
+        const ascName = typeof nd.ascendancyName === 'string' ? nd.ascendancyName : '';
+        const isAscStart = nd.isAscendancyStart ? 1 : 0;
 
-        nodes.push([idNum, nx, ny, kind, name, stats]);
+        nodes.push([
+          idNum,
+          nx,
+          ny,
+          kind,
+          name,
+          stats,
+          icon,
+          Number(nd.group || 0),
+          orb,
+          Math.round(angle * 10000) / 10000,
+          ascName,
+          isAscStart
+        ]);
         validIds.add(idNum);
+        nodeAscMap.set(idNum, ascName);
       }
 
+      // Deduplicate ALL edges properly (GGG stores edges one-way in nd.out!)
       const edges: Array<[number, number]> = [];
+      const seenEdges = new Set<string>();
       for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
         const fromId = Number(idStr);
         if (!validIds.has(fromId) || !Array.isArray(nd?.out)) continue;
+        const fromAsc = nodeAscMap.get(fromId) || '';
         for (const outIdRaw of nd.out) {
           const toId = Number(outIdRaw);
-          if (validIds.has(toId) && toId > fromId) {
-            edges.push([fromId, toId]);
-          }
+          if (!validIds.has(toId) || fromId === toId) continue;
+          const toAsc = nodeAscMap.get(toId) || '';
+          // Do not draw cross-lines between main tree and ascendancy islands
+          if (fromAsc !== toAsc) continue;
+          const key = fromId < toId ? `${fromId}:${toId}` : `${toId}:${fromId}`;
+          if (seenEdges.has(key)) continue;
+          seenEdges.add(key);
+          edges.push([fromId, toId]);
         }
       }
 
-      const payload = JSON.stringify({ nodes, edges });
+      const payload = JSON.stringify({
+        nodes,
+        edges,
+        groupBgs,
+        groupCenters,
+        orbitRadii: scaledRadii,
+        sprites
+      });
       if (env.EXILE_KV) {
         try {
           await env.EXILE_KV.put(kvKey, payload, { expirationTtl: 86400 * 7 });
@@ -807,7 +884,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
   // GET /api/farming/atlastree-graph (Official GGG atlas-skilltree-export graph for Map Tracker Atlas Planner, cached 7d in KV)
   if (url.pathname === '/api/farming/atlastree-graph' && request.method === 'GET') {
     try {
-      const kvKey = 'poe1:atlastree:fullgraph:v1';
+      const kvKey = 'poe1:atlastree:fullgraph:v2';
       if (env.EXILE_KV) {
         const cached = await env.EXILE_KV.get(kvKey);
         if (cached) {
@@ -868,15 +945,19 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         validIds.add(idNum);
       }
 
+      // Deduplicate ALL Atlas edges properly (GGG stores edges one-way in nd.out!)
       const edges: Array<[number, number]> = [];
+      const seenEdges = new Set<string>();
       for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
         const fromId = Number(idStr);
         if (!validIds.has(fromId) || !Array.isArray(nd?.out)) continue;
         for (const outIdRaw of nd.out) {
           const toId = Number(outIdRaw);
-          if (validIds.has(toId) && toId > fromId) {
-            edges.push([fromId, toId]);
-          }
+          if (!validIds.has(toId) || fromId === toId) continue;
+          const key = fromId < toId ? `${fromId}:${toId}` : `${toId}:${fromId}`;
+          if (seenEdges.has(key)) continue;
+          seenEdges.add(key);
+          edges.push([fromId, toId]);
         }
       }
 

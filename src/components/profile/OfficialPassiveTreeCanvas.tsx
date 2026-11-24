@@ -10,13 +10,28 @@ import {
   Loader2
 } from 'lucide-react';
 
-// Official GGG skilltree-export compact node tuple:
-// [id, x, y, kind (0=small, 1=notable, 2=keystone, 3=jewel, 4=mastery, 5=classStart), name, stats]
-type GraphNodeTuple = [number, number, number, number, string, string[]];
+// [id, x, y, kind (0=small,1=notable,2=keystone,3=jewel,4=mastery,5=classStart), name, stats, icon, groupId, orbit, angleRad, ascName, isAscStart]
+type GraphNodeTuple = [number, number, number, number, string, string[], string, number, number, number, string, number];
+
+interface SpriteCoord {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface SpriteSheet {
+  url: string;
+  coords: Record<string, SpriteCoord>;
+}
 
 interface SkillTreeGraphData {
   nodes: GraphNodeTuple[];
   edges: Array<[number, number]>;
+  groupBgs?: Array<[number, number, number, string, number]>;
+  groupCenters?: Record<string, [number, number]>;
+  orbitRadii?: number[];
+  sprites?: Record<string, SpriteSheet | null>;
 }
 
 interface ParsedNode {
@@ -26,12 +41,32 @@ interface ParsedNode {
   kind: number;
   name: string;
   stats: string[];
+  icon: string;
+  groupId: number;
+  orbit: number;
+  angle: number;
+  ascName: string;
+  isAscStart: boolean;
   searchBlob: string;
 }
 
-// Module-level cache so the official tree graph is only fetched once per browser session
+// 1 pixel at GGG 0.3835 sprite scale = 1 / 0.3835 raw units = 0.26075 scaled (/10) world units
+const SPRITE_WORLD_SCALE = 0.26075;
+
+const CLASS_START_SPRITES: Record<string, string> = {
+  marauder: 'centermarauder',
+  witch: 'centerwitch',
+  ranger: 'centerranger',
+  duelist: 'centerduelist',
+  shadow: 'centershadow',
+  templar: 'centertemplar',
+  scion: 'centerscion'
+};
+
+// Module-level cache for official graph & loaded sprite images
 let cachedTreeGraph: SkillTreeGraphData | null = null;
 let inflightTreeFetch: Promise<SkillTreeGraphData | null> | null = null;
+const spriteImageCache = new Map<string, HTMLImageElement>();
 
 async function loadOfficialSkillTreeGraph(): Promise<SkillTreeGraphData | null> {
   if (cachedTreeGraph) return cachedTreeGraph;
@@ -50,6 +85,20 @@ async function loadOfficialSkillTreeGraph(): Promise<SkillTreeGraphData | null> 
       inflightTreeFetch = null;
     });
   return inflightTreeFetch;
+}
+
+function getOrLoadSpriteImage(url: string, onLoaded: () => void): HTMLImageElement | null {
+  if (!url) return null;
+  const existing = spriteImageCache.get(url);
+  if (existing) {
+    return existing.complete && existing.naturalWidth > 0 ? existing : null;
+  }
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => onLoaded();
+  img.src = url;
+  spriteImageCache.set(url, img);
+  return null;
 }
 
 export interface OfficialPassiveTreeCanvasProps {
@@ -87,6 +136,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
 
   const [graph, setGraph] = useState<SkillTreeGraphData | null>(cachedTreeGraph);
   const [loadingGraph, setLoadingGraph] = useState<boolean>(!cachedTreeGraph);
+  const [spriteTick, setSpriteTick] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [hoveredNode, setHoveredNode] = useState<{
     node: ParsedNode;
@@ -123,19 +173,33 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     };
   }, []);
 
+  // Preload official GGG sprite sheets when graph arrives
+  useEffect(() => {
+    if (!graph?.sprites) return;
+    let alive = true;
+    const bump = () => {
+      if (alive) setSpriteTick((t) => t + 1);
+    };
+    const urls = new Set<string>();
+    for (const sheet of Object.values(graph.sprites)) {
+      if (sheet?.url) urls.add(sheet.url);
+    }
+    urls.forEach((u) => getOrLoadSpriteImage(u, bump));
+    return () => {
+      alive = false;
+    };
+  }, [graph]);
+
   const allocatedSet = useMemo(() => new Set<number>(allocatedHashes), [allocatedHashes]);
 
   const parsedGraph = useMemo(() => {
     if (!graph) return null;
-    const nodes: ParsedNode[] = [];
+    const allNodes: ParsedNode[] = [];
     const byId = new Map<number, ParsedNode>();
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
+    let activeAscName = '';
 
     for (const tuple of graph.nodes) {
-      const [id, x, y, kind, name, stats] = tuple;
+      const [id, x, y, kind, name, stats, icon = '', groupId = 0, orbit = 0, angle = 0, ascName = '', isAscStart = 0] = tuple;
       const nd: ParsedNode = {
         id,
         x,
@@ -143,25 +207,57 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         kind,
         name: name || '',
         stats: Array.isArray(stats) ? stats : [],
-        searchBlob: `${name || ''} ${(Array.isArray(stats) ? stats.join(' ') : '')}`.toLowerCase()
+        icon: icon || '',
+        groupId,
+        orbit,
+        angle,
+        ascName: ascName || '',
+        isAscStart: Boolean(isAscStart),
+        searchBlob: `${name || ''} ${ascName || ''} ${(Array.isArray(stats) ? stats.join(' ') : '')}`.toLowerCase()
       };
-      nodes.push(nd);
+      allNodes.push(nd);
       byId.set(id, nd);
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+      if (nd.ascName && allocatedSet.has(nd.id)) {
+        activeAscName = nd.ascName;
+      }
+    }
+
+    // Keep all main-tree nodes + the character's active Ascendancy wheel (if any)
+    const nodes: ParsedNode[] = [];
+    const visibleIds = new Set<number>();
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let ascCenter: { x: number; y: number; name: string } | null = null;
+
+    for (const nd of allNodes) {
+      if (nd.ascName && nd.ascName !== activeAscName) continue;
+      nodes.push(nd);
+      visibleIds.add(nd.id);
+      if (!nd.ascName) {
+        if (nd.x < minX) minX = nd.x;
+        if (nd.x > maxX) maxX = nd.x;
+        if (nd.y < minY) minY = nd.y;
+        if (nd.y > maxY) maxY = nd.y;
+      } else if (nd.isAscStart) {
+        const gc = graph.groupCenters?.[String(nd.groupId)];
+        ascCenter = {
+          x: gc ? gc[0] : nd.x,
+          y: gc ? gc[1] : nd.y,
+          name: nd.ascName
+        };
+      }
     }
 
     const edges: Array<{ a: ParsedNode; b: ParsedNode; allocated: boolean }> = [];
     for (const [fromId, toId] of graph.edges) {
+      if (!visibleIds.has(fromId) || !visibleIds.has(toId)) continue;
       const a = byId.get(fromId);
       const b = byId.get(toId);
       if (!a || !b) continue;
-      // Avoid long cross-map teleport lines if any
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      if (dx * dx + dy * dy > 180 * 180) continue;
+      // Skip mastery center connection lines (mastery centers float inside clusters)
+      if (a.kind === 4 || b.kind === 4) continue;
       edges.push({
         a,
         b,
@@ -169,7 +265,18 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       });
     }
 
-    return { nodes, byId, edges, bounds: { minX, maxX, minY, maxY } };
+    return {
+      nodes,
+      byId,
+      edges,
+      activeAscName,
+      ascCenter,
+      groupBgs: graph.groupBgs || [],
+      groupCenters: graph.groupCenters || {},
+      orbitRadii: graph.orbitRadii || [0, 8, 16, 34, 49, 66, 85],
+      sprites: graph.sprites || {},
+      bounds: { minX, maxX, minY, maxY }
+    };
   }, [graph, allocatedSet]);
 
   const fitBounds = useCallback(
@@ -180,7 +287,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       const h = el.clientHeight || 420;
       const bw = Math.max(120, bounds.maxX - bounds.minX);
       const bh = Math.max(120, bounds.maxY - bounds.minY);
-      const nextZoom = Math.min(2.2, Math.max(0.08, Math.min((w - padding) / bw, (h - padding) / bh)));
+      const nextZoom = Math.min(2.4, Math.max(0.12, Math.min((w - padding) / bw, (h - padding) / bh)));
       const cx = (bounds.minX + bounds.maxX) / 2;
       const cy = (bounds.minY + bounds.maxY) / 2;
       setZoom(nextZoom);
@@ -218,7 +325,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     }
 
     if (count > 2) {
-      fitBounds({ minX: minX - 80, maxX: maxX + 80, minY: minY - 80, maxY: maxY + 80 }, 70);
+      fitBounds({ minX: minX - 70, maxX: maxX + 70, minY: minY - 70, maxY: maxY + 70 }, 70);
     } else {
       fitBounds(parsedGraph.bounds, 40);
     }
@@ -230,7 +337,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     }
   }, [parsedGraph, fitBounds]);
 
-  // Auto-center once graph loads or maximize toggles
   useEffect(() => {
     if (!parsedGraph) return;
     if (!initializedCameraRef.current) {
@@ -255,7 +361,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     return set;
   }, [searchQuery, parsedGraph]);
 
-  // Draw the official tree canvas
+  // Draw the authentic official PoE Passive Skill Tree canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -272,13 +378,54 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const bump = () => setSpriteTick((t) => t + 1);
+
+    const drawSpriteCentered = (
+      sheet: SpriteSheet | null | undefined,
+      key: string,
+      wx: number,
+      wy: number,
+      scaleMult = 1
+    ): boolean => {
+      if (!sheet?.url || !sheet.coords) return false;
+      const c = sheet.coords[key];
+      if (!c) return false;
+      const img = getOrLoadSpriteImage(sheet.url, bump);
+      if (!img) return false;
+      const dw = c.w * SPRITE_WORLD_SCALE * scaleMult;
+      const dh = c.h * SPRITE_WORLD_SCALE * scaleMult;
+      ctx.drawImage(img, c.x, c.y, c.w, c.h, wx - dw / 2, wy - dh / 2, dw, dh);
+      return true;
+    };
+
+    const drawCircularIcon = (
+      sheet: SpriteSheet | null | undefined,
+      key: string,
+      wx: number,
+      wy: number,
+      radius: number
+    ): boolean => {
+      if (!sheet?.url || !sheet.coords) return false;
+      const c = sheet.coords[key];
+      if (!c) return false;
+      const img = getOrLoadSpriteImage(sheet.url, bump);
+      if (!img) return false;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(wx, wy, radius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, c.x, c.y, c.w, c.h, wx - radius, wy - radius, radius * 2, radius * 2);
+      ctx.restore();
+      return true;
+    };
+
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Deep Wraeclast starry backdrop
-    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 40, width / 2, height / 2, Math.max(width, height) * 0.75);
-    bgGrad.addColorStop(0, '#0d1424');
-    bgGrad.addColorStop(1, '#050811');
+    // Authentic dark PoE tree backdrop
+    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 40, width / 2, height / 2, Math.max(width, height) * 0.78);
+    bgGrad.addColorStop(0, '#0c121e');
+    bgGrad.addColorStop(1, '#04070d');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
@@ -286,120 +433,207 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     ctx.scale(zoom, zoom);
 
     if (parsedGraph) {
+      const { sprites, groupBgs, groupCenters, orbitRadii, ascCenter } = parsedGraph;
       const hasHashes = allocatedSet.size > 0;
 
-      // 1. Unallocated web edges
+      // 1. Official Group Wheel Backgrounds (PSGroupBackground1 / 2 / 3)
+      const gbSheet = sprites.groupBackground;
+      if (gbSheet?.url && gbSheet.coords) {
+        const gbImg = getOrLoadSpriteImage(gbSheet.url, bump);
+        if (gbImg) {
+          ctx.save();
+          ctx.globalAlpha = 0.62;
+          for (const [, gx, gy, bgName, isHalf] of groupBgs) {
+            const c = gbSheet.coords[bgName];
+            if (!c) continue;
+            const dw = c.w * SPRITE_WORLD_SCALE;
+            const dh = c.h * SPRITE_WORLD_SCALE;
+            if (isHalf) {
+              // Top half + mirrored bottom half (authentic PoE large cluster background)
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, gx - dw / 2, gy - dh, dw, dh);
+              ctx.save();
+              ctx.translate(gx, gy);
+              ctx.scale(1, -1);
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, -dw / 2, -dh, dw, dh);
+              ctx.restore();
+            } else {
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, gx - dw / 2, gy - dh / 2, dw, dh);
+            }
+          }
+          ctx.restore();
+        }
+      }
+
+      // 2. Active Ascendancy Wheel Artwork (e.g. ClassesJuggernaut, ClassesSlayer, ClassesPathfinder)
+      if (ascCenter && sprites.ascendancy) {
+        ctx.save();
+        ctx.globalAlpha = 0.88;
+        drawSpriteCentered(sprites.ascendancy, `Classes${ascCenter.name}`, ascCenter.x, ascCenter.y, 1.0);
+        ctx.restore();
+      }
+
+      // Helper to trace an edge (true curved circular orbit arc when nodes share group & orbit!)
+      const traceEdge = (a: ParsedNode, b: ParsedNode) => {
+        if (a.groupId === b.groupId && a.orbit === b.orbit && a.orbit > 0) {
+          const gc = groupCenters[String(a.groupId)];
+          const r = orbitRadii[a.orbit] || 0;
+          if (gc && r > 0) {
+            const sa = a.angle - Math.PI / 2;
+            const ea = b.angle - Math.PI / 2;
+            let diff = ea - sa;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            ctx.moveTo(a.x, a.y);
+            ctx.arc(gc[0], gc[1], r, sa, sa + diff, diff < 0);
+            return;
+          }
+        }
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      };
+
+      // 3. Unallocated Connection Web (curved arcs + straight highways)
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(71, 85, 105, 0.35)';
-      ctx.lineWidth = Math.max(1.2, 2.2 / Math.sqrt(zoom));
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.48)';
+      ctx.lineWidth = Math.max(1.8, 2.8 / Math.sqrt(zoom));
       for (const e of parsedGraph.edges) {
         if (e.allocated) continue;
-        ctx.moveTo(e.a.x, e.a.y);
-        ctx.lineTo(e.b.x, e.b.y);
+        traceEdge(e.a, e.b);
       }
       ctx.stroke();
 
-      // 2. Allocated golden edges (or fallback edges if snapshot predates allocatedHashes)
-      ctx.beginPath();
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = Math.max(3.2, 5.2 / Math.sqrt(zoom));
-      ctx.lineCap = 'round';
-      if (hasHashes) {
-        for (const e of parsedGraph.edges) {
-          if (!e.allocated) continue;
-          ctx.moveTo(e.a.x, e.a.y);
-          ctx.lineTo(e.b.x, e.b.y);
+      // 4. Allocated Golden Path Glow + Crisp Core
+      if (hasHashes || fallbackEdges.length > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+        ctx.lineWidth = Math.max(6.5, 9 / Math.sqrt(zoom));
+        ctx.lineCap = 'round';
+        if (hasHashes) {
+          for (const e of parsedGraph.edges) {
+            if (!e.allocated) continue;
+            traceEdge(e.a, e.b);
+          }
+        } else {
+          for (const [x1, y1, x2, y2] of fallbackEdges) {
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
         }
-      } else {
-        for (const [x1, y1, x2, y2] of fallbackEdges) {
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-        }
-      }
-      ctx.stroke();
+        ctx.stroke();
 
-      // 3. Draw nodes (unallocated first, then allocated on top)
+        ctx.beginPath();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = Math.max(3.2, 4.6 / Math.sqrt(zoom));
+        ctx.lineCap = 'round';
+        if (hasHashes) {
+          for (const e of parsedGraph.edges) {
+            if (!e.allocated) continue;
+            traceEdge(e.a, e.b);
+          }
+        } else {
+          for (const [x1, y1, x2, y2] of fallbackEdges) {
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 5. Draw Nodes with Official GGG Artwork & Frames
+      const frameSheet = sprites.frame;
+      const startSheet = sprites.startNode;
+
       const drawNode = (nd: ParsedNode, isAlloc: boolean, isMatch: boolean) => {
-        let radius = 4.2;
-        if (nd.kind === 5) radius = 14; // Class start
-        else if (nd.kind === 2) radius = 11.5; // Keystone
-        else if (nd.kind === 1) radius = 7.6; // Notable
-        else if (nd.kind === 3) radius = 8.2; // Jewel socket
-        else if (nd.kind === 4) radius = 8.5; // Mastery center
+        // Class Start Medallion
+        if (nd.kind === 5) {
+          const classKey = CLASS_START_SPRITES[nd.name.toLowerCase()] || 'PSStartNodeBackgroundInactive';
+          const drew = drawSpriteCentered(startSheet, classKey, nd.x, nd.y, 1.0);
+          if (!drew) {
+            ctx.beginPath();
+            ctx.arc(nd.x, nd.y, 18, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2.4;
+            ctx.fill();
+            ctx.stroke();
+          }
+          return;
+        }
+
+        const radius =
+          nd.kind === 2 ? 10.5 : nd.kind === 1 ? 7.6 : nd.kind === 3 ? 8.2 : nd.kind === 4 ? 8.5 : 5.0;
 
         if (isMatch) {
           ctx.beginPath();
-          ctx.arc(nd.x, nd.y, radius + 7, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(34, 211, 238, 0.28)';
+          ctx.arc(nd.x, nd.y, radius + 8, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.30)';
           ctx.fill();
           ctx.strokeStyle = '#22d3ee';
-          ctx.lineWidth = 2.4;
+          ctx.lineWidth = 2.6;
           ctx.stroke();
         }
 
-        ctx.beginPath();
-        if (nd.kind === 3) {
-          // Diamond jewel socket
-          ctx.moveTo(nd.x, nd.y - radius);
-          ctx.lineTo(nd.x + radius, nd.y);
-          ctx.lineTo(nd.x, nd.y + radius);
-          ctx.lineTo(nd.x - radius, nd.y);
-          ctx.closePath();
-        } else {
-          ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
-        }
-
-        if (isAlloc) {
+        // Official GGG Sprite Icon
+        let drewIcon = false;
+        if (nd.icon) {
           if (nd.kind === 2) {
-            ctx.fillStyle = '#fde047';
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.6;
-          } else if (nd.kind === 3) {
-            ctx.fillStyle = '#38bdf8';
-            ctx.strokeStyle = '#e0f2fe';
-            ctx.lineWidth = 2.2;
-          } else if (nd.kind === 4) {
-            ctx.fillStyle = '#34d399';
-            ctx.strokeStyle = '#d1fae5';
-            ctx.lineWidth = 2;
+            drewIcon = drawCircularIcon(isAlloc ? sprites.keystoneActive : sprites.keystoneInactive, nd.icon, nd.x, nd.y, radius);
           } else if (nd.kind === 1) {
-            ctx.fillStyle = '#fbbf24';
-            ctx.strokeStyle = '#fef3c7';
-            ctx.lineWidth = 2;
-          } else {
-            ctx.fillStyle = '#f59e0b';
-            ctx.strokeStyle = '#fde68a';
-            ctx.lineWidth = 1.2;
-          }
-          ctx.fill();
-          ctx.stroke();
-        } else {
-          if (nd.kind === 5) {
-            ctx.fillStyle = '#1e293b';
-            ctx.strokeStyle = '#64748b';
-            ctx.lineWidth = 2;
-          } else if (nd.kind === 2) {
-            ctx.fillStyle = '#1e1b4b';
-            ctx.strokeStyle = '#6366f1';
-            ctx.lineWidth = 1.6;
-          } else if (nd.kind === 3) {
-            ctx.fillStyle = '#0c4a6e';
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.3;
+            drewIcon = drawCircularIcon(isAlloc ? sprites.notableActive : sprites.notableInactive, nd.icon, nd.x, nd.y, radius);
           } else if (nd.kind === 4) {
-            ctx.fillStyle = '#064e3b';
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1.2;
-          } else if (nd.kind === 1) {
-            ctx.fillStyle = '#1e293b';
-            ctx.strokeStyle = '#475569';
-            ctx.lineWidth = 1.2;
-          } else {
-            ctx.fillStyle = '#1e293b';
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 0.8;
+            drewIcon = drawCircularIcon(isAlloc ? sprites.masteryActive : sprites.mastery, nd.icon, nd.x, nd.y, radius);
+          } else if (nd.kind === 0) {
+            drewIcon = drawCircularIcon(isAlloc ? sprites.normalActive : sprites.normalInactive, nd.icon, nd.x, nd.y, radius);
           }
+        }
+
+        if (!drewIcon) {
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = isAlloc
+            ? nd.kind === 2
+              ? '#fde047'
+              : nd.kind === 3
+              ? '#38bdf8'
+              : nd.kind === 4
+              ? '#34d399'
+              : '#f59e0b'
+            : '#1e293b';
           ctx.fill();
+        }
+
+        // Official GGG Ornate Frame Overlay
+        let frameKey = '';
+        if (nd.kind === 2) {
+          frameKey = isAlloc ? 'KeystoneFrameAllocated' : 'KeystoneFrameUnallocated';
+        } else if (nd.kind === 1) {
+          frameKey = nd.ascName
+            ? isAlloc
+              ? 'AscendancyFrameLargeAllocated'
+              : 'AscendancyFrameLargeNormal'
+            : isAlloc
+            ? 'NotableFrameAllocated'
+            : 'NotableFrameUnallocated';
+        } else if (nd.kind === 3) {
+          frameKey = isAlloc ? 'JewelFrameAllocated' : 'JewelFrameUnallocated';
+        } else if (nd.kind === 0) {
+          frameKey = nd.ascName
+            ? isAlloc
+              ? 'AscendancyFrameSmallAllocated'
+              : 'AscendancyFrameSmallNormal'
+            : isAlloc
+            ? 'PSSkillFrameActive'
+            : 'PSSkillFrame';
+        }
+
+        const drewFrame = frameKey ? drawSpriteCentered(frameSheet, frameKey, nd.x, nd.y, 1.0) : false;
+        if (!drewFrame && nd.kind !== 4) {
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = isAlloc ? '#fde68a' : '#475569';
+          ctx.lineWidth = isAlloc ? 2.0 : 1.1;
           ctx.stroke();
         }
       };
@@ -413,7 +647,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
           if (allocatedSet.has(nd.id)) drawNode(nd, true, matchingIds.has(nd.id));
         }
       } else {
-        // Legacy snapshot fallback (before allocatedHashes was saved)
         for (const [x, y, flag] of fallbackPoints) {
           if (flag === 0) continue;
           ctx.beginPath();
@@ -428,7 +661,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     }
 
     ctx.restore();
-  }, [parsedGraph, allocatedSet, fallbackPoints, fallbackEdges, zoom, pan, matchingIds, isMaximized]);
+  }, [parsedGraph, allocatedSet, fallbackPoints, fallbackEdges, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -436,7 +669,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.18 : 0.85;
-    const nextZoom = Math.min(2.6, Math.max(0.08, zoom * factor));
+    const nextZoom = Math.min(3.2, Math.max(0.1, zoom * factor));
     const scaleRatio = nextZoom / zoom;
     setPan({
       x: mx - (mx - pan.x) * scaleRatio,
@@ -506,7 +739,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     const el = containerRef.current;
     const cx = (el?.clientWidth || 640) / 2;
     const cy = (el?.clientHeight || 420) / 2;
-    const nextZoom = Math.min(2.6, Math.max(0.08, zoom * factor));
+    const nextZoom = Math.min(3.2, Math.max(0.1, zoom * factor));
     const scaleRatio = nextZoom / zoom;
     setPan({
       x: cx - (cx - pan.x) * scaleRatio,
@@ -518,11 +751,10 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-xl border border-slate-800/90 bg-[#050811] overflow-hidden select-none ${className}`}
+      className={`relative rounded-xl border border-slate-800/90 bg-[#04070d] overflow-hidden select-none ${className}`}
     >
       {/* Top Interactive Controls Bar */}
       <div className="absolute top-2.5 left-2.5 right-2.5 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Search Nodes */}
         <div className="relative pointer-events-auto">
           <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
@@ -530,7 +762,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Highlight nodes (e.g. Life, Suppress)..."
-            className="pl-8 pr-3 py-1 w-48 sm:w-56 rounded-lg bg-slate-950/90 border border-slate-700/80 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400/70 backdrop-blur-sm"
+            className="pl-8 pr-8 py-1 w-48 sm:w-56 rounded-lg bg-slate-950/90 border border-slate-700/80 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400/70 backdrop-blur-sm"
           />
           {searchQuery.trim() && (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-cyan-300">
@@ -539,7 +771,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
           )}
         </div>
 
-        {/* Zoom / Pan / Maximize Controls */}
         <div className="flex items-center gap-1 pointer-events-auto bg-slate-950/90 border border-slate-800 rounded-lg p-1 backdrop-blur-sm">
           <button
             type="button"
@@ -586,7 +817,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         </div>
       </div>
 
-      {/* Loading Indicator */}
       {loadingGraph && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/85 gap-2 text-xs font-mono text-amber-300">
           <Loader2 className="w-5 h-5 animate-spin" />
@@ -594,7 +824,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         </div>
       )}
 
-      {/* Interactive Canvas */}
       <canvas
         ref={canvasRef}
         onWheel={handleWheel}
@@ -608,7 +837,6 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         className="w-full h-full block cursor-grab active:cursor-grabbing"
       />
 
-      {/* Rich Node Hover Tooltip */}
       {hoveredNode && (
         <div
           className="absolute z-30 pointer-events-none max-w-xs rounded-xl border border-amber-500/45 bg-slate-950/95 p-3 shadow-2xl space-y-1.5 backdrop-blur-md"
@@ -632,7 +860,9 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
             </span>
           </div>
           <div className="text-[10px] font-mono text-slate-400">
-            {KIND_LABELS[hoveredNode.node.kind] || 'Passive Skill'}
+            {hoveredNode.node.ascName
+              ? `${hoveredNode.node.ascName} Ascendancy`
+              : KIND_LABELS[hoveredNode.node.kind] || 'Passive Skill'}
           </div>
           {hoveredNode.node.stats.length > 0 && (
             <div className="pt-1 border-t border-slate-800 space-y-0.5">
@@ -646,20 +876,19 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         </div>
       )}
 
-      {/* Bottom Legend Bar */}
       <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="px-2.5 py-1 rounded-lg bg-slate-950/85 border border-slate-800 text-[10px] font-mono text-slate-400 flex items-center gap-2.5">
           <span className="text-amber-300 font-bold">{characterName}</span>
           <span>•</span>
           <span>{allocatedCount} Passives</span>
+          {parsedGraph?.activeAscName && (
+            <>
+              <span>•</span>
+              <span className="text-amber-200">{parsedGraph.activeAscName}</span>
+            </>
+          )}
           <span className="hidden sm:inline">•</span>
           <span className="hidden sm:inline">Scroll to Zoom • Drag to Pan</span>
-        </div>
-        <div className="px-2 py-1 rounded-lg bg-slate-950/85 border border-slate-800 text-[10px] font-mono text-slate-400 hidden md:flex items-center gap-2.5">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-300" /> Keystone</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Notable</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rotate-45 bg-sky-400" /> Jewel</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Mastery</span>
         </div>
       </div>
     </div>

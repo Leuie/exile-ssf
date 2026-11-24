@@ -204,9 +204,6 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       const a = byId.get(fromId);
       const b = byId.get(toId);
       if (!a || !b) continue;
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      if (dx * dx + dy * dy > 260 * 260) continue;
       edges.push({
         a,
         b,
