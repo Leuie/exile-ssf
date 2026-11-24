@@ -881,10 +881,10 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
-  // GET /api/farming/atlastree-graph (Official GGG atlas-skilltree-export graph for Map Tracker Atlas Planner, cached 7d in KV)
+  // GET /api/farming/atlastree-graph (Official GGG atlastree-export graph + sprite sheets, curved orbits & group backgrounds for Map Tracker Atlas Planner, cached 7d in KV)
   if (url.pathname === '/api/farming/atlastree-graph' && request.method === 'GET') {
     try {
-      const kvKey = 'poe1:atlastree:fullgraph:v2';
+      const kvKey = 'poe1:atlastree:fullgraph:v3';
       if (env.EXILE_KV) {
         const cached = await env.EXILE_KV.get(kvKey);
         if (cached) {
@@ -898,11 +898,11 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       }
 
       const treeRes = await fetch(
-        'https://raw.githubusercontent.com/grindinggear/atlas-skilltree-export/master/data.json',
+        'https://raw.githubusercontent.com/grindinggear/atlastree-export/master/data.json',
         { headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)' } }
       );
       if (!treeRes.ok) {
-        return new Response(JSON.stringify({ error: 'Could not load official PoE atlas-skilltree-export data.' }), {
+        return new Response(JSON.stringify({ error: 'Could not load official PoE atlastree-export data.' }), {
           status: 502,
           headers: corsHeaders
         });
@@ -911,11 +911,52 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       const rawTree: any = await treeRes.json();
       const orbitRadii: number[] = rawTree?.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
       const skillsPerOrbit: number[] = rawTree?.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+      const scaledRadii = orbitRadii.map((r) => Math.round(r / 10));
       const groups = rawTree?.groups || {};
       const rawNodes = rawTree?.nodes || {};
 
-      // kind: 0=small, 1=notable, 2=keystone, 3=gateway, 5=rootStart
-      const nodes: Array<[number, number, number, number, string, string[]]> = [];
+      const pickSheet = (sheetName: string) => {
+        const s = rawTree?.sprites?.[sheetName]?.['0.3835'];
+        if (!s || !s.filename || !s.coords) return null;
+        return { url: String(s.filename), coords: s.coords };
+      };
+
+      const sprites = {
+        normalActive: pickSheet('normalActive'),
+        normalInactive: pickSheet('normalInactive'),
+        notableActive: pickSheet('notableActive'),
+        notableInactive: pickSheet('notableInactive'),
+        keystoneActive: pickSheet('keystoneActive'),
+        keystoneInactive: pickSheet('keystoneInactive'),
+        wormholeActive: pickSheet('wormholeActive'),
+        wormholeInactive: pickSheet('wormholeInactive'),
+        mastery: pickSheet('mastery'),
+        frame: pickSheet('frame'),
+        groupBackground: pickSheet('groupBackground'),
+        startNode: pickSheet('startNode')
+      };
+
+      const groupBgs: Array<[number, number, number, string, number]> = [];
+      const groupCenters: Record<string, [number, number]> = {};
+      for (const [gidStr, grp] of Object.entries<any>(groups)) {
+        if (!grp || typeof grp.x !== 'number' || typeof grp.y !== 'number') continue;
+        const gx = Math.round(grp.x / 10);
+        const gy = Math.round(grp.y / 10);
+        groupCenters[gidStr] = [gx, gy];
+        if (grp.background?.image) {
+          groupBgs.push([
+            Number(gidStr),
+            gx,
+            gy,
+            String(grp.background.image),
+            grp.background.isHalfImage ? 1 : 0
+          ]);
+        }
+      }
+
+      // kind: 0=small, 1=notable, 2=keystone, 3=wormhole/gateway, 4=mastery, 5=rootStart
+      // Tuple: [id, x, y, kind, name, stats, icon, groupId, orbit, angleRad]
+      const nodes: Array<[number, number, number, number, string, string[], string, number, number, number]> = [];
       const validIds = new Set<number>();
 
       for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
@@ -935,13 +976,26 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         let kind = 0;
         if (nd.classStartIndex !== undefined || idStr === '29045') kind = 5;
         else if (nd.isKeystone) kind = 2;
+        else if (nd.isMastery) kind = 4;
+        else if (nd.isWormhole || String(nd.name || '').toLowerCase().includes('gateway')) kind = 3;
         else if (nd.isNotable) kind = 1;
-        else if (String(nd.name || '').toLowerCase().includes('gateway')) kind = 3;
 
         const name = String(nd.name || '');
         const stats = Array.isArray(nd.stats) ? nd.stats.slice(0, 6).map(String) : [];
+        const icon = typeof nd.icon === 'string' ? nd.icon : '';
 
-        nodes.push([idNum, nx, ny, kind, name, stats]);
+        nodes.push([
+          idNum,
+          nx,
+          ny,
+          kind,
+          name,
+          stats,
+          icon,
+          Number(nd.group || 0),
+          orb,
+          Math.round(angle * 10000) / 10000
+        ]);
         validIds.add(idNum);
       }
 
@@ -961,7 +1015,14 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         }
       }
 
-      const payload = JSON.stringify({ nodes, edges });
+      const payload = JSON.stringify({
+        nodes,
+        edges,
+        groupBgs,
+        groupCenters,
+        orbitRadii: scaledRadii,
+        sprites
+      });
       if (env.EXILE_KV) {
         try {
           await env.EXILE_KV.put(kvKey, payload, { expirationTtl: 86400 * 7 });

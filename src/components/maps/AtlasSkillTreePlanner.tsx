@@ -16,11 +16,28 @@ import {
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 
-type GraphNodeTuple = [number, number, number, number, string, string[]];
+// [id, x, y, kind (0=small,1=notable,2=keystone,3=wormhole/gateway,4=mastery,5=rootStart), name, stats, icon, groupId, orbit, angleRad]
+type GraphNodeTuple = [number, number, number, number, string, string[], string, number, number, number];
+
+interface SpriteCoord {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface SpriteSheet {
+  url: string;
+  coords: Record<string, SpriteCoord>;
+}
 
 interface AtlasGraphData {
   nodes: GraphNodeTuple[];
   edges: Array<[number, number]>;
+  groupBgs?: Array<[number, number, number, string, number]>;
+  groupCenters?: Record<string, [number, number]>;
+  orbitRadii?: number[];
+  sprites?: Record<string, SpriteSheet | null>;
 }
 
 interface ParsedAtlasNode {
@@ -30,6 +47,10 @@ interface ParsedAtlasNode {
   kind: number;
   name: string;
   stats: string[];
+  icon: string;
+  groupId: number;
+  orbit: number;
+  angle: number;
   searchBlob: string;
 }
 
@@ -43,9 +64,11 @@ export interface SavedAtlasTree {
 
 const LOCAL_ATLAS_TREES_KEY = 'exile_ssf_atlas_skill_trees_v1';
 const MAX_ATLAS_POINTS = 132;
+const SPRITE_WORLD_SCALE = 0.26075;
 
 let cachedAtlasGraph: AtlasGraphData | null = null;
 let inflightAtlasFetch: Promise<AtlasGraphData | null> | null = null;
+const atlasSpriteCache = new Map<string, HTMLImageElement>();
 
 async function loadOfficialAtlasGraph(): Promise<AtlasGraphData | null> {
   if (cachedAtlasGraph) return cachedAtlasGraph;
@@ -66,6 +89,20 @@ async function loadOfficialAtlasGraph(): Promise<AtlasGraphData | null> {
   return inflightAtlasFetch;
 }
 
+function getOrLoadAtlasSprite(url: string, onLoaded: () => void): HTMLImageElement | null {
+  if (!url) return null;
+  const existing = atlasSpriteCache.get(url);
+  if (existing) {
+    return existing.complete && existing.naturalWidth > 0 ? existing : null;
+  }
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => onLoaded();
+  img.src = url;
+  atlasSpriteCache.set(url, img);
+  return null;
+}
+
 function readLocalAtlasTrees(): SavedAtlasTree[] {
   try {
     const raw = localStorage.getItem(LOCAL_ATLAS_TREES_KEY);
@@ -81,7 +118,8 @@ const KIND_LABELS: Record<number, string> = {
   0: 'Atlas Passive',
   1: 'Atlas Notable',
   2: 'Atlas Keystone',
-  3: 'Gateway',
+  3: 'Atlas Gateway',
+  4: 'Atlas Hub',
   5: 'Atlas Start'
 };
 
@@ -99,6 +137,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
 
   const [graph, setGraph] = useState<AtlasGraphData | null>(cachedAtlasGraph);
   const [loadingGraph, setLoadingGraph] = useState<boolean>(!cachedAtlasGraph);
+  const [spriteTick, setSpriteTick] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
@@ -115,8 +154,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     screenY: number;
   } | null>(null);
 
-  // Camera transform
-  const [zoom, setZoom] = useState<number>(0.28);
+  const [zoom, setZoom] = useState<number>(0.24);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragRef = useRef<{
     active: boolean;
@@ -135,7 +173,6 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   });
   const initializedRef = useRef<boolean>(false);
 
-  // Load official GGG atlas-skilltree-export graph
   useEffect(() => {
     let cancelled = false;
     if (!cachedAtlasGraph) {
@@ -151,6 +188,23 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       cancelled = true;
     };
   }, []);
+
+  // Preload official GGG Atlas sprite sheets
+  useEffect(() => {
+    if (!graph?.sprites) return;
+    let alive = true;
+    const bump = () => {
+      if (alive) setSpriteTick((t) => t + 1);
+    };
+    const urls = new Set<string>();
+    for (const sheet of Object.values(graph.sprites)) {
+      if (sheet?.url) urls.add(sheet.url);
+    }
+    urls.forEach((u) => getOrLoadAtlasSprite(u, bump));
+    return () => {
+      alive = false;
+    };
+  }, [graph]);
 
   // Load saved Atlas trees from Cloud if signed in
   useEffect(() => {
@@ -181,7 +235,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     let maxY = -Infinity;
 
     for (const tuple of graph.nodes) {
-      const [id, x, y, kind, name, stats] = tuple;
+      const [id, x, y, kind, name, stats, icon = '', groupId = 0, orbit = 0, angle = 0] = tuple;
       const nd: ParsedAtlasNode = {
         id,
         x,
@@ -189,6 +243,10 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
         kind,
         name: name || '',
         stats: Array.isArray(stats) ? stats : [],
+        icon: icon || '',
+        groupId,
+        orbit,
+        angle,
         searchBlob: `${name || ''} ${(Array.isArray(stats) ? stats.join(' ') : '')}`.toLowerCase()
       };
       nodes.push(nd);
@@ -204,6 +262,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       const a = byId.get(fromId);
       const b = byId.get(toId);
       if (!a || !b) continue;
+      if (a.kind === 4 || b.kind === 4) continue;
       edges.push({
         a,
         b,
@@ -211,18 +270,27 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       });
     }
 
-    return { nodes, byId, edges, bounds: { minX, maxX, minY, maxY } };
+    return {
+      nodes,
+      byId,
+      edges,
+      groupBgs: graph.groupBgs || [],
+      groupCenters: graph.groupCenters || {},
+      orbitRadii: graph.orbitRadii || [0, 8, 16, 34, 49, 66, 85],
+      sprites: graph.sprites || {},
+      bounds: { minX, maxX, minY, maxY }
+    };
   }, [graph, allocatedSet]);
 
   const resetView = useCallback(() => {
     const el = containerRef.current;
     if (!el || !parsedGraph) return;
     const w = el.clientWidth || 680;
-    const h = el.clientHeight || 440;
+    const h = el.clientHeight || 460;
     const { minX, maxX, minY, maxY } = parsedGraph.bounds;
     const bw = Math.max(120, maxX - minX);
     const bh = Math.max(120, maxY - minY);
-    const nextZoom = Math.min(2.0, Math.max(0.08, Math.min((w - 40) / bw, (h - 40) / bh)));
+    const nextZoom = Math.min(2.2, Math.max(0.1, Math.min((w - 36) / bw, (h - 36) / bh)));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     setZoom(nextZoom);
@@ -266,7 +334,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     return { keystones, notables };
   }, [parsedGraph, allocatedIds]);
 
-  // Render Atlas Canvas
+  // Render Official Atlas Skill Tree Canvas with GGG Sprite Artwork & Curved Orbits
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -274,7 +342,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = container.clientWidth || 680;
-    const height = container.clientHeight || 440;
+    const height = container.clientHeight || 460;
     if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
@@ -283,12 +351,53 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const bump = () => setSpriteTick((t) => t + 1);
+
+    const drawSpriteCentered = (
+      sheet: SpriteSheet | null | undefined,
+      key: string,
+      wx: number,
+      wy: number,
+      scaleMult = 1
+    ): boolean => {
+      if (!sheet?.url || !sheet.coords) return false;
+      const c = sheet.coords[key];
+      if (!c) return false;
+      const img = getOrLoadAtlasSprite(sheet.url, bump);
+      if (!img) return false;
+      const dw = c.w * SPRITE_WORLD_SCALE * scaleMult;
+      const dh = c.h * SPRITE_WORLD_SCALE * scaleMult;
+      ctx.drawImage(img, c.x, c.y, c.w, c.h, wx - dw / 2, wy - dh / 2, dw, dh);
+      return true;
+    };
+
+    const drawCircularIcon = (
+      sheet: SpriteSheet | null | undefined,
+      key: string,
+      wx: number,
+      wy: number,
+      radius: number
+    ): boolean => {
+      if (!sheet?.url || !sheet.coords) return false;
+      const c = sheet.coords[key];
+      if (!c) return false;
+      const img = getOrLoadAtlasSprite(sheet.url, bump);
+      if (!img) return false;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(wx, wy, radius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, c.x, c.y, c.w, c.h, wx - radius, wy - radius, radius * 2, radius * 2);
+      ctx.restore();
+      return true;
+    };
+
     ctx.save();
     ctx.scale(dpr, dpr);
 
     const bgGrad = ctx.createRadialGradient(width / 2, height * 0.65, 30, width / 2, height / 2, Math.max(width, height) * 0.8);
-    bgGrad.addColorStop(0, '#0f172a');
-    bgGrad.addColorStop(1, '#04070f');
+    bgGrad.addColorStop(0, '#0d1424');
+    bgGrad.addColorStop(1, '#04070e');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
@@ -296,96 +405,164 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     ctx.scale(zoom, zoom);
 
     if (parsedGraph) {
-      // Unallocated paths
+      const { sprites, groupBgs, groupCenters, orbitRadii } = parsedGraph;
+
+      // 1. Official Atlas Group Wheel Backgrounds (including Searing Exarch & Eater of Worlds!)
+      const gbSheet = sprites.groupBackground;
+      if (gbSheet?.url && gbSheet.coords) {
+        const gbImg = getOrLoadAtlasSprite(gbSheet.url, bump);
+        if (gbImg) {
+          ctx.save();
+          ctx.globalAlpha = 0.65;
+          for (const [, gx, gy, bgName, isHalf] of groupBgs) {
+            const c = gbSheet.coords[bgName];
+            if (!c) continue;
+            const dw = c.w * SPRITE_WORLD_SCALE;
+            const dh = c.h * SPRITE_WORLD_SCALE;
+            if (isHalf) {
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, gx - dw / 2, gy - dh, dw, dh);
+              ctx.save();
+              ctx.translate(gx, gy);
+              ctx.scale(1, -1);
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, -dw / 2, -dh, dw, dh);
+              ctx.restore();
+            } else {
+              ctx.drawImage(gbImg, c.x, c.y, c.w, c.h, gx - dw / 2, gy - dh / 2, dw, dh);
+            }
+          }
+          ctx.restore();
+        }
+      }
+
+      const traceEdge = (a: ParsedAtlasNode, b: ParsedAtlasNode) => {
+        if (a.groupId === b.groupId && a.orbit === b.orbit && a.orbit > 0) {
+          const gc = groupCenters[String(a.groupId)];
+          const r = orbitRadii[a.orbit] || 0;
+          if (gc && r > 0) {
+            const sa = a.angle - Math.PI / 2;
+            const ea = b.angle - Math.PI / 2;
+            let diff = ea - sa;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            ctx.moveTo(a.x, a.y);
+            ctx.arc(gc[0], gc[1], r, sa, sa + diff, diff < 0);
+            return;
+          }
+        }
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      };
+
+      // 2. Unallocated Atlas Paths
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(71, 85, 105, 0.35)';
-      ctx.lineWidth = Math.max(1.2, 2.2 / Math.sqrt(zoom));
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
+      ctx.lineWidth = Math.max(1.8, 2.8 / Math.sqrt(zoom));
       for (const e of parsedGraph.edges) {
         if (e.allocated) continue;
-        ctx.moveTo(e.a.x, e.a.y);
-        ctx.lineTo(e.b.x, e.b.y);
+        traceEdge(e.a, e.b);
       }
       ctx.stroke();
 
-      // Allocated bright emerald/gold Atlas paths
+      // 3. Allocated Atlas Paths (Golden Glow + Bright Core)
+      ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = Math.max(3.2, 5.2 / Math.sqrt(zoom));
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = Math.max(6.5, 9 / Math.sqrt(zoom));
       ctx.lineCap = 'round';
       for (const e of parsedGraph.edges) {
         if (!e.allocated) continue;
-        ctx.moveTo(e.a.x, e.a.y);
-        ctx.lineTo(e.b.x, e.b.y);
+        traceEdge(e.a, e.b);
       }
       ctx.stroke();
 
+      ctx.beginPath();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = Math.max(3.2, 4.6 / Math.sqrt(zoom));
+      ctx.lineCap = 'round';
+      for (const e of parsedGraph.edges) {
+        if (!e.allocated) continue;
+        traceEdge(e.a, e.b);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // 4. Draw Official Atlas Nodes & Ornate Frames
+      const frameSheet = sprites.frame;
+      const startSheet = sprites.startNode;
+
       const drawNode = (nd: ParsedAtlasNode, isAlloc: boolean, isMatch: boolean) => {
-        let r = 4.6;
-        if (nd.kind === 5) r = 13;
-        else if (nd.kind === 2) r = 11.5;
-        else if (nd.kind === 1) r = 7.8;
-        else if (nd.kind === 3) r = 8.5;
+        if (nd.kind === 5) {
+          const drew = drawSpriteCentered(startSheet, 'AtlasPassiveSkillScreenStart', nd.x, nd.y, 1.0);
+          if (!drew) {
+            ctx.beginPath();
+            ctx.arc(nd.x, nd.y, 18, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2.4;
+            ctx.fill();
+            ctx.stroke();
+          }
+          return;
+        }
+
+        const radius =
+          nd.kind === 2 ? 10.5 : nd.kind === 1 ? 7.6 : nd.kind === 3 ? 9.5 : nd.kind === 4 ? 8.5 : 5.0;
 
         if (isMatch) {
           ctx.beginPath();
-          ctx.arc(nd.x, nd.y, r + 7, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(250, 204, 21, 0.28)';
+          ctx.arc(nd.x, nd.y, radius + 8, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(250, 204, 21, 0.30)';
           ctx.fill();
           ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 2.4;
+          ctx.lineWidth = 2.6;
           ctx.stroke();
         }
 
-        ctx.beginPath();
+        let drewIcon = false;
         if (nd.kind === 3) {
-          ctx.moveTo(nd.x, nd.y - r);
-          ctx.lineTo(nd.x + r, nd.y);
-          ctx.lineTo(nd.x, nd.y + r);
-          ctx.lineTo(nd.x - r, nd.y);
-          ctx.closePath();
-        } else {
-          ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2);
+          drewIcon = drawCircularIcon(isAlloc ? sprites.wormholeActive : sprites.wormholeInactive, 'Wormhole', nd.x, nd.y, radius);
+        } else if (nd.icon) {
+          if (nd.kind === 2) {
+            drewIcon = drawCircularIcon(isAlloc ? sprites.keystoneActive : sprites.keystoneInactive, nd.icon, nd.x, nd.y, radius);
+          } else if (nd.kind === 1) {
+            drewIcon = drawCircularIcon(isAlloc ? sprites.notableActive : sprites.notableInactive, nd.icon, nd.x, nd.y, radius);
+          } else if (nd.kind === 4) {
+            drewIcon = drawCircularIcon(sprites.mastery, nd.icon, nd.x, nd.y, radius);
+          } else {
+            drewIcon = drawCircularIcon(isAlloc ? sprites.normalActive : sprites.normalInactive, nd.icon, nd.x, nd.y, radius);
+          }
         }
 
-        if (isAlloc) {
-          if (nd.kind === 2) {
-            ctx.fillStyle = '#fde047';
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.6;
-          } else if (nd.kind === 1) {
-            ctx.fillStyle = '#38bdf8';
-            ctx.strokeStyle = '#e0f2fe';
-            ctx.lineWidth = 2;
-          } else if (nd.kind === 3) {
-            ctx.fillStyle = '#c084fc';
-            ctx.strokeStyle = '#f3e8ff';
-            ctx.lineWidth = 2;
-          } else {
-            ctx.fillStyle = '#0ea5e9';
-            ctx.strokeStyle = '#bae6fd';
-            ctx.lineWidth = 1.3;
-          }
+        if (!drewIcon) {
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = isAlloc
+            ? nd.kind === 2
+              ? '#fde047'
+              : nd.kind === 3
+              ? '#c084fc'
+              : '#38bdf8'
+            : '#1e293b';
           ctx.fill();
-          ctx.stroke();
-        } else {
-          if (nd.kind === 2) {
-            ctx.fillStyle = '#1e1b4b';
-            ctx.strokeStyle = '#818cf8';
-            ctx.lineWidth = 1.6;
-          } else if (nd.kind === 1) {
-            ctx.fillStyle = '#0f172a';
-            ctx.strokeStyle = '#64748b';
-            ctx.lineWidth = 1.3;
-          } else if (nd.kind === 3) {
-            ctx.fillStyle = '#3b0764';
-            ctx.strokeStyle = '#a855f7';
-            ctx.lineWidth = 1.4;
-          } else {
-            ctx.fillStyle = '#1e293b';
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 0.8;
-          }
-          ctx.fill();
+        }
+
+        let frameKey = '';
+        if (nd.kind === 2) {
+          frameKey = isAlloc ? 'KeystoneFrameAllocated' : 'KeystoneFrameUnallocated';
+        } else if (nd.kind === 1) {
+          frameKey = isAlloc ? 'NotableFrameAllocated' : 'NotableFrameUnallocated';
+        } else if (nd.kind === 3) {
+          frameKey = isAlloc ? 'WormholeFrameAllocated' : 'WormholeFrameUnallocated';
+        } else if (nd.kind === 0) {
+          frameKey = isAlloc ? 'PSSkillFrameActive' : 'PSSkillFrame';
+        }
+
+        const drewFrame = frameKey ? drawSpriteCentered(frameSheet, frameKey, nd.x, nd.y, 1.0) : false;
+        if (!drewFrame && nd.kind !== 4) {
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = isAlloc ? '#38bdf8' : '#475569';
+          ctx.lineWidth = isAlloc ? 2.0 : 1.1;
           ctx.stroke();
         }
       };
@@ -399,7 +576,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     }
 
     ctx.restore();
-  }, [parsedGraph, allocatedSet, zoom, pan, matchingIds, isMaximized]);
+  }, [parsedGraph, allocatedSet, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
   const findHitNode = (clientX: number, clientY: number) => {
     if (!parsedGraph || !canvasRef.current) return null;
@@ -415,6 +592,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     let bestDist = hitSq;
 
     for (const nd of parsedGraph.nodes) {
+      if (nd.kind === 4 || nd.kind === 5) continue;
       const dx = nd.x - wx;
       const dy = nd.y - wy;
       const d = dx * dx + dy * dy;
@@ -432,7 +610,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.18 : 0.85;
-    const nextZoom = Math.min(2.6, Math.max(0.08, zoom * factor));
+    const nextZoom = Math.min(3.2, Math.max(0.08, zoom * factor));
     const ratio = nextZoom / zoom;
     setPan({ x: mx - (mx - pan.x) * ratio, y: my - (my - pan.y) * ratio });
     setZoom(nextZoom);
@@ -487,8 +665,8 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   const zoomBy = (factor: number) => {
     const el = containerRef.current;
     const cx = (el?.clientWidth || 680) / 2;
-    const cy = (el?.clientHeight || 440) / 2;
-    const nextZoom = Math.min(2.6, Math.max(0.08, zoom * factor));
+    const cy = (el?.clientHeight || 460) / 2;
+    const nextZoom = Math.min(3.2, Math.max(0.08, zoom * factor));
     const ratio = nextZoom / zoom;
     setPan({ x: cx - (cx - pan.x) * ratio, y: cy - (cy - pan.y) * ratio });
     setZoom(nextZoom);
@@ -545,8 +723,8 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   const renderPlannerCanvas = (maximized: boolean) => (
     <div
       ref={containerRef}
-      className={`relative rounded-xl border border-slate-800 bg-[#04070f] overflow-hidden select-none ${
-        maximized ? 'w-full h-[78vh]' : 'w-full h-[430px]'
+      className={`relative rounded-xl border border-slate-800 bg-[#04070e] overflow-hidden select-none ${
+        maximized ? 'w-full h-[80vh]' : 'w-full h-[460px]'
       }`}
     >
       {/* Top Floating Bar */}
@@ -631,7 +809,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           className="absolute z-30 pointer-events-none max-w-xs rounded-xl border border-sky-500/45 bg-slate-950/95 p-3 shadow-2xl space-y-1.5 backdrop-blur-md"
           style={{
             left: Math.min(hoveredNode.screenX + 14, (containerRef.current?.clientWidth || 680) - 270),
-            top: Math.max(48, Math.min(hoveredNode.screenY + 14, (containerRef.current?.clientHeight || 430) - 160))
+            top: Math.max(48, Math.min(hoveredNode.screenY + 14, (containerRef.current?.clientHeight || 460) - 160))
           }}
         >
           <div className="flex items-center justify-between gap-2">
@@ -729,7 +907,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
                 Click nodes on the Atlas tree and hit <strong className="text-slate-300">Save Tree</strong> to build your own strategy presets.
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[170px] overflow-y-auto pr-0.5">
+              <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-0.5">
                 {savedTrees.map((t) => {
                   const active = t.id === activeTreeId;
                   return (
@@ -782,7 +960,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
                 No Atlas Keystones or Notables allocated yet.
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[195px] overflow-y-auto pr-0.5 text-[11px]">
+              <div className="space-y-1.5 max-h-[210px] overflow-y-auto pr-0.5 text-[11px]">
                 {allocatedHighlights.keystones.map((k) => (
                   <div key={k.id} className="px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30">
                     <div className="font-bold text-amber-200">{k.name}</div>
