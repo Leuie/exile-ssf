@@ -1084,7 +1084,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-amber-200 tracking-wide uppercase">
-              {isArmoryMode ? 'Character Armory' : 'Character'}
+              {isArmoryMode ? 'Inventory' : 'Character'}
             </h2>
             <p className="text-[11px] font-mono text-slate-400">
               {isCompactMobile
