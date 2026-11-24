@@ -105,7 +105,29 @@ export function resolvePageMeta(url: URL): PageMeta {
     const cleanHandle = rawHandle.replace(/^@/, '');
     return {
       title: `@${cleanHandle} | Exile Profile | Exile SSF`,
-      description: `View @${cleanHandle}'s character roster, open wishlists and bounties, boss carry services, verified vouches, and achievements on Exile SSF.`
+      description: `View @${cleanHandle}'s Multi League Career Passport, character roster, open wishlists, verified vouches, and achievements on Exile SSF.`
+    };
+  }
+
+  if (path === '/armory' || path.startsWith('/armory/') || path === '/character' || path.startsWith('/character/')) {
+    const parts = path.replace(/^\/(armory|character)\/?/, '').split('/').filter(Boolean);
+    const handle = parts[0] ? decodeURIComponent(parts[0]).replace(/^@/, '') : '';
+    const charName = parts[1] ? decodeURIComponent(parts[1]) : '';
+    if (handle && charName) {
+      return {
+        title: `${charName} (@${handle}) | Character Armory | Exile SSF`,
+        description: `Inspect ${charName} (@${handle}) in the Exile SSF Character Armory: live Path of Exile gear paperdoll, socketed gems, affix tiers, jewels, and interactive passive skill tree.`
+      };
+    }
+    if (handle) {
+      return {
+        title: `@${handle} | Character Armory | Exile SSF`,
+        description: `Inspect @${handle}'s synced Path of Exile characters, equipment paperdoll, jewels, and interactive passive skill tree on Exile SSF.`
+      };
+    }
+    return {
+      title: 'Character Armory | Exile SSF',
+      description: 'Inspect any Path of Exile character with a full width equipment paperdoll, socket & gem inspector, Prefix/Suffix affix tiers, Cluster/Abyss jewels, and interactive passive tree.'
     };
   }
 

@@ -36,6 +36,7 @@ interface SidebarProps {
   userAccount?: import('../types').UserAccount | null;
   onOpenAuthModal?: () => void;
   onOpenProfile?: (handle: string) => void;
+  onPrefetchTab?: (tabId: string) => void;
 }
 
 const LEAGUE_INFO = {
@@ -73,7 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   openSearch,
   userAccount,
   onOpenAuthModal,
-  onOpenProfile
+  onOpenProfile,
+  onPrefetchTab
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -156,6 +158,7 @@ interface NavGroup {
       items: [
         { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
+        { id: 'armory', label: 'Character Armory', icon: Swords, badge: 'NEW' },
         { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
     },
@@ -206,6 +209,7 @@ interface NavGroup {
       items: [
         { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
+        { id: 'armory', label: 'Character Armory', icon: Swords, badge: 'NEW' },
         { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
       ]
     },
@@ -640,6 +644,7 @@ interface NavGroup {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
+                    onMouseEnter={() => onPrefetchTab?.(item.id)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all group ${
                       isActive
                         ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'

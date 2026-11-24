@@ -25,12 +25,13 @@ import {
   fetchCloudProfile,
   saveCloudProfile,
   saveCloudAchievementProfile,
+  fetchUserToolState,
   type CloudExileProfileResponse
 } from '../services/cloudSync';
 import { getMemberCharacters } from './league/tabs/RosterTab';
 import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
 import { SessionScratchpad } from './league/widgets/SessionScratchpad';
-import { CharacterPaperdollView } from './profile/CharacterPaperdollView';
+import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 import { ACHIEVEMENT_CATALOG, buildRetroactiveHonorHistory, HONOR_PER_ITEM_FOUND } from '../utils/achievements';
 import { fireConfetti } from '../utils/confetti';
 
@@ -40,6 +41,7 @@ export interface ExileProfilePageProps {
   onBack: () => void;
   onNavigateLeague?: (leagueId: string, subTab?: string) => void;
   onOpenAccountSettings?: () => void;
+  onOpenArmory?: (handle: string, charName?: string) => void;
 }
 
 export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
@@ -47,7 +49,8 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   userAccount,
   onBack,
   onNavigateLeague,
-  onOpenAccountSettings
+  onOpenAccountSettings,
+  onOpenArmory
 }) => {
   const [data, setData] = useState<CloudExileProfileResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,6 +58,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [gameScope, setGameScope] = useState<'all' | 'poe1' | 'poe2'>('all');
   const [farmingSessions, setFarmingSessions] = useState<any[]>([]);
+  const [armorySnapshots, setArmorySnapshots] = useState<Record<string, CharacterGearSnapshot>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('exile_ssf_profile_collapsed_v1');
@@ -133,6 +137,20 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
       .then((res: any) => {
         if (!cancelled && Array.isArray(res?.sessions)) {
           setFarmingSessions(res.sessions);
+        }
+      })
+      .catch(() => {});
+
+    fetchUserToolState<Record<string, any>>(cleanHandle, 'character_gear_snapshots')
+      .then((snap) => {
+        if (!cancelled && snap && typeof snap === 'object') {
+          const cleaned: Record<string, CharacterGearSnapshot> = {};
+          for (const [k, v] of Object.entries(snap)) {
+            if (k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character) {
+              cleaned[k] = v as CharacterGearSnapshot;
+            }
+          }
+          setArmorySnapshots(cleaned);
         }
       })
       .catch(() => {});
@@ -815,19 +833,161 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
         </div>
       </div>
 
-      {/* Character (Live GGG Sync + Cloud Snapshots) */}
-      <CharacterPaperdollView
-        handle={profile.handle}
-        poeAccountName={profile.poeAccountName}
-        rosterCharacters={allCharacters}
-        canEdit={canEdit}
-        collapsed={Boolean(collapsedSections.character)}
-        onToggleCollapse={() => toggleProfileSection('character')}
-        onNotify={(msg) => {
-          setCopyNotice(msg);
-          setTimeout(() => setCopyNotice(null), 3000);
-        }}
-      />
+      {/* Multi League Historical Career Passport */}
+      <div className="p-4 rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-[#0e1320] via-[#121828] to-[#0e1320] shadow-lg space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+            <Award className="w-4 h-4 text-amber-400" />
+            <span>Multi League Career Passport</span>
+          </div>
+          <span className="text-[10px] font-mono text-slate-400">
+            Lifetime stats across all PoE 1 &amp; PoE 2 private leagues
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Characters</div>
+            <div className="text-base font-black text-white mt-0.5">
+              {Math.max(allCharacters.length, Object.keys(armorySnapshots).length)}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Peak Level</div>
+            <div className="text-base font-black text-amber-300 mt-0.5">
+              {Math.max(
+                0,
+                ...allCharacters.map((c) => Number(c.level || 0)),
+                ...Object.values(armorySnapshots).map((s) => Number(s.character?.level || 0))
+              ) || '—'}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Synced Gear</div>
+            <div className="text-base font-black text-sky-300 mt-0.5">
+              {Object.keys(armorySnapshots).length}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Verified Vouches</div>
+            <div className="text-base font-black text-emerald-300 mt-0.5">
+              {(data?.vouches || []).length}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Farming Runs</div>
+            <div className="text-base font-black text-purple-300 mt-0.5">
+              {farmingSessions.length}
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[10px] font-mono uppercase text-slate-400">Lifetime Honor</div>
+            <div className="text-base font-black text-amber-400 mt-0.5">
+              {honorSummary.totalHonorPoints}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Executive Character Armory Snapshot Card (Links to Dedicated Full Width Armory) */}
+      {(() => {
+        const snapshotList = Object.values(armorySnapshots).sort(
+          (a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime()
+        );
+        const primarySnap = snapshotList[0] || null;
+        const primaryCharName = primarySnap?.character?.name || allCharacters[0]?.characterName || '';
+        const headlineItems = (primarySnap?.equipped || [])
+          .filter((it) => it.icon && ['Weapon', 'BodyArmour', 'Helm', 'Belt', 'Amulet', 'Ring'].includes(it.inventoryId))
+          .slice(0, 6);
+
+        return (
+          <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/35 bg-gradient-to-br from-slate-950 via-slate-900/95 to-slate-950 shadow-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+                  <Swords className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-sm sm:text-base font-bold text-amber-200 tracking-wide uppercase">
+                      Character Armory Snapshot
+                    </h2>
+                    {primarySnap && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                        {snapshotList.length} Synced {snapshotList.length === 1 ? 'Character' : 'Characters'}
+                      </span>
+                    )}
+                  </div>
+                  {primarySnap ? (
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      <strong className="text-white">{primarySnap.character.name}</strong> • Lvl{' '}
+                      {primarySnap.character.level} {primarySnap.character.className} •{' '}
+                      <span className="text-amber-300 font-mono">{primarySnap.character.league}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {canEdit
+                        ? 'Open the dedicated Character Armory to sync your live Path of Exile gear, sockets, jewels, and passive tree.'
+                        : `Open @${profile.handle}'s Character Armory to inspect their synced gear, jewels, and passive skill tree.`}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {onOpenArmory && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenArmory(profile.handle, primaryCharName || undefined)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg cursor-pointer transition-all"
+                  >
+                    <Swords className="w-3.5 h-3.5" />
+                    <span>Open Full Character Armory</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleProfileSection('character')}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  {collapsedSections.character ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {!collapsedSections.character && primarySnap && (
+              <div className="pt-3 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {headlineItems.map((it) => (
+                    <button
+                      key={it.id}
+                      type="button"
+                      onClick={() => onOpenArmory?.(profile.handle, primarySnap.character.name)}
+                      title={`${it.name || it.typeLine} (${it.inventoryId})`}
+                      className="w-11 h-11 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400/60 p-1 flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <img src={it.icon} alt={it.name || it.typeLine} className="max-w-full max-h-full object-contain" />
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                  <span className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
+                    {primarySnap.equipped.length} Gear Slots
+                  </span>
+                  <span className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
+                    {primarySnap.passives?.allocatedCount || 0} Passives
+                  </span>
+                  {primarySnap.estimatedVitals?.suppress > 0 && (
+                    <span className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                      {primarySnap.estimatedVitals.suppress}% Suppress
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Main 2 Column Hub Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
@@ -891,17 +1051,29 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                       {ch.ascendancy} • Lvl {ch.level} • {ch.buildName}
                     </div>
                   </div>
-                  {ch.pobUrl && (
-                    <a
-                      href={ch.pobUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono text-[10px] flex items-center gap-1"
-                    >
-                      <span>PoB</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {onOpenArmory && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenArmory(profile.handle, ch.characterName)}
+                        className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Swords className="w-2.5 h-2.5" />
+                        <span>Armory</span>
+                      </button>
+                    )}
+                    {ch.pobUrl && (
+                      <a
+                        href={ch.pobUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono text-[10px] flex items-center gap-1"
+                      >
+                        <span>PoB</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

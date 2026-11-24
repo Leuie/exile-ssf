@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-armory-phase1',
+    version: 'v3.32.0',
+    title: 'Dedicated Character Armory (/armory), Multi League Career Passport, Mobile Bottom Sheet Tooltips & Hover Prefetching',
+    dateEst: 'Nov 24, 2026 • 7:10 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
+    summary: 'Promoted the Character Paperdoll & Passive Tree into a dedicated first class Character Armory tool with shareable deep link URLs (/armory/:handle/:char), cut Exile Profile bundle weight by 46% with a new Executive Snapshot Card & Multi League Career Passport, added touch friendly mobile bottom sheet item tooltips, and wired Sidebar hover chunk prefetching.',
+    changes: [
+      { tag: 'Added', text: 'Dedicated Character Armory view (/armory, /armory/:handle, /armory/:handle/:charName) under Sidebar Tools with global @Handle lookup, 1 click squad roster switcher chips, and shareable Armory URLs with Cloudflare Worker OpenGraph SEO metadata.' },
+      { tag: 'Added', text: 'Multi League Historical Career Passport on every Exile Profile aggregating lifetime characters, peak level, synced gear snapshots, verified vouches, farming runs, and total Honor across PoE 1 & PoE 2.' },
+      { tag: 'Added', text: 'Auto touch detection on mobile and tablet viewports (< 768px) rendering a smooth bottom sheet item inspector drawer when tapping any gear, flask, or jewel slot.' },
+      { tag: 'Improved', text: 'Replaced the heavy inline paperdoll on Exile Profiles with a fast Executive Character Armory Snapshot card and 1 click Armory buttons on every character row, cutting ExileProfilePage bundle size from 102.7 kB down to 55.9 kB.' },
+      { tag: 'Improved', text: 'Added Sidebar hover chunk prefetching on desktop navigation links for near instant 0ms lazy route transitions.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-character-engine',
     version: 'v3.31.0',
     title: 'Interactive PoE Character Inspection Engine, poe.ninja Style Passive Tree & Jewels, Universal Non Admin D1 Cloud Sync & Asset Tracker Gear Net Worth',

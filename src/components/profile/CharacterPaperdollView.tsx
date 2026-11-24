@@ -132,6 +132,9 @@ export interface CharacterPaperdollViewProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onNotify?: (msg: string) => void;
+  initialCharacterName?: string;
+  isArmoryMode?: boolean;
+  onActiveCharacterChange?: (charName: string) => void;
 }
 
 const POESESSID_STORAGE_KEY = 'exile_ssf_poesessid_optin_v1';
@@ -575,20 +578,46 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   canEdit,
   collapsed = false,
   onToggleCollapse,
-  onNotify
+  onNotify,
+  initialCharacterName,
+  isArmoryMode = false,
+  onActiveCharacterChange
 }) => {
   const initialSaved = useMemo(() => readSavedSession30d(), []);
   const lastCharStorageKey = `exile_ssf_last_char_${handle.trim().toLowerCase()}`;
   const [snapshots, setSnapshots] = useState<Record<string, CharacterGearSnapshot>>({});
   const [selectedChar, setSelectedChar] = useState<string>(() => {
+    if (initialCharacterName && initialCharacterName.trim()) return initialCharacterName.trim();
     try {
       return localStorage.getItem(lastCharStorageKey) || '';
     } catch {
       return '';
     }
   });
-  const [userManuallyPickedChar, setUserManuallyPickedChar] = useState<boolean>(false);
+  const [userManuallyPickedChar, setUserManuallyPickedChar] = useState<boolean>(Boolean(initialCharacterName));
+  const [isCompactMobile, setIsCompactMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1);
+
+  useEffect(() => {
+    if (initialCharacterName && initialCharacterName.trim()) {
+      setSelectedChar(initialCharacterName.trim());
+      setUserManuallyPickedChar(true);
+    }
+  }, [initialCharacterName]);
+
+  useEffect(() => {
+    if (selectedChar) {
+      onActiveCharacterChange?.(selectedChar);
+    }
+  }, [selectedChar, onActiveCharacterChange]);
+
+  useEffect(() => {
+    const onResize = () => setIsCompactMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [hoveredItem, setHoveredItem] = useState<PaperdollItem | null>(null);
   const [lockedItem, setLockedItem] = useState<PaperdollItem | null>(null);
   const [selectedGemIdx, setSelectedGemIdx] = useState<number | null>(null);
@@ -1055,10 +1084,12 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-amber-200 tracking-wide uppercase">
-              Character
+              {isArmoryMode ? 'Character Armory' : 'Character'}
             </h2>
             <p className="text-[11px] font-mono text-slate-400">
-              Hover any equipped item for in game stats, Implicits, Prefixes, Suffixes &amp; Gems. Click to pin.
+              {isCompactMobile
+                ? 'Tap any equipped item or flask to inspect full stats, affixes & gems.'
+                : 'Hover any equipped item for in game stats, Implicits, Prefixes, Suffixes & Gems. Click to pin.'}
             </p>
           </div>
         </div>
@@ -1634,8 +1665,33 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             />
           )}
 
-          {/* Floating In Game Hover / Pinned Popup Modal (Hover Popup Mode) */}
-          {inspectMode === 'popup' && inspectedItem && popupCoords && (
+          {/* Mobile / Tablet Bottom Sheet Drawer (Auto Touch Mode on < 768px) */}
+          {isCompactMobile && inspectMode === 'popup' && lockedItem && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[1px]"
+                onClick={() => setLockedItem(null)}
+              />
+              <div
+                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82vh] overflow-y-auto p-4 pb-6 rounded-t-2xl border-t-2 bg-slate-950/98 shadow-[0_-20px_60px_rgba(0,0,0,0.95)] ${getRarityBorderAccent(
+                  lockedItem.frameType
+                )}`}
+              >
+                <div className="w-10 h-1 rounded-full bg-slate-700 mx-auto mb-3" />
+                <ItemInspectorBody
+                  item={lockedItem}
+                  canEdit={canEdit}
+                  selectedGemIdx={selectedGemIdx}
+                  onSelectGemIdx={setSelectedGemIdx}
+                  isPinnedPopup
+                  onClosePinned={() => setLockedItem(null)}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Desktop Floating In Game Hover / Pinned Popup Modal (Hover Popup Mode) */}
+          {!isCompactMobile && inspectMode === 'popup' && inspectedItem && popupCoords && (
             <>
               {lockedItem && (
                 <div

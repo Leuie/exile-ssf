@@ -58,6 +58,7 @@ const AdminPortalPage = lazyWithRetry(() => import('./components/AdminPortalPage
 const PrivateLeaguesDirectoryView = lazyWithRetry(() => import('./components/PrivateLeaguesDirectoryView').then((m) => ({ default: m.PrivateLeaguesDirectoryView })));
 const FullGuideReaderView = lazyWithRetry(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
 const ExileProfilePage = lazyWithRetry(() => import('./components/ExileProfilePage').then((m) => ({ default: m.ExileProfilePage })));
+const CharacterArmoryView = lazyWithRetry(() => import('./components/CharacterArmoryView').then((m) => ({ default: m.CharacterArmoryView })));
 
 const PageLoader = (
   <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-slate-400">
@@ -144,6 +145,16 @@ export const App: React.FC = () => {
     if (path.startsWith('/exile/') || path.startsWith('/player/') || hash.startsWith('exile/') || hash.startsWith('player/')) {
       return 'exile_profile';
     }
+    if (
+      path === '/armory' ||
+      path.startsWith('/armory/') ||
+      path === '/character' ||
+      path.startsWith('/character/') ||
+      hash === 'armory' ||
+      hash.startsWith('armory/')
+    ) {
+      return 'armory';
+    }
 
     // Direct route to the Private League Hub directory
     if (
@@ -227,6 +238,90 @@ export const App: React.FC = () => {
 
   const [currentProfileHandle, setCurrentProfileHandle] = useState<string>(getInitialProfileHandle);
 
+  const getInitialArmoryTarget = (): { handle: string; charName: string } => {
+    if (typeof window === 'undefined') return { handle: '', charName: '' };
+    const path = window.location.pathname.replace(/\/+$/, '');
+    const hash = window.location.hash.replace(/^#\/?/, '').replace(/\/+$/, '');
+    const parseParts = (prefix: string, src: string) => {
+      const rest = src.slice(prefix.length).split('/').filter(Boolean);
+      return {
+        handle: rest[0] ? decodeURIComponent(rest[0]).replace(/^@/, '') : '',
+        charName: rest[1] ? decodeURIComponent(rest[1]) : ''
+      };
+    };
+    if (path.toLowerCase().startsWith('/armory/')) return parseParts('/armory/', path);
+    if (path.toLowerCase().startsWith('/character/')) return parseParts('/character/', path);
+    if (hash.toLowerCase().startsWith('armory/')) return parseParts('armory/', hash);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        handle: (params.get('handle') || '').replace(/^@/, ''),
+        charName: params.get('char') || ''
+      };
+    } catch {
+      return { handle: '', charName: '' };
+    }
+  };
+
+  const initialArmory = getInitialArmoryTarget();
+  const [armoryHandle, setArmoryHandle] = useState<string>(initialArmory.handle);
+  const [armoryCharName, setArmoryCharName] = useState<string>(initialArmory.charName);
+
+  const handleOpenArmory = (handle: string, charName?: string) => {
+    const cleanHandle = handle.trim().replace(/^@/, '');
+    const cleanChar = (charName || '').trim();
+    setArmoryHandle(cleanHandle);
+    setArmoryCharName(cleanChar);
+    setActiveTab('armory');
+    try {
+      const url = cleanHandle
+        ? `/armory/${encodeURIComponent(cleanHandle)}${cleanChar ? '/' + encodeURIComponent(cleanChar) : ''}`
+        : '/armory';
+      window.history.pushState({}, '', url);
+    } catch {}
+  };
+
+  const handleSyncArmoryUrl = (handle: string, charName?: string) => {
+    const cleanHandle = handle.trim().replace(/^@/, '');
+    const cleanChar = (charName || '').trim();
+    setArmoryHandle(cleanHandle);
+    setArmoryCharName(cleanChar);
+    try {
+      const url = cleanHandle
+        ? `/armory/${encodeURIComponent(cleanHandle)}${cleanChar ? '/' + encodeURIComponent(cleanChar) : ''}`
+        : '/armory';
+      window.history.replaceState({}, '', url);
+    } catch {}
+  };
+
+  const handlePrefetchTab = (tabId: string) => {
+    switch (tabId) {
+      case 'armory':
+        void import('./components/CharacterArmoryView');
+        break;
+      case 'asset_tracker':
+        void import('./components/AssetTrackerView');
+        break;
+      case 'map_tracker':
+        void import('./components/MapTrackerView');
+        break;
+      case 'builds':
+        void import('./components/BuildsHubView');
+        break;
+      case 'private_league_hub':
+        void import('./components/PrivateLeaguesDirectoryView');
+        break;
+      case 'feedback':
+        void import('./components/FeedbackView');
+        break;
+      case 'patch_notes':
+        void import('./components/PatchNotesView');
+        break;
+      default:
+        break;
+    }
+  };
+
   const handleOpenProfile = (handle: string) => {
     const clean = handle.trim().replace(/^@/, '');
     if (!clean) return;
@@ -261,7 +356,15 @@ export const App: React.FC = () => {
       const subTab = getInitialLeagueSubTab();
       setSelectedLeagueSubTab(subTab);
       const tab = getInitialActiveTab();
-      if (tab === 'private_league_hub' || tab === 'single_league' || tab === 'home') {
+      if (tab === 'armory') {
+        const target = getInitialArmoryTarget();
+        setArmoryHandle(target.handle);
+        setArmoryCharName(target.charName);
+        setActiveTab('armory');
+      } else if (tab === 'exile_profile') {
+        setCurrentProfileHandle(getInitialProfileHandle());
+        setActiveTab('exile_profile');
+      } else if (tab === 'private_league_hub' || tab === 'single_league' || tab === 'home') {
         setActiveTab(tab);
       }
     };
@@ -308,6 +411,12 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/assets/analytics');
         } else if (tab === 'map_tracker') {
           window.history.pushState({}, '', '/maps');
+        } else if (tab === 'armory') {
+          const targetHandle = armoryHandle || userAccount?.displayName || '';
+          const url = targetHandle
+            ? `/armory/${encodeURIComponent(targetHandle)}${armoryCharName ? '/' + encodeURIComponent(armoryCharName) : ''}`
+            : '/armory';
+          window.history.pushState({}, '', url);
         } else if (tab === 'sabrewulf') {
           window.history.pushState({}, '', '/sabrewulf');
         } else if (tab === 'privacy') {
@@ -595,6 +704,7 @@ export const App: React.FC = () => {
         userAccount={userAccount}
         onOpenAuthModal={handleOpenAuth}
         onOpenProfile={handleOpenProfile}
+        onPrefetchTab={handlePrefetchTab}
       />
 
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
@@ -653,6 +763,17 @@ export const App: React.FC = () => {
         {activeTab === 'map_tracker' && (
           <MapTrackerView selectedGame={selectedGame} userAccount={userAccount} />
         )}
+        {activeTab === 'armory' && (
+          <CharacterArmoryView
+            initialHandle={armoryHandle || userAccount?.displayName || ''}
+            initialCharacterName={armoryCharName || undefined}
+            userAccount={userAccount}
+            selectedGame={selectedGame}
+            onOpenProfile={handleOpenProfile}
+            onOpenAuthModal={handleOpenAuth}
+            onSyncArmoryUrl={handleSyncArmoryUrl}
+          />
+        )}
         {activeTab === 'cheat_sheets' && <CheatSheetsTab selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'crafting_bench' && <BenchGuideTab selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'vendor_recipes' && <VendorRecipesView selectedGame={selectedGame} />}
@@ -706,6 +827,7 @@ export const App: React.FC = () => {
             handle={currentProfileHandle}
             userAccount={userAccount}
             onOpenAccountSettings={handleOpenAuth}
+            onOpenArmory={handleOpenArmory}
             onBack={() => {
               setActiveTab('single_league');
               try {
