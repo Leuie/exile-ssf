@@ -19,7 +19,8 @@ import {
   X
 } from 'lucide-react';
 import type { LookingForItem, ItemNeedStatus, UserAccount, LeagueRosterMember, WishlistItemCategory, FreeStashDrop, LeagueFeedEvent } from '../../../types';
-import { saveCloudWishlistItem, deleteCloudWishlistItem, saveCloudAchievementProfile } from '../../../services/cloudSync';
+import { saveCloudWishlistItem, deleteCloudWishlistItem, saveCloudAchievementProfile, fetchUserToolState } from '../../../services/cloudSync';
+import type { CharacterGearSnapshot } from '../../profile/CharacterPaperdollView';
 import { HONOR_PER_ITEM_FOUND, HONOR_PER_RECEIPT_CONFIRMED, HONOR_PER_SELF_FOUND, formatLeagueLabel } from '../../../utils/achievements';
 import { parsePoeClipboardTooltip } from '../../../utils/poeItemParser';
 import { FreeStashFeed } from '../widgets/FreeStashFeed';
@@ -879,8 +880,121 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
     return map;
   }, [filteredLookingForItems]);
 
+  // D1 Character Engine Cross Check: detect open wishlist items already equipped on synced characters
+  const [userGearSnapshots, setUserGearSnapshots] = useState<CharacterGearSnapshot[]>([]);
+  const [dismissedEquippedIds, setDismissedEquippedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const handle = userAccount?.displayName?.trim();
+    if (!handle) {
+      setUserGearSnapshots([]);
+      return;
+    }
+    let cancelled = false;
+    fetchUserToolState<Record<string, any>>(handle, 'character_gear_snapshots')
+      .then((raw) => {
+        if (cancelled || !raw || typeof raw !== 'object') return;
+        const list: CharacterGearSnapshot[] = [];
+        for (const [k, v] of Object.entries(raw)) {
+          if (k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character && Array.isArray(v.equipped)) {
+            list.push(v as CharacterGearSnapshot);
+          }
+        }
+        setUserGearSnapshots(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const equippedWishlistMatches = React.useMemo(() => {
+    if (!userAccount?.displayName || userGearSnapshots.length === 0) return [];
+    const meLower = userAccount.displayName.trim().toLowerCase();
+    const myOpenItems = lookingForItems.filter(
+      (it) =>
+        it.status !== 'HAVE' &&
+        !dismissedEquippedIds.includes(it.id) &&
+        ((it.displayName || '').trim().toLowerCase() === meLower ||
+          (it.discordName || '').trim().toLowerCase() === meLower)
+    );
+    if (myOpenItems.length === 0) return [];
+
+    const matches: Array<{ item: LookingForItem; charName: string; slotName: string; icon?: string }> = [];
+    for (const wish of myOpenItems) {
+      const needle = wish.itemName.trim().toLowerCase();
+      if (needle.length < 3) continue;
+      let found: { charName: string; slotName: string; icon?: string } | null = null;
+      for (const snap of userGearSnapshots) {
+        for (const eq of snap.equipped || []) {
+          const names = [eq.name, eq.typeLine, eq.baseType].map((s) => (s || '').trim().toLowerCase());
+          if (names.some((n) => n && (n === needle || n.includes(needle)))) {
+            found = { charName: snap.character.name, slotName: eq.inventoryId, icon: eq.icon };
+            break;
+          }
+          for (const g of eq.socketedGems || []) {
+            if ((g.name || '').trim().toLowerCase() === needle) {
+              found = { charName: snap.character.name, slotName: `Gem in ${eq.inventoryId}`, icon: g.icon };
+              break;
+            }
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+      if (found) {
+        matches.push({ item: wish, ...found });
+      }
+    }
+    return matches;
+  }, [userAccount?.displayName, userGearSnapshots, lookingForItems, dismissedEquippedIds]);
+
   return (
     <div className="space-y-4">
+      {/* Smart D1 Character Engine Alert: Already Equipped Wishlist Items */}
+      {equippedWishlistMatches.length > 0 && userAccount && (
+        <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/60 via-slate-900/90 to-emerald-950/40 shadow-lg space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Already Equipped Detected on Your Synced Character!</span>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-400/80">D1 Armory Cross Check</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {equippedWishlistMatches.map((m) => (
+              <div
+                key={m.item.id}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-emerald-500/30 text-xs"
+              >
+                {m.icon && <img src={m.icon} alt={m.item.itemName} className="w-5 h-5 object-contain" />}
+                <div className="leading-tight">
+                  <div className="font-bold text-white">{m.item.itemName}</div>
+                  <div className="text-[10px] font-mono text-slate-400">
+                    Equipped on {m.charName} ({m.slotName})
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleMarkFulfilled(m.item.id, userAccount.displayName)}
+                  className="ml-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  Mark Acquired
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDismissedEquippedIds((prev) => [...prev, m.item.id])}
+                  className="p-1 text-slate-500 hover:text-slate-300 cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Unified Search, Filters & View Toggle Bar */}
       <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search Bar */}

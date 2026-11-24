@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Trophy, Crown, Sparkles, CheckCircle2, Edit3 } from 'lucide-react';
 import type { LeagueFirstMilestone, LeagueRosterMember, UserAccount } from '../../../types';
 import { getMemberCharacters } from '../tabs/RosterTab';
+import { CharacterHoverCard } from '../../profile/CharacterHoverCard';
 
 interface LeagueFirstsWallProps {
   leagueId?: string;
@@ -10,6 +11,7 @@ interface LeagueFirstsWallProps {
   currentUser: UserAccount | null;
   isAdmin: boolean;
   onClaimFirst: (milestone: LeagueFirstMilestone) => void;
+  onOpenArmory?: (handle: string, charName?: string) => void;
 }
 
 const DEFAULT_MILESTONES: { id: string; title: string; subtitle: string }[] = [
@@ -29,7 +31,8 @@ export const LeagueFirstsWall: React.FC<LeagueFirstsWallProps> = ({
   roster = [],
   currentUser,
   isAdmin,
-  onClaimFirst
+  onClaimFirst,
+  onOpenArmory
 }) => {
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [editingWinnerHandle, setEditingWinnerHandle] = useState<string>('');
@@ -235,12 +238,18 @@ export const LeagueFirstsWall: React.FC<LeagueFirstsWallProps> = ({
               ) : claimed ? (
                 <div className="bg-black/35 border border-amber-500/20 rounded-lg p-2.5 space-y-1">
                   <div className="flex items-center justify-between gap-1">
-                    <a
-                      href={`/exile/${encodeURIComponent(claimed.winnerDisplayName)}`}
-                      className="text-xs font-black text-amber-300 hover:underline truncate"
+                    <CharacterHoverCard
+                      handle={claimed.winnerDisplayName}
+                      characterName={claimed.winnerCharacterName}
+                      onOpenArmory={onOpenArmory}
                     >
-                      @{claimed.winnerDisplayName}
-                    </a>
+                      <a
+                        href={`/exile/${encodeURIComponent(claimed.winnerDisplayName)}`}
+                        className="text-xs font-black text-amber-300 hover:underline truncate"
+                      >
+                        @{claimed.winnerDisplayName}
+                      </a>
+                    </CharacterHoverCard>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   </div>
                   {claimed.winnerCharacterName && (

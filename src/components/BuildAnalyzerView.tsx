@@ -29,8 +29,132 @@ import {
   resolvePobUrl,
   fetchCloudLeagues,
   fetchCloudLeagueData,
-  saveCloudRosterMember
+  saveCloudRosterMember,
+  fetchUserToolState
 } from '../services/cloudSync';
+import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
+
+function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter {
+  const mapRarity = (ft: number): 'NORMAL' | 'MAGIC' | 'RARE' | 'UNIQUE' => {
+    if (ft === 3) return 'UNIQUE';
+    if (ft === 2) return 'RARE';
+    if (ft === 1) return 'MAGIC';
+    return 'NORMAL';
+  };
+  const mapGemColor = (c?: string): 'R' | 'G' | 'B' | 'W' => {
+    const ch = (c || '').toUpperCase().slice(0, 1);
+    if (ch === 'R' || ch === 'G' || ch === 'B' || ch === 'W') return ch;
+    return 'W';
+  };
+
+  const toParsedItem = (it: CharacterGearSnapshot['equipped'][number]) => ({
+    id: it.id,
+    slot: it.inventoryId,
+    name: it.name || it.typeLine || it.baseType,
+    baseName: it.baseType || it.typeLine,
+    rarity: mapRarity(it.frameType),
+    itemLevel: it.ilvl,
+    implicitMods: it.implicitMods || [],
+    explicitMods: it.explicitMods || [],
+    eldritchMods: [],
+    craftedMods: it.craftedMods || [],
+    fracturedMods: it.fracturedMods || [],
+    pseudoSupportMods: [],
+    openPrefixes: 0,
+    openSuffixes: 0,
+    rawText: [it.name, it.typeLine, ...(it.implicitMods || []), ...(it.explicitMods || []), ...(it.craftedMods || [])]
+      .filter(Boolean)
+      .join('\n')
+  });
+
+  const items = (snap.equipped || []).filter((it) => it.inventoryId !== 'Flask').map(toParsedItem);
+  const flasks = (snap.equipped || []).filter((it) => it.inventoryId === 'Flask').map(toParsedItem);
+
+  const skillGroups: ParsedCharacter['skillGroups'] = [];
+  for (const it of snap.equipped || []) {
+    if (!it.socketedGems || it.socketedGems.length === 0) continue;
+    const gems = it.socketedGems.map((g) => ({
+      name: g.name,
+      level: g.level || 1,
+      quality: g.quality || 0,
+      enabled: true,
+      isSupport: Boolean(g.support),
+      color: mapGemColor(g.colour)
+    }));
+    const activeGem = gems.find((g) => !g.isSupport) || gems[0];
+    skillGroups.push({
+      id: `d1-${it.inventoryId}-${it.id}`,
+      label: `${activeGem?.name || it.inventoryId} (${it.inventoryId})`,
+      slot: it.inventoryId,
+      enabled: true,
+      isMain: false,
+      gems,
+      physicalLinks: gems.length,
+      pseudoLinks: 0,
+      effectiveLinks: gems.length,
+      pseudoSupportNames: []
+    });
+  }
+  skillGroups.sort((a, b) => b.effectiveLinks - a.effectiveLinks);
+  if (skillGroups.length > 0) skillGroups[0].isMain = true;
+
+  const mainGroup = skillGroups[0];
+  const mainSkillName =
+    mainGroup?.gems.find((g) => !g.isSupport)?.name || mainGroup?.label || snap.character.className;
+
+  const vit = snap.estimatedVitals;
+  const stats = snap.gearStats;
+  const fireRes = Math.min(75, Math.max(-60, (vit?.fireRes || 0) - 60));
+  const coldRes = Math.min(75, Math.max(-60, (vit?.coldRes || 0) - 60));
+  const lightningRes = Math.min(75, Math.max(-60, (vit?.lightningRes || 0) - 60));
+  const chaosRes = Math.min(75, Math.max(-60, (vit?.chaosRes || 0) - 60));
+
+  return {
+    characterName: snap.character.name,
+    className: snap.character.className,
+    ascendClassName: snap.character.className,
+    level: snap.character.level || 1,
+    mainSkillName,
+    selectedSkillGroupId: mainGroup?.id || '',
+    stats: {
+      life: Math.max(1500, (vit?.flatLife || 0) + (snap.character.level || 1) * 12 + 50),
+      energyShield: Math.max(0, stats?.energyShield || vit?.flatEs || 0),
+      fireRes,
+      fireResOverCap: Math.max(0, (vit?.fireRes || 0) - 60 - 75),
+      coldRes,
+      coldResOverCap: Math.max(0, (vit?.coldRes || 0) - 60 - 75),
+      lightningRes,
+      lightningResOverCap: Math.max(0, (vit?.lightningRes || 0) - 60 - 75),
+      chaosRes,
+      chaosResOverCap: Math.max(0, (vit?.chaosRes || 0) - 60 - 75),
+      maxFireRes: 75,
+      maxColdRes: 75,
+      maxLightningRes: 75,
+      maxChaosRes: 75,
+      armour: stats?.armour || 0,
+      evasion: stats?.evasion || 0,
+      spellSuppression: Math.min(100, vit?.suppress || 0),
+      block: stats?.blockChance || 0,
+      spellBlock: 0,
+      lifeRegen: stats?.lifeRegen || 0,
+      totalDPS: 0,
+      dotDPS: 0,
+      critChance: 0,
+      critMulti: 150,
+      manaUnreservedPercent: 20,
+      mainLinkCount: mainGroup?.effectiveLinks || 0,
+      physTakenAsEle: 0,
+      hasLifeOnBlock: false,
+      hasEsOnBlock: false,
+      hasGlancingBlows: Boolean(snap.passives?.keystones?.some((k) => k.name.toLowerCase().includes('glancing')))
+    },
+    skillGroups,
+    items,
+    flasks,
+    keystones: (snap.passives?.keystones || []).map((k) => k.name),
+    masteriesCount: (snap.passives?.masteries || []).length
+  };
+}
 
 interface BuildAnalyzerViewProps {
   userAccount?: UserAccount | null;
@@ -56,6 +180,48 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [expandedDiagId, setExpandedDiagId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'recommendations' | 'equipment' | 'gems' | 'chromatics' | 'flasks' | 'simulator'>('recommendations');
+
+  // Zero Export D1 Armory Characters
+  const [d1ArmoryChars, setD1ArmoryChars] = useState<CharacterGearSnapshot[]>([]);
+  const [selectedD1CharName, setSelectedD1CharName] = useState<string>('');
+
+  useEffect(() => {
+    const handle = userAccount?.displayName?.trim();
+    if (!handle) {
+      setD1ArmoryChars([]);
+      return;
+    }
+    let cancelled = false;
+    fetchUserToolState<Record<string, any>>(handle, 'character_gear_snapshots')
+      .then((raw) => {
+        if (cancelled || !raw || typeof raw !== 'object') return;
+        const list: CharacterGearSnapshot[] = [];
+        for (const [k, v] of Object.entries(raw)) {
+          if (k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character) {
+            list.push(v as CharacterGearSnapshot);
+          }
+        }
+        list.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime());
+        setD1ArmoryChars(list);
+        if (list.length > 0 && !selectedD1CharName) {
+          setSelectedD1CharName(list[0].character.name);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userAccount?.displayName]);
+
+  const handleAuditSyncedD1Character = () => {
+    const snap = d1ArmoryChars.find((c) => c.character.name === selectedD1CharName) || d1ArmoryChars[0];
+    if (!snap) return;
+    setErrorMessage(null);
+    const converted = snapshotToParsedCharacter(snap);
+    setParsedChar(converted);
+    setSelectedGroupId(converted.selectedSkillGroupId);
+    setReport(analyzeBuild(converted));
+  };
 
   // League Character Sync State
   const [availableLeagues, setAvailableLeagues] = useState<ActiveLeagueSession[]>([]);
@@ -392,6 +558,41 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
 
       {/* Input Box */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 space-y-5 shadow-sm">
+        {/* Zero Export D1 Armory Character Picker */}
+        {d1ArmoryChars.length > 0 && (
+          <div className="p-3.5 rounded-xl border border-amber-500/35 bg-gradient-to-r from-amber-500/10 via-slate-950/90 to-indigo-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Zero Export Live Audit (Cloudflare D1 Armory)</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Audit any synced Character Armory snapshot immediately with zero pobb.in copy paste.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <select
+                value={selectedD1CharName}
+                onChange={(e) => setSelectedD1CharName(e.target.value)}
+                className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                {d1ArmoryChars.map((c) => (
+                  <option key={c.character.name} value={c.character.name}>
+                    {c.character.name} (Lv {c.character.level} {c.character.className})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleAuditSyncedD1Character}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow transition-colors"
+              >
+                Audit Character
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Paste Path of Building Export String (or raw XML / pobb.in):

@@ -853,6 +853,7 @@ export const App: React.FC = () => {
             initialSubTab={selectedLeagueSubTab}
             onUpdateUserAccount={handleSaveAccount}
             onOpenProfile={handleOpenProfile}
+            onOpenArmory={handleOpenArmory}
             onNavigateLeagues={() => {
               setActiveTab('private_league_hub');
               try {

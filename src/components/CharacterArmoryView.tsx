@@ -7,11 +7,18 @@ import {
   User,
   Users,
   Sparkles,
-  LogIn
+  LogIn,
+  Flame
 } from 'lucide-react';
-import type { UserAccount } from '../types';
-import { fetchCloudProfile, fetchCloudLeagueData, type CloudExileProfileResponse } from '../services/cloudSync';
-import { CharacterPaperdollView } from './profile/CharacterPaperdollView';
+import type { UserAccount, CommunityGuide } from '../types';
+import {
+  fetchCloudProfile,
+  fetchCloudLeagueData,
+  fetchUserToolState,
+  saveCloudGuide,
+  type CloudExileProfileResponse
+} from '../services/cloudSync';
+import { CharacterPaperdollView, type CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 
 export interface CharacterArmoryViewProps {
   initialHandle?: string;
@@ -40,6 +47,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
   const [squadHandles, setSquadHandles] = useState<Array<{ handle: string; charName: string; ascendancy: string; level: number }>>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [publishingBuild, setPublishingBuild] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -180,6 +188,93 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
     });
   };
 
+  const handlePublishAsSquadBuild = async () => {
+    if (!activeHandle || !isOwnAccount || publishingBuild) return;
+    setPublishingBuild(true);
+    try {
+      const raw = await fetchUserToolState<Record<string, any>>(activeHandle, 'character_gear_snapshots');
+      if (!raw || typeof raw !== 'object') {
+        showToast('Sync a character in Character Armory first before publishing.');
+        return;
+      }
+      const snaps = Object.entries(raw)
+        .filter(([k, v]) => k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character)
+        .map(([, v]) => v as CharacterGearSnapshot);
+      const snap =
+        snaps.find((s) => s.character.name.toLowerCase() === activeCharName.toLowerCase()) ||
+        snaps.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime())[0];
+
+      if (!snap) {
+        showToast('No synced D1 character snapshot found to publish.');
+        return;
+      }
+
+      const uniques = (snap.equipped || [])
+        .filter((it) => it.frameType === 3 && it.name)
+        .map((it) => it.name);
+      const gemGroups = (snap.equipped || [])
+        .filter((it) => it.socketedGems && it.socketedGems.length > 0)
+        .sort((a, b) => b.socketedGems.length - a.socketedGems.length);
+      const mainSkill =
+        gemGroups[0]?.socketedGems.find((g) => !g.support)?.name || snap.character.className;
+      const keystones = (snap.passives?.keystones || []).map((k) => k.name);
+      const armoryUrl = `${window.location.origin}/armory/${encodeURIComponent(activeHandle)}/${encodeURIComponent(snap.character.name)}`;
+      const leagueId = selectedGame === 'poe2' ? 'poe2-05-alpha' : 'poe1-330-umbra';
+
+      const mdLines = [
+        `# ${snap.character.name} — Lv ${snap.character.level} ${snap.character.className}`,
+        '',
+        `**League:** ${snap.character.league} | **Armory Link:** [Inspect Live Gear & Passive Tree](${armoryUrl})`,
+        '',
+        `## Main Skill & Gem Links`,
+        ...gemGroups.slice(0, 4).map(
+          (g) => `- **${g.inventoryId}**: ${g.socketedGems.map((gm) => `${gm.name} (${gm.level}/${gm.quality}%)`).join(' + ')}`
+        ),
+        '',
+        `## Equipped Uniques`,
+        ...(uniques.length > 0 ? uniques.map((u) => `- ${u}`) : ['- Pure Rare / Self Crafted SSF Gear']),
+        '',
+        `## Allocated Keystones (${snap.passives?.allocatedCount || 0} Passives)`,
+        ...(keystones.length > 0 ? keystones.map((k) => `- ${k}`) : ['- Standard Ascendancy Tree'])
+      ];
+
+      const guide: CommunityGuide = {
+        id: `armory-build-${activeHandle.toLowerCase()}-${snap.character.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        title: `${mainSkill} ${snap.character.className} (Lv ${snap.character.level} Squad Showcase)`,
+        authorName: `@${activeHandle}`,
+        authorDiscord: userAccount?.discordName || `@${activeHandle}`,
+        className: snap.character.className,
+        ascendancy: snap.character.className,
+        playstyle: 'SSF / GSF Live Character',
+        starterRating: 4.5,
+        pobCodeOrUrl: armoryUrl,
+        levelingNotes: `Published directly from Cloudflare D1 Character Armory (${snap.character.league}).`,
+        endgameNotes: `Equipped with ${snap.equipped.length} gear pieces and ${snap.passives?.allocatedCount || 0} allocated passives.`,
+        requiredUniques: uniques.slice(0, 8),
+        atlasFocus: ['SSF Progression', 'Endgame Bossing'],
+        upvotes: 1,
+        createdAt: new Date().toISOString().split('T')[0],
+        game: selectedGame,
+        creatorName: `@${activeHandle}`,
+        creatorPlatform: 'Community',
+        tags: ['Armory Showcase', snap.character.className, mainSkill],
+        slug: `armory-${activeHandle.toLowerCase()}-${snap.character.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        fullGuideMarkdown: mdLines.join('\n')
+      };
+
+      const ok = await saveCloudGuide(leagueId, guide);
+      if (ok) {
+        showToast(`Published "${snap.character.name}" live to Builds Hub!`);
+      } else {
+        showToast('Could not publish build. Verify your Exile SSF session is active.');
+      }
+    } catch {
+      showToast('Failed to publish character build.');
+    } finally {
+      setPublishingBuild(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Armory Header & Squad Switcher */}
@@ -229,6 +324,18 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
 
             {activeHandle && (
               <>
+                {isOwnAccount && (
+                  <button
+                    type="button"
+                    disabled={publishingBuild}
+                    onClick={handlePublishAsSquadBuild}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+                    title="Publish this synced character directly to Builds Hub"
+                  >
+                    <Flame className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{publishingBuild ? 'Publishing...' : 'Publish to Builds Hub'}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCopyShareLink}

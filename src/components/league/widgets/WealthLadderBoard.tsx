@@ -13,6 +13,7 @@ import {
   Zap
 } from 'lucide-react';
 import type { LeagueRosterMember, UserAccount } from '../../../types';
+import { CharacterHoverCard } from '../../profile/CharacterHoverCard';
 import { formatValue } from '../../assets/assetEngine';
 
 interface WealthLadderCheckpoint {
@@ -50,6 +51,7 @@ interface WealthLadderBoardProps {
   roster: LeagueRosterMember[];
   currentUser: UserAccount | null;
   onOpenProfile?: (handle: string) => void;
+  onOpenArmory?: (handle: string, charName?: string) => void;
 }
 
 type LadderSortKey = 'wealth' | 'pace' | 'maps' | 'jackpots' | 'xp';
@@ -108,7 +110,8 @@ export const WealthLadderBoard: React.FC<WealthLadderBoardProps> = ({
   leagueName,
   roster,
   currentUser,
-  onOpenProfile
+  onOpenProfile,
+  onOpenArmory
 }) => {
   const [entries, setEntries] = useState<WealthLadderEntry[]>([]);
   const [squadTotals, setSquadTotals] = useState({ totalDivines: 0, totalMaps: 0, totalSTier: 0, count: 0 });
@@ -346,13 +349,15 @@ export const WealthLadderBoard: React.FC<WealthLadderBoardProps> = ({
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => onOpenProfile?.(info.display)}
-                        className="text-base font-black text-white hover:text-amber-300 hover:underline truncate cursor-pointer"
-                      >
-                        @{info.display}
-                      </button>
+                      <CharacterHoverCard handle={info.display} onOpenArmory={onOpenArmory}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenProfile?.(info.display)}
+                          className="text-base font-black text-white hover:text-amber-300 hover:underline truncate cursor-pointer"
+                        >
+                          @{info.display}
+                        </button>
+                      </CharacterHoverCard>
                       {info.ascendancy && (
                         <div className="text-[11px] font-mono text-slate-400">
                           {info.ascendancy} {info.level ? `• Lvl ${info.level}` : ''}
@@ -454,13 +459,15 @@ export const WealthLadderBoard: React.FC<WealthLadderBoardProps> = ({
                       <tr key={entry.handle} className="hover:bg-slate-900/50">
                         <td className="py-2.5 px-3 font-mono font-black text-amber-300">#{idx + 1}</td>
                         <td className="py-2.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => onOpenProfile?.(info.display)}
-                            className="font-bold text-white hover:text-amber-300 hover:underline cursor-pointer"
-                          >
-                            @{info.display}
-                          </button>
+                          <CharacterHoverCard handle={info.display} onOpenArmory={onOpenArmory}>
+                            <button
+                              type="button"
+                              onClick={() => onOpenProfile?.(info.display)}
+                              className="font-bold text-white hover:text-amber-300 hover:underline cursor-pointer"
+                            >
+                              @{info.display}
+                            </button>
+                          </CharacterHoverCard>
                           {entry.topTabName && (
                             <div className="text-[10px] font-mono text-slate-500">Top Tab: {entry.topTabName}</div>
                           )}

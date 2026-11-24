@@ -114,6 +114,7 @@ interface PrivateLeagueHubViewProps {
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onNavigateLeagues?: () => void;
   onOpenProfile?: (handle: string) => void;
+  onOpenArmory?: (handle: string, charName?: string) => void;
 }
 
 export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
@@ -124,7 +125,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   initialSubTab,
   onUpdateUserAccount,
   onNavigateLeagues,
-  onOpenProfile
+  onOpenProfile,
+  onOpenArmory
 }) => {
   // Horizontal Nav Tabs
   type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
@@ -1871,6 +1873,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               roster={roster}
               currentUser={userAccount || null}
               onOpenProfile={onOpenProfile}
+              onOpenArmory={onOpenArmory}
             />
             <LeagueFirstsWall
               leagueId={activeSessionId}
@@ -1878,6 +1881,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               roster={roster}
               currentUser={userAccount || null}
               isAdmin={isCurrentUserAdmin}
+              onOpenArmory={onOpenArmory}
               onClaimFirst={(m) => {
                 setLeagueFirsts((prev) => [m, ...prev.filter((x) => x.id !== m.id)]);
                 saveCloudLeagueFirst(activeSessionId, m);
@@ -1937,6 +1941,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
             handleOpenJoinModal={handleOpenJoinModal}
             onUpdateUserAccount={onUpdateUserAccount}
             onOpenProfile={onOpenProfile}
+            onOpenArmory={onOpenArmory}
             onEmitFeedEvent={emitFeedEvent}
             onOpenSheetsModal={() => setShowSheetsModal(true)}
           />

@@ -20,53 +20,13 @@ export const PLANNED_ROADMAP_CATEGORIES: PlannedRoadmapItem['category'][] = [
 ];
 
 export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
-  // D1 Character Engine Cross Site Integrations
-  {
-    id: 'rm-roster-inspect-autosync',
-    category: 'D1 Character Engine Cross Site Integrations',
-    title: 'Private League Roster Instant Character Inspect & Auto Sync',
-    description:
-      'Click any squadmate\'s character on the Roster tab to open a quick Inspect Character drawer (live gear, main skill links, keystones, and resists) and automatically keep Roster Level, Ascendancy, and Main Skill synced from Cloudflare D1.',
-    scope: 'PoE 1 & PoE 2'
-  },
-  {
-    id: 'rm-wishlist-equipped-check',
-    category: 'D1 Character Engine Cross Site Integrations',
-    title: 'Squad Wishlists "Already Equipped" & Smart Upgrade Detection',
-    description:
-      'Cross check open Wishlists against synced D1 Character gear to offer a one click "Looks like you equipped this! Mark Acquired?" prompt and display the player\'s current item in that slot next to their wishlist request.',
-    scope: 'PoE 1 & PoE 2'
-  },
-  {
-    id: 'rm-pob-doctor-zero-export',
-    category: 'D1 Character Engine Cross Site Integrations',
-    title: 'PoB Build Doctor & Defense Mechanics Zero Export Live Audit',
-    description:
-      'Add a Load My Synced Character picker inside PoB Build Doctor and Defense Mechanics pulling directly from Cloudflare D1 to flag uncapped resists, missing Eldritch implicits, unlinked supports, or low quality gems with zero pobb.in paste.',
-    scope: 'PoE 1 & PoE 2'
-  },
-  {
-    id: 'rm-builds-hub-publish',
-    category: 'D1 Character Engine Cross Site Integrations',
-    title: 'Builds Hub One Click "Publish My Character as a Squad Build"',
-    description:
-      'Turn any synced D1 character into a Builds Hub showcase card in one click, attaching live equipment, main skill gems, ascendancy, keystones, and masteries automatically.',
-    scope: 'PoE 1 & PoE 2'
-  },
+  // D1 Character Engine Cross Site Integrations (Remaining)
   {
     id: 'rm-map-tracker-per-char',
     category: 'D1 Character Engine Cross Site Integrations',
     title: 'Map Tracker Per Character Mapping Telemetry',
     description:
       'Link saved Map Tracker sessions to synced D1 character snapshots to compare clear speed, XP/hr, and deaths per character/build with a Gear Snapshot at Time of Run badge.',
-    scope: 'PoE 1 & PoE 2'
-  },
-  {
-    id: 'rm-hof-hover-cards',
-    category: 'D1 Character Engine Cross Site Integrations',
-    title: 'Hall of Fame & Wealth Ladder Hover Character Preview Cards',
-    description:
-      'Hovering any winner\'s character name on Hall of Fame League Firsts or the Wealth Ladder shows their Ascendancy, Level, Main Skill 6L, and Keystones directly from Cloudflare D1.',
     scope: 'PoE 1 & PoE 2'
   },
   {
@@ -197,14 +157,6 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
   },
 
   // D. Platform Growth & Polish
-  {
-    id: 'rm-career-passport',
-    category: 'Platform Growth & Polish',
-    title: 'Multi League Historical Career Passport',
-    description:
-      'A lifetime stats banner on every Exile Profile aggregating total maps run, total wishes fulfilled, total Honor, and highest level characters across every PoE 1 and PoE 2 private league ever hosted on exilessf.app.',
-    scope: 'Platform'
-  },
   {
     id: 'rm-og-cards',
     category: 'Platform Growth & Polish',

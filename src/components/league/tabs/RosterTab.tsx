@@ -39,6 +39,7 @@ export function getMemberCharacters(member: LeagueRosterMember): LeagueCharacter
   ];
 }
 import { saveCloudRosterMember, deleteCloudRosterMember, fetchOfficialPoeLadder } from '../../../services/cloudSync';
+import { CharacterHoverCard } from '../../profile/CharacterHoverCard';
 
 export interface RosterTabProps {
   activeSessionId: string;
@@ -57,6 +58,7 @@ export interface RosterTabProps {
   handleOpenJoinModal: () => void;
   onUpdateUserAccount?: (account: UserAccount, rosterEntry: LeagueRosterMember) => void;
   onOpenProfile?: (handle: string) => void;
+  onOpenArmory?: (handle: string, charName?: string) => void;
   onOpenSheetsModal?: () => void;
   onEmitFeedEvent?: (event: Omit<LeagueFeedEvent, 'id' | 'leagueId' | 'createdAtIso'>) => void;
 }
@@ -78,6 +80,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
   handleOpenJoinModal,
   onUpdateUserAccount,
   onOpenProfile,
+  onOpenArmory,
   onOpenSheetsModal,
   onEmitFeedEvent
 }) => {
@@ -729,11 +732,32 @@ export const RosterTab: React.FC<RosterTabProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-                <span className="font-mono">IGN: {member.characterName}</span>
-                <span className="text-slate-400 group-hover:text-indigo-300 transition-colors font-mono">
-                  {isMe ? 'Edit Character →' : 'Profile →'}
-                </span>
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                <CharacterHoverCard
+                  handle={member.displayName}
+                  characterName={member.characterName}
+                  onOpenArmory={onOpenArmory}
+                >
+                  <span className="font-mono hover:text-amber-300 transition-colors">IGN: {member.characterName}</span>
+                </CharacterHoverCard>
+                <div className="flex items-center gap-2 shrink-0">
+                  {onOpenArmory && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenArmory(member.displayName, member.characterName);
+                      }}
+                      className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold cursor-pointer transition-colors"
+                      title="Inspect live gear & passive tree in Character Armory"
+                    >
+                      Armory
+                    </button>
+                  )}
+                  <span className="text-slate-400 group-hover:text-indigo-300 transition-colors font-mono">
+                    {isMe ? 'Edit →' : 'Profile →'}
+                  </span>
+                </div>
               </div>
 
               {isCurrentUserAdmin && (

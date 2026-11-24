@@ -20,7 +20,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import type { UserAccount } from '../types';
-import { fetchActiveCharacterContext, resolvePobUrl } from '../services/cloudSync';
+import { fetchActiveCharacterContext, resolvePobUrl, fetchUserToolState } from '../services/cloudSync';
+import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
 import {
   DEFENSE_MECHANICS,
@@ -209,6 +210,48 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
       );
     } catch {}
   }, []);
+
+  const [loadingD1Armory, setLoadingD1Armory] = useState<boolean>(false);
+
+  const handleLoadD1ArmoryVitals = async () => {
+    const handle = userAccount?.displayName?.trim();
+    if (!handle) return;
+    setLoadingD1Armory(true);
+    try {
+      const raw = await fetchUserToolState<Record<string, any>>(handle, 'character_gear_snapshots');
+      if (!raw || typeof raw !== 'object') {
+        setLoadedCharLabel('No synced D1 Armory snapshot found yet. Sync a character in Character Armory first.');
+        return;
+      }
+      const list: CharacterGearSnapshot[] = [];
+      for (const [k, v] of Object.entries(raw)) {
+        if (k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character) {
+          list.push(v as CharacterGearSnapshot);
+        }
+      }
+      list.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime());
+      const snap = list[0];
+      if (!snap) {
+        setLoadedCharLabel('No synced D1 Armory snapshot found yet.');
+        return;
+      }
+      const lvl = Number(snap.character.level || 85);
+      const estBaseLife = 50 + lvl * 12;
+      const flatLife = Number(snap.estimatedVitals?.flatLife || 0);
+      const flatEs = Number(snap.gearStats?.energyShield || snap.estimatedVitals?.flatEs || 0);
+      const estPool = Math.max(1200, Math.round((estBaseLife + flatLife) * 2.1 + flatEs * 1.4));
+      setHpPool(estPool);
+      if (snap.gearStats?.armour) setArmour(Math.round(snap.gearStats.armour));
+      setSuppressionCapped(Number(snap.estimatedVitals?.suppress || 0) >= 85);
+      setLoadedCharLabel(
+        `Loaded D1 Armory: ${snap.character.name} (Lv ${lvl} ${snap.character.className}, ~${estPool.toLocaleString()} est. pool)`
+      );
+    } catch {
+      setLoadedCharLabel('Could not fetch D1 Armory snapshot.');
+    } finally {
+      setLoadingD1Armory(false);
+    }
+  };
 
   const handleSwitchGame = (next: GameMode) => {
     setGameMode(next);
@@ -407,6 +450,15 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
                   >
                     {loadingCharPob ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
                     <span>{loadingCharPob ? 'Pulling League PoB...' : 'Load My League PoB Stats'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loadingD1Armory}
+                    onClick={handleLoadD1ArmoryVitals}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingD1Armory ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                    <span>{loadingD1Armory ? 'Loading D1 Armory...' : 'Load From D1 Armory'}</span>
                   </button>
                   {loadedCharLabel && (
                     <span className="text-[11px] font-mono text-sky-300">{loadedCharLabel}</span>

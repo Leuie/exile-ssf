@@ -19,6 +19,24 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-d1-integrations-phase2',
+    version: 'v3.33.0',
+    title: 'D1 Character Engine Cross Site Integrations: Roster Inspect, Wishlist Already Equipped, Zero Export PoB Audit, Builds Hub Publish & Ctrl+K Dark Mode Fix',
+    dateEst: 'Nov 24, 2026 • 7:55 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Major Milestone',
+    summary: 'Wired the Cloudflare D1 Character Armory engine across every major module on Exile SSF: 1 click Roster Inspect, Wishlist Already Equipped detection, Zero Export PoB Build Doctor & Defense EHP live audits, 1 click Publish to Builds Hub, Hall of Fame & Wealth Ladder Character Hover Cards, plus a dark theme fix for the Ctrl+K Quick Finder modal.',
+    changes: [
+      { tag: 'Added', text: 'Private League Roster 1 click Armory inspect buttons and live D1 Character Hover Cards showing Ascendancy, Level, headline gear icons, and allocated Keystones.' },
+      { tag: 'Added', text: 'Squad Wishlists Already Equipped detector automatically cross checking your open wishlist requests against synced D1 character gear and socketed gems with 1 click Mark Acquired.' },
+      { tag: 'Added', text: 'Zero Export Live Audit inside PoB Build Doctor and 1 click Load From D1 Armory inside Defense Mechanics EHP Calculator pulling live stats directly from Cloudflare D1.' },
+      { tag: 'Added', text: '1 click Publish to Builds Hub inside Character Armory converting any synced D1 character into a live Markdown community showcase guide.' },
+      { tag: 'Added', text: 'Cached D1 Character Hover Preview Cards on Hall of Fame League Firsts and Wealth Ladder podium & standings.' },
+      { tag: 'Fixed', text: 'Fixed white background / unreadable text styling bug in the Ctrl+K Quick Finder (DualLinkModal) and wired Escape key dismissal.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-armory-phase1',
     version: 'v3.32.0',
     title: 'Dedicated Character Armory (/armory), Multi League Career Passport, Mobile Bottom Sheet Tooltips & Hover Prefetching',
