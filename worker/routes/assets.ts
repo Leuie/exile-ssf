@@ -705,95 +705,6 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
-  // POST /api/farming/guild-stash (Stateless GGG Guild Stash tab list & scanner for Private League Wishlist matching)
-  if (url.pathname === '/api/farming/guild-stash' && request.method === 'POST') {
-    try {
-      const body: any = await request.json();
-      const rawAccountName = String(body.accountName || '').trim();
-      const rawLeague = String(body.league || '').trim();
-      const realm = String(body.realm || 'pc').trim().toLowerCase();
-      const poesessid = String(body.poesessid || '').trim();
-      const tabIndices: number[] = Array.isArray(body.tabIndices)
-        ? body.tabIndices.map(Number).filter((n: number) => Number.isFinite(n) && n >= 0).slice(0, 10)
-        : [0];
-
-      if (!rawAccountName || !rawLeague || !poesessid) {
-        return new Response(
-          JSON.stringify({ error: 'Account Name, League Name, and POESESSID are required.' }),
-          { status: 400, headers: corsHeaders }
-        );
-      }
-
-      const league =
-        rawLeague.toUpperCase() === 'PL87651'
-          ? 'Ravenwatch Covens of Umbra GSF (PL87651)'
-          : resolveOfficialLadderName(rawLeague);
-
-      const gggHeaders = {
-        Cookie: `POESESSID=${poesessid}`,
-        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
-        Accept: 'application/json'
-      };
-
-      const acct = rawAccountName.includes('#') ? rawAccountName.replace('#', '-') : rawAccountName;
-      const items: any[] = [];
-      let tabs: any[] = [];
-
-      for (let i = 0; i < tabIndices.length; i++) {
-        const idx = tabIndices[i];
-        const ep = `https://www.pathofexile.com/character-window/get-guild-stash-items?accountName=${encodeURIComponent(acct)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=${i === 0 ? 1 : 0}&tabIndex=${idx}`;
-        const r = await fetch(ep, { headers: gggHeaders });
-        if (!r.ok) {
-          if (i === 0) {
-            return new Response(
-              JSON.stringify({ error: `GGG Guild Stash API returned HTTP ${r.status}. Make sure you belong to a guild in "${league}".` }),
-              { status: r.status, headers: corsHeaders }
-            );
-          }
-          continue;
-        }
-        const data: any = await r.json().catch(() => null);
-        if (i === 0 && Array.isArray(data?.tabs)) {
-          tabs = data.tabs.map((t: any) => ({
-            index: Number(t.i),
-            name: String(t.n || `Guild Tab ${Number(t.i) + 1}`),
-            type: String(t.type || 'NormalStash')
-          }));
-        }
-        const tabLabel = tabs.find((t) => t.index === idx)?.name || `Guild Tab ${idx + 1}`;
-        for (const it of Array.isArray(data?.items) ? data.items : []) {
-          const cleanName = String(it?.name || '').replace(/<<[^>]+>>/g, '').trim();
-          const cleanBase = String(it?.baseType || it?.typeLine || '').replace(/<<[^>]+>>/g, '').trim();
-          const shortName = cleanName || cleanBase || 'Unknown Item';
-          const qty = Math.max(1, Number(it?.stackSize || 1));
-          items.push({
-            id: String(it?.id || `${idx}-${shortName}-${items.length}`),
-            name: cleanName,
-            shortName,
-            baseType: cleanBase,
-            quantity: qty,
-            stackSize: qty,
-            ilvl: Number(it?.ilvl || 0),
-            icon: typeof it?.icon === 'string' ? it.icon : '',
-            tabIndex: idx,
-            tabName: tabLabel,
-            frameType: Number(it?.frameType ?? 0)
-          });
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ status: 'ok', league, tabs, items, syncedAtIso: now }),
-        { headers: corsHeaders }
-      );
-    } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message || 'Guild stash scan failed.' }), {
-        status: 500,
-        headers: corsHeaders
-      });
-    }
-  }
-
   // POST /api/farming/equipped-assets (Stateless GGG scan of all equipped gear & socketed gems for characters in a league)
   if (url.pathname === '/api/farming/equipped-assets' && request.method === 'POST') {
     try {
@@ -1278,19 +1189,39 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       for (let i = 0; i < tabIndices.length; i++) {
         const tabIdx = tabIndices[i];
         if (i > 0) await new Promise((r) => setTimeout(r, 320));
+        const gggHeaders = {
+          Cookie: `POESESSID=${poesessid}`,
+          'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+          Accept: 'application/json'
+        };
         const endpoint = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(accountName)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=0&tabIndex=${tabIdx}`;
-        const gggRes = await fetch(endpoint, {
-          headers: {
-            Cookie: `POESESSID=${poesessid}`,
-            'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
-            Accept: 'application/json'
-          }
-        });
+        let gggRes = await fetch(endpoint, { headers: gggHeaders });
+        if (!gggRes.ok && (gggRes.status === 403 || gggRes.status === 404) && accountName.includes('#')) {
+          const dashAcct = accountName.replace('#', '-');
+          const fallbackEp = `https://www.pathofexile.com/character-window/get-stash-items?accountName=${encodeURIComponent(dashAcct)}&realm=${encodeURIComponent(realm)}&league=${encodeURIComponent(league)}&tabs=0&tabIndex=${tabIdx}`;
+          gggRes = await fetch(fallbackEp, { headers: gggHeaders });
+        }
         if (!gggRes.ok) {
           if (gggRes.status === 429) {
             return new Response(
               JSON.stringify({ error: `GGG rate limited at tab ${tabIdx} (429). Wait 30s and retry.` }),
               { status: 429, headers: corsHeaders }
+            );
+          }
+          if (gggRes.status === 401 || gggRes.status === 403) {
+            return new Response(
+              JSON.stringify({
+                error: `GGG rejected your session (HTTP ${gggRes.status}). Open Tool Setup to refresh your POESESSID and verify your Account Name (e.g. Name#1234).`
+              }),
+              { status: gggRes.status, headers: corsHeaders }
+            );
+          }
+          if (gggRes.status === 404) {
+            return new Response(
+              JSON.stringify({
+                error: `Stash tab not found in "${league}" (HTTP 404). Open Tool Setup to verify your League and Account Name.`
+              }),
+              { status: 404, headers: corsHeaders }
             );
           }
           continue;

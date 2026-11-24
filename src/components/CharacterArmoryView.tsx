@@ -176,7 +176,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
         snaps.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime())[0];
 
       if (!snap) {
-        showToast('No synced D1 character snapshot found to publish.');
+        showToast('No synced character snapshot found to publish.');
         return;
       }
 
@@ -219,7 +219,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
         playstyle: 'SSF / GSF Live Character',
         starterRating: 4.5,
         pobCodeOrUrl: armoryUrl,
-        levelingNotes: `Published directly from Cloudflare D1 Character Armory (${snap.character.league}).`,
+        levelingNotes: `Published directly from Character Armory (${snap.character.league}).`,
         endgameNotes: `Equipped with ${snap.equipped.length} gear pieces and ${snap.passives?.allocatedCount || 0} allocated passives.`,
         requiredUniques: uniques.slice(0, 8),
         atlasFocus: ['SSF Progression', 'Endgame Bossing'],
@@ -261,9 +261,6 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
                   <h1 className="font-cinzel text-lg sm:text-2xl font-black text-white tracking-wide">
                     Character Armory
                   </h1>
-                  <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300">
-                    D1 Character Engine
-                  </span>
                 </div>
                 <p className="text-xs text-slate-400">
                   Full width Path of Exile gear paperdoll, socket &amp; gem inspector, affix tiers, jewels, and interactive passive skill tree.
@@ -345,7 +342,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
         <div className="space-y-3">
           {loadingProfile && !profileData && (
             <div className="px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400">
-              Loading @{activeHandle} profile &amp; synced D1 character snapshots...
+              Loading @{activeHandle} profile &amp; synced character snapshots...
             </div>
           )}
           <CharacterPaperdollView
@@ -371,7 +368,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
           <div className="space-y-1 max-w-md mx-auto">
             <h2 className="text-base font-bold text-white">Inspect Any Path of Exile Character</h2>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Sign in to sync your own Path of Exile characters from GGG into Cloudflare D1, or select any squadmate above to inspect their live gear, sockets, jewels, and passive tree.
+              Sign in to sync your own Path of Exile characters from GGG into Exile SSF Cloud, or select any squadmate above to inspect their live gear, sockets, jewels, and passive tree.
             </p>
           </div>
           {onOpenAuthModal && (

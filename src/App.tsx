@@ -59,6 +59,7 @@ const PrivateLeaguesDirectoryView = lazyWithRetry(() => import('./components/Pri
 const FullGuideReaderView = lazyWithRetry(() => import('./components/FullGuideReaderView').then((m) => ({ default: m.FullGuideReaderView })));
 const ExileProfilePage = lazyWithRetry(() => import('./components/ExileProfilePage').then((m) => ({ default: m.ExileProfilePage })));
 const CharacterArmoryView = lazyWithRetry(() => import('./components/CharacterArmoryView').then((m) => ({ default: m.CharacterArmoryView })));
+const ToolSetupModal = lazyWithRetry(() => import('./components/ToolSetupModal').then((m) => ({ default: m.ToolSetupModal })));
 
 const PageLoader = (
   <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-slate-400">
@@ -208,7 +209,40 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isToolSetupOpen, setIsToolSetupOpen] = useState<boolean>(false);
   const [serverSessionExpired, setServerSessionExpired] = useState<boolean>(false);
+  const [showPurgeNotice, setShowPurgeNotice] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('exile_ssf_purge_notice_dismissed_2026_11_24') !== '1';
+    } catch {
+      return true;
+    }
+  });
+
+  // One time client side purge of stale Asset Tracker, Map Tracker, and Armory caches (Nov 24, 2026 12:00 PM EST)
+  useEffect(() => {
+    try {
+      const flagKey = 'exile_ssf_tool_purge_2026_11_24_12pm_est';
+      if (localStorage.getItem(flagKey) !== 'done') {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (
+            k.startsWith('exile_ssf_last_char_') ||
+            k.includes('farming_sessions') ||
+            k.includes('stash_state') ||
+            k.includes('map_tracker_sessions') ||
+            k === 'exile_ssf_synced_gear_vitals_v1'
+          ) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem(flagKey, 'done');
+      }
+    } catch {}
+  }, []);
 
   const getInitialGuideSlug = (): string => {
     if (typeof window === 'undefined') return '';
@@ -701,6 +735,7 @@ export const App: React.FC = () => {
         selectedGame={selectedGame}
         setSelectedGame={handleSelectGame}
         openSearch={() => setIsSearchOpen(true)}
+        openToolSetup={() => setIsToolSetupOpen(true)}
         userAccount={userAccount}
         onOpenAuthModal={handleOpenAuth}
         onOpenProfile={handleOpenProfile}
@@ -710,11 +745,46 @@ export const App: React.FC = () => {
       {/* Main Content Area: Full Width, Fluid, Springy Utility Layout */}
       <div className="flex-1 min-w-0 flex flex-col w-full">
         <SiteNoticeBanner />
+        {showPurgeNotice && (
+          <div className="w-full bg-indigo-950/95 border-b border-indigo-500/45 px-4 py-2.5 text-xs text-indigo-100">
+            <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-300 font-mono font-bold text-[10px] uppercase shrink-0">
+                  Tool Reset • Nov 24 12:00 PM EST
+                </span>
+                <span className="text-slate-200 leading-snug">
+                  Saved data in <strong className="text-white">Asset Tracker</strong>, <strong className="text-white">Map Tracker</strong>, and <strong className="text-white">Character Armory</strong> was cleared for our unified sync upgrade. Open <strong className="text-amber-300">Tool Setup</strong> to opt in and resync your characters and stash.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsToolSetupOpen(true)}
+                  className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer"
+                >
+                  Open Tool Setup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPurgeNotice(false);
+                    try {
+                      localStorage.setItem('exile_ssf_purge_notice_dismissed_2026_11_24', '1');
+                    } catch {}
+                  }}
+                  className="text-[11px] text-indigo-300/80 hover:text-white cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {serverSessionExpired && userAccount && (
           <div className="w-full bg-amber-950/95 border-b border-amber-500/50 px-4 py-2 text-xs text-amber-100">
             <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
               <span>
-                <strong className="text-amber-300">Cloud Session Needs Refresh:</strong> Your browser still shows @{userAccount.displayName}, but your encrypted server cookie expired. Sign in once to re enable Cloudflare D1 saves.
+                <strong className="text-amber-300">Cloud Session Needs Refresh:</strong> Your browser still shows @{userAccount.displayName}, but your encrypted server cookie expired. Sign in once to re enable Cloud saves.
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 <button
@@ -871,6 +941,15 @@ export const App: React.FC = () => {
       <DualLinkModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+      />
+
+      {/* Unified Tool Setup & Data Sync Wizard */}
+      <ToolSetupModal
+        isOpen={isToolSetupOpen}
+        onClose={() => setIsToolSetupOpen(false)}
+        userAccount={userAccount}
+        selectedGame={selectedGame}
+        onNavigateTab={handleSelectTab}
       />
 
       {/* OAuth & Dynamic Tagging Registration Modal */}

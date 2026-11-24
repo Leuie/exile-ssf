@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-unified-tool-setup',
+    version: 'v3.34.0',
+    title: 'Unified Tool Setup Wizard, Asset Tracker Fix, Guild Stash Scanner Removal & Tool Data Reset',
+    dateEst: 'Nov 24, 2026 • 3:30 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Unified Setup',
+    summary: 'Launched a guided 3 step Unified Tool Setup modal for opting into Asset Tracker, Character Armory, Map Tracker, and Builds Hub in one place, fixed Asset Tracker silently returning 0 items on GGG auth errors, removed the Private League Guild Stash Scanner, purged legacy tool data from before 12:00 PM EST, and replaced internal database jargon across player facing views.',
+    changes: [
+      { tag: 'Added', text: 'Unified Tool Setup Wizard accessible from the sidebar under Tools: opt in or out of Asset Tracker, Character Armory, Map Tracker, and Builds Hub, review what data is collected, test your GGG POESESSID connection, and link Client.txt in one clean flow.' },
+      { tag: 'Fixed', text: 'Fixed Asset Tracker stash snapshot endpoint silently returning 0 items on GGG HTTP 401/403/404 responses; now automatically retries # to dash account formatting and surfaces clear session errors.' },
+      { tag: 'Removed', text: 'Removed the Private League Guild Stash Scanner UI and backend route from Asset Tracker to keep stash tracking focused on personal farming.' },
+      { tag: 'Improved', text: 'Purged all pre Nov 24 12:00 PM EST saved data in Asset Tracker, Map Tracker, and Character Armory with a dismissible sitewide reset banner prompting exiles to resync.' },
+      { tag: 'Improved', text: 'Cleaned up player facing labels across Armory, Build Doctor (Armory Audit), Defenses, Profile (Armory Snapshot), and Analytics by removing internal database jargon.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-profile-polish',
     version: 'v3.33.1',
     title: 'Unified Exile Passport, Circular Social Icons (Root, Discord, Twitch, YouTube) & Map Tracker Toolkit Migration',

@@ -708,7 +708,7 @@ export const AuthRegistrationModal: React.FC<AuthRegistrationModalProps> = ({
       });
       setIsProcessing(false);
       if (!regRes.success && !userAccount) {
-        setAuthError(regRes.error || 'Could not register account in Cloudflare D1.');
+        setAuthError(regRes.error || 'Could not register account. Please try again.');
         return;
       }
     }

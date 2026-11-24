@@ -119,7 +119,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
     setIngesting(true);
     await onIngestRosterRows(previewRows);
     setIngesting(false);
-    setSuccessMsg(`Successfully synced ${previewRows.length} exiles directly into Cloudflare D1!`);
+    setSuccessMsg(`Successfully synced ${previewRows.length} exiles directly into Cloud!`);
     setPreviewRows([]);
     setSheetUrl('');
   };
@@ -138,7 +138,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
               Google Sheets Export & Ingestion Hub
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Export your entire league as a styled multi tab Google Sheets workbook, download the blank Starter Sheet, or ingest signups straight into Cloudflare D1.
+              Export your entire league as a styled multi tab Google Sheets workbook, download the blank Starter Sheet, or ingest signups straight into Cloud.
             </p>
           </div>
           <button
@@ -357,7 +357,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                       onClick={handleConfirmIngest}
                       className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer shadow"
                     >
-                      {ingesting ? 'Syncing to Cloudflare D1...' : `Ingest ${previewRows.length} Exiles to D1`}
+                      {ingesting ? 'Syncing to Cloud...' : `Ingest ${previewRows.length} Exiles to Cloud`}
                     </button>
                   </div>
 

@@ -921,7 +921,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 <span>Squad Atlas, Boss Carries & Reputation Vouches</span>
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                Offer 4 Voidstone carries, Uber Boss kills, T17 completions, Betrayal crafts, or Lab runs to your squad. Every confirmed carry or settled bounty awards a verified Vouch stored in Cloudflare D1.
+                Offer 4 Voidstone carries, Uber Boss kills, T17 completions, Betrayal crafts, or Lab runs to your squad. Every confirmed carry or settled bounty awards a verified Vouch stored in Cloud.
               </p>
             </div>
             <button
@@ -1107,7 +1107,7 @@ export const BountiesAndHonorsTab: React.FC<BountiesAndHonorsTabProps> = ({
                 <Star className="w-4 h-4 text-amber-400" />
                 <span>Verified Squad Vouch Ledger ({vouches.length})</span>
               </div>
-              <span className="text-[10px] font-mono text-slate-500">Stored atomically in Cloudflare D1</span>
+              <span className="text-[10px] font-mono text-slate-500">Saved to Cloud</span>
             </div>
             {vouches.length === 0 ? (
               <div className="text-xs text-slate-500 italic">No vouches logged yet. Complete a carry or settle a bounty to build reputation!</div>

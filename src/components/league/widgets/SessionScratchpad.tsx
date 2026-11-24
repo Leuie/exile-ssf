@@ -63,7 +63,7 @@ export const SessionScratchpad: React.FC<SessionScratchpadProps> = ({
           <ClipboardList className="w-4 h-4 text-sky-400" />
           <span>Farming Session Scratchpad ({doneCount}/{goals.length})</span>
         </div>
-        <span className="text-[10px] font-mono text-slate-500">Synced to D1 Profile</span>
+        <span className="text-[10px] font-mono text-slate-500">Cloud Synced</span>
       </div>
 
       {canEdit && (

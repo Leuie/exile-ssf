@@ -195,7 +195,7 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
       if (res.ok) {
         const d: any = await res.json();
         if (Array.isArray(d?.staff)) setStaff(d.staff);
-        showTempNotice('League staff, contacts, and moderator permissions saved to Cloudflare D1!', 'ok');
+        showTempNotice('League staff, contacts, and moderator permissions saved to Cloud!', 'ok');
       } else {
         const err: any = await res.json().catch(() => ({}));
         if (res.status === 401 && typeof window !== 'undefined') {
@@ -363,7 +363,7 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
         credentials: 'include',
         body: JSON.stringify({ url: webhookUrl.trim(), enabled: webhookEnabled, events: webhookEvents })
       });
-      if (res.ok) showTempNotice('League webhook saved to Cloudflare D1!');
+      if (res.ok) showTempNotice('League webhook saved to Cloud!');
       else {
         const d: any = await res.json().catch(() => ({}));
         showTempNotice(d?.error || 'Could not save league webhook.');

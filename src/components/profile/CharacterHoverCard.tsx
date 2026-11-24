@@ -114,7 +114,7 @@ export const CharacterHoverCard: React.FC<CharacterHoverCardProps> = ({
         >
           {loading ? (
             <div className="py-3 text-center text-[11px] font-mono text-slate-400">
-              Loading D1 Armory snapshot...
+              Loading Armory snapshot...
             </div>
           ) : snap ? (
             <>
@@ -127,7 +127,7 @@ export const CharacterHoverCard: React.FC<CharacterHoverCardProps> = ({
                   <div className="text-[10px] text-slate-400 truncate">{snap.character.league}</div>
                 </div>
                 <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-[9px] font-mono shrink-0">
-                  D1 Synced
+                  Synced
                 </span>
               </div>
 
@@ -186,7 +186,7 @@ export const CharacterHoverCard: React.FC<CharacterHoverCardProps> = ({
                 <span>@{handle.replace(/^@/, '')}</span>
               </div>
               <p className="text-[10px] leading-relaxed">
-                No synced D1 Armory snapshot yet for this exile.
+                No synced Armory snapshot yet for this exile.
               </p>
               {onOpenArmory && (
                 <button

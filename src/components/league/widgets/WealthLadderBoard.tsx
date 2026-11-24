@@ -325,7 +325,7 @@ export const WealthLadderBoard: React.FC<WealthLadderBoardProps> = ({
           <Lock className="w-7 h-7 text-amber-400/70 mx-auto" />
           <div className="text-sm font-bold text-white">No Exiles Have Opted In Yet for This League</div>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Participation is strictly opt in. Click <strong className="text-amber-300">Join Wealth Ladder</strong> in Asset Tracker (or <strong className="text-amber-300">Opt In to Wealth Ladder</strong> above) and save your stash to Cloudflare D1 to claim the #1 Gold Podium spot!
+            Participation is strictly opt in. Click <strong className="text-amber-300">Join Wealth Ladder</strong> in Asset Tracker (or <strong className="text-amber-300">Opt In to Wealth Ladder</strong> above) and save your stash to Cloud to claim the #1 Gold Podium spot!
           </p>
         </div>
       ) : (

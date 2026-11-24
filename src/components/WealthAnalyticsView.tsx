@@ -419,7 +419,7 @@ export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
               }`}
             >
               <Cloud className="w-3 h-3" />
-              <span>{cloudSynced ? 'Cloudflare D1 Synced' : normalizedHandle ? 'Local + Cloud Ready' : 'Local Preview'}</span>
+              <span>{cloudSynced ? 'Cloud Synced' : normalizedHandle ? 'Local + Cloud Ready' : 'Local Preview'}</span>
             </span>
           </div>
 
@@ -976,7 +976,7 @@ export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
               <Trophy className="w-4 h-4 text-emerald-400" />
               <span>Saved Cloud Sessions ({selectedLeague})</span>
             </h2>
-            <span className="text-[11px] font-mono text-slate-400">{leagueSessions.length} sessions stored in D1</span>
+            <span className="text-[11px] font-mono text-slate-400">{leagueSessions.length} sessions stored in Cloud</span>
           </div>
 
           <div className="overflow-x-auto">

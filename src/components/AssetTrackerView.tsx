@@ -93,7 +93,6 @@ import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
 import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
 import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
-import { GuildStashScannerPanel } from './assets/GuildStashScannerPanel';
 
 interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -218,6 +217,30 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const [detectedLeagues, setDetectedLeagues] = useState<string[]>([]);
   const [detectingLeagues, setDetectingLeagues] = useState<boolean>(false);
   const [rememberPoesessid, setRememberPoesessid] = useState<boolean>(Boolean(savedPoesessidOptIn));
+
+  // Sync changes from Unified Tool Setup modal in real time
+  useEffect(() => {
+    const handleToolSetupUpdated = () => {
+      try {
+        const rawPrefs = localStorage.getItem(PREFS_STORAGE_KEY);
+        if (rawPrefs) {
+          const parsed = JSON.parse(rawPrefs);
+          if (parsed?.accountName) setAccountName(parsed.accountName);
+          if (parsed?.leagueName) setLeagueName(parsed.leagueName);
+        }
+        const rawPoe = localStorage.getItem(POESESSID_OPTIN_STORAGE_KEY);
+        if (rawPoe) {
+          const parsedPoe = JSON.parse(rawPoe);
+          if (parsedPoe?.poesessid) {
+            setPoesessid(String(parsedPoe.poesessid).trim());
+            setRememberPoesessid(true);
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('exile-tool-setup-updated', handleToolSetupUpdated);
+    return () => window.removeEventListener('exile-tool-setup-updated', handleToolSetupUpdated);
+  }, []);
   const [poesessid, setPoesessid] = useState<string>(savedPoesessidOptIn?.poesessid || '');
   const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(
     Boolean(savedDisclaimerValid || savedPoesessidOptIn?.accepted)
@@ -1752,7 +1775,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         </div>
 
         <p className="text-xs text-slate-400 leading-relaxed">
-          Visualize your stash net worth across 18 canonical tabs, diff <strong className="text-slate-200">Before vs After</strong> farming sessions, click any item name to inspect it on <strong className="text-sky-300">PoE Wiki</strong>, and open full page <strong className="text-amber-300">Wealth &amp; Pace Analytics</strong> backed by per league Cloudflare D1 cloud storage.
+          Visualize your stash net worth across 18 canonical tabs, diff <strong className="text-slate-200">Before vs After</strong> farming sessions, click any item name to inspect it on <strong className="text-sky-300">PoE Wiki</strong>, and open full page <strong className="text-amber-300">Wealth &amp; Pace Analytics</strong> backed by per league cloud storage.
         </p>
 
         {showAboutTracker && (
@@ -1778,7 +1801,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
               <div className="font-mono text-[10px] uppercase font-bold text-purple-400">4. Cloud Sync, Squad Stash &amp; Wealth Ladder</div>
               <p className="text-slate-300 leading-relaxed">
-                Auto saves per league to Cloudflare D1, exports styled <strong className="text-white">.xlsx</strong> spreadsheets, shares duplicate Uniques straight to your Private League <strong className="text-white">Free Stash</strong>, alerts on Squad Wishlist hits, and lets you opt in to the <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
+                Auto saves per league to Cloud, exports styled <strong className="text-white">.xlsx</strong> spreadsheets, shares duplicate Uniques straight to your Private League <strong className="text-white">Free Stash</strong>, alerts on Squad Wishlist hits, and lets you opt in to the <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
               </p>
             </div>
           </div>
@@ -1896,18 +1919,6 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
             );
           })}
         </div>
-      )}
-
-      {/* Private League Guild Stash Wishlist Scanner */}
-      {game === 'poe1' && (
-        <GuildStashScannerPanel
-          accountName={accountName}
-          leagueName={leagueName}
-          poesessid={poesessid}
-          openWishlistItems={wishlistItems.filter((w) => w.status !== 'HAVE')}
-          claimedWishIds={claimedWishIds}
-          onClaimWishlist={handleClaimWishlistMatch}
-        />
       )}
 
       {/* TOP 2 CARD HERO ROW */}

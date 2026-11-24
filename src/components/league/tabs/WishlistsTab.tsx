@@ -959,7 +959,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>Already Equipped Detected on Your Synced Character!</span>
             </div>
-            <span className="text-[10px] font-mono text-emerald-400/80">D1 Armory Cross Check</span>
+            <span className="text-[10px] font-mono text-emerald-400/80">Armory Cross Check</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {equippedWishlistMatches.map((m) => (

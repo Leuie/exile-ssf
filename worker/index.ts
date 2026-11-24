@@ -423,6 +423,19 @@ async function seedLeuieAvatarToD1(db: any): Promise<void> {
       db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(fbCleanKey, now)
     ]);
   }
+
+  // One time migration: purge all saved Asset Tracker, Map Tracker, and Character Armory data (Nov 24, 2026 12:00 PM EST)
+  const toolPurgeKey = 'purge:tool_data_2026_11_24_12pm_est:v1';
+  const existingToolPurge = await db.prepare('SELECT key FROM migrations WHERE key = ?').bind(toolPurgeKey).first();
+  if (!existingToolPurge) {
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare(`DELETE FROM farming_stash_state`),
+      db.prepare(`DELETE FROM farming_sessions`),
+      db.prepare(`DELETE FROM user_tool_state WHERE tool_key IN ('map_tracker_sessions', 'character_gear_snapshots')`),
+      db.prepare('INSERT OR REPLACE INTO migrations (key, migrated_at) VALUES (?, ?)').bind(toolPurgeKey, now)
+    ]);
+  }
 }
 
 

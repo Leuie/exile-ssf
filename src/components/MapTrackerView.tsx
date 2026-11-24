@@ -648,7 +648,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
 
   const handleSaveSessionToCloud = async () => {
     if (!userAccount?.displayName) {
-      setNotice({ type: 'err', text: 'Sign in to save Map Tracker sessions to Cloudflare D1.' });
+      setNotice({ type: 'err', text: 'Sign in to save Map Tracker sessions to Cloud.' });
       return;
     }
     setSavingCloud(true);
@@ -843,7 +843,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
               <div className="font-mono text-[10px] uppercase font-bold text-emerald-400">3. Strategy Presets &amp; Cloud Sessions</div>
               <p className="text-slate-300 leading-relaxed">
-                Tag runs with PoE 1 (<strong className="text-white">Campaign, Alch &amp; Go White/Yellow/Red, T17, Essence</strong>) or PoE 2 (<strong className="text-white">Waystones T1 to T15, Towers, Breach</strong>) presets, compare maps per hour across strategies, and save sessions to Cloudflare D1 to enrich your <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
+                Tag runs with PoE 1 (<strong className="text-white">Campaign, Alch &amp; Go White/Yellow/Red, T17, Essence</strong>) or PoE 2 (<strong className="text-white">Waystones T1 to T15, Towers, Breach</strong>) presets, compare maps per hour across strategies, and save sessions to Cloud to enrich your <strong className="text-white">Hall of Fame Wealth Ladder</strong>.
               </p>
             </div>
           </div>

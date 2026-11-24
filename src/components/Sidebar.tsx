@@ -24,7 +24,8 @@ import {
   Package,
   Home as HomeIcon,
   UserCheck,
-  Clock
+  Clock,
+  Sliders
 } from "lucide-react";
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ interface SidebarProps {
   selectedGame: 'poe1' | 'poe2';
   setSelectedGame: (game: 'poe1' | 'poe2') => void;
   openSearch: () => void;
+  openToolSetup?: () => void;
   userAccount?: import('../types').UserAccount | null;
   onOpenAuthModal?: () => void;
   onOpenProfile?: (handle: string) => void;
@@ -72,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedGame,
   setSelectedGame,
   openSearch,
+  openToolSetup,
   userAccount,
   onOpenAuthModal,
   onOpenProfile,
@@ -159,7 +162,8 @@ interface NavGroup {
         { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
         { id: 'armory', label: 'Character Armory', icon: Swords, badge: 'NEW' },
-        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
+        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' },
+        { id: 'tool_setup', label: 'Tool Setup', icon: Sliders, badge: 'Sync' }
       ]
     },
     {
@@ -210,7 +214,8 @@ interface NavGroup {
         { id: 'asset_tracker', label: 'Asset Tracker', icon: Package, badge: 'NEW' },
         { id: 'builds', label: 'Builds Hub', icon: Flame, badge: 'All' },
         { id: 'armory', label: 'Character Armory', icon: Swords, badge: 'NEW' },
-        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' }
+        { id: 'map_tracker', label: 'Map Tracker', icon: Compass, badge: 'NEW' },
+        { id: 'tool_setup', label: 'Tool Setup', icon: Sliders, badge: 'Sync' }
       ]
     },
     {
@@ -248,6 +253,11 @@ interface NavGroup {
   };
 
   const handleNavClick = (id: string) => {
+    if (id === 'tool_setup') {
+      openToolSetup?.();
+      setIsMobileOpen(false);
+      return;
+    }
     setActiveTab(id);
     setIsMobileOpen(false);
   };
@@ -643,7 +653,7 @@ interface NavGroup {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => (item.id === 'tool_setup' ? openToolSetup?.() : setActiveTab(item.id))}
                     onMouseEnter={() => onPrefetchTab?.(item.id)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all group ${
                       isActive

@@ -455,7 +455,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       type: 'roster_join',
       actorHandle: userAccount?.displayName || 'Leuie',
       title: `Synced Google Sheet into Roster (${addedCount} added, ${updatedCount} updated)`,
-      detail: 'Ingested Roster, Builds, PoBs, and Planned Mechanics into Cloudflare D1',
+      detail: 'Ingested Roster, Builds, PoBs, and Planned Mechanics into Cloud',
       targetTab: 'roster'
     });
   };
@@ -1816,7 +1816,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 const ok = await saveCloudLeagueMeta(activeSessionId, { communityHub: nextHub });
                 if (ok) {
                   setCustomCommunityHub(nextHub);
-                  setCopyNotice('Saved League Community Hub & Global Chat to Cloudflare D1!');
+                  setCopyNotice('Saved League Community Hub & Global Chat to Cloud!');
                   setTimeout(() => setCopyNotice(null), 3000);
                 } else {
                   setCopyNotice('Sign in as League Host or authorized Moderator to save Community Hub.');

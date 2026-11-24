@@ -564,7 +564,7 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
             <div className="space-y-0.5">
               <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Zero Export Live Audit (Cloudflare D1 Armory)</span>
+                <span>Armory Audit</span>
               </div>
               <p className="text-[11px] text-slate-400">
                 Audit any synced Character Armory snapshot immediately with zero pobb.in copy paste.

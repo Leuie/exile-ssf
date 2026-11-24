@@ -220,7 +220,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
       setAvatarError(false);
       setIsEditing(false);
       fireConfetti();
-      setCopyNotice('Exile profile saved to Cloudflare D1!');
+      setCopyNotice('Exile profile saved to Cloud!');
       setTimeout(() => setCopyNotice(null), 3000);
     }
   };
@@ -627,7 +627,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
                 <div className="text-[10px] font-mono uppercase text-sky-400">Synced Gear</div>
                 <div className="text-lg font-bold text-white mt-0.5">{Object.keys(armorySnapshots).length}</div>
-                <div className="text-[10px] text-slate-400">D1 Armory builds</div>
+                <div className="text-[10px] text-slate-400">Armory builds</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
                 <div className="text-[10px] font-mono uppercase text-cyan-400">Farming Runs</div>
@@ -656,7 +656,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <div>
               <div className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Exile Profile Studio (Live Preview • Saved to Cloudflare D1)</span>
+                <span>Exile Profile Studio (Live Preview • Saved to Cloud)</span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 Customize your avatar, title, bio, official PoE links, and play hours across all future private league seasons.
@@ -951,7 +951,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Saving to D1...' : 'Save Profile Changes'}</span>
+              <span>{saving ? 'Saving...' : 'Save Profile Changes'}</span>
             </button>
           </div>
         </form>
@@ -1002,7 +1002,7 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-sm sm:text-base font-bold text-amber-200 tracking-wide uppercase">
-                      Character Armory Snapshot
+                      Armory Snapshot
                     </h2>
                     {primarySnap && (
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
