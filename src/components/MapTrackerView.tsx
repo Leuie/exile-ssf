@@ -32,6 +32,7 @@ import {
 } from '../services/cloudSync';
 import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
 import { SessionScratchpad } from './league/widgets/SessionScratchpad';
+import { AtlasSkillTreePlanner } from './maps/AtlasSkillTreePlanner';
 import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
 import { readUnifiedPoeSession } from '../utils/poeSession';
 import {
@@ -1256,6 +1257,23 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                   }
                   return ok;
                 }}
+              />
+            )
+          },
+          {
+            id: 'atlas_planner',
+            title: 'Atlas Skill Tree Planner (Save & Compare Trees)',
+            icon: <Compass className="w-3.5 h-3.5 text-sky-400" />,
+            badge: (
+              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-[9px] font-mono text-sky-300">
+                OFFICIAL TREE
+              </span>
+            ),
+            defaultSpan: 12,
+            render: () => (
+              <AtlasSkillTreePlanner
+                userHandle={userAccount?.displayName}
+                activeStrategy={strategyTag}
               />
             )
           },

@@ -93,6 +93,7 @@ import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
 import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
 import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
+import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
 import {
   readUnifiedPoeSession,
   saveUnifiedPoeSession,
@@ -1895,88 +1896,6 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         </div>
       )}
 
-      {/* TOP 2 CARD HERO ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-6 rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-              <span className="text-sm font-bold text-white">Wealth & Pace</span>
-              <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
-                <button type="button" onClick={() => setWealthMode('total')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'total' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Total</button>
-                <button type="button" onClick={() => setWealthMode('hourly')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'hourly' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Hourly</button>
-              </div>
-              <select value={strategyTag} onChange={(e) => setStrategyTag(e.target.value)} className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-amber-300 font-semibold focus:outline-none cursor-pointer">
-                {STRATEGY_PRESETS.map((st) => (<option key={st} value={st} className="bg-slate-950">{st}</option>))}
-              </select>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-300 leading-none">
-                {valueSystem === 'ssf' ? formatSsfPoints(wealthMode === 'hourly' ? ssfPointsPerHour : totalSessionSsfPoints) : formatValue(heroChaos, divineChaos)}
-                {wealthMode === 'hourly' && <span className="text-xs text-slate-400 font-normal">/hr</span>}
-              </div>
-              <div className="text-[10px] font-mono text-slate-400 mt-1">
-                {mapsRun} maps ({mapsPerHour}/hr) • {tierCounts.S} S Tier • {tierCounts.A} A Tier
-                {watchingClientTxt && (
-                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
-                    Live Log{lastZoneName ? `: ${lastZoneName}` : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="h-24 w-full rounded-xl bg-slate-950/75 border border-slate-800/80 px-3 py-2 flex flex-col justify-between">
-            <LootSparkline checkpoints={checkpoints} fallbackChaos={totalSessionChaos} divineChaos={divineChaos} />
-          </div>
-        </div>
-
-        <div className="lg:col-span-6 rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 flex flex-col justify-between space-y-3 shadow-lg">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-bold text-white">Breakdown</span>
-            <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
-              <button type="button" onClick={() => setBreakdownMode('divines')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${breakdownMode === 'divines' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>
-                {valueSystem === 'ssf' ? 'Points' : 'Divines'}
-              </button>
-              <button type="button" onClick={() => setBreakdownMode('percent')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${breakdownMode === 'percent' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Percentage</button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {categoryBreakdown.map((row) => {
-              const isSelected = categoryFilter === row.category;
-              return (
-                <button
-                  key={row.category}
-                  type="button"
-                  onClick={() => {
-                    const next = isSelected ? 'All' : row.category;
-                    setCategoryFilter(next);
-                    setSubFilter(next === 'Gems' ? 'All Gems' : next === 'Gear & Jewels' ? 'All Equipment' : 'All');
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${isSelected ? 'bg-indigo-600/25 border-indigo-400/60 text-white' : 'bg-slate-950/75 border-slate-800/80 hover:border-slate-600 text-slate-200'}`}
-                >
-                  <div className="text-[10px] font-mono text-slate-400 truncate">{row.category}</div>
-                  <div className="text-sm font-mono font-bold text-amber-300 mt-0.5">
-                    {breakdownMode === 'percent' ? `${row.pct}%` : valueSystem === 'ssf' ? formatSsfPoints(row.ssfPts) : row.chaos > 0 ? formatValue(row.chaos, divineChaos) : `${row.count}x`}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Visual Analytics Deck (3 Pure SVG Asset Charts) */}
-      {!focusMode && (
-        <AssetAnalyticsDeck
-          checkpoints={checkpoints}
-          enrichedDrops={enrichedDrops}
-          categoryBreakdown={categoryBreakdown}
-          valueSystem={valueSystem}
-          divineChaos={divineChaos}
-          ownedTabNames={railTabsList.map((t) => t.name)}
-          onOpenFullAnalytics={onOpenAnalytics}
-        />
-      )}
-
       {/* Collapsible Setup Drawer */}
       {setupOpen && !focusMode && (
         <section className="rounded-2xl border border-indigo-500/30 bg-[#0d111a] p-4 sm:p-5 space-y-4 shadow-xl">
@@ -2062,7 +1981,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
                 <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="PoE Account (e.g. Leuie#0626)" className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white" />
                 <input type="text" value={leagueName} onChange={(e) => setLeagueName(e.target.value)} placeholder="League Name" className="sm:col-span-4 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white" />
-                <input type="password" value={poesessid} onChange={(e) => setPoesessid(e.target.value)} placeholder={rememberPoesessid ? 'POESESSID (Saved Locally)' : 'POESESSID (Memory Only)'} className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono" />
+                <input type="text" name="poe_session_token" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-lpignore="true" data-1p-ignore="true" style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties} value={poesessid} onChange={(e) => setPoesessid(e.target.value)} placeholder={rememberPoesessid ? 'POESESSID (Saved Locally)' : 'POESESSID (Memory Only)'} className="sm:col-span-3 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-300 font-mono" />
                 <div className="sm:col-span-2 flex gap-1.5">
                   <button type="button" disabled={detectingLeagues || !acceptedRiskDisclaimer} onClick={handleDetectLeagues} title="Auto detect active GGG leagues" className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold cursor-pointer disabled:opacity-40">
                     <Search className="w-4 h-4" />
@@ -2226,8 +2145,116 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
         </section>
       )}
 
-      {/* MAIN WORKSPACE SPLIT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      {/* Draggable, Resizable, Collapsible Asset Tracker Workspace Grid */}
+      <ToolWidgetGrid
+        storageKey="asset_tracker"
+        widgets={[
+          {
+            id: 'wealth_pace',
+            title: 'Wealth & Pace',
+            icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
+            defaultSpan: 6,
+            render: () => (
+              <div className="flex flex-col justify-between space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
+                      <button type="button" onClick={() => setWealthMode('total')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'total' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Total</button>
+                      <button type="button" onClick={() => setWealthMode('hourly')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'hourly' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Hourly</button>
+                    </div>
+                    <select value={strategyTag} onChange={(e) => setStrategyTag(e.target.value)} className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-amber-300 font-semibold focus:outline-none cursor-pointer">
+                      {STRATEGY_PRESETS.map((st) => (<option key={st} value={st} className="bg-slate-950">{st}</option>))}
+                    </select>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-300 leading-none">
+                      {valueSystem === 'ssf' ? formatSsfPoints(wealthMode === 'hourly' ? ssfPointsPerHour : totalSessionSsfPoints) : formatValue(heroChaos, divineChaos)}
+                      {wealthMode === 'hourly' && <span className="text-xs text-slate-400 font-normal">/hr</span>}
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 mt-1">
+                      {mapsRun} maps ({mapsPerHour}/hr) • {tierCounts.S} S Tier • {tierCounts.A} A Tier
+                      {watchingClientTxt && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                          Live Log{lastZoneName ? `: ${lastZoneName}` : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="h-24 w-full rounded-xl bg-slate-950/75 border border-slate-800/80 px-3 py-2 flex flex-col justify-between">
+                  <LootSparkline checkpoints={checkpoints} fallbackChaos={totalSessionChaos} divineChaos={divineChaos} />
+                </div>
+              </div>
+            )
+          },
+          {
+            id: 'breakdown',
+            title: 'Category Breakdown',
+            icon: <Package className="w-3.5 h-3.5 text-indigo-400" />,
+            defaultSpan: 6,
+            render: () => (
+              <div className="space-y-3">
+                <div className="flex items-center justify-end">
+                  <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] font-semibold">
+                    <button type="button" onClick={() => setBreakdownMode('divines')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${breakdownMode === 'divines' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>
+                      {valueSystem === 'ssf' ? 'Points' : 'Divines'}
+                    </button>
+                    <button type="button" onClick={() => setBreakdownMode('percent')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${breakdownMode === 'percent' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Percentage</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {categoryBreakdown.map((row) => {
+                    const isSelected = categoryFilter === row.category;
+                    return (
+                      <button
+                        key={row.category}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected ? 'All' : row.category;
+                          setCategoryFilter(next);
+                          setSubFilter(next === 'Gems' ? 'All Gems' : next === 'Gear & Jewels' ? 'All Equipment' : 'All');
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${isSelected ? 'bg-indigo-600/25 border-indigo-400/60 text-white' : 'bg-slate-950/75 border-slate-800/80 hover:border-slate-600 text-slate-200'}`}
+                      >
+                        <div className="text-[10px] font-mono text-slate-400 truncate">{row.category}</div>
+                        <div className="text-sm font-mono font-bold text-amber-300 mt-0.5">
+                          {breakdownMode === 'percent' ? `${row.pct}%` : valueSystem === 'ssf' ? formatSsfPoints(row.ssfPts) : row.chaos > 0 ? formatValue(row.chaos, divineChaos) : `${row.count}x`}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          },
+          ...(!focusMode
+            ? [
+                {
+                  id: 'analytics_deck',
+                  title: 'Visual Analytics Charts',
+                  icon: <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />,
+                  defaultSpan: 12 as const,
+                  render: () => (
+                    <AssetAnalyticsDeck
+                      checkpoints={checkpoints}
+                      enrichedDrops={enrichedDrops}
+                      categoryBreakdown={categoryBreakdown}
+                      valueSystem={valueSystem}
+                      divineChaos={divineChaos}
+                      ownedTabNames={railTabsList.map((t) => t.name)}
+                      onOpenFullAnalytics={onOpenAnalytics}
+                    />
+                  )
+                }
+              ]
+            : []),
+          {
+            id: 'stash_workspace',
+            title: `Synced Stash Tabs & Live Loot (${enrichedDrops.length} Items)`,
+            icon: <TableIcon className="w-3.5 h-3.5 text-sky-400" />,
+            defaultSpan: 12,
+            render: () => (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <aside className="lg:col-span-3 xl:col-span-2 rounded-2xl border border-slate-800 bg-[#0d111a] p-3 space-y-3 shadow-lg">
           <div className="grid grid-cols-3 bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px] font-bold">
             <button type="button" onClick={() => setRailTab('tabs')} className={`py-1.5 rounded-lg cursor-pointer ${railTab === 'tabs' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Tabs</button>
@@ -2601,6 +2628,10 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
           )}
         </section>
       </div>
+            )
+          }
+        ] as ToolWidgetDefinition[]}
+      />
     </div>
   );
 };

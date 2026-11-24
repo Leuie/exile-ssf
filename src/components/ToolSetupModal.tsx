@@ -429,10 +429,18 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
                       POESESSID Cookie (Stays in your browser only)
                     </label>
                     <input
-                      type="password"
+                      type="text"
+                      name="poe_session_token"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
                       value={poesessid}
                       onChange={(e) => setPoesessid(e.target.value)}
-                      placeholder="Paste 32-character POESESSID..."
+                      placeholder="Paste 32 character POESESSID..."
                       className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
                     />
                   </div>

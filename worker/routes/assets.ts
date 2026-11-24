@@ -804,6 +804,103 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     }
   }
 
+  // GET /api/farming/atlastree-graph (Official GGG atlas-skilltree-export graph for Map Tracker Atlas Planner, cached 7d in KV)
+  if (url.pathname === '/api/farming/atlastree-graph' && request.method === 'GET') {
+    try {
+      const kvKey = 'poe1:atlastree:fullgraph:v1';
+      if (env.EXILE_KV) {
+        const cached = await env.EXILE_KV.get(kvKey);
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=86400'
+            }
+          });
+        }
+      }
+
+      const treeRes = await fetch(
+        'https://raw.githubusercontent.com/grindinggear/atlas-skilltree-export/master/data.json',
+        { headers: { 'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)' } }
+      );
+      if (!treeRes.ok) {
+        return new Response(JSON.stringify({ error: 'Could not load official PoE atlas-skilltree-export data.' }), {
+          status: 502,
+          headers: corsHeaders
+        });
+      }
+
+      const rawTree: any = await treeRes.json();
+      const orbitRadii: number[] = rawTree?.constants?.orbitRadii || [0, 82, 162, 335, 493, 662, 846];
+      const skillsPerOrbit: number[] = rawTree?.constants?.skillsPerOrbit || [1, 6, 16, 16, 40, 72, 72];
+      const groups = rawTree?.groups || {};
+      const rawNodes = rawTree?.nodes || {};
+
+      // kind: 0=small, 1=notable, 2=keystone, 3=gateway, 5=rootStart
+      const nodes: Array<[number, number, number, number, string, string[]]> = [];
+      const validIds = new Set<number>();
+
+      for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
+        if (!nd || idStr === 'root' || nd.isProxy) continue;
+        const grp = groups[String(nd.group)];
+        if (!grp || typeof grp.x !== 'number' || typeof grp.y !== 'number') continue;
+        const idNum = Number(idStr);
+        if (!Number.isFinite(idNum)) continue;
+
+        const orb = Number(nd.orbit || 0);
+        const r = orbitRadii[orb] || 0;
+        const count = skillsPerOrbit[orb] || 1;
+        const angle = (2 * Math.PI * Number(nd.orbitIndex || 0)) / count;
+        const nx = Math.round((grp.x + r * Math.sin(angle)) / 10);
+        const ny = Math.round((grp.y - r * Math.cos(angle)) / 10);
+
+        let kind = 0;
+        if (nd.classStartIndex !== undefined || idStr === '29045') kind = 5;
+        else if (nd.isKeystone) kind = 2;
+        else if (nd.isNotable) kind = 1;
+        else if (String(nd.name || '').toLowerCase().includes('gateway')) kind = 3;
+
+        const name = String(nd.name || '');
+        const stats = Array.isArray(nd.stats) ? nd.stats.slice(0, 6).map(String) : [];
+
+        nodes.push([idNum, nx, ny, kind, name, stats]);
+        validIds.add(idNum);
+      }
+
+      const edges: Array<[number, number]> = [];
+      for (const [idStr, nd] of Object.entries<any>(rawNodes)) {
+        const fromId = Number(idStr);
+        if (!validIds.has(fromId) || !Array.isArray(nd?.out)) continue;
+        for (const outIdRaw of nd.out) {
+          const toId = Number(outIdRaw);
+          if (validIds.has(toId) && toId > fromId) {
+            edges.push([fromId, toId]);
+          }
+        }
+      }
+
+      const payload = JSON.stringify({ nodes, edges });
+      if (env.EXILE_KV) {
+        try {
+          await env.EXILE_KV.put(kvKey, payload, { expirationTtl: 86400 * 7 });
+        } catch {}
+      }
+
+      return new Response(payload, {
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=86400'
+        }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Atlas tree graph error.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
   // POST /api/farming/equipped-assets (Stateless GGG scan of all equipped gear & socketed gems for characters in a league)
   if (url.pathname === '/api/farming/equipped-assets' && request.method === 'POST') {
     try {

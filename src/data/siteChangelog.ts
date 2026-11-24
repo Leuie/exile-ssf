@@ -19,6 +19,22 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-atlas-planner-and-asset-grid',
+    version: 'v3.35.0',
+    title: 'Interactive Atlas Skill Tree Planner, Draggable Asset Tracker Grid, Non Password Session Inputs & Roadmap Cleanup',
+    dateEst: 'Nov 24, 2026 • 5:20 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Atlas Planner & Grid',
+    summary: 'Launched the Interactive Atlas Skill Tree Planner inside Map Tracker using official GGG atlas-skilltree-export data, ported the draggable resizable ToolWidgetGrid into Asset Tracker, fixed POESESSID inputs so browsers stop treating them as password fields, and finished removing internal database jargon from Changelog & Planned Roadmap.',
+    changes: [
+      { tag: 'Added', text: 'Interactive Atlas Skill Tree Planner in Map Tracker: click nodes to allocate up to 132 points, zoom, pan, highlight mechanics (Essence, Harvest, Scarab, etc.), maximize fullscreen, and save/switch multiple named Atlas trees to Cloud.' },
+      { tag: 'Improved', text: 'Ported the collapsible, drag and drop, resizable ToolWidgetGrid (2x2, 3 Col, 4x2, Full presets) into Asset Tracker across Wealth & Pace, Breakdown, Visual Analytics, and Synced Stash Workspace.' },
+      { tag: 'Fixed', text: 'Converted all POESESSID inputs to masked non password text fields with autofill suppression so Chrome, Brave, and password managers never prompt to save or suggest a password.' },
+      { tag: 'Improved', text: 'Removed all remaining internal database jargon from Planned Roadmap and Changelog entries.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-official-tree-and-grid',
     version: 'v3.34.1',
     title: 'Interactive Official PoE Passive Skill Tree, Draggable Map Tracker Workspace Grid & Unified POESESSID Sync',
@@ -64,24 +80,24 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     changes: [
       { tag: 'Improved', text: 'Merged Cross Game Profile Scope and Multi League Career Passport into a single unified Exile Passport inside the Exile Profile hero card with 6 non overlapping lifetime PoE 1 & PoE 2 metric tiles.' },
       { tag: 'Added', text: 'Circular Root App, Discord, Twitch, and YouTube icon buttons on the Exile Profile header with dedicated Discord URL and YouTube Channel URL fields in Edit Profile.' },
-      { tag: 'Improved', text: 'Moved Map Regex Builder and Session Scratchpad out of Exile Profile into a dedicated collapsible Mapping Toolkit section inside Map Tracker with automatic D1 + localStorage sync.' }
+      { tag: 'Improved', text: 'Moved Map Regex Builder and Session Scratchpad out of Exile Profile into a dedicated collapsible Mapping Toolkit section inside Map Tracker with automatic Cloud + localStorage sync.' }
     ]
   },
   {
     id: 'rel-2026-11-24-d1-integrations-phase2',
     version: 'v3.33.0',
-    title: 'D1 Character Engine Cross Site Integrations: Roster Inspect, Wishlist Already Equipped, Zero Export PoB Audit, Builds Hub Publish & Ctrl+K Dark Mode Fix',
+    title: 'Armory Cross Site Integrations: Roster Inspect, Wishlist Already Equipped, Armory Audit, Builds Hub Publish & Ctrl+K Dark Mode Fix',
     dateEst: 'Nov 24, 2026 • 7:55 AM EST',
     isMajor: true,
     tier: 'major',
     badge: 'Major Milestone',
-    summary: 'Wired the Cloudflare D1 Character Armory engine across every major module on Exile SSF: 1 click Roster Inspect, Wishlist Already Equipped detection, Zero Export PoB Build Doctor & Defense EHP live audits, 1 click Publish to Builds Hub, Hall of Fame & Wealth Ladder Character Hover Cards, plus a dark theme fix for the Ctrl+K Quick Finder modal.',
+    summary: 'Wired the Character Armory across every major module on Exile SSF: 1 click Roster Inspect, Wishlist Already Equipped detection, Armory Audit in PoB Build Doctor & Defense EHP live audits, 1 click Publish to Builds Hub, Hall of Fame & Wealth Ladder Character Hover Cards, plus a dark theme fix for the Ctrl+K Quick Finder modal.',
     changes: [
-      { tag: 'Added', text: 'Private League Roster 1 click Armory inspect buttons and live D1 Character Hover Cards showing Ascendancy, Level, headline gear icons, and allocated Keystones.' },
-      { tag: 'Added', text: 'Squad Wishlists Already Equipped detector automatically cross checking your open wishlist requests against synced D1 character gear and socketed gems with 1 click Mark Acquired.' },
-      { tag: 'Added', text: 'Zero Export Live Audit inside PoB Build Doctor and 1 click Load From D1 Armory inside Defense Mechanics EHP Calculator pulling live stats directly from Cloudflare D1.' },
-      { tag: 'Added', text: '1 click Publish to Builds Hub inside Character Armory converting any synced D1 character into a live Markdown community showcase guide.' },
-      { tag: 'Added', text: 'Cached D1 Character Hover Preview Cards on Hall of Fame League Firsts and Wealth Ladder podium & standings.' },
+      { tag: 'Added', text: 'Private League Roster 1 click Armory inspect buttons and live Character Hover Cards showing Ascendancy, Level, headline gear icons, and allocated Keystones.' },
+      { tag: 'Added', text: 'Squad Wishlists Already Equipped detector automatically cross checking your open wishlist requests against synced character gear and socketed gems with 1 click Mark Acquired.' },
+      { tag: 'Added', text: 'Armory Audit inside PoB Build Doctor and 1 click Load From Armory inside Defense Mechanics EHP Calculator pulling live character stats directly from Cloud.' },
+      { tag: 'Added', text: '1 click Publish to Builds Hub inside Character Armory converting any synced character into a live Markdown community showcase guide.' },
+      { tag: 'Added', text: 'Cached Character Hover Preview Cards on Hall of Fame League Firsts and Wealth Ladder podium & standings.' },
       { tag: 'Fixed', text: 'Fixed white background / unreadable text styling bug in the Ctrl+K Quick Finder (DualLinkModal) and wired Escape key dismissal.' }
     ]
   },
@@ -105,20 +121,20 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
     id: 'rel-2026-11-24-character-engine',
     version: 'v3.31.0',
-    title: 'Interactive PoE Character Inspection Engine, poe.ninja Style Passive Tree & Jewels, Universal Non Admin D1 Cloud Sync & Asset Tracker Gear Net Worth',
+    title: 'Interactive PoE Character Inspection Engine, poe.ninja Style Passive Tree & Jewels, Universal Non Admin Cloud Sync & Asset Tracker Gear Net Worth',
     dateEst: 'Nov 24, 2026 • 3:15 AM EST',
     isMajor: true,
     tier: 'major',
     badge: 'Major Milestone',
-    summary: 'Full interactive character inspection suite featuring an interactive passive skill tree with Ascendancy, Keystones, and Masteries; poe.ninja style Cluster, Base, and Abyss Jewels; in game hover tooltips with explicit Implicit/Prefix/Suffix affix tier badges; live gear and socketed gem net worth inclusion in Asset Tracker; universal signed D1 session cookies for non admin accounts; and customizable Community Hub & Global Chat per league.',
+    summary: 'Full interactive character inspection suite featuring an interactive passive skill tree with Ascendancy, Keystones, and Masteries; poe.ninja style Cluster, Base, and Abyss Jewels; in game hover tooltips with explicit Implicit/Prefix/Suffix affix tier badges; live gear and socketed gem net worth inclusion in Asset Tracker; universal signed session cookies for non admin accounts; and customizable Community Hub & Global Chat per league.',
     changes: [
       { tag: 'Added', text: 'poe.ninja style Cluster, Base, and Abyss Jewel inspector displaying full jewel mod rolls, jewel sockets, and cluster passives directly on character profiles.' },
       { tag: 'Added', text: 'Interactive toggleable Passive Skill Tree visualizer on Exile Profiles with Ascendancy nodes, allocated Keystones, Masteries, and socketed skill gem setups.' },
       { tag: 'Added', text: 'In game hover item tooltips with Side Panel toggle and explicit Implicit, Prefix, and Suffix tier affix badges for authentic Path of Exile gear inspecting.' },
       { tag: 'Added', text: 'Character equipment and socketed gems now factor directly into Asset Tracker stash snapshots and net worth calculations.' },
-      { tag: 'Added', text: 'Universal Cloudflare D1 session sync for non admin exiles, wiring App & Google login, registration, and token renewals to signed exile_session cookies.' },
+      { tag: 'Added', text: 'Universal Cloud session sync for non admin exiles, wiring App & Google login, registration, and token renewals to signed exile_session cookies.' },
       { tag: 'Added', text: 'Per league customizable Community Hub and Global Chat with leadership cards positioned prominently above onboarding.' },
-      { tag: 'Added', text: '7 D1 Character Engine cross site integrations added to the permanent Planned Roadmap (24 items total).' },
+      { tag: 'Added', text: '7 Character Armory cross site integrations added to the permanent Planned Roadmap (24 items total).' },
       { tag: 'Improved', text: 'Profile remembers last opened character across visits, and utility controls (Tooltip Mode, Refresh Gear, GGG Sync) are tucked inside a clean Setup dropdown.' },
       { tag: 'Improved', text: 'Removed colored outlines around character equipment, flask, and jewel slots for a cleaner, modern poe.ninja style visual aesthetic.' },
       { tag: 'Fixed', text: 'Resolved case sensitive cloud map session persistence and fixed GGG item stats and socket links parsing.' }
@@ -134,7 +150,7 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     badge: 'Major Milestone',
     summary: 'Launched an authentic Path of Exile Character Equipment Paperdoll with Character Selector on Exile Profiles, added a Private League Guild Stash Scanner with 1 click +5 Honor Wishlist fulfillment, wired Auto Voidstone Sync on Atlas Tracker, and expanded Client.txt telemetry with a GSF Trade & Whisper Counter and Automatic League Firsts Proof Capture.',
     changes: [
-      { tag: 'Added', text: 'Authentic Path of Exile Character Equipment & Inventory Paperdoll on Exile Profiles with Weapon Set I/II toggle, all 12 gear slots + 5 Flasks, socket & link overlays, live hover/click item mod & socketed gem inspector, Character Selector, Cloudflare D1 snapshot persistence, and 1 click push of live gear vitals into Defense Mechanics EHP Calculator.' },
+      { tag: 'Added', text: 'Authentic Path of Exile Character Equipment & Inventory Paperdoll on Exile Profiles with Weapon Set I/II toggle, all 12 gear slots + 5 Flasks, socket & link overlays, live hover/click item mod & socketed gem inspector, Character Selector, Cloud snapshot persistence, and 1 click push of live gear vitals into Defense Mechanics EHP Calculator.' },
       { tag: 'Added', text: 'Private League Guild Stash Scanner inside Asset Tracker (/api/farming/guild-stash) scanning up to 8 GSF Guild Stash tabs and highlighting every item matching a squadmate\'s open Wishlist.' },
       { tag: 'Improved', text: 'Auto Wishlist Fulfillment Detector in Asset Tracker now awards +5 Honor on 1 click Mark Found (+5 Honor) from both personal stash syncs and Guild Stash scans.' },
       { tag: 'Added', text: 'Auto Sync Voidstones button inside Atlas Tracker reading your synced character\'s Voidstones directly to auto check Exarch, Eater, Maven, and Uber Elder milestones.' },
@@ -152,7 +168,7 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     badge: 'Governance & Admin',
     summary: 'Separated global platform administration (/admin) from per league moderation (/league/:id/manage), launched a sitewide broadcast banner manager for holidays and maintenance, and added per league Host Admin + up to 3 Moderators with granular permissions and public contact cards.',
     changes: [
-      { tag: 'Added', text: 'Macro Site Super Admin Console (/admin) showing platform wide D1 metrics across ALL hosted private leagues, a searchable All Private Leagues Manager (Feature, Archive, Reassign Host), KV Edge Cache force refreshes, and global Community Feedback triage & deletion.' },
+      { tag: 'Added', text: 'Macro Site Super Admin Console (/admin) showing platform wide live metrics across ALL hosted private leagues, a searchable All Private Leagues Manager (Feature, Archive, Reassign Host), KV Edge Cache force refreshes, and global Community Feedback triage & deletion.' },
       { tag: 'Added', text: 'Sitewide Broadcast Banner system (/api/site-banner + SiteNoticeBanner) letting Site Admin publish custom dismissible banners across all pages with 5 themes (Info, Maintenance, Event, Urgent, Holiday) and optional CTA links.' },
       { tag: 'Added', text: 'Per League Management Console (/league/:id/manage) visible only to each league\'s Host Admin, nominated Moderators, or Site Super Admin, housing that league\'s health, exports, ladder sync, awards, announcements, per league Webhook, and Staff Manager.' },
       { tag: 'Added', text: 'Up to 3 Moderators per private league nominated by the League Host with per moderator permission toggles (Edit Webhook, Edit Banner & Links, Grant Event Awards, Post Announcements, Manage Roster, Manage Wishlists).' },
@@ -183,10 +199,10 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     isMajor: true,
     tier: 'major',
     badge: 'Major Milestone',
-    summary: 'Launched a dedicated full page Wealth & Pace Analytics view (/assets/analytics) with backlinks to Asset Tracker and Exile Profiles, backed by per league Cloudflare D1 cloud storage.',
+    summary: 'Launched a dedicated full page Wealth & Pace Analytics view (/assets/analytics) with backlinks to Asset Tracker and Exile Profiles, backed by per league Cloud storage.',
     changes: [
       { tag: 'Added', text: 'Full page Wealth & Pace Analytics dashboard (/assets/analytics) with 5 executive KPI cards, interactive full width Wealth Timeline (Live Checkpoints & Saved Sessions toggle), Category Breakdown donut + table, Top Yielding Tabs leaderboard, and Top 12 Most Valuable Assets showcase.' },
-      { tag: 'Added', text: 'Per league Cloudflare D1 cloud snapshots (byLeague) inside /api/farming/stash-state so each league keeps its own persistent stash wealth timeline, tabs, and breakdown tied to your user profile.' },
+      { tag: 'Added', text: 'Per league Cloud snapshots (byLeague) inside /api/farming/stash-state so each league keeps its own persistent stash wealth timeline, tabs, and breakdown tied to your user profile.' },
       { tag: 'Added', text: 'Direct Full Analytics buttons inside Asset Tracker header and Analytics Deck, plus Back to Asset Tracker and Exile Profile backlinks on the full page view.' },
       { tag: 'Improved', text: 'Hardened Cloudflare Worker HMAC session signing to strictly require encrypted SESSION_SECRET with zero public repo fallback.' }
     ]
@@ -224,7 +240,7 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
       { tag: 'Added', text: 'Patch Notes style Changelog & Feedback hub (/feedback) featuring a release dropdown, previous/next stepper, full timeline toggle, search filter, and EST release timestamps.' },
       { tag: 'Added', text: 'Backfilled complete site release history from the Nov 1, 2026 initial launch through all 3.30 Covens of Umbra upgrades.' },
       { tag: 'Improved', text: 'Updated Sidebar navigation label and page header to Changelog & Feedback and refreshed GitHub README documentation.' },
-      { tag: 'Removed', text: 'Removed all fake seeded placeholder feedback posts and fake upvotes from client defaults and Cloudflare D1.' }
+      { tag: 'Removed', text: 'Removed all fake seeded placeholder feedback posts and fake upvotes from client defaults and Cloud.' }
     ]
   },
   {
@@ -237,7 +253,7 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     badge: 'Major Milestone',
     summary: 'Separated Atlas Mechanics and Hall of Fame into dedicated Private League Hub pages, added automatic 12 hour ladder sync, and brought official Path of Exile item icons onto Wishlist cards.',
     changes: [
-      { tag: 'Added', text: 'Dedicated Mechanics tab inside Private League Hub covering all 25 Atlas & Endgame mechanics (including Bestiary, Abyss, Beyond, Torment, Settlers, and more) with 1 click Claim / Drop lane syncing to D1.' },
+      { tag: 'Added', text: 'Dedicated Mechanics tab inside Private League Hub covering all 25 Atlas & Endgame mechanics (including Bestiary, Abyss, Beyond, Torment, Settlers, and more) with 1 click Claim / Drop lane syncing to Cloud.' },
       { tag: 'Added', text: 'Dedicated Hall of Fame tab right after Roster for League Firsts milestones.' },
       { tag: 'Added', text: 'Official Path of Exile item icons in the top right of Wishlist cards powered by live poe.ninja CDN icon mapping.' },
       { tag: 'Added', text: 'Embedded ExileCon 2026 Keynote and 3.30 Covens of Umbra Launch videos directly on the Command Center.' },
@@ -274,11 +290,11 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
     isMajor: false,
     tier: 'minor',
     badge: 'Builds & Guides',
-    summary: 'Condensed Community Guides and SSF Starters into one vetted Builds Hub with live Mobalytics and Maxroll pulling, upgraded PoB Build Doctor to sync straight into your League Roster, and connected all 13 compendium tools to Cloudflare D1.',
+    summary: 'Condensed Community Guides and SSF Starters into one vetted Builds Hub with live Mobalytics and Maxroll pulling, upgraded PoB Build Doctor to sync straight into your League Roster, and connected all 13 compendium tools to Cloud.',
     changes: [
       { tag: 'Added', text: 'Live pobb.in and pastebin.com URL resolver in PoB Build Doctor plus 1 click Sync to Private League Roster (Main or Alt) and Parsed Character Vitals strip.' },
       { tag: 'Added', text: 'Live Mobalytics and Maxroll.gg build guide puller (/api/builds/external) for both PoE 1 and PoE 2.' },
-      { tag: 'Added', text: 'Cloudflare D1 user_tool_state cloud sync powering saved Regex Presets, Crafting Bench unlock checklists, Atlas Voidstone tracker, Campaign & Lab progress, and pinned Tools Directory favorites.' },
+      { tag: 'Added', text: 'Cloud user_tool_state cloud sync powering saved Regex Presets, Crafting Bench unlock checklists, Atlas Voidstone tracker, Campaign & Lab progress, and pinned Tools Directory favorites.' },
       { tag: 'Added', text: '1 click Load My League PoB Stats inside the Defense Mechanics interactive EHP Calculator.' },
       { tag: 'Improved', text: 'Consolidated PoE Wiki, PoEDB, and PoE Ninja portals with dynamic My Character & Wishlist quick lookup chips and fixed stale Settlers URLs to current challenge league.' },
       { tag: 'Fixed', text: 'Moved the Sidebar collapse toggle inside the header to prevent full screen clipping, normalized NZDT/NZST timezone labels, and reset seeded fake likes and ratings on build guides.' }
@@ -287,16 +303,16 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
     id: 'rel-2026-11-22-early',
     version: 'v3.30.1',
-    title: 'Global Session Security Gate, Privacy Policy, D1 Stash Sync & SSF Weights',
+    title: 'Global Session Security Gate, Privacy Policy, Cloud Stash Sync & SSF Weights',
     dateEst: 'Nov 22, 2026 • 3:45 AM EST',
     isMajor: false,
     tier: 'minor',
     badge: 'Security & Weights',
-    summary: 'Hardened all state changing API endpoints with signed exile_session verification, published the Privacy Policy, added cross device D1 stash persistence, and introduced editable SSF Utility weights.',
+    summary: 'Hardened all state changing API endpoints with signed exile_session verification, published the Privacy Policy, added cross device Cloud stash persistence, and introduced editable SSF Utility weights.',
     changes: [
       { tag: 'Added', text: 'Global exile_session mutation gate enforcing verified session cookies and owner/admin checks across all POST, PUT, and DELETE Worker routes.' },
       { tag: 'Added', text: 'Dedicated Privacy Policy page (/privacy) linked from the Sidebar footer, live per tab scanning progress bar, and explicit DEMO DATA preview banner.' },
-      { tag: 'Added', text: 'Cloudflare D1 cloud stash persistence across devices, transparent editable SSF Utility Weights drawer anchored to poe.ninja Chaos pricing, desktop drop notifications, and Exile Profile Farming Trophy Case.' },
+      { tag: 'Added', text: 'Cloud stash persistence across devices, transparent editable SSF Utility Weights drawer anchored to poe.ninja Chaos pricing, desktop drop notifications, and Exile Profile Farming Trophy Case.' },
       { tag: 'Added', text: 'Unique and Map stash tab API 0 visibility badges, EST post and edit timestamps on Official Patch Notes, and live GGG NZT + Local Timezone clock in Sidebar.' },
       { tag: 'Fixed', text: 'Fixed Free Stash share endpoint routing (/api/stash-drops) and synced account tag mapping.' },
       { tag: 'Removed', text: 'Removed legacy SSF Progress bar from the Sidebar.' }
@@ -338,14 +354,14 @@ export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
     id: 'rel-2026-11-21-am',
     version: 'v3.29.7',
-    title: 'Cloudflare D1 SQLite Architecture, Live League Feed, Exile Profiles & Root Webhooks',
+    title: 'Cloud SQL Architecture, Live League Feed, Exile Profiles & Root Webhooks',
     dateEst: 'Nov 21, 2026 • 4:45 AM EST',
     isMajor: true,
     tier: 'major',
     badge: 'Major Milestone',
-    summary: 'Migrated multiplayer data to a 16 table Cloudflare D1 SQLite database with PBKDF2 authentication, launched Exile Profiles and Live League Feed, and wired up Root webhooks and cron ladder syncing.',
+    summary: 'Migrated multiplayer data to a 16 table Cloud SQL database with PBKDF2 authentication, launched Exile Profiles and Live League Feed, and wired up Root webhooks and cron ladder syncing.',
     changes: [
-      { tag: 'Added', text: 'Migrated core storage to 16 table Cloudflare D1 SQLite architecture with PBKDF2 salted password hashing.' },
+      { tag: 'Added', text: 'Migrated core storage to 16 table Cloud SQL architecture with PBKDF2 salted password hashing.' },
       { tag: 'Added', text: 'Dedicated Exile Profile pages with Honor History ledgers, clickable profile handles app wide, linked avatars, and 3.30 Witch league achievements.' },
       { tag: 'Added', text: 'Live League Feed with comments, mentions filter, unread badge, honor credits, and numeric timestamp sorting.' },
       { tag: 'Added', text: 'Root server webhook alerts, top bar notification bell, admin host awards, automated 10 minute ladder cron sync, Wishlist Loot Filter Generator, Boss Carries & Vouches, and PWA manifest.' },

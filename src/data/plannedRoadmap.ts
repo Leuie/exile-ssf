@@ -1,7 +1,7 @@
 export interface PlannedRoadmapItem {
   id: string;
   category:
-    | 'D1 Character Engine Cross Site Integrations'
+    | 'Armory Cross Site Integrations'
     | 'Deeper Character & Build Tools'
     | 'Private League & GSF Social Features'
     | 'Next Level Client.txt & Farming Analytics'
@@ -12,7 +12,7 @@ export interface PlannedRoadmapItem {
 }
 
 export const PLANNED_ROADMAP_CATEGORIES: PlannedRoadmapItem['category'][] = [
-  'D1 Character Engine Cross Site Integrations',
+  'Armory Cross Site Integrations',
   'Deeper Character & Build Tools',
   'Private League & GSF Social Features',
   'Next Level Client.txt & Farming Analytics',
@@ -20,18 +20,18 @@ export const PLANNED_ROADMAP_CATEGORIES: PlannedRoadmapItem['category'][] = [
 ];
 
 export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
-  // D1 Character Engine Cross Site Integrations (Remaining)
+  // Armory Cross Site Integrations (Remaining)
   {
     id: 'rm-map-tracker-per-char',
-    category: 'D1 Character Engine Cross Site Integrations',
+    category: 'Armory Cross Site Integrations',
     title: 'Map Tracker Per Character Mapping Telemetry',
     description:
-      'Link saved Map Tracker sessions to synced D1 character snapshots to compare clear speed, XP/hr, and deaths per character/build with a Gear Snapshot at Time of Run badge.',
+      'Link saved Map Tracker sessions to synced Armory character snapshots to compare clear speed, XP/hr, and deaths per character/build with a Gear Snapshot at Time of Run badge.',
     scope: 'PoE 1 & PoE 2'
   },
   {
     id: 'rm-crafting-gear-hole-detector',
-    category: 'D1 Character Engine Cross Site Integrations',
+    category: 'Armory Cross Site Integrations',
     title: 'Crafting Bench & Regex Studio Personalized Gear Hole Detector',
     description:
       'Analyze your synced Character\'s weakest gear slots (such as uncapped Chaos Res on rings or missing Spell Suppression on boots/gloves) and highlight the exact Crafting Bench, Harvest, and Essence crafts that fix your build right now.',

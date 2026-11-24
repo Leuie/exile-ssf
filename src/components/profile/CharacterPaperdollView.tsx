@@ -1228,7 +1228,15 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                       className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 font-mono focus:outline-none focus:border-indigo-400"
                     />
                     <input
-                      type="password"
+                      type="text"
+                      name="poe_session_token"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
                       value={poesessid}
                       onChange={(e) => setPoesessid(e.target.value)}
                       placeholder="POESESSID (saved locally for 30 days)"
