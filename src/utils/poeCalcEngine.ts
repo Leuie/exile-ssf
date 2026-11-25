@@ -106,10 +106,11 @@ export interface PoeCalcBreakdown {
   movementSpeedMod: number;
 }
 
+// Verified against Path of Building Community 2.69.0 (Data/Misc.lua monsterAccuracyTable[84]=538, [85]=559)
 const ENEMY_PRESETS: Record<EnemyPresetId, { label: string; hitDamage: number; accuracy: number }> = {
-  map_84: { label: 'Standard Map (Lv 84)', hitDamage: 2261, accuracy: 1014 },
-  pinnacle_84: { label: 'Guardian / Pinnacle Boss (Lv 84)', hitDamage: 4800, accuracy: 1350 },
-  uber_85: { label: 'Uber Pinnacle Boss (Lv 85)', hitDamage: 8500, accuracy: 1650 }
+  map_84: { label: 'Standard Map (Lv 84)', hitDamage: 2261, accuracy: 538 },
+  pinnacle_84: { label: 'Guardian / Pinnacle Boss (Lv 84)', hitDamage: 4800, accuracy: 673 },
+  uber_85: { label: 'Uber Pinnacle Boss (Lv 85)', hitDamage: 8500, accuracy: 700 }
 };
 
 export function getEnemyPresetInfo(id: EnemyPresetId) {
@@ -396,21 +397,22 @@ export function calculateCharacterStats(
   const flatPdr = Math.round(gs?.flatPdr || 0);
   const physTakenAsEle = Math.min(90, Math.round(gs?.physTakenAsEle || 0));
   const fortifyDr = config.fortified ? Math.min(30, Math.max(0, config.fortifyStacks)) : 0;
-  const arcticPhysDr = isAuraOn('Arctic Armour') ? 21 : 0;
+  const arcticPhysDr = isAuraOn('Arctic Armour') ? 21 : 0; // PoB 2.69.0 act_dex.lua Lv 20: -21% Phys, -20% Fire
+  const arcticFireDr = isAuraOn('Arctic Armour') ? 20 : 0;
   const fleshStoneDr = isAuraOn('Flesh and Stone') ? 19 : 0;
 
-  // Guard Skill absorption when Guard is Active
+  // Guard Skill absorption when Guard is Active (verified against PoB 2.69.0 act_str.lua)
   let guardAbsorb = 0;
   let guardLessPhys = 0;
   let guardLessEle = 0;
   if (config.guardActive && detectedGuard) {
     const gLow = detectedGuard.toLowerCase();
     if (gLow.includes('molten shell')) {
-      guardAbsorb = Math.min(5000, Math.round(totalArmour * 0.2));
+      guardAbsorb = Math.min(3000, Math.round(totalArmour * 0.1)); // Lv 20 Molten Shell: 10% Armour up to 3,000
     } else if (gLow.includes('steelskin')) {
       guardAbsorb = 2209;
     } else if (gLow.includes('immortal call')) {
-      guardLessPhys = 35;
+      guardLessPhys = 35; // Lv 20 Immortal Call: -35% Phys, -34% Ele
       guardLessEle = 34;
     } else if (gLow.includes('arcane cloak')) {
       guardAbsorb = 2000;
@@ -443,7 +445,8 @@ export function calculateCharacterStats(
       dmg = rawHit * (1 - chaos.effective / 100);
     } else {
       const resPct = type === 'fire' ? fire.effective : type === 'cold' ? cold.effective : lightning.effective;
-      dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100);
+      const fireExtra = type === 'fire' ? 1 - arcticFireDr / 100 : 1;
+      dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
       if (suppressionChance >= 100) {
         dmg *= 1 - suppressionEffect / 100;
       }
