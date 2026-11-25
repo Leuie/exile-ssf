@@ -24,6 +24,7 @@ import {
 import { decodePoBCode, parsePoBXml, detectAurasAndGuards } from '../utils/pobDecoder';
 import { encodeSnapshotToPobCode } from '../utils/pobEncoder';
 import { analyzeBuild } from '../utils/buildAnalyzer';
+import { computeSnapshotResistances, formatPobRes } from '../utils/resFormatter';
 import type { ParsedCharacter, AnalysisReport, DiagnosticItem } from '../types/analyzer';
 import type { UserAccount, LeagueRosterMember, LeagueCharacter, ActiveLeagueSession } from '../types';
 import {
@@ -104,7 +105,6 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
     mainGroup?.gems.find((g) => !g.isSupport)?.name || mainGroup?.label || snap.character.className;
 
   const { activeAuras, guardSkills } = detectAurasAndGuards(skillGroups);
-  const hasPurityOfElements = activeAuras.includes('Purity of Elements');
   const hasTempestShield = activeAuras.includes('Tempest Shield');
 
   let physTakenAsEle = 0;
@@ -119,18 +119,9 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
     while ((m = rx.exec(t)) !== null) physTakenAsEle += parseInt(m[1], 10);
   }
 
-  const purityBonus = hasPurityOfElements ? 34 : 0;
+  const resSummary = computeSnapshotResistances(snap);
   const vit = snap.estimatedVitals;
   const stats = snap.gearStats;
-  const rawFire = (vit?.fireRes || 0) + purityBonus - 60;
-  const rawCold = (vit?.coldRes || 0) + purityBonus - 60;
-  const rawLight = (vit?.lightningRes || 0) + purityBonus - 60;
-  const rawChaos = (vit?.chaosRes || 0) - 60;
-  const fireRes = Math.min(75, Math.max(-60, rawFire));
-  const coldRes = Math.min(75, Math.max(-60, rawCold));
-  const lightningRes = Math.min(75, Math.max(-60, rawLight));
-  const chaosRes = Math.min(75, Math.max(-60, rawChaos));
-
   const strLifeBonus = Math.floor((stats?.strength || 0) / 2);
   const baseLife = (vit?.flatLife || 0) + strLifeBonus + (snap.character.level || 1) * 12 + 38;
 
@@ -160,23 +151,31 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
       flasksActive: false
     },
     stats: {
-      life: Math.max(100, baseLife),
+      life: resSummary.isCI ? 1 : Math.max(100, baseLife),
       energyShield: Math.max(0, stats?.energyShield || vit?.flatEs || 0),
       ward: 0,
-      fireRes,
-      fireResOverCap: Math.max(0, rawFire - 75),
-      coldRes,
-      coldResOverCap: Math.max(0, rawCold - 75),
-      lightningRes,
-      lightningResOverCap: Math.max(0, rawLight - 75),
-      chaosRes,
-      chaosResOverCap: Math.max(0, rawChaos - 75),
-      maxFireRes: 75,
-      maxColdRes: 75,
-      maxLightningRes: 75,
-      maxChaosRes: 75,
+      totalMana: 0,
+      unreservedMana: 0,
+      manaRegen: 0,
+      strength: stats?.strength || 0,
+      dexterity: stats?.dexterity || 0,
+      intelligence: stats?.intelligence || 0,
+      fireRes: resSummary.fire.effective,
+      fireResOverCap: resSummary.fire.overcap,
+      coldRes: resSummary.cold.effective,
+      coldResOverCap: resSummary.cold.overcap,
+      lightningRes: resSummary.lightning.effective,
+      lightningResOverCap: resSummary.lightning.overcap,
+      chaosRes: resSummary.chaos.effective,
+      chaosResOverCap: resSummary.chaos.overcap,
+      maxFireRes: resSummary.fire.maxRes,
+      maxColdRes: resSummary.cold.maxRes,
+      maxLightningRes: resSummary.lightning.maxRes,
+      maxChaosRes: resSummary.chaos.maxRes,
       armour: stats?.armour || 0,
       evasion: stats?.evasion || 0,
+      evadeChance: 0,
+      physDamageReduction: 0,
       spellSuppression: Math.min(100, vit?.suppress || 0),
       block: stats?.blockChance || 0,
       spellBlock: hasTempestShield ? 25 : 0,
@@ -188,13 +187,18 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
       coldMaxHit: 0,
       lightningMaxHit: 0,
       chaosMaxHit: 0,
+      averageDamage: 0,
+      attackRate: 0,
+      hitChance: 100,
+      hitDPS: 0,
+      cullingDPS: 0,
       totalDPS: 0,
       fullDPS: 0,
       dotDPS: 0,
       minionDPS: 0,
       critChance: 0,
       critMulti: 150,
-      movementSpeedMod: 0,
+      movementSpeedMod: stats?.movementSpeed || 0,
       manaUnreservedPercent: 20,
       mainLinkCount: mainGroup?.effectiveLinks || 0,
       physTakenAsEle,
@@ -206,6 +210,7 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
     items,
     flasks,
     keystones: (snap.passives?.keystones || []).map((k) => k.name),
+    allocatedHashes: snap.passives?.allocatedHashes || [],
     masteriesCount: (snap.passives?.masteries || []).length
   };
 }
@@ -862,22 +867,35 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
                   <span className="text-sky-300">{Math.round(parsedChar.stats.energyShield).toLocaleString()}</span>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                <div className="text-[10px] uppercase text-slate-500">Elemental Res</div>
-                <div className="font-bold mt-0.5 flex items-center gap-1">
-                  <span className={parsedChar.stats.fireRes >= 75 ? 'text-rose-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.fireRes)}</span>
-                  <span className="text-slate-600">/</span>
-                  <span className={parsedChar.stats.coldRes >= 75 ? 'text-sky-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.coldRes)}</span>
-                  <span className="text-slate-600">/</span>
-                  <span className={parsedChar.stats.lightningRes >= 75 ? 'text-amber-300' : 'text-rose-500'}>{Math.round(parsedChar.stats.lightningRes)}</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                <div className="text-[10px] uppercase text-slate-500">Chaos Res</div>
-                <div className={`font-bold mt-0.5 ${parsedChar.stats.chaosRes >= 40 ? 'text-emerald-300' : parsedChar.stats.chaosRes >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
-                  {Math.round(parsedChar.stats.chaosRes)}%
-                </div>
-              </div>
+              {(() => {
+                const f = formatPobRes(parsedChar.stats.fireRes, parsedChar.stats.fireResOverCap, parsedChar.stats.maxFireRes);
+                const c = formatPobRes(parsedChar.stats.coldRes, parsedChar.stats.coldResOverCap, parsedChar.stats.maxColdRes);
+                const l = formatPobRes(parsedChar.stats.lightningRes, parsedChar.stats.lightningResOverCap, parsedChar.stats.maxLightningRes);
+                const ch = formatPobRes(
+                  parsedChar.stats.chaosRes,
+                  parsedChar.stats.chaosResOverCap,
+                  parsedChar.stats.maxChaosRes,
+                  parsedChar.keystones.includes('Chaos Inoculation') || (parsedChar.stats.life === 1 && parsedChar.stats.energyShield >= 200)
+                );
+                return (
+                  <>
+                    <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-[10px] uppercase text-slate-500">Elemental Res (Cap + Over)</div>
+                      <div className="font-bold mt-0.5 text-[11px] leading-tight space-y-0.5">
+                        <div className={f.isCapped ? 'text-orange-300' : 'text-rose-500'}>F: {f.label}</div>
+                        <div className={c.isCapped ? 'text-sky-300' : 'text-rose-500'}>C: {c.label}</div>
+                        <div className={l.isCapped ? 'text-amber-300' : 'text-rose-500'}>L: {l.label}</div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-[10px] uppercase text-slate-500">Chaos Res</div>
+                      <div className={`font-bold mt-0.5 ${ch.isImmune || ch.effective >= 40 ? 'text-fuchsia-300' : ch.effective >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
+                        {ch.label}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
               <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                 <div className="text-[10px] uppercase text-slate-500">Suppression</div>
                 <div className={`font-bold mt-0.5 ${parsedChar.stats.spellSuppression >= 100 ? 'text-emerald-300' : 'text-slate-200'}`}>

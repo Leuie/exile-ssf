@@ -18,6 +18,7 @@ import {
   MousePointerClick
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
+import { computeSnapshotResistances } from '../../utils/resFormatter';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
 import {
   readUnifiedPoeSession,
@@ -1467,9 +1468,9 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Energy Shield (Base + Flat)</span>
+                      <span className="text-slate-400">Energy Shield (Gear Base)</span>
                       <span className="font-mono font-bold text-sky-300">
-                        {((activeSnapshot.gearStats?.energyShield || 0) + activeSnapshot.estimatedVitals.flatEs).toLocaleString()}
+                        {(activeSnapshot.gearStats?.energyShield || activeSnapshot.estimatedVitals.flatEs).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -1490,24 +1491,43 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                     </div>
                     {(activeSnapshot.gearStats?.blockChance || 0) > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Shield Block</span>
+                        <span className="text-slate-400">Block Chance (Shield)</span>
                         <span className="font-mono font-bold text-slate-200">
                           {activeSnapshot.gearStats!.blockChance}%
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Resistances (F / C / L / Ch)</span>
-                      <span className="font-mono font-bold">
-                        <span className="text-orange-400">{activeSnapshot.estimatedVitals.fireRes}%</span>
-                        <span className="text-slate-600"> / </span>
-                        <span className="text-cyan-400">{activeSnapshot.estimatedVitals.coldRes}%</span>
-                        <span className="text-slate-600"> / </span>
-                        <span className="text-amber-300">{activeSnapshot.estimatedVitals.lightningRes}%</span>
-                        <span className="text-slate-600"> / </span>
-                        <span className="text-purple-400">{activeSnapshot.estimatedVitals.chaosRes}%</span>
-                      </span>
-                    </div>
+                    {(() => {
+                      const res = computeSnapshotResistances(activeSnapshot);
+                      return (
+                        <div className="space-y-1 pt-1 border-t border-slate-800/70">
+                          <div className="flex items-center justify-between">
+                            <span className="text-orange-400/90">Fire Resistance</span>
+                            <span className={`font-mono font-bold ${res.fire.isCapped ? 'text-orange-300' : 'text-rose-400'}`}>
+                              {res.fire.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sky-400/90">Cold Resistance</span>
+                            <span className={`font-mono font-bold ${res.cold.isCapped ? 'text-sky-300' : 'text-rose-400'}`}>
+                              {res.cold.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-300/90">Lightning Resistance</span>
+                            <span className={`font-mono font-bold ${res.lightning.isCapped ? 'text-amber-200' : 'text-rose-400'}`}>
+                              {res.lightning.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-fuchsia-400/90">Chaos Resistance</span>
+                            <span className={`font-mono font-bold ${res.chaos.isImmune || res.chaos.effective >= 40 ? 'text-fuchsia-300' : res.chaos.effective >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
+                              {res.chaos.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {activeSnapshot.estimatedVitals.suppress > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Spell Suppression</span>
@@ -1530,10 +1550,11 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   {(() => {
                     const holes: Array<{ label: string; severity: 'high' | 'med' }> = [];
                     const v = activeSnapshot.estimatedVitals;
-                    if (v.fireRes < 75) holes.push({ label: `Fire Res ${v.fireRes}% (<75%)`, severity: 'high' });
-                    if (v.coldRes < 75) holes.push({ label: `Cold Res ${v.coldRes}% (<75%)`, severity: 'high' });
-                    if (v.lightningRes < 75) holes.push({ label: `Light Res ${v.lightningRes}% (<75%)`, severity: 'high' });
-                    if (v.chaosRes < 0) holes.push({ label: `Chaos Res ${v.chaosRes}% (<0%)`, severity: 'med' });
+                    const res = computeSnapshotResistances(activeSnapshot);
+                    if (!res.fire.isCapped) holes.push({ label: `Fire Res ${res.fire.label} (<${res.fire.maxRes}%)`, severity: 'high' });
+                    if (!res.cold.isCapped) holes.push({ label: `Cold Res ${res.cold.label} (<${res.cold.maxRes}%)`, severity: 'high' });
+                    if (!res.lightning.isCapped) holes.push({ label: `Light Res ${res.lightning.label} (<${res.lightning.maxRes}%)`, severity: 'high' });
+                    if (!res.chaos.isImmune && res.chaos.effective < 0) holes.push({ label: `Chaos Res ${res.chaos.label} (<0%)`, severity: 'med' });
                     if (v.suppress > 0 && v.suppress < 100) holes.push({ label: `Suppress ${v.suppress}% (<100%)`, severity: 'med' });
                     const flaskCount = activeSnapshot.equipped.filter((i) => i.inventoryId === 'Flask').length;
                     if (flaskCount < 5) holes.push({ label: `${5 - flaskCount} Empty Flask Slot${5 - flaskCount > 1 ? 's' : ''}`, severity: 'med' });

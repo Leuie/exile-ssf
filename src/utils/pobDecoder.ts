@@ -446,8 +446,16 @@ export function parsePoBXml(xml: string): ParsedCharacter {
   const specEl = specs[activeSpecIdx - 1] || specs[0] || doc.querySelector('Spec');
 
   const keystones: string[] = [];
+  const allocatedHashes: number[] = [];
   let masteriesCount = 0;
   if (specEl) {
+    const rawNodes = specEl.getAttribute('nodes') || '';
+    if (rawNodes) {
+      for (const tok of rawNodes.split(',')) {
+        const n = parseInt(tok.trim(), 10);
+        if (Number.isFinite(n) && n > 0) allocatedHashes.push(n);
+      }
+    }
     const masteryEffects = specEl.getAttribute('masteryEffects') || '';
     if (masteryEffects) {
       masteriesCount = (masteryEffects.match(/\{/g) || []).length;
@@ -517,6 +525,12 @@ export function parsePoBXml(xml: string): ParsedCharacter {
     life: Math.round(rawLife),
     energyShield: Math.round(rawEs),
     ward: Math.round(pickStat(statMap, ['Ward'], 0)),
+    totalMana: Math.round(pickStat(statMap, ['Mana'], 0)),
+    unreservedMana: Math.round(pickStat(statMap, ['ManaUnreserved'], 0)),
+    manaRegen: parseFloat(pickStat(statMap, ['ManaRegenRecovery', 'ManaRegen'], 0).toFixed(1)),
+    strength: Math.round(pickStat(statMap, ['Str'], 0)),
+    dexterity: Math.round(pickStat(statMap, ['Dex'], 0)),
+    intelligence: Math.round(pickStat(statMap, ['Int'], 0)),
     fireRes: Math.round(pickStat(statMap, ['FireResist'], 0)),
     fireResOverCap: Math.round(pickStat(statMap, ['FireResistOverCap'], 0)),
     coldRes: Math.round(pickStat(statMap, ['ColdResist'], 0)),
@@ -531,6 +545,8 @@ export function parsePoBXml(xml: string): ParsedCharacter {
     maxChaosRes: Math.round(pickStat(statMap, ['ChaosResistMax'], 75)),
     armour: Math.round(pickStat(statMap, ['Armour'], 0)),
     evasion: Math.round(pickStat(statMap, ['Evasion'], 0)),
+    evadeChance: Math.round(pickStat(statMap, ['MeleeEvadeChance', 'EvadeChance'], 0)),
+    physDamageReduction: Math.round(pickStat(statMap, ['PhysicalDamageReduction'], 0)),
     spellSuppression: Math.round(pickStat(statMap, ['SpellSuppressionChance'], 0)),
     block: Math.round(pickStat(statMap, ['EffectiveBlockChance', 'BlockChance'], 0)),
     spellBlock: Math.round(pickStat(statMap, ['EffectiveSpellBlockChance', 'SpellBlockChance'], 0)),
@@ -542,11 +558,16 @@ export function parsePoBXml(xml: string): ParsedCharacter {
     coldMaxHit: Math.round(pickStat(statMap, ['ColdMaximumHitTaken'], 0)),
     lightningMaxHit: Math.round(pickStat(statMap, ['LightningMaximumHitTaken'], 0)),
     chaosMaxHit: Math.round(pickStat(statMap, ['ChaosMaximumHitTaken'], 0)),
+    averageDamage: Math.round(pickStat(statMap, ['AverageDamage', 'AverageHit'], 0)),
+    attackRate: parseFloat(pickStat(statMap, ['Speed'], 0).toFixed(2)),
+    hitChance: Math.round(pickStat(statMap, ['HitChance'], 100)),
+    hitDPS: Math.round(pickStat(statMap, ['TotalDPS'], 0)),
+    cullingDPS: Math.round(pickStat(statMap, ['CullingDPS'], 0)),
     totalDPS: combinedOrTotalDPS,
     fullDPS,
     dotDPS: Math.round(pickStat(statMap, ['TotalDot', 'IgniteDPS', 'BleedDPS', 'PoisonDPS'], 0)),
     minionDPS,
-    critChance: parseFloat(pickStat(statMap, ['CritChance', 'PreEffectiveCritChance'], 0).toFixed(1)),
+    critChance: parseFloat(pickStat(statMap, ['CritChance', 'PreEffectiveCritChance'], 0).toFixed(2)),
     critMulti: critMultiPct,
     movementSpeedMod: Math.round((pickStat(statMap, ['EffectiveMovementSpeedMod'], 1) - 1) * 100),
     manaUnreservedPercent: Math.round(pickStat(statMap, ['ManaUnreservedPercent'], 0)),
@@ -672,6 +693,7 @@ export function parsePoBXml(xml: string): ParsedCharacter {
     items,
     flasks,
     keystones,
+    allocatedHashes,
     masteriesCount
   };
 }

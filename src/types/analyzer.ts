@@ -18,6 +18,12 @@ export interface ParsedPoBStats {
   life: number;
   energyShield: number;
   ward: number;
+  totalMana: number;
+  unreservedMana: number;
+  manaRegen: number;
+  strength: number;
+  dexterity: number;
+  intelligence: number;
   fireRes: number;
   fireResOverCap: number;
   coldRes: number;
@@ -32,6 +38,8 @@ export interface ParsedPoBStats {
   maxChaosRes: number;
   armour: number;
   evasion: number;
+  evadeChance: number;
+  physDamageReduction: number;
   spellSuppression: number;
   block: number;
   spellBlock: number;
@@ -43,6 +51,11 @@ export interface ParsedPoBStats {
   coldMaxHit: number;
   lightningMaxHit: number;
   chaosMaxHit: number;
+  averageDamage: number;
+  attackRate: number;
+  hitChance: number;
+  hitDPS: number;
+  cullingDPS: number;
   totalDPS: number;
   fullDPS: number;
   dotDPS: number;
@@ -118,6 +131,7 @@ export interface ParsedCharacter {
   items: ParsedItem[];
   flasks: ParsedItem[];
   keystones: string[];
+  allocatedHashes: number[];
   masteriesCount: number;
 }
 
