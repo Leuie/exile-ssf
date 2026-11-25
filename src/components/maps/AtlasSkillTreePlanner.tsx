@@ -12,7 +12,8 @@ import {
   Loader2,
   Sparkles,
   X,
-  Compass
+  Compass,
+  ListChecks
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 
@@ -140,6 +141,8 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   const [spriteTick, setSpriteTick] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [showStatsDrawer, setShowStatsDrawer] = useState<boolean>(false);
+  const [statsFilter, setStatsFilter] = useState<string>('');
 
   const [savedTrees, setSavedTrees] = useState<SavedAtlasTree[]>(() => readLocalAtlasTrees());
   const [activeTreeId, setActiveTreeId] = useState<string>('');
@@ -360,6 +363,157 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     return { keystones, notables };
   }, [parsedGraph, allocatedIds]);
 
+  // Aggregate & total all stat lines from every allocated Atlas node (just like in-game PoE "SHOW STATS")
+  const totalAtlasStats = useMemo(() => {
+    if (!parsedGraph || allocatedIds.length === 0) return [] as string[];
+    const numericMap = new Map<string, { template: string; values: number[]; hasPlus: boolean[] }>();
+    const plainLines = new Set<string>();
+
+    for (const id of allocatedIds) {
+      const nd = parsedGraph.byId.get(id);
+      if (!nd || !Array.isArray(nd.stats)) continue;
+      for (const rawLine of nd.stats) {
+        const line = String(rawLine || '').trim();
+        if (!line) continue;
+        // Split multiline stat descriptions
+        for (const subLine of line.split(/\r?\n/)) {
+          const clean = subLine.trim();
+          if (!clean) continue;
+          const nums: number[] = [];
+          const plusFlags: boolean[] = [];
+          let idx = 0;
+          const template = clean.replace(/([+-]?)(\d+(?:\.\d+)?)/g, (_m, sign, numStr) => {
+            const val = parseFloat((sign === '-' ? '-' : '') + numStr);
+            nums.push(val);
+            plusFlags.push(sign === '+');
+            return `{${idx++}}`;
+          });
+          if (nums.length === 0) {
+            plainLines.add(clean);
+          } else {
+            const existing = numericMap.get(template);
+            if (existing && existing.values.length === nums.length) {
+              for (let i = 0; i < nums.length; i++) {
+                existing.values[i] = Math.round((existing.values[i] + nums[i]) * 100) / 100;
+              }
+            } else {
+              numericMap.set(template, { template, values: nums, hasPlus: plusFlags });
+            }
+          }
+        }
+      }
+    }
+
+    const formattedNumeric = Array.from(numericMap.values()).map(({ template, values, hasPlus }) =>
+      template.replace(/\{(\d+)\}/g, (_m, iStr) => {
+        const i = Number(iStr);
+        const v = values[i] ?? 0;
+        const prefix = hasPlus[i] && v >= 0 ? '+' : '';
+        return `${prefix}${v}`;
+      })
+    );
+
+    return [...formattedNumeric, ...Array.from(plainLines)];
+  }, [parsedGraph, allocatedIds]);
+
+  const filteredAtlasStats = useMemo(() => {
+    const q = statsFilter.trim().toLowerCase();
+    if (!q) return totalAtlasStats;
+    return totalAtlasStats.filter((s) => s.toLowerCase().includes(q));
+  }, [totalAtlasStats, statsFilter]);
+
+  // Multi-source BFS: shortest path from (Start U allocatedIds) to an unallocated target node
+  const computeShortestPath = useCallback(
+    (targetId: number, currentAllocated: number[]): number[] => {
+      if (!parsedGraph) return [];
+      const allocSet = new Set<number>(currentAllocated);
+      if (allocSet.has(targetId) || parsedGraph.startNodeIds.has(targetId)) return [];
+
+      const parent = new Map<number, number | null>();
+      const queue: number[] = [];
+      for (const s of parsedGraph.startNodeIds) {
+        parent.set(s, null);
+        queue.push(s);
+      }
+      for (const a of currentAllocated) {
+        if (!parent.has(a)) {
+          parent.set(a, null);
+          queue.push(a);
+        }
+      }
+
+      let found = false;
+      let head = 0;
+      while (head < queue.length) {
+        const cur = queue[head++];
+        if (cur === targetId) {
+          found = true;
+          break;
+        }
+        for (const nb of parsedGraph.adj.get(cur) || []) {
+          if (!parent.has(nb)) {
+            parent.set(nb, cur);
+            queue.push(nb);
+          }
+        }
+      }
+
+      if (!found) return [];
+      const path: number[] = [];
+      let step: number | null | undefined = targetId;
+      while (step !== null && step !== undefined && !allocSet.has(step) && !parsedGraph.startNodeIds.has(step)) {
+        path.push(step);
+        step = parent.get(step);
+      }
+      return path.reverse();
+    },
+    [parsedGraph]
+  );
+
+  // Branch refund BFS: find all allocated nodes that would be disconnected from Start if targetId is removed
+  const computeBranchRefund = useCallback(
+    (targetId: number, currentAllocated: number[]): number[] => {
+      if (!parsedGraph) return [];
+      const remaining = new Set<number>(currentAllocated.filter((id) => id !== targetId));
+      const reachable = new Set<number>();
+      const queue: number[] = [...parsedGraph.startNodeIds];
+      for (const s of queue) reachable.add(s);
+
+      let head = 0;
+      while (head < queue.length) {
+        const cur = queue[head++];
+        for (const nb of parsedGraph.adj.get(cur) || []) {
+          if (!reachable.has(nb) && remaining.has(nb)) {
+            reachable.add(nb);
+            queue.push(nb);
+          }
+        }
+      }
+
+      const toRemove: number[] = [targetId];
+      for (const id of remaining) {
+        if (!reachable.has(id)) toRemove.push(id);
+      }
+      return toRemove;
+    },
+    [parsedGraph]
+  );
+
+  // Live hover preview: shortest path to allocate (amber) OR entire branch to refund (crimson)
+  const hoverPreview = useMemo(() => {
+    if (!hoveredNode || !parsedGraph) {
+      return { mode: 'none' as const, ids: new Set<number>(), count: 0, overCap: false };
+    }
+    const tid = hoveredNode.node.id;
+    if (allocatedSet.has(tid)) {
+      const refundIds = computeBranchRefund(tid, allocatedIds);
+      return { mode: 'refund' as const, ids: new Set(refundIds), count: refundIds.length, overCap: false };
+    }
+    const pathIds = computeShortestPath(tid, allocatedIds);
+    const overCap = allocatedIds.length + pathIds.length > MAX_ATLAS_POINTS;
+    return { mode: 'allocate' as const, ids: new Set(pathIds), count: pathIds.length, overCap };
+  }, [hoveredNode, parsedGraph, allocatedSet, allocatedIds, computeBranchRefund, computeShortestPath]);
+
   // Render Official Atlas Skill Tree Canvas with GGG Sprite Artwork & Curved Orbits
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -516,6 +670,33 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
         traceEdge(e.a, e.b);
       }
       ctx.stroke();
+
+      // 3b. Hover Preview Paths: Shortest Path to Allocate (Amber) OR Branch to Refund (Crimson)
+      if (hoverPreview.mode === 'allocate' && hoverPreview.ids.size > 0) {
+        const previewActive = (id: number) =>
+          hoverPreview.ids.has(id) || allocatedSet.has(id) || parsedGraph.startNodeIds.has(id);
+        ctx.beginPath();
+        ctx.strokeStyle = hoverPreview.overCap ? 'rgba(244, 63, 94, 0.75)' : 'rgba(250, 204, 21, 0.85)';
+        ctx.lineWidth = Math.max(3.5, 5.2 / Math.sqrt(zoom));
+        ctx.lineCap = 'round';
+        for (const e of parsedGraph.edges) {
+          if (previewActive(e.a.id) && previewActive(e.b.id) && (hoverPreview.ids.has(e.a.id) || hoverPreview.ids.has(e.b.id))) {
+            traceEdge(e.a, e.b);
+          }
+        }
+        ctx.stroke();
+      } else if (hoverPreview.mode === 'refund' && hoverPreview.ids.size > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.9)';
+        ctx.lineWidth = Math.max(3.8, 5.4 / Math.sqrt(zoom));
+        ctx.lineCap = 'round';
+        for (const e of parsedGraph.edges) {
+          if (isEdgeAllocated(e.a, e.b) && (hoverPreview.ids.has(e.a.id) || hoverPreview.ids.has(e.b.id))) {
+            traceEdge(e.a, e.b);
+          }
+        }
+        ctx.stroke();
+      }
       ctx.restore();
 
       // 4. Draw Official Atlas Nodes & Ornate Frames
@@ -547,6 +728,18 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           ctx.fill();
           ctx.strokeStyle = '#facc15';
           ctx.lineWidth = 2.6;
+          ctx.stroke();
+        } else if (hoverPreview.ids.has(nd.id)) {
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, radius + 6, 0, Math.PI * 2);
+          ctx.fillStyle =
+            hoverPreview.mode === 'refund' || hoverPreview.overCap
+              ? 'rgba(244, 63, 94, 0.32)'
+              : 'rgba(250, 204, 21, 0.32)';
+          ctx.fill();
+          ctx.strokeStyle =
+            hoverPreview.mode === 'refund' || hoverPreview.overCap ? '#fb7185' : '#fde047';
+          ctx.lineWidth = 2.4;
           ctx.stroke();
         }
 
@@ -621,7 +814,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     }
 
     ctx.restore();
-  }, [parsedGraph, allocatedSet, allocatableSet, zoom, pan, matchingIds, isMaximized, spriteTick]);
+  }, [parsedGraph, allocatedSet, allocatableSet, hoverPreview, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
   const findHitNode = (clientX: number, clientY: number) => {
     if (!parsedGraph || !canvasRef.current) return null;
@@ -703,39 +896,17 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
 
     const targetId = hit.node.id;
     setAllocatedIds((prev) => {
-      // Refunding an allocated node: only allow if all remaining nodes stay connected to Start
+      // 1-Click Branch Unallocate: refund target node + any orphaned nodes behind it
       if (prev.includes(targetId)) {
-        const remaining = new Set(prev.filter((id) => id !== targetId));
-        if (remaining.size === 0) return [];
-        const visited = new Set<number>();
-        const queue: number[] = [...parsedGraph.startNodeIds];
-        for (const s of queue) visited.add(s);
-        while (queue.length > 0) {
-          const cur = queue.shift()!;
-          for (const nb of parsedGraph.adj.get(cur) || []) {
-            if (!visited.has(nb) && remaining.has(nb)) {
-              visited.add(nb);
-              queue.push(nb);
-            }
-          }
-        }
-        // Check every remaining allocated node is still reachable from Start
-        for (const id of remaining) {
-          if (!visited.has(id)) {
-            return prev; // Cannot break path continuity
-          }
-        }
-        return Array.from(remaining);
+        const toRemove = new Set(computeBranchRefund(targetId, prev));
+        return prev.filter((id) => !toRemove.has(id));
       }
 
-      // Allocating a new node: must be directly connected to Start or an already-allocated node
-      if (prev.length >= MAX_ATLAS_POINTS) return prev;
-      const neighbors = parsedGraph.adj.get(targetId) || [];
-      const isConnected = neighbors.some(
-        (nb) => parsedGraph.startNodeIds.has(nb) || prev.includes(nb)
-      );
-      if (!isConnected) return prev;
-      return [...prev, targetId];
+      // 1-Click Shortest-Path Auto-Allocate from Start or nearest allocated node
+      const pathIds = computeShortestPath(targetId, prev);
+      if (pathIds.length === 0) return prev;
+      if (prev.length + pathIds.length > MAX_ATLAS_POINTS) return prev;
+      return [...prev, ...pathIds];
     });
   };
 
@@ -828,6 +999,19 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           </span>
           <button
             type="button"
+            onClick={() => setShowStatsDrawer((v) => !v)}
+            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold inline-flex items-center gap-1 cursor-pointer border transition-colors ${
+              showStatsDrawer
+                ? 'bg-amber-500/25 border-amber-400/60 text-amber-200'
+                : 'bg-slate-900 border-slate-700 text-amber-300 hover:bg-slate-800'
+            }`}
+            title="Show Total Combined Atlas Stats"
+          >
+            <ListChecks className="w-3 h-3" />
+            <span>{showStatsDrawer ? 'Hide Stats' : 'Show Stats'}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => zoomBy(1.3)}
             className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
             title="Zoom In"
@@ -881,6 +1065,54 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
         className="w-full h-full block cursor-crosshair"
       />
 
+      {/* Authentic PoE-Style Floating "SHOW STATS" Drawer on Right Edge of Canvas */}
+      {showStatsDrawer && (
+        <div
+          className="absolute top-12 right-2.5 bottom-10 z-20 w-72 sm:w-80 rounded-xl border border-amber-500/45 bg-slate-950/95 backdrop-blur-md shadow-2xl flex flex-col overflow-hidden"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-2 border-b border-amber-500/25 bg-amber-950/25 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-300">
+              Total Atlas Stats ({totalAtlasStats.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStatsDrawer(false)}
+              className="text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-2 border-b border-slate-800/80">
+            <input
+              type="text"
+              value={statsFilter}
+              onChange={(e) => setStatsFilter(e.target.value)}
+              placeholder="Filter stats (e.g. Ritual, Shrine, Scarab)..."
+              className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 text-[11px]">
+            {filteredAtlasStats.length === 0 ? (
+              <div className="text-slate-500 text-center py-6">
+                {allocatedIds.length === 0
+                  ? 'Allocate nodes on the Atlas tree to see your combined stats here.'
+                  : 'No stats match your filter.'}
+              </div>
+            ) : (
+              filteredAtlasStats.map((line, i) => (
+                <div
+                  key={i}
+                  className="text-sky-200 leading-snug border-b border-slate-800/50 pb-1 last:border-b-0"
+                >
+                  {line}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {hoveredNode && (
         <div
           className="absolute z-30 pointer-events-none max-w-xs rounded-xl border border-sky-500/45 bg-slate-950/95 p-3 shadow-2xl space-y-1.5 backdrop-blur-md"
@@ -892,19 +1124,23 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-sky-200">{hoveredNode.node.name || 'Atlas Node'}</span>
             <span
-              className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${
+              className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded shrink-0 ${
                 hoveredNode.allocated
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : allocatableSet.has(hoveredNode.node.id)
-                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : hoverPreview.overCap
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : hoverPreview.count > 0
+                  ? 'bg-amber-500/20 text-amber-200 border border-amber-400/50'
                   : 'bg-slate-800 text-slate-500'
               }`}
             >
               {hoveredNode.allocated
-                ? 'Allocated'
-                : allocatableSet.has(hoveredNode.node.id)
-                ? 'Click to Allocate'
-                : 'Path Required'}
+                ? `Refund (-${hoverPreview.count} ${hoverPreview.count === 1 ? 'pt' : 'pts'})`
+                : hoverPreview.overCap
+                ? `Needs ${hoverPreview.count} pts (Over ${MAX_ATLAS_POINTS})`
+                : hoverPreview.count > 0
+                ? `Allocate (+${hoverPreview.count} ${hoverPreview.count === 1 ? 'pt' : 'pts'})`
+                : 'Unreachable'}
             </span>
           </div>
           <div className="text-[10px] font-mono text-slate-400">
@@ -923,7 +1159,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       )}
 
       <div className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1 rounded-lg bg-slate-950/85 border border-slate-800 text-[10px] font-mono text-slate-400 pointer-events-none">
-        Click nodes to allocate • Scroll to zoom • Drag to pan
+        Click any node for shortest path • Click branch root to refund branch • Scroll to zoom • Drag to pan
       </div>
     </div>
   );
@@ -1054,6 +1290,32 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
                   <div key={n.id} className="px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/25">
                     <div className="font-semibold text-sky-200">{n.name}</div>
                     {n.stats[0] && <div className="text-[10px] text-slate-400 truncate">{n.stats[0]}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Total Combined Atlas Stats Summary Card */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 space-y-2">
+            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ListChecks className="w-3.5 h-3.5" />
+                <span>Total Atlas Stats</span>
+              </span>
+              <span className="text-slate-500">{totalAtlasStats.length}</span>
+            </div>
+            {totalAtlasStats.length === 0 ? (
+              <div className="text-[11px] text-slate-500 py-2">
+                Allocate nodes to automatically total all Atlas modifiers here (or click <strong className="text-amber-300">Show Stats</strong> on the tree).
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-[210px] overflow-y-auto pr-0.5 text-[11px]">
+                {totalAtlasStats.map((line, idx) => (
+                  <div
+                    key={idx}
+                    className="text-sky-200 leading-snug border-b border-slate-800/50 pb-1 last:border-b-0"
+                  >
+                    {line}
                   </div>
                 ))}
               </div>
