@@ -1,6 +1,23 @@
+export interface ParsedPoBConfig {
+  enduranceCharges: number;
+  maxEnduranceCharges: number;
+  frenzyCharges: number;
+  maxFrenzyCharges: number;
+  powerCharges: number;
+  maxPowerCharges: number;
+  useEnduranceCharges: boolean;
+  useFrenzyCharges: boolean;
+  usePowerCharges: boolean;
+  fortify: boolean;
+  onslaught: boolean;
+  enemyIsBoss: string; // 'None' | 'Boss' | 'Pinnacle' | 'Uber'
+  flasksActive: boolean;
+}
+
 export interface ParsedPoBStats {
   life: number;
   energyShield: number;
+  ward: number;
   fireRes: number;
   fireResOverCap: number;
   coldRes: number;
@@ -19,10 +36,20 @@ export interface ParsedPoBStats {
   block: number;
   spellBlock: number;
   lifeRegen: number;
+  esRegen: number;
+  totalEHP: number;
+  physMaxHit: number;
+  fireMaxHit: number;
+  coldMaxHit: number;
+  lightningMaxHit: number;
+  chaosMaxHit: number;
   totalDPS: number;
+  fullDPS: number;
   dotDPS: number;
+  minionDPS: number;
   critChance: number;
   critMulti: number;
+  movementSpeedMod: number;
   manaUnreservedPercent: number;
   mainLinkCount: number;
   physTakenAsEle: number;
@@ -82,7 +109,11 @@ export interface ParsedCharacter {
   level: number;
   mainSkillName: string;
   selectedSkillGroupId: string;
+  dataSource: 'pob' | 'armory_estimate';
   stats: ParsedPoBStats;
+  config: ParsedPoBConfig;
+  activeAuras: string[];
+  guardSkills: string[];
   skillGroups: ParsedSkillGroup[];
   items: ParsedItem[];
   flasks: ParsedItem[];

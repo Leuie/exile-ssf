@@ -21,7 +21,8 @@ import {
   Link2,
   Users
 } from 'lucide-react';
-import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
+import { decodePoBCode, parsePoBXml, detectAurasAndGuards } from '../utils/pobDecoder';
+import { encodeSnapshotToPobCode } from '../utils/pobEncoder';
 import { analyzeBuild } from '../utils/buildAnalyzer';
 import type { ParsedCharacter, AnalysisReport, DiagnosticItem } from '../types/analyzer';
 import type { UserAccount, LeagueRosterMember, LeagueCharacter, ActiveLeagueSession } from '../types';
@@ -102,12 +103,36 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
   const mainSkillName =
     mainGroup?.gems.find((g) => !g.isSupport)?.name || mainGroup?.label || snap.character.className;
 
+  const { activeAuras, guardSkills } = detectAurasAndGuards(skillGroups);
+  const hasPurityOfElements = activeAuras.includes('Purity of Elements');
+  const hasTempestShield = activeAuras.includes('Tempest Shield');
+
+  let physTakenAsEle = 0;
+  let hasLifeOnBlock = false;
+  let hasEsOnBlock = false;
+  for (const it of items) {
+    const t = it.rawText;
+    if (/Recover (?:[1-9]\d?%|\d+) of (?:Maximum )?Life on Block|Life gained on Block/i.test(t)) hasLifeOnBlock = true;
+    if (/Recover (?:[1-9]\d?%|\d+) of (?:Maximum )?Energy Shield on Block|Aegis Aurora/i.test(t)) hasEsOnBlock = true;
+    const rx = /(\d+)% of Physical Damage (?:from Hits )?taken as (?:Fire|Cold|Lightning|Chaos|Elemental)/gi;
+    let m;
+    while ((m = rx.exec(t)) !== null) physTakenAsEle += parseInt(m[1], 10);
+  }
+
+  const purityBonus = hasPurityOfElements ? 34 : 0;
   const vit = snap.estimatedVitals;
   const stats = snap.gearStats;
-  const fireRes = Math.min(75, Math.max(-60, (vit?.fireRes || 0) - 60));
-  const coldRes = Math.min(75, Math.max(-60, (vit?.coldRes || 0) - 60));
-  const lightningRes = Math.min(75, Math.max(-60, (vit?.lightningRes || 0) - 60));
-  const chaosRes = Math.min(75, Math.max(-60, (vit?.chaosRes || 0) - 60));
+  const rawFire = (vit?.fireRes || 0) + purityBonus - 60;
+  const rawCold = (vit?.coldRes || 0) + purityBonus - 60;
+  const rawLight = (vit?.lightningRes || 0) + purityBonus - 60;
+  const rawChaos = (vit?.chaosRes || 0) - 60;
+  const fireRes = Math.min(75, Math.max(-60, rawFire));
+  const coldRes = Math.min(75, Math.max(-60, rawCold));
+  const lightningRes = Math.min(75, Math.max(-60, rawLight));
+  const chaosRes = Math.min(75, Math.max(-60, rawChaos));
+
+  const strLifeBonus = Math.floor((stats?.strength || 0) / 2);
+  const baseLife = (vit?.flatLife || 0) + strLifeBonus + (snap.character.level || 1) * 12 + 38;
 
   return {
     characterName: snap.character.name,
@@ -116,17 +141,36 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
     level: snap.character.level || 1,
     mainSkillName,
     selectedSkillGroupId: mainGroup?.id || '',
+    dataSource: 'armory_estimate',
+    activeAuras,
+    guardSkills,
+    config: {
+      enduranceCharges: 0,
+      maxEnduranceCharges: 3,
+      frenzyCharges: 0,
+      maxFrenzyCharges: 3,
+      powerCharges: 0,
+      maxPowerCharges: 3,
+      useEnduranceCharges: false,
+      useFrenzyCharges: false,
+      usePowerCharges: false,
+      fortify: false,
+      onslaught: false,
+      enemyIsBoss: 'None',
+      flasksActive: false
+    },
     stats: {
-      life: Math.max(1500, (vit?.flatLife || 0) + (snap.character.level || 1) * 12 + 50),
+      life: Math.max(100, baseLife),
       energyShield: Math.max(0, stats?.energyShield || vit?.flatEs || 0),
+      ward: 0,
       fireRes,
-      fireResOverCap: Math.max(0, (vit?.fireRes || 0) - 60 - 75),
+      fireResOverCap: Math.max(0, rawFire - 75),
       coldRes,
-      coldResOverCap: Math.max(0, (vit?.coldRes || 0) - 60 - 75),
+      coldResOverCap: Math.max(0, rawCold - 75),
       lightningRes,
-      lightningResOverCap: Math.max(0, (vit?.lightningRes || 0) - 60 - 75),
+      lightningResOverCap: Math.max(0, rawLight - 75),
       chaosRes,
-      chaosResOverCap: Math.max(0, (vit?.chaosRes || 0) - 60 - 75),
+      chaosResOverCap: Math.max(0, rawChaos - 75),
       maxFireRes: 75,
       maxColdRes: 75,
       maxLightningRes: 75,
@@ -135,17 +179,27 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
       evasion: stats?.evasion || 0,
       spellSuppression: Math.min(100, vit?.suppress || 0),
       block: stats?.blockChance || 0,
-      spellBlock: 0,
+      spellBlock: hasTempestShield ? 25 : 0,
       lifeRegen: stats?.lifeRegen || 0,
+      esRegen: 0,
+      totalEHP: 0,
+      physMaxHit: 0,
+      fireMaxHit: 0,
+      coldMaxHit: 0,
+      lightningMaxHit: 0,
+      chaosMaxHit: 0,
       totalDPS: 0,
+      fullDPS: 0,
       dotDPS: 0,
+      minionDPS: 0,
       critChance: 0,
       critMulti: 150,
+      movementSpeedMod: 0,
       manaUnreservedPercent: 20,
       mainLinkCount: mainGroup?.effectiveLinks || 0,
-      physTakenAsEle: 0,
-      hasLifeOnBlock: false,
-      hasEsOnBlock: false,
+      physTakenAsEle,
+      hasLifeOnBlock,
+      hasEsOnBlock,
       hasGlancingBlows: Boolean(snap.passives?.keystones?.some((k) => k.name.toLowerCase().includes('glancing')))
     },
     skillGroups,
@@ -745,8 +799,59 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
 
             </div>
 
-            {/* Parsed Character Vitals Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs font-mono">
+            {/* Data Source Notice for Armory Estimate Mode */}
+            {parsedChar.dataSource === 'armory_estimate' && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/35 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <strong>Armory Gear Estimate:</strong> GGG&apos;s character API does not export calculated DPS, passive tree % Life/Res multipliers, or active Charges. For exact PoB EHP, Max Hits &amp; DPS, export to Path of Building and paste your pobb.in link above.
+                </span>
+                {d1ArmoryChars.find((c) => c.character.name === parsedChar.characterName) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snap = d1ArmoryChars.find((c) => c.character.name === parsedChar.characterName);
+                      if (!snap) return;
+                      const code = encodeSnapshotToPobCode(snap);
+                      navigator.clipboard?.writeText(code);
+                      setSyncNotice({ type: 'ok', text: `Copied PoB import string for ${snap.character.name}! Paste into Path of Building → Export → pobb.in for exact EHP/DPS.` });
+                    }}
+                    className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0"
+                  >
+                    Copy PoB Code
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Parsed Character Vitals Strip (Real PoB DPS, Total EHP, Max Hits & Defenses) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-indigo-500/30">
+                <div className="text-[10px] uppercase text-indigo-300">Full / Total DPS</div>
+                <div className="font-bold text-white mt-0.5">
+                  {(() => {
+                    const d = Math.max(parsedChar.stats.fullDPS, parsedChar.stats.totalDPS, parsedChar.stats.minionDPS);
+                    if (d <= 0) return <span className="text-slate-500">PoB Only</span>;
+                    if (d >= 1_000_000) return <span className="text-indigo-300">{(d / 1_000_000).toFixed(2)}M</span>;
+                    if (d >= 1_000) return <span className="text-indigo-200">{(d / 1_000).toFixed(1)}k</span>;
+                    return <span>{d}</span>;
+                  })()}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-emerald-500/30">
+                <div className="text-[10px] uppercase text-emerald-300">Total EHP / Phys Hit</div>
+                <div className="font-bold text-white mt-0.5 truncate">
+                  {parsedChar.stats.totalEHP > 0 ? (
+                    <>
+                      <span className="text-emerald-300">{(parsedChar.stats.totalEHP / 1000).toFixed(1)}k</span>
+                      {parsedChar.stats.physMaxHit > 0 && (
+                        <span className="text-slate-400"> / {(parsedChar.stats.physMaxHit / 1000).toFixed(1)}k</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-slate-500">PoB Only</span>
+                  )}
+                </div>
+              </div>
               <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                 <div className="text-[10px] uppercase text-slate-500">Life / ES</div>
                 <div className="font-bold text-white mt-0.5">
@@ -791,6 +896,39 @@ export const BuildAnalyzerView: React.FC<BuildAnalyzerViewProps> = ({
                   {Math.round(parsedChar.stats.armour / 1000)}k / {Math.round(parsedChar.stats.evasion / 1000)}k
                 </div>
               </div>
+            </div>
+
+            {/* Active Auras, Guard Skills & PoB Config Charges Strip */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+              <span className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-200">
+                Endurance: <strong>{parsedChar.config.enduranceCharges}/{parsedChar.config.maxEnduranceCharges}</strong>
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200">
+                Frenzy: <strong>{parsedChar.config.frenzyCharges}/{parsedChar.config.maxFrenzyCharges}</strong>
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-200">
+                Power: <strong>{parsedChar.config.powerCharges}/{parsedChar.config.maxPowerCharges}</strong>
+              </span>
+              {parsedChar.config.fortify && (
+                <span className="px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 font-bold">
+                  Fortify Active
+                </span>
+              )}
+              {parsedChar.config.enemyIsBoss !== 'None' && (
+                <span className="px-2 py-1 rounded-lg bg-purple-500/15 border border-purple-500/40 text-purple-200">
+                  Preset: {parsedChar.config.enemyIsBoss}
+                </span>
+              )}
+              {parsedChar.activeAuras.length > 0 && (
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/35 text-indigo-200">
+                  Auras ({parsedChar.activeAuras.length}): {parsedChar.activeAuras.join(', ')}
+                </span>
+              )}
+              {parsedChar.guardSkills.length > 0 && (
+                <span className="px-2.5 py-1 rounded-lg bg-teal-500/15 border border-teal-500/35 text-teal-200">
+                  Guard: {parsedChar.guardSkills.join(', ')}
+                </span>
+              )}
             </div>
 
             {/* Pull Parsed PoB Into Your League Character */}

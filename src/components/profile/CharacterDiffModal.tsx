@@ -214,11 +214,11 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
                 </div>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <div className="text-[10px] font-mono text-slate-400">Energy Shield</div>
+                <div className="text-[10px] font-mono text-slate-400">Gear Energy Shield</div>
                 <div className="font-mono text-sm mt-0.5">
                   {diffStat(
-                    (primarySnapshot.gearStats?.energyShield || 0) + primarySnapshot.estimatedVitals.flatEs,
-                    (compareSnapshot.gearStats?.energyShield || 0) + compareSnapshot.estimatedVitals.flatEs
+                    primarySnapshot.gearStats?.energyShield || primarySnapshot.estimatedVitals.flatEs,
+                    compareSnapshot.gearStats?.energyShield || compareSnapshot.estimatedVitals.flatEs
                   )}
                 </div>
               </div>

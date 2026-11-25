@@ -109,7 +109,7 @@ interface PolledCharacter {
   experience: number;
 }
 
-const TOWN_REGEX = /(hideout|encampment|watch|bridge|highgate|oriath|karui shores|epilogue|kingsmarch|ziggurat|clearfell encampment|lioneye|forest encampment|sarn encampment|overseer)/i;
+const TOWN_REGEX = /(hideout|encampment|lioneye's watch|bridge encampment|highgate|oriath|karui shores|epilogue|kingsmarch|ziggurat encampment|rogue harbour|clearfell encampment|forest encampment|sarn encampment|overseer's tower)/i;
 
 function classifyZone(area: string): ParsedAreaRun['kind'] {
   if (TOWN_REGEX.test(area)) return 'Hideout / Town';

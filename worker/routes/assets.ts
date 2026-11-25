@@ -436,6 +436,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
               level: parsePropNumber(g, 'Level'),
               quality: parsePropNumber(g, 'Quality'),
               support: Boolean(g?.support),
+              corrupted: Boolean(g?.corrupted),
               description: cleanStr(g?.secDescrText || ''),
               mods: extractModStrings(g?.explicitMods).slice(0, 6)
             });

@@ -53,25 +53,28 @@ export async function dispatchDailyDigestForLeague(
     }
 
     const rosterCountRow = await db
-      .prepare('SELECT COUNT(*) as c FROM roster_members WHERE league_id = ?')
+      .prepare('SELECT COUNT(*) as c FROM roster WHERE league_id = ?')
       .bind(leagueId)
       .first();
-    const openWishesRow = await db
-      .prepare("SELECT COUNT(*) as c FROM looking_for_items WHERE league_id = ? AND status != 'HAVE'")
+    const wishRows = await db
+      .prepare('SELECT data FROM wishlists WHERE league_id = ?')
       .bind(leagueId)
-      .first();
-    const fulfilledWishesRow = await db
-      .prepare("SELECT COUNT(*) as c FROM looking_for_items WHERE league_id = ? AND status = 'HAVE'")
-      .bind(leagueId)
-      .first();
+      .all();
+    let openWishes = 0;
+    let fulfilledWishes = 0;
+    for (const r of wishRows?.results || []) {
+      try {
+        const parsed = JSON.parse(r.data || '{}');
+        if (parsed.status === 'HAVE') fulfilledWishes += 1;
+        else openWishes += 1;
+      } catch {}
+    }
     const firstsRow = await db
       .prepare('SELECT COUNT(*) as c FROM league_firsts WHERE league_id = ?')
       .bind(leagueId)
       .first();
 
     const rosterCount = Number(rosterCountRow?.c || 0);
-    const openWishes = Number(openWishesRow?.c || 0);
-    const fulfilledWishes = Number(fulfilledWishesRow?.c || 0);
     const leagueFirsts = Number(firstsRow?.c || 0);
 
     const summary = [
@@ -120,7 +123,7 @@ export async function runScheduledDailyDigests(env: any): Promise<void> {
     const alreadySent = await env.EXILE_KV.get(dayKey);
     if (alreadySent) return;
 
-    const leaguesRes = await env.EXILE_DB.prepare('SELECT id FROM private_leagues').all();
+    const leaguesRes = await env.EXILE_DB.prepare('SELECT id FROM custom_leagues').all();
     const ids = (leaguesRes?.results || []).map((r: any) => String(r.id)).filter(Boolean);
     if (!ids.includes('poe1-330-umbra')) ids.push('poe1-330-umbra');
 
@@ -206,14 +209,14 @@ export async function handleSocialRoutes(ctx: SocialRouteContext): Promise<Respo
     try {
       const toolKey = `league_social:${leagueId}`;
       const row = await db
-        .prepare("SELECT payload_json FROM user_tool_state WHERE user_handle = '__league_social__' AND tool_key = ?")
+        .prepare("SELECT data FROM user_tool_state WHERE handle_lower = '__league_social__' AND tool_key = ?")
         .bind(toolKey)
         .first();
-      const data = row?.payload_json
-        ? JSON.parse(row.payload_json)
+      const data = row?.data
+        ? JSON.parse(row.data)
         : { loans: [], crafts: [], bingoClaims: {} };
       return new Response(JSON.stringify({ status: 'ok', leagueId, data }), { headers: corsHeaders });
-    } catch (err: any) {
+    } catch {
       return new Response(JSON.stringify({ status: 'ok', leagueId, data: { loans: [], crafts: [], bingoClaims: {} } }), {
         headers: corsHeaders
       });
@@ -229,9 +232,9 @@ export async function handleSocialRoutes(ctx: SocialRouteContext): Promise<Respo
       const data = body.data || { loans: [], crafts: [], bingoClaims: {} };
       await db
         .prepare(
-          `INSERT INTO user_tool_state (user_handle, tool_key, payload_json, updated_at)
+          `INSERT INTO user_tool_state (handle_lower, tool_key, data, updated_at)
            VALUES ('__league_social__', ?, ?, ?)
-           ON CONFLICT(user_handle, tool_key) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at`
+           ON CONFLICT(handle_lower, tool_key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
         )
         .bind(toolKey, JSON.stringify(data), now)
         .run();

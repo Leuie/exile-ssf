@@ -98,12 +98,16 @@ export async function handleOgCardRoute(ctx: {
     let firstsCount = 0;
     let wishesFulfilled = 0;
     try {
-      const r1 = await db.prepare('SELECT COUNT(*) as c FROM roster_members WHERE league_id = ?').bind(leagueId).first();
+      const r1 = await db.prepare('SELECT COUNT(*) as c FROM roster WHERE league_id = ?').bind(leagueId).first();
       const r2 = await db.prepare('SELECT COUNT(*) as c FROM league_firsts WHERE league_id = ?').bind(leagueId).first();
-      const r3 = await db.prepare("SELECT COUNT(*) as c FROM looking_for_items WHERE league_id = ? AND status = 'HAVE'").bind(leagueId).first();
+      const r3 = await db.prepare('SELECT data FROM wishlists WHERE league_id = ?').bind(leagueId).all();
       rosterCount = Number(r1?.c || 0);
       firstsCount = Number(r2?.c || 0);
-      wishesFulfilled = Number(r3?.c || 0);
+      for (const row of r3?.results || []) {
+        try {
+          if (JSON.parse(row.data || '{}').status === 'HAVE') wishesFulfilled += 1;
+        } catch {}
+      }
     } catch {}
     const leagueLabel =
       leagueId === 'poe1-330-umbra'
@@ -130,7 +134,7 @@ export async function handleOgCardRoute(ctx: {
     try {
       if (handle) {
         const row = await db
-          .prepare('SELECT data FROM roster_members WHERE lower(display_name) = lower(?) LIMIT 1')
+          .prepare('SELECT data FROM roster WHERE display_name_lower = lower(?) LIMIT 1')
           .bind(handle)
           .first();
         if (row?.data) {
@@ -182,7 +186,7 @@ export async function handleOgCardRoute(ctx: {
     try {
       if (handle) {
         const achRow = await db
-          .prepare('SELECT data FROM achievement_profiles WHERE lower(handle) = lower(?) LIMIT 1')
+          .prepare('SELECT data FROM achievements WHERE lower(player_key) = lower(?) LIMIT 1')
           .bind(handle)
           .first();
         if (achRow?.data) {
@@ -191,7 +195,7 @@ export async function handleOgCardRoute(ctx: {
           achCount = Array.isArray(parsed.unlockedIds) ? parsed.unlockedIds.length : 0;
         }
         const rosterRow = await db
-          .prepare('SELECT data FROM roster_members WHERE lower(display_name) = lower(?) LIMIT 1')
+          .prepare('SELECT data FROM roster WHERE display_name_lower = lower(?) LIMIT 1')
           .bind(handle)
           .first();
         if (rosterRow?.data) {

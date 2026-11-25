@@ -131,7 +131,7 @@ const CAMPAIGN_SPLITS: Array<{ id: string; label: string; re: RegExp }> = [
   { id: 'a3_town', label: 'Act 3 • Sarn Encampment', re: /sarn encampment/i },
   { id: 'a4_town', label: 'Act 4 • Highgate', re: /\bhighgate\b/i },
   { id: 'a5_town', label: "Act 5 • Overseer's Tower", re: /overseer's tower/i },
-  { id: 'a6_town', label: 'Act 6 • Lioneye\'s Watch (A6)', re: /the twilight strand|karui fortress/i },
+  { id: 'a6_town', label: 'Act 6 • Karui Fortress / Beacon', re: /karui fortress|the beacon|brine king/i },
   { id: 'a7_town', label: 'Act 7 • Bridge Encampment', re: /bridge encampment/i },
   { id: 'a9_ba', label: 'Act 9 • Blood Aqueduct', re: /blood aqueduct/i },
   { id: 'a10_town', label: 'Act 10 • Oriath Docks', re: /oriath docks/i },
@@ -248,7 +248,7 @@ export const CampaignSplitsWidget: React.FC<{
 // 3. Delve XP, Sanctum & Heist Deep Trackers
 // ============================================================================
 const SANCTUM_RE = /forbidden sanctum|sanctum|cathedral of|archives of|nave of|beyond of/i;
-const HEIST_RE = /rogue harbour|smuggler's den|prohibited library|records office|repository|underbelly|bunker|tunnels|mansion|laboratory/i;
+const HEIST_RE = /smuggler's den|prohibited library|records office|repository|underbelly|bunker|tunnels|mansion|laboratory/i;
 const DELVE_RE = /azurite mine|primeval chambers|abyssal city|vaal outpost|crystal king|kurgal|ahuatotli|delve/i;
 
 export const SideContentTrackersWidget: React.FC<{
