@@ -100,6 +100,7 @@ export const STRATEGY_PRESETS = [
   'Breach + Scarabs',
   'Harvest + Expedition',
   'T17 Scarab Farm',
+  'Delve (Azurite Mine XP)',
   'Heist / Delve / Sanctum'
 ];
 

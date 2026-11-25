@@ -155,7 +155,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Map Cost vs Profit Net Calculator',
     description:
       'Subtract Scarab, Map Device craft, and Chisel costs per map from your Asset Tracker session delta to compute True Net Div/hr instead of gross loot.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.38.0'
   },
   {
     id: 'rm-boss-rush',
@@ -163,7 +165,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Live Boss Rush & Invitation Tracker',
     description:
       'Detect Maven 10 ways, Shaper/Elder Guardian maps, and Conqueror sets in Client.txt and track fragment drop rates and boss kill times.',
-    scope: 'PoE 1'
+    scope: 'PoE 1',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.38.0'
   },
   {
     id: 'rm-speedrun-splits',
@@ -171,7 +175,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Campaign Speedrun Split Comparator',
     description:
       'Compare your Act 1 through Act 10 Client.txt splits against your personal bests and squad records (gold splits vs behind pace, LiveSplit style).',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.38.0'
   },
   {
     id: 'rm-sanctum-heist-delve',
@@ -179,7 +185,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Sanctum, Heist & Delve Deep Trackers',
     description:
       'Dedicated sub trackers inside Map Tracker that parse Blueprint wings, Sanctum rooms, and Delve depth progression from Client.txt.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.38.0'
   },
   {
     id: 'rm-loot-filter-sync',
@@ -187,7 +195,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Loot Filter Sound & Regex Sync',
     description:
       'Generate a custom Neversink/FilterBlade sound rule snippet or in game stash Regex automatically from your Private League\'s open Squad Wishlists so you never leave a squadmate\'s wanted base or unique on the ground.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.38.0'
   },
 
   // D. Platform Growth & Polish

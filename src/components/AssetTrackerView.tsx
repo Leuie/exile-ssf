@@ -93,6 +93,7 @@ import { WeightsEditorDrawer } from './assets/WeightsEditorDrawer';
 import { LootSparkline } from './assets/LootSparkline';
 import { CanonicalTabMapper } from './assets/CanonicalTabMapper';
 import { AssetAnalyticsDeck } from './assets/AssetAnalyticsDeck';
+import { MapCostCalculatorWidget } from './assets/MapCostCalculatorWidget';
 import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
 import {
   readUnifiedPoeSession,
@@ -2252,6 +2253,21 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                       divineChaos={divineChaos}
                       ownedTabNames={railTabsList.map((t) => t.name)}
                       onOpenFullAnalytics={onOpenAnalytics}
+                    />
+                  )
+                },
+                {
+                  id: 'net_profit_calc',
+                  title: 'Map Cost vs Profit Net Calculator',
+                  icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
+                  defaultSpan: 12 as const,
+                  defaultCollapsed: true,
+                  render: () => (
+                    <MapCostCalculatorWidget
+                      totalSessionChaos={totalSessionChaos}
+                      mapsRun={mapsRun}
+                      durationMinutes={durationMinutes}
+                      divineChaos={divineChaos}
                     />
                   )
                 }

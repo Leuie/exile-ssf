@@ -27,6 +27,7 @@ import { FreeStashFeed } from '../widgets/FreeStashFeed';
 import { PobWishlistImportModal } from '../modals/PobWishlistImportModal';
 import { getMemberCharacters } from './RosterTab';
 import { LootFilterExportModal } from '../modals/LootFilterExportModal';
+import { WishlistFilterExportModal } from '../modals/WishlistFilterExportModal';
 
 export const WISHLIST_CATEGORY_GROUPS: {
   group: string;
@@ -883,6 +884,7 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
   // D1 Character Engine Cross Check: detect open wishlist items already equipped on synced characters
   const [userGearSnapshots, setUserGearSnapshots] = useState<CharacterGearSnapshot[]>([]);
   const [dismissedEquippedIds, setDismissedEquippedIds] = useState<string[]>([]);
+  const [showFilterRegexModal, setShowFilterRegexModal] = useState<boolean>(false);
 
   useEffect(() => {
     const handle = userAccount?.displayName?.trim();
@@ -1011,6 +1013,15 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
 
         {/* Filters & View Switches */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFilterRegexModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/45 text-amber-200 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+            title="Generate Neversink / FilterBlade .filter rules & Stash Search Regex from Squad Wishlists"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filter &amp; Regex Sync</span>
+          </button>
           {/* Category Filter */}
           <select
             value={lookingForCategoryFilter}
@@ -2320,6 +2331,12 @@ export const WishlistsTab: React.FC<WishlistsTabProps> = ({
         onClose={() => setShowLootFilterModal(false)}
         lookingForItems={lookingForItems}
         triggerCopy={triggerCopy}
+      />
+
+      <WishlistFilterExportModal
+        isOpen={showFilterRegexModal}
+        onClose={() => setShowFilterRegexModal(false)}
+        items={lookingForItems}
       />
 
       <PobWishlistImportModal

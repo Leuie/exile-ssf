@@ -33,6 +33,11 @@ import {
 import { MapRegexBuilder } from './league/widgets/MapRegexBuilder';
 import { SessionScratchpad } from './league/widgets/SessionScratchpad';
 import { AtlasSkillTreePlanner } from './maps/AtlasSkillTreePlanner';
+import {
+  BossRushTrackerWidget,
+  CampaignSplitsWidget,
+  SideContentTrackersWidget
+} from './maps/SpecializedTelemetrySuite';
 import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
 import { readUnifiedPoeSession } from '../utils/poeSession';
 import {
@@ -66,7 +71,7 @@ interface MapTrackerViewProps {
 interface ParsedAreaRun {
   id: string;
   areaName: string;
-  kind: 'Map' | 'Hideout / Town' | 'Betrayal Safehouse' | 'Temple of Atzoatl' | 'Sanctum / Lab' | 'Boss / Special';
+  kind: 'Map' | 'Hideout / Town' | 'Delve' | 'Betrayal Safehouse' | 'Temple of Atzoatl' | 'Sanctum / Lab' | 'Boss / Special';
   enteredAtMs: number;
   enteredLabel: string;
   durationSec: number;
@@ -107,10 +112,13 @@ const TOWN_REGEX = /(hideout|encampment|watch|bridge|highgate|oriath|karui shore
 
 function classifyZone(area: string): ParsedAreaRun['kind'] {
   if (TOWN_REGEX.test(area)) return 'Hideout / Town';
+  if (/azurite mine|primeval chambers|abyssal city|vaal outpost|crystal king|kurgal|ahuatotli|delve/i.test(area)) {
+    return 'Delve';
+  }
   if (/safehouse|mastermind/i.test(area)) return 'Betrayal Safehouse';
   if (/atzoatl|apex of atzoatl/i.test(area)) return 'Temple of Atzoatl';
   if (/sanctum|labyrinth|aspirants|trial of/i.test(area)) return 'Sanctum / Lab';
-  if (/shaper|elder|maven|sirus|searing exarch|eater of worlds|simulacrum|breachlord|chayula|delve/i.test(area)) {
+  if (/shaper|elder|maven|sirus|searing exarch|eater of worlds|simulacrum|breachlord|chayula/i.test(area)) {
     return 'Boss / Special';
   }
   return 'Map';
@@ -1234,14 +1242,16 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                           <td className="p-2.5">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                                run.kind === 'Betrayal Safehouse' || run.kind === 'Temple of Atzoatl'
+                                run.kind === 'Delve'
+                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  : run.kind === 'Betrayal Safehouse' || run.kind === 'Temple of Atzoatl'
                                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                                   : run.kind === 'Boss / Special'
                                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                                   : 'bg-slate-900 text-slate-300 border-slate-700'
                               }`}
                             >
-                              {run.kind}
+                              {run.kind}{run.kind === 'Delve' && run.areaLevel ? ` (Lv ${run.areaLevel})` : ''}
                             </span>
                           </td>
                           <td className="p-2.5 text-right font-mono text-sky-300 font-bold">{formatDuration(run.durationSec)}</td>
@@ -1321,6 +1331,41 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                   setStrategyTag(st);
                   setLinkedAtlasName(name);
                 }}
+              />
+            )
+          },
+          {
+            id: 'boss_rush_tracker',
+            title: 'Live Boss Rush & Invitation Tracker',
+            icon: <Skull className="w-3.5 h-3.5 text-rose-400" />,
+            defaultSpan: 6,
+            defaultCollapsed: true,
+            render: () => <BossRushTrackerWidget runs={runs} />
+          },
+          {
+            id: 'campaign_splits',
+            title: 'Campaign Speedrun Split Comparator',
+            icon: <Flame className="w-3.5 h-3.5 text-amber-400" />,
+            defaultSpan: 6,
+            defaultCollapsed: true,
+            render: () => (
+              <CampaignSplitsWidget
+                runs={runs}
+                userHandle={userAccount?.displayName}
+              />
+            )
+          },
+          {
+            id: 'side_content_trackers',
+            title: 'Delve XP, Sanctum & Heist Trackers',
+            icon: <Compass className="w-3.5 h-3.5 text-cyan-400" />,
+            defaultSpan: 12,
+            defaultCollapsed: false,
+            render: () => (
+              <SideContentTrackersWidget
+                runs={runs}
+                latestXpHr={latestXpHr}
+                activeCharLabel={latestChar ? `Lv ${latestChar.level} ${latestChar.name}` : undefined}
               />
             )
           },

@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-roadmap-phase-b',
+    version: 'v3.38.0',
+    title: 'Roadmap Phase B: Map Cost Net Profit Calculator, Wishlist Filter & Regex Sync, Boss Rush Tracker, Campaign Splits & Sanctum/Heist/Delve Telemetry',
+    dateEst: 'Nov 24, 2026 • 9:20 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Phase B Shipped',
+    summary: 'Completed all 5 items in Roadmap Phase B (Next Level Client.txt & Farming Analytics): True Net Div/hr calculator in Asset Tracker, 1 click Neversink/FilterBlade .filter + Stash Regex generator from Squad Wishlists, Live Boss Rush & Invitation Tracker, LiveSplit style Act 1 to 10 Campaign Splits, and Sanctum/Heist/Delve trackers inside Map Tracker.',
+    changes: [
+      { tag: 'Added', text: 'Map Cost vs Profit Net Calculator widget in Asset Tracker subtracting Scarab, Map Device, and Chisel costs to compute True Net Profit, True Net Div/hr, and ROI %.' },
+      { tag: 'Added', text: 'Loot Filter & Stash Regex Sync modal in Squad Wishlists generating ready to paste Neversink/FilterBlade sound highlight rules and <=250 char dump tab Regex strings.' },
+      { tag: 'Added', text: 'Live Boss Rush & Invitation Tracker widget in Map Tracker detecting Shaper/Elder Guardians, Conquerors, Maven Invitations, Eater/Exarch, and T17 bosses.' },
+      { tag: 'Added', text: 'Campaign Speedrun Split Comparator in Map Tracker comparing Act 1 to 10 Client.txt milestones against saved Personal Bests with green/red LiveSplit deltas.' },
+      { tag: 'Added', text: 'Sanctum, Heist & Delve Deep Trackers widget in Map Tracker summarizing wings, rooms, avg duration, pace/hr, and survival rate.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-roadmap-phase-a',
     version: 'v3.37.0',
     title: 'Roadmap Phase A: Live PoB XML Export, Gem Level & Quality Audit, One Click Build Upgrade Advisor & Side by Side Passive Tree Diff Viewer',
