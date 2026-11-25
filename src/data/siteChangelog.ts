@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-roadmap-phase-c',
+    version: 'v3.39.0',
+    title: 'Roadmap Phase C: Live Squad Presence Bar, GSF Item Loans, Squad Craft & Fracture Queue, 5x5 League Bingo & Automated Daily Digest',
+    dateEst: 'Nov 24, 2026 • 10:20 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Phase C Shipped',
+    summary: 'Completed all 5 items in Roadmap Phase C (Private League & GSF Social Features): Live Squad Presence Bar across the Private League Hub, a dedicated GSF Social tab housing Item Loans, Squad Craft & Fracture Queue, and a 5x5 League Bingo Board, plus Automated 8 PM Daily League Digests for Discord and Root webhooks.',
+    changes: [
+      { tag: 'Added', text: 'Live Squad Presence Bar ("Mapping Now") in the Private League Hub with an opt in Share Live Zone toggle inside Map Tracker so squadmates can see who is mapping, delving, or running bosses.' },
+      { tag: 'Added', text: 'GSF Item Loan & Return Tracker in the new GSF Social tab to log borrowed chase uniques with owner, borrower, notes, and 1 click Mark Returned history.' },
+      { tag: 'Added', text: 'Squad Craft & Fracture Queue allowing Exiles to request Veiled Orbs, Betrayal benches, Harvest augments, or Fracturing Orb attempts with ready flags and crafter claiming.' },
+      { tag: 'Added', text: '5x5 Private League Bingo & Race Challenges board tracking 25 classic league goals with live row/column/diagonal bingo scoring and squad leaderboard.' },
+      { tag: 'Added', text: 'Automated 8 PM Discord & Root Daily League Digest cron worker plus a Send Daily Digest Now button inside Manage League -> Webhook Alerts.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-roadmap-phase-b',
     version: 'v3.38.0',
     title: 'Roadmap Phase B: Map Cost Net Profit Calculator, Wishlist Filter & Regex Sync, Boss Rush Tracker, Campaign Splits & Sanctum/Heist/Delve Telemetry',

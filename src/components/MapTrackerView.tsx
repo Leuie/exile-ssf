@@ -20,7 +20,8 @@ import {
   Sliders,
   BarChart3,
   ListChecks,
-  Filter
+  Filter,
+  Radio
 } from 'lucide-react';
 import type { UserAccount, LeagueFirstMilestone, PersonalSessionGoal, ExileProfile } from '../types';
 import {
@@ -172,6 +173,13 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   });
   const [capturedProofs, setCapturedProofs] = useState<CapturedLeagueFirstProof[]>([]);
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
+  const [shareSquadPresence, setShareSquadPresence] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('exile_ssf_share_squad_presence') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [lastFileReadAt, setLastFileReadAt] = useState<string>('');
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -253,6 +261,38 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       localStorage.setItem('exile_ssf_map_sessions_v1', JSON.stringify(savedSessions.slice(0, 40)));
     } catch {}
   }, [savedSessions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('exile_ssf_share_squad_presence', shareSquadPresence ? '1' : '0');
+    } catch {}
+  }, [shareSquadPresence]);
+
+  // Opt in Squad Presence heartbeat when Live Watch is running
+  useEffect(() => {
+    if (!shareSquadPresence || !watchingLive || !userAccount?.displayName) return;
+    const latestRun = runs[0];
+    if (!latestRun) return;
+    const targetLeague = game === 'poe2' ? 'poe2-05-ancients' : 'poe1-330-umbra';
+    const sendBeat = () => {
+      fetch('/api/league/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId: targetLeague,
+          handle: userAccount.displayName,
+          characterName: activeCharCtx?.name || userAccount.characterName || '',
+          zone: latestRun.areaName,
+          zoneKind: latestRun.kind,
+          active: true
+        })
+      }).catch(() => {});
+    };
+    sendBeat();
+    const timer = window.setInterval(sendBeat, 60_000);
+    return () => window.clearInterval(timer);
+  }, [shareSquadPresence, watchingLive, userAccount?.displayName, userAccount?.characterName, activeCharCtx?.name, runs[0]?.areaName, runs[0]?.kind, game]);
 
   useEffect(() => {
     if (!userAccount?.displayName) return;
@@ -930,6 +970,22 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                 <span>Stop Live Watch</span>
               </button>
             )
+          )}
+
+          {userAccount?.displayName && (
+            <button
+              type="button"
+              onClick={() => setShareSquadPresence((v) => !v)}
+              title="Opt in to broadcast your current zone to the Private League Squad Presence Bar while Live Watch is active"
+              className={`px-3 py-2 rounded-xl border text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                shareSquadPresence
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Radio className={`w-3.5 h-3.5 ${shareSquadPresence && watchingLive ? 'text-emerald-400 animate-pulse' : ''}`} />
+              <span>{shareSquadPresence ? 'Squad Presence: On' : 'Share Live Zone'}</span>
+            </button>
           )}
 
           <label className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-400/50 text-white font-bold inline-flex items-center gap-1.5 cursor-pointer">

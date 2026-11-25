@@ -1,5 +1,6 @@
 import { handleAssetRoutes } from './routes/assets';
 import { handleAdminAndGovernanceRoutes } from './routes/admin';
+import { handleSocialRoutes, runScheduledDailyDigests } from './routes/social';
 import { resolvePageMeta, injectMetaIntoHtml } from './routes/seo';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
@@ -877,7 +878,11 @@ async function runScheduledLadderSync(env: Env): Promise<void> {
 
 export default {
   async scheduled(_controller: any, env: Env, ctx: any): Promise<void> {
-    ctx?.waitUntil ? ctx.waitUntil(runScheduledLadderSync(env)) : await runScheduledLadderSync(env);
+    const runAll = async () => {
+      await runScheduledLadderSync(env);
+      await runScheduledDailyDigests(env);
+    };
+    ctx?.waitUntil ? ctx.waitUntil(runAll()) : await runAll();
   },
 
   async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
@@ -972,6 +977,26 @@ export default {
           isSafeWebhookUrl
         });
         if (govRes) return govRes;
+      }
+
+      // Delegate modular Private League & GSF Social routes (Presence, Loans, Craft Queue, Bingo, Daily Digest)
+      if (
+        url.pathname === '/api/league/presence' ||
+        url.pathname === '/api/league/social' ||
+        /^\/api\/league\/[^/]+\/daily-digest$/.test(url.pathname)
+      ) {
+        await ensureD1Schema(db);
+        const socialRes = await handleSocialRoutes({
+          url,
+          request,
+          env,
+          db,
+          leagueId,
+          now,
+          corsHeaders: CORS_HEADERS,
+          session: verifiedSession
+        });
+        if (socialRes) return socialRes;
       }
 
       // Delegate modular Asset Tracker routes

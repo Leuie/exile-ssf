@@ -103,7 +103,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Squad Craft & Fracture Queue',
     description:
       'A dedicated GSF tab where players request specific crafting services (Aisling/Veiled Orb, Betrayal benches, Harvest augments, Awakener Orbs) with material checklists and tips.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.39.0'
   },
   {
     id: 'rm-squad-presence',
@@ -111,7 +113,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Live Squad Presence Bar ("Who Is Mapping Right Now")',
     description:
       'Opt in live status ping from Map Tracker showing which squadmates are currently in T16s, Bosses, Heist, or Hideout.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.39.0'
   },
   {
     id: 'rm-item-loans',
@@ -119,7 +123,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'GSF Item Loan & Return Tracker',
     description:
       'Track borrowed chase uniques (Mageblood, Headhunter, Defiance of Destiny) inside a private league with borrower tags and return dates so nothing gets lost.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.39.0'
   },
   {
     id: 'rm-league-bingo',
@@ -127,7 +133,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'League Bingo & Race Challenges',
     description:
       'Customizable 5x5 Private League Bingo board (for example, "Drop a Divine before Maps", "Six Link a Chest", "Kill Maven Deathless") with automatic proof capture from Client.txt and live squad points.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.39.0'
   },
   {
     id: 'rm-daily-digest',
@@ -135,7 +143,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Automated Discord / Root Daily Digest',
     description:
       'Scheduled Cloudflare Cron Worker that posts a daily 8 PM league recap (top farmer of the day, wishes fulfilled, new League Firsts, biggest jackpot drops) straight to your league\'s Webhook.',
-    scope: 'Platform'
+    scope: 'Platform',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.39.0'
   },
 
   // C. Next Level Client.txt & Farming Analytics

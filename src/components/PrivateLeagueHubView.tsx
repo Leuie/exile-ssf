@@ -28,7 +28,8 @@ import {
   Coins,
   Activity,
   FileSpreadsheet,
-  X
+  X,
+  Handshake
 } from 'lucide-react';
 import {
   ACTIVE_LEAGUE_SESSIONS,
@@ -81,6 +82,8 @@ const BenchGuideTab = lazy(() => import('./league/tabs/BenchGuideTab').then((m) 
 const AlumniTab = lazy(() => import('./league/tabs/AlumniTab').then((m) => ({ default: m.AlumniTab })));
 const BountiesAndHonorsTab = lazy(() => import('./league/tabs/BountiesAndHonorsTab').then((m) => ({ default: m.BountiesAndHonorsTab })));
 const FeedTab = lazy(() => import('./league/tabs/FeedTab').then((m) => ({ default: m.FeedTab })));
+const GsfSocialTab = lazy(() => import('./league/tabs/GsfSocialTab').then((m) => ({ default: m.GsfSocialTab })));
+import { SquadPresenceBar } from './league/widgets/SquadPresenceBar';
 import {
   fetchCloudLeagueData,
   saveCloudWishlistItem,
@@ -129,13 +132,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenArmory
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'social' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
     feed: 'feed',
     looking_for: 'wishlists',
     bounties: 'bounties',
+    social: 'social',
     roster: 'roster',
     mechanics: 'mechanics',
     hall_of_fame: 'hall-of-fame',
@@ -153,6 +157,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (clean === 'feed' || clean === 'activity' || clean === 'wall') return 'feed';
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
     if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
+    if (clean === 'social' || clean === 'gsf-social' || clean === 'loans' || clean === 'crafts' || clean === 'bingo') return 'social';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
     if (clean === 'mechanics' || clean === 'atlas-mechanics' || clean === 'niche' || clean === 'lanes') return 'mechanics';
     if (clean === 'hall-of-fame' || clean === 'halloffame' || clean === 'hall_of_fame' || clean === 'firsts' || clean === 'league-firsts') return 'hall_of_fame';
@@ -219,6 +224,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       feed: 'Feed',
       looking_for: 'Wishlists',
       bounties: 'Bounties',
+      social: 'GSF Social',
       roster: 'Roster',
       mechanics: 'Mechanics',
       hall_of_fame: 'Hall of Fame',
@@ -1662,6 +1668,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
         )}
 
+        {/* Live Squad Presence Bar (Opt in Map Tracker Heartbeat) */}
+        <SquadPresenceBar leagueId={activeSessionId} onOpenProfile={onOpenProfile} />
+
         {/* Row 3: Prominent Primary League Navigation Ribbon (Core Daily vs Resources) */}
         <div className="px-3 sm:px-6 py-2.5 border-t border-indigo-500/25 bg-gradient-to-r from-[#0d121d] via-[#101726] to-[#0d121d] flex flex-wrap items-center justify-between gap-2 shadow-inner">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -1688,6 +1697,7 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
                 slug: 'bounties'
               },
+              { id: 'social' as HubTab, label: 'GSF Social', icon: Handshake, badge: 'New', slug: 'social' },
               { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
               { id: 'mechanics' as HubTab, label: 'Mechanics', icon: Compass, badge: '25', slug: 'mechanics' },
               { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' },
@@ -1833,6 +1843,15 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               }}
             />
           </div>
+        )}
+
+        {/* TAB: GSF SOCIAL (ITEM LOANS, CRAFT QUEUE & 5x5 LEAGUE BINGO) */}
+        {activeTab === 'social' && (
+          <GsfSocialTab
+            leagueId={activeSessionId}
+            userAccount={userAccount}
+            onOpenAuthModal={onOpenAuthModal}
+          />
         )}
 
         {/* TAB: PER LEAGUE HOST & MODERATOR MANAGEMENT CONSOLE */}

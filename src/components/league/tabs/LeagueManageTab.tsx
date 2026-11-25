@@ -40,7 +40,8 @@ const WEBHOOK_EVENT_OPTIONS: { id: string; label: string }[] = [
   { id: 'league_first', label: 'League Firsts Claimed' },
   { id: 'achievement_earned', label: 'Achievements Unlocked' },
   { id: 'roster_join', label: 'New Exiles Joined' },
-  { id: 'character_posted', label: 'Level 90/95/100 Milestones' }
+  { id: 'character_posted', label: 'Level 90/95/100 Milestones' },
+  { id: 'daily_digest', label: 'Automated 8 PM Daily Digest' }
 ];
 
 const DEFAULT_MOD_PERMS: LeagueStaffPermissions = {
@@ -127,6 +128,27 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
     'roster_join'
   ]);
   const [savingWebhook, setSavingWebhook] = useState(false);
+  const [sendingDigest, setSendingDigest] = useState(false);
+
+  const handleTriggerDailyDigest = async () => {
+    setSendingDigest(true);
+    try {
+      const res = await fetch(`/api/league/${encodeURIComponent(leagueId)}/daily-digest`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data: any = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        showTempNotice('Daily League Digest sent to your Discord / Root webhook!');
+      } else {
+        showTempNotice(data?.reason || 'Could not send Daily Digest. Ensure webhook is saved and enabled.', 'err');
+      }
+    } catch {
+      showTempNotice('Network error while sending Daily Digest.', 'err');
+    } finally {
+      setSendingDigest(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedHandle && roster.length > 0) setSelectedHandle(roster[0].displayName);
@@ -940,14 +962,25 @@ export const LeagueManageTab: React.FC<LeagueManageTabProps> = ({
                 );
               })}
             </div>
-            <button
-              type="submit"
-              disabled={savingWebhook}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black flex items-center gap-1.5 cursor-pointer shadow"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{savingWebhook ? 'Saving...' : 'Save League Webhook'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={savingWebhook}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black flex items-center gap-1.5 cursor-pointer shadow"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{savingWebhook ? 'Saving...' : 'Save League Webhook'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleTriggerDailyDigest}
+                disabled={sendingDigest || !webhookUrl.trim()}
+                className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{sendingDigest ? 'Sending Digest...' : 'Send Daily Digest Now'}</span>
+              </button>
+            </div>
           </div>
         </form>
       )}
