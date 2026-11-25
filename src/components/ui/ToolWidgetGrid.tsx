@@ -92,6 +92,27 @@ export const ToolWidgetGrid: React.FC<ToolWidgetGridProps> = ({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
+  // Sync any dynamically mounted widgets (e.g. after async Cloud snapshot load) into layout state
+  const widgetIdsKey = widgets.map((w) => w.id).join('|');
+  useEffect(() => {
+    setLayout((prev) => {
+      const existing = new Set(prev.order);
+      const missing = widgets.filter((w) => !existing.has(w.id));
+      if (missing.length === 0) return prev;
+      const nextSpans = { ...prev.spans };
+      const nextCollapsed = { ...prev.collapsed };
+      for (const w of missing) {
+        if (!nextSpans[w.id]) nextSpans[w.id] = w.defaultSpan;
+        if (nextCollapsed[w.id] === undefined) nextCollapsed[w.id] = Boolean(w.defaultCollapsed);
+      }
+      return {
+        order: [...prev.order, ...missing.map((w) => w.id)],
+        spans: nextSpans,
+        collapsed: nextCollapsed
+      };
+    });
+  }, [widgetIdsKey]);
+
   useEffect(() => {
     try {
       localStorage.setItem(`exile_ssf_tool_grid_${storageKey}_v1`, JSON.stringify(layout));
@@ -99,9 +120,13 @@ export const ToolWidgetGrid: React.FC<ToolWidgetGridProps> = ({
   }, [storageKey, layout]);
 
   const widgetMap = new Map(widgets.map((w) => [w.id, w]));
-  const orderedWidgets = layout.order
-    .map((id) => widgetMap.get(id))
-    .filter((w): w is ToolWidgetDefinition => Boolean(w));
+  const inOrderSet = new Set(layout.order);
+  const orderedWidgets = [
+    ...layout.order
+      .map((id) => widgetMap.get(id))
+      .filter((w): w is ToolWidgetDefinition => Boolean(w)),
+    ...widgets.filter((w) => !inOrderSet.has(w.id))
+  ];
 
   const toggleCollapse = (id: string) => {
     setLayout((prev) => ({
