@@ -320,7 +320,7 @@ export function calculateCharacterStats(
 
   // 5. Evasion & Armour (Determination + Grace + Iron Reflexes + Flasks)
   const baseEvFromArmours = Math.round(gs?.evasion || 0);
-  const fromGrace = isAuraOn('Grace') ? 2575 : 0; // Lv 20 Grace
+  const fromGrace = isAuraOn('Grace') ? 1545 : 0; // PoE 3.25+ Lv 20 Grace
   const incEvFromTree = Math.round((gs?.incEvasionPct || 0) + flaskIncEvasion);
   const incEvFromDex = Math.floor(dexterity / 5);
   const graceMorePct = isAuraOn('Grace') ? 29 : 0;
@@ -331,7 +331,7 @@ export function calculateCharacterStats(
   );
 
   const baseArFromArmours = Math.round(gs?.armour || 0);
-  const fromDetermination = isAuraOn('Determination') ? 2051 : 0; // Lv 20 Determination
+  const fromDetermination = isAuraOn('Determination') ? 1026 : 0; // PoE 3.25+ Lv 20 Determination
   const incArPct = Math.round((gs?.incArmourPct || 0) + flaskIncArmour);
   const detMorePct = isAuraOn('Determination') ? 49 : 0;
   const convertedEvToAr = hasIronReflexes ? rawTotalEvasion : 0;
