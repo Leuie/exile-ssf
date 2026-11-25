@@ -9,6 +9,8 @@ export interface PlannedRoadmapItem {
   title: string;
   description: string;
   scope: 'PoE 1 & PoE 2' | 'PoE 1' | 'Platform';
+  status?: 'planned' | 'shipped';
+  shippedNote?: string;
 }
 
 export const PLANNED_ROADMAP_CATEGORIES: PlannedRoadmapItem['category'][] = [
@@ -40,11 +42,21 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
 
   // A. Deeper Character & Build Tools
   {
+    id: 'rm-official-passive-tree',
+    category: 'Deeper Character & Build Tools',
+    title: 'Interactive Official PoE Passive Skill Tree & Ascendancy Artwork',
+    description:
+      'Full interactive canvas powered by official GGG skilltree-export sprites, curved orbit arcs, Keystones, Masteries, Cluster Jewels, home quadrant Class Ascendancies, and Bloodline Ascendancy rows with zoom, pan, search, and fullscreen.',
+    scope: 'PoE 1',
+    status: 'shipped',
+    shippedNote: 'Shipped & Exceeded in v3.35.0'
+  },
+  {
     id: 'rm-passive-diff',
     category: 'Deeper Character & Build Tools',
-    title: 'Interactive Passive Tree & Keystone Diff Viewer',
+    title: 'Side by Side Character & Passive Tree Diff Viewer',
     description:
-      'Render the character\'s allocated keystones, masteries, and cluster jewels from get-passive-skills right next to the Character section, and let squadmates compare two builds side by side.',
+      'Compare two synced Armory characters side by side to highlight gear upgrades, keystone differences, and passive tree pathing deltas.',
     scope: 'PoE 1 & PoE 2'
   },
   {
@@ -116,6 +128,16 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
 
   // C. Next Level Client.txt & Farming Analytics
   {
+    id: 'rm-atlas-planner',
+    category: 'Next Level Client.txt & Farming Analytics',
+    title: 'Interactive Atlas Skill Tree Planner & Show Stats Totalizer',
+    description:
+      'Official GGG Atlas Skill Tree canvas inside Map Tracker with 150 point cap (132 + 18 Maven), shortest path auto allocation, 1 click branch unallocation, live hover path previews, Show Stats modifier totalizer, and Cloud saved strategy presets.',
+    scope: 'PoE 1',
+    status: 'shipped',
+    shippedNote: 'Shipped & Exceeded in v3.35.0'
+  },
+  {
     id: 'rm-net-profit',
     category: 'Next Level Client.txt & Farming Analytics',
     title: 'Map Cost vs Profit Net Calculator',
@@ -158,6 +180,16 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
 
   // D. Platform Growth & Polish
   {
+    id: 'rm-unified-setup-grid',
+    category: 'Platform Growth & Polish',
+    title: 'Unified Tool Setup Wizard & Draggable Workspace Grids',
+    description:
+      'Single 3 step Tool Setup modal sharing POESESSID and Client.txt across all tools with a permanent one time disclaimer, plus collapsible drag and drop resizable workspace grids on Map Tracker and Asset Tracker.',
+    scope: 'Platform',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.34.0 – v3.35.0'
+  },
+  {
     id: 'rm-og-cards',
     category: 'Platform Growth & Polish',
     title: 'Public Shareable Build & Wealth Cards (Open Graph Images)',
@@ -168,9 +200,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
   {
     id: 'rm-pwa-polish',
     category: 'Platform Growth & Polish',
-    title: 'PWA Desktop App Mode Polish',
+    title: 'Offline PWA Desktop App Mode',
     description:
-      'Offline ready Cheat Sheets, Vendor Recipes, and Regex Studio with keyboard shortcuts (Ctrl+K) for instant alt tab lookups while mapping.',
+      'Installable desktop PWA with offline Service Worker caching for Cheat Sheets, Vendor Recipes, and Regex Studio (Ctrl+K Quick Finder already shipped).',
     scope: 'Platform'
   }
 ];

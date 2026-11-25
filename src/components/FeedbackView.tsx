@@ -634,15 +634,21 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {items.map((item) => (
+                    {items.map((item) => {
+                      const isShipped = item.status === 'shipped';
+                      return (
                       <div
                         key={item.id}
-                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-purple-500/40 transition-colors flex flex-col justify-between gap-2.5"
+                        className={`p-3.5 rounded-xl border transition-colors flex flex-col justify-between gap-2.5 ${
+                          isShipped
+                            ? 'border-emerald-500/40 bg-emerald-950/15'
+                            : 'border-slate-800 bg-slate-950/80 hover:border-purple-500/40'
+                        }`}
                       >
                         <div className="space-y-1">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="font-bold text-xs sm:text-sm text-white leading-snug">
-                              {item.title}
+                            <div className={`font-bold text-xs sm:text-sm leading-snug ${isShipped ? 'text-emerald-200' : 'text-white'}`}>
+                              {isShipped ? '✓ ' : ''}{item.title}
                             </div>
                             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300 shrink-0">
                               {item.scope}
@@ -651,22 +657,31 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                           <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
                         </div>
                         <div className="flex items-center justify-between pt-2 border-t border-slate-800/70">
-                          <span className="text-[10px] font-mono text-emerald-400">Status: Planned</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNewTitle(item.title);
-                              setNewDesc(item.description);
-                              setNewCategory('feature_request');
-                              handleOpenSubmit();
-                            }}
-                            className="text-[10px] font-mono px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 cursor-pointer"
-                          >
-                            + Promote to Feedback Board
-                          </button>
+                          {isShipped ? (
+                            <span className="text-[10px] font-mono font-bold text-emerald-300">
+                              ✓ {item.shippedNote || 'Shipped'}
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-[10px] font-mono text-amber-300">Status: Planned</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewTitle(item.title);
+                                  setNewDesc(item.description);
+                                  setNewCategory('feature_request');
+                                  handleOpenSubmit();
+                                }}
+                                className="text-[10px] font-mono px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 cursor-pointer"
+                              >
+                                + Promote to Feedback Board
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
               );
