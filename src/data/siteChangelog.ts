@@ -19,6 +19,22 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-unified-cockpit',
+    version: 'v3.36.0',
+    title: 'Unified Farming Cockpit: Linked Strategy Profiles, Shareable Atlas Trees, Active Character Context, Armory Workspace Grid & Gear Hole Detector',
+    dateEst: 'Nov 24, 2026 • 7:35 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Unified Cockpit',
+    summary: 'Stitched Character Armory, Map Tracker, Atlas Skill Tree Planner, and Asset Tracker into one cohesive loop: linked Strategy Profiles, shareable Atlas Tree links & Discord/Root summaries, live Active Character context in the Sidebar & Map Tracker, draggable Armory workspace grid, and live Gear Hole Detector with 1 click Crafting Bench & Regex Studio jumps.',
+    changes: [
+      { tag: 'Added', text: 'Shareable Atlas Skill Tree links (?atlas=...), 1 click Import code loader, and formatted Discord / Root summary copy inside Atlas Skill Tree Planner.' },
+      { tag: 'Added', text: 'Linked Strategy Profiles connecting saved Atlas Trees, Map Tracker sessions, and Asset Tracker farming tags automatically across tools.' },
+      { tag: 'Added', text: 'Active Character context pill in the Sidebar synced from Character Armory and stamped automatically onto saved Map Tracker sessions.' },
+      { tag: 'Added', text: 'Ported the collapsible, drag and drop, resizable ToolWidgetGrid into Character Armory alongside a live Gear Hole Detector linking straight to Crafting Bench and Regex Studio.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-atlas-planner-and-asset-grid',
     version: 'v3.35.0',
     title: 'Interactive Atlas Skill Tree Planner, Draggable Asset Tracker Grid, Non Password Session Inputs & Roadmap Cleanup',

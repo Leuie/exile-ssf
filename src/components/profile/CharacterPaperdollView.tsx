@@ -23,6 +23,8 @@ import {
   readUnifiedPoeSession,
   saveUnifiedPoeSession
 } from '../../utils/poeSession';
+import { saveActiveCharacter } from '../../utils/activeCharacter';
+import { ToolWidgetGrid, type ToolWidgetDefinition } from '../ui/ToolWidgetGrid';
 import {
   CharacterPassiveTreeAndSkills,
   type ResolvedPassiveNode,
@@ -822,6 +824,18 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     return matchKey ? snapshots[matchKey] : null;
   }, [snapshots, selectedChar]);
 
+  // Broadcast Active Character context to Sidebar & Map Tracker when viewing own character
+  useEffect(() => {
+    if (!canEdit || !activeSnapshot?.character?.name) return;
+    saveActiveCharacter({
+      name: activeSnapshot.character.name,
+      level: activeSnapshot.character.level || 1,
+      className: activeSnapshot.character.className || 'Exile',
+      league: activeSnapshot.character.league || '',
+      handle
+    });
+  }, [canEdit, activeSnapshot, handle]);
+
   const slotItem = (invId: string): PaperdollItem | null => {
     if (!activeSnapshot) return null;
     return activeSnapshot.equipped.find((it) => it.inventoryId === invId) || null;
@@ -1273,7 +1287,9 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             </div>
           )}
 
-          {/* Main Paperdoll + Telemetry / Optional Side Panel Grid */}
+          {/* Draggable, Resizable, Collapsible Armory Workspace Grid (when in full Armory mode) */}
+          {(() => {
+            const inventoryAndStatsBlock = (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Authentic PoE Inventory Paperdoll Frame */}
             <div className="lg:col-span-7 p-4 rounded-2xl border-2 border-amber-700/40 bg-[radial-gradient(ellipse_at_top,_rgba(30,41,59,0.65),_rgba(2,6,23,0.95))] shadow-inner space-y-3">
@@ -1502,6 +1518,59 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                     )}
                   </div>
 
+                  {/* LIVE GEAR HOLE DETECTOR (Direct links to Crafting Bench & Regex Studio) */}
+                  {(() => {
+                    const holes: Array<{ label: string; severity: 'high' | 'med' }> = [];
+                    const v = activeSnapshot.estimatedVitals;
+                    if (v.fireRes < 75) holes.push({ label: `Fire Res ${v.fireRes}% (<75%)`, severity: 'high' });
+                    if (v.coldRes < 75) holes.push({ label: `Cold Res ${v.coldRes}% (<75%)`, severity: 'high' });
+                    if (v.lightningRes < 75) holes.push({ label: `Light Res ${v.lightningRes}% (<75%)`, severity: 'high' });
+                    if (v.chaosRes < 0) holes.push({ label: `Chaos Res ${v.chaosRes}% (<0%)`, severity: 'med' });
+                    if (v.suppress > 0 && v.suppress < 100) holes.push({ label: `Suppress ${v.suppress}% (<100%)`, severity: 'med' });
+                    const flaskCount = activeSnapshot.equipped.filter((i) => i.inventoryId === 'Flask').length;
+                    if (flaskCount < 5) holes.push({ label: `${5 - flaskCount} Empty Flask Slot${5 - flaskCount > 1 ? 's' : ''}`, severity: 'med' });
+
+                    if (holes.length === 0) return null;
+                    return (
+                      <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                        <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 flex items-center justify-between">
+                          <span>Gear Hole Detector</span>
+                          <span className="text-slate-500">{holes.length} flagged</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {holes.map((h, i) => (
+                            <span
+                              key={i}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                                h.severity === 'high'
+                                  ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                                  : 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+                              }`}
+                            >
+                              {h.label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('exile-navigate-tab', { detail: 'crafting_bench' }))}
+                            className="flex-1 py-1.5 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-200 text-[10px] font-mono font-bold cursor-pointer"
+                          >
+                            Fix in Crafting Bench
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('exile-navigate-tab', { detail: 'regex_studio' }))}
+                            className="flex-1 py-1.5 px-2 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/40 text-sky-200 text-[10px] font-mono font-bold cursor-pointer"
+                          >
+                            Roll in Regex Studio
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* MAIN SKILLS (Auto detected from largest linked active gem setups) */}
                   {(() => {
                     const mainSkills: Array<{ name: string; icon: string; links: number; level: number; quality: number }> = [];
@@ -1631,36 +1700,70 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
               )}
             </div>
           </div>
+            );
 
-          {/* Toggleable Passive Tree, Ascendancy & Keystones, Masteries, and Skills */}
-          {activeSnapshot && (
-            <CharacterPassiveTreeAndSkills
-              characterName={activeSnapshot.character.name}
-              allocatedCount={activeSnapshot.passives.allocatedCount}
-              allocatedHashes={activeSnapshot.passives.allocatedHashes}
-              ascendancyNodes={activeSnapshot.passives.ascendancyNodes}
-              keystones={activeSnapshot.passives.keystones}
-              masteries={activeSnapshot.passives.masteries}
-              treePoints={activeSnapshot.passives.treePoints}
-              treeEdges={activeSnapshot.passives.treeEdges}
-              equipped={activeSnapshot.equipped}
-              onInspectItem={(item, el, pin) => {
-                if (pin) {
-                  setLockedItem(item);
-                  setHoveredItem(null);
-                  setSelectedGemIdx(null);
-                  if (inspectMode === 'popup') computePopupPosition(el);
-                } else if (!lockedItem) {
-                  setHoveredItem(item);
-                  setSelectedGemIdx(null);
-                  if (inspectMode === 'popup') computePopupPosition(el);
-                }
-              }}
-              onClearHover={() => {
-                if (!lockedItem) setHoveredItem(null);
-              }}
-            />
-          )}
+            const passiveAndSkillsBlock = activeSnapshot ? (
+              <CharacterPassiveTreeAndSkills
+                characterName={activeSnapshot.character.name}
+                allocatedCount={activeSnapshot.passives.allocatedCount}
+                allocatedHashes={activeSnapshot.passives.allocatedHashes}
+                ascendancyNodes={activeSnapshot.passives.ascendancyNodes}
+                keystones={activeSnapshot.passives.keystones}
+                masteries={activeSnapshot.passives.masteries}
+                treePoints={activeSnapshot.passives.treePoints}
+                treeEdges={activeSnapshot.passives.treeEdges}
+                equipped={activeSnapshot.equipped}
+                onInspectItem={(item, el, pin) => {
+                  if (pin) {
+                    setLockedItem(item);
+                    setHoveredItem(null);
+                    setSelectedGemIdx(null);
+                    if (inspectMode === 'popup') computePopupPosition(el);
+                  } else if (!lockedItem) {
+                    setHoveredItem(item);
+                    setSelectedGemIdx(null);
+                    if (inspectMode === 'popup') computePopupPosition(el);
+                  }
+                }}
+                onClearHover={() => {
+                  if (!lockedItem) setHoveredItem(null);
+                }}
+              />
+            ) : null;
+
+            if (isArmoryMode) {
+              const armoryWidgets: ToolWidgetDefinition[] = [
+                {
+                  id: 'armory_inventory_stats',
+                  title: activeSnapshot
+                    ? `Inventory, Jewels & Stats (${activeSnapshot.character.name})`
+                    : 'Inventory, Jewels & Stats',
+                  icon: <Shield className="w-3.5 h-3.5 text-amber-400" />,
+                  defaultSpan: 12,
+                  render: () => inventoryAndStatsBlock
+                },
+                ...(passiveAndSkillsBlock
+                  ? [
+                      {
+                        id: 'armory_passive_skills',
+                        title: `Passive Skill Tree, Ascendancy & Skill Gems (${activeSnapshot?.passives.allocatedCount || 0} Passives)`,
+                        icon: <Sparkles className="w-3.5 h-3.5 text-sky-400" />,
+                        defaultSpan: 12 as const,
+                        render: () => passiveAndSkillsBlock
+                      }
+                    ]
+                  : [])
+              ];
+              return <ToolWidgetGrid storageKey="character_armory" widgets={armoryWidgets} />;
+            }
+
+            return (
+              <div className="space-y-4">
+                {inventoryAndStatsBlock}
+                {passiveAndSkillsBlock}
+              </div>
+            );
+          })()}
 
           {/* Mobile / Tablet Bottom Sheet Drawer (Auto Touch Mode on < 768px) */}
           {isCompactMobile && inspectMode === 'popup' && lockedItem && (

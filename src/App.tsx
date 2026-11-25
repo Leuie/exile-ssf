@@ -510,8 +510,18 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const onOpenToolSetup = () => setIsToolSetupOpen(true);
+    const onNavigateTab = (e: Event) => {
+      const tabId = (e as CustomEvent)?.detail;
+      if (typeof tabId === 'string' && tabId.trim()) {
+        handleSelectTab(tabId.trim());
+      }
+    };
     window.addEventListener('exile-open-tool-setup', onOpenToolSetup);
-    return () => window.removeEventListener('exile-open-tool-setup', onOpenToolSetup);
+    window.addEventListener('exile-navigate-tab', onNavigateTab);
+    return () => {
+      window.removeEventListener('exile-open-tool-setup', onOpenToolSetup);
+      window.removeEventListener('exile-navigate-tab', onNavigateTab);
+    };
   }, []);
 
   const handleSaveAccount = (account: UserAccount, rosterEntry: LeagueRosterMember) => {

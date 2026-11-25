@@ -22,22 +22,26 @@ export const PLANNED_ROADMAP_CATEGORIES: PlannedRoadmapItem['category'][] = [
 ];
 
 export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
-  // Armory Cross Site Integrations (Remaining)
+  // Armory Cross Site Integrations
   {
     id: 'rm-map-tracker-per-char',
     category: 'Armory Cross Site Integrations',
     title: 'Map Tracker Per Character Mapping Telemetry',
     description:
-      'Link saved Map Tracker sessions to synced Armory character snapshots to compare clear speed, XP/hr, and deaths per character/build with a Gear Snapshot at Time of Run badge.',
-    scope: 'PoE 1 & PoE 2'
+      'Active Character context links Character Armory directly to Sidebar and Map Tracker, stamping saved mapping runs with your active character, level, ascendancy, and linked Atlas Skill Tree.',
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.36.0'
   },
   {
     id: 'rm-crafting-gear-hole-detector',
     category: 'Armory Cross Site Integrations',
     title: 'Crafting Bench & Regex Studio Personalized Gear Hole Detector',
     description:
-      'Analyze your synced Character\'s weakest gear slots (such as uncapped Chaos Res on rings or missing Spell Suppression on boots/gloves) and highlight the exact Crafting Bench, Harvest, and Essence crafts that fix your build right now.',
-    scope: 'PoE 1 & PoE 2'
+      'Automatically flags uncapped Elemental/Chaos Resistances, partial Spell Suppression, and empty flask slots inside Character Armory with 1 click links to Crafting Bench and Regex Studio.',
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.36.0'
   },
 
   // A. Deeper Character & Build Tools

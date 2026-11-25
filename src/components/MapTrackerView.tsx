@@ -36,6 +36,12 @@ import { AtlasSkillTreePlanner } from './maps/AtlasSkillTreePlanner';
 import { ToolWidgetGrid, type ToolWidgetDefinition } from './ui/ToolWidgetGrid';
 import { readUnifiedPoeSession } from '../utils/poeSession';
 import {
+  readActiveCharacter,
+  readActiveStrategy,
+  saveActiveStrategy,
+  type ActiveCharacterContext
+} from '../utils/activeCharacter';
+import {
   PREFS_STORAGE_KEY,
   STRATEGY_PRESETS,
   POE2_STRATEGY_PRESETS
@@ -75,6 +81,10 @@ interface SavedMapSession {
   id: string;
   title: string;
   strategy: string;
+  atlasTreeName?: string;
+  characterName?: string;
+  characterLevel?: number;
+  characterClass?: string;
   startDate: string;
   mapsCompleted: number;
   avgMapSec: number;
@@ -188,6 +198,8 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     savedUnifiedSess?.accountName || savedAssetPrefs.accountName || userAccount?.poeAccountName || ''
   );
   const [poesessid, setPoesessid] = useState<string>(savedUnifiedSess?.poesessid || '');
+  const [activeCharCtx, setActiveCharCtx] = useState<ActiveCharacterContext | null>(() => readActiveCharacter());
+  const [linkedAtlasName, setLinkedAtlasName] = useState<string>(() => readActiveStrategy()?.atlasTreeName || '');
 
   useEffect(() => {
     const onToolSetupUpdated = () => {
@@ -196,8 +208,20 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       else setPoesessid('');
       if (sess?.accountName) setAccountName(sess.accountName);
     };
+    const onCharUpdated = () => setActiveCharCtx(readActiveCharacter());
+    const onStratUpdated = () => {
+      const st = readActiveStrategy();
+      if (st?.strategy) setStrategyTag(st.strategy);
+      if (st?.atlasTreeName) setLinkedAtlasName(st.atlasTreeName);
+    };
     window.addEventListener('exile-tool-setup-updated', onToolSetupUpdated);
-    return () => window.removeEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+    window.addEventListener('exile-active-character-updated', onCharUpdated);
+    window.addEventListener('exile-active-strategy-updated', onStratUpdated);
+    return () => {
+      window.removeEventListener('exile-tool-setup-updated', onToolSetupUpdated);
+      window.removeEventListener('exile-active-character-updated', onCharUpdated);
+      window.removeEventListener('exile-active-strategy-updated', onStratUpdated);
+    };
   }, []);
   const [characters, setCharacters] = useState<PolledCharacter[]>([]);
   const [selectedCharName, setSelectedCharName] = useState<string>('');
@@ -658,6 +682,10 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
       id: `map-${Date.now()}`,
       title: sessionTitle.trim() || `Mapping (${startDate})`,
       strategy: strategyTag,
+      atlasTreeName: linkedAtlasName || undefined,
+      characterName: latestChar?.name || activeCharCtx?.name || undefined,
+      characterLevel: latestChar?.level || activeCharCtx?.level || undefined,
+      characterClass: latestChar?.className || activeCharCtx?.className || undefined,
       startDate,
       mapsCompleted: mapRuns.length,
       avgMapSec,
@@ -1092,7 +1120,10 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                   />
                   <select
                     value={strategyTag}
-                    onChange={(e) => setStrategyTag(e.target.value)}
+                    onChange={(e) => {
+                      setStrategyTag(e.target.value);
+                      saveActiveStrategy({ strategy: e.target.value, atlasTreeName: linkedAtlasName || undefined });
+                    }}
                     className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-amber-200 font-semibold cursor-pointer"
                   >
                     {activeStrategyPresets.map((st) => (
@@ -1128,7 +1159,19 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                     <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
                         <div className="text-xs font-bold text-white truncate">{s.title}</div>
-                        <div className="text-[10px] font-mono text-amber-300">{s.strategy}</div>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                          <span className="text-amber-300">{s.strategy}</span>
+                          {s.atlasTreeName && (
+                            <span className="px-1.5 py-0.2 rounded bg-sky-500/15 border border-sky-500/35 text-sky-300">
+                              Atlas: {s.atlasTreeName}
+                            </span>
+                          )}
+                          {s.characterName && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300">
+                              {s.characterName}{s.characterLevel ? ` Lv${s.characterLevel}` : ''}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] font-mono text-slate-400">
                           {s.mapsCompleted} maps • {s.mapsPerHr}/hr • {formatDuration(s.avgMapSec)} avg • {s.hideoutPct}% town
                         </div>
@@ -1274,6 +1317,10 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
               <AtlasSkillTreePlanner
                 userHandle={userAccount?.displayName}
                 activeStrategy={strategyTag}
+                onSelectStrategy={(st, name) => {
+                  setStrategyTag(st);
+                  setLinkedAtlasName(name);
+                }}
               />
             )
           },

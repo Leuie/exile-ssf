@@ -100,6 +100,7 @@ import {
   isPoeDisclaimerAcknowledged,
   markPoeDisclaimerAcknowledged
 } from '../utils/poeSession';
+import { readActiveStrategy, saveActiveStrategy } from '../utils/activeCharacter';
 
 interface AssetTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -226,7 +227,15 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       } catch {}
     };
     window.addEventListener('exile-tool-setup-updated', handleToolSetupUpdated);
-    return () => window.removeEventListener('exile-tool-setup-updated', handleToolSetupUpdated);
+    const handleStrategyUpdated = () => {
+      const st = readActiveStrategy();
+      if (st?.strategy) setStrategyTag(st.strategy);
+    };
+    window.addEventListener('exile-active-strategy-updated', handleStrategyUpdated);
+    return () => {
+      window.removeEventListener('exile-tool-setup-updated', handleToolSetupUpdated);
+      window.removeEventListener('exile-active-strategy-updated', handleStrategyUpdated);
+    };
   }, []);
   const [poesessid, setPoesessid] = useState<string>(savedPoesessidOptIn?.poesessid || '');
   const [acceptedRiskDisclaimer, setAcceptedRiskDisclaimer] = useState<boolean>(
@@ -2162,7 +2171,7 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
                       <button type="button" onClick={() => setWealthMode('total')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'total' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Total</button>
                       <button type="button" onClick={() => setWealthMode('hourly')} className={`px-2.5 py-0.5 rounded-md cursor-pointer ${wealthMode === 'hourly' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>Hourly</button>
                     </div>
-                    <select value={strategyTag} onChange={(e) => setStrategyTag(e.target.value)} className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-amber-300 font-semibold focus:outline-none cursor-pointer">
+                    <select value={strategyTag} onChange={(e) => { setStrategyTag(e.target.value); saveActiveStrategy({ strategy: e.target.value }); }} className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-amber-300 font-semibold focus:outline-none cursor-pointer">
                       {STRATEGY_PRESETS.map((st) => (<option key={st} value={st} className="bg-slate-950">{st}</option>))}
                     </select>
                   </div>

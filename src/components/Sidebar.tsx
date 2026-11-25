@@ -27,6 +27,7 @@ import {
   Clock,
   Sliders
 } from "lucide-react";
+import { readActiveCharacter, type ActiveCharacterContext } from '../utils/activeCharacter';
 
 interface SidebarProps {
   activeTab: string;
@@ -88,6 +89,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
   const [clockNow, setClockNow] = useState<Date>(() => new Date());
+  const [activeChar, setActiveChar] = useState<ActiveCharacterContext | null>(() => readActiveCharacter());
+
+  useEffect(() => {
+    const onCharUpdate = () => setActiveChar(readActiveCharacter());
+    window.addEventListener('exile-active-character-updated', onCharUpdate);
+    return () => window.removeEventListener('exile-active-character-updated', onCharUpdate);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(new Date()), 30000);
@@ -714,6 +722,29 @@ interface NavGroup {
             >
               <Clock className="w-4 h-4" />
             </div>
+          )}
+
+          {/* Active Synced Character Context Pill (Clicks straight to Character Armory) */}
+          {activeChar && !isCollapsed && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('armory')}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-left transition-colors cursor-pointer"
+              title={`Active Character: ${activeChar.name} (Lv ${activeChar.level} ${activeChar.className}) — Click to open Armory`}
+            >
+              <div className="min-w-0">
+                <div className="text-[9px] font-mono uppercase tracking-wider text-amber-400/90 font-bold">
+                  Active Character
+                </div>
+                <div className="text-[11px] font-bold text-amber-100 truncate">
+                  {activeChar.name}
+                </div>
+                <div className="text-[10px] font-mono text-slate-400 truncate">
+                  Lv {activeChar.level} {activeChar.className}
+                </div>
+              </div>
+              <Swords className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            </button>
           )}
 
           {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}

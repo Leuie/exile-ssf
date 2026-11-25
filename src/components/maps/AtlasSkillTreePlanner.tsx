@@ -13,9 +13,13 @@ import {
   Sparkles,
   X,
   Compass,
-  ListChecks
+  ListChecks,
+  Share2,
+  Download,
+  Copy
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
+import { saveActiveStrategy } from '../../utils/activeCharacter';
 
 // [id, x, y, kind (0=small,1=notable,2=keystone,3=wormhole/gateway,4=mastery,5=rootStart), name, stats, icon, groupId, orbit, angleRad]
 type GraphNodeTuple = [number, number, number, number, string, string[], string, number, number, number];
@@ -124,14 +128,51 @@ const KIND_LABELS: Record<number, string> = {
   5: 'Atlas Start'
 };
 
+function encodeAtlasShareCode(name: string, strategy: string, nodeIds: number[]): string {
+  try {
+    const json = JSON.stringify({ n: name.slice(0, 60), s: strategy.slice(0, 40), ids: nodeIds });
+    return btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function decodeAtlasShareCode(rawCode: string): { name: string; strategy: string; nodeIds: number[] } | null {
+  try {
+    let code = rawCode.trim();
+    if (!code) return null;
+    if (code.includes('atlas=')) {
+      const idx = code.indexOf('atlas=');
+      code = code.slice(idx + 6).split(/[&#]/)[0];
+    }
+    const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+    const json = decodeURIComponent(escape(atob(b64 + pad)));
+    const parsed = JSON.parse(json);
+    if (!parsed || !Array.isArray(parsed.ids)) return null;
+    return {
+      name: String(parsed.n || 'Imported Atlas Tree'),
+      strategy: String(parsed.s || 'Alch & Go'),
+      nodeIds: parsed.ids.map(Number).filter(Number.isFinite).slice(0, MAX_ATLAS_POINTS)
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface AtlasSkillTreePlannerProps {
   userHandle?: string;
   activeStrategy?: string;
+  onSelectStrategy?: (strategy: string, atlasTreeName: string) => void;
 }
 
 export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   userHandle,
-  activeStrategy = 'Alch & Go'
+  activeStrategy = 'Alch & Go',
+  onSelectStrategy
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -149,6 +190,27 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
   const [treeName, setTreeName] = useState<string>('My Atlas Strategy');
   const [allocatedIds, setAllocatedIds] = useState<number[]>([]);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [showImportBox, setShowImportBox] = useState<boolean>(false);
+  const [importInput, setImportInput] = useState<string>('');
+
+  // Auto-load shared Atlas Tree from URL (?atlas=...) on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('atlas');
+      if (code) {
+        const decoded = decodeAtlasShareCode(code);
+        if (decoded) {
+          setTreeName(decoded.name);
+          setAllocatedIds(decoded.nodeIds);
+          onSelectStrategy?.(decoded.strategy, decoded.name);
+          setSaveNotice(`Loaded shared Atlas tree "${decoded.name}" (${decoded.nodeIds.length} pts)`);
+          setTimeout(() => setSaveNotice(null), 3500);
+        }
+      }
+    } catch {}
+  }, []);
 
   const [hoveredNode, setHoveredNode] = useState<{
     node: ParsedAtlasNode;
@@ -944,7 +1006,9 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     const next = exists ? savedTrees.map((t) => (t.id === id ? entry : t)) : [entry, ...savedTrees];
     persistTrees(next);
     setActiveTreeId(id);
-    setSaveNotice(`Saved "${cleanName}" (${allocatedIds.length} pts)`);
+    saveActiveStrategy({ strategy: activeStrategy, atlasTreeId: id, atlasTreeName: cleanName });
+    onSelectStrategy?.(activeStrategy, cleanName);
+    setSaveNotice(`Saved "${cleanName}" (${allocatedIds.length} pts) & linked to ${activeStrategy}`);
     setTimeout(() => setSaveNotice(null), 2600);
   };
 
@@ -958,6 +1022,53 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     setActiveTreeId(t.id);
     setTreeName(t.name);
     setAllocatedIds(Array.isArray(t.nodeIds) ? t.nodeIds : []);
+    saveActiveStrategy({ strategy: t.strategy, atlasTreeId: t.id, atlasTreeName: t.name });
+    onSelectStrategy?.(t.strategy, t.name);
+  };
+
+  const handleCopyShareLink = () => {
+    const code = encodeAtlasShareCode(treeName.trim() || 'Atlas Strategy', activeStrategy, allocatedIds);
+    if (!code) return;
+    const url = `${window.location.origin}/maps?atlas=${code}`;
+    navigator.clipboard?.writeText(url);
+    setSaveNotice('Copied shareable Atlas Tree link!');
+    setTimeout(() => setSaveNotice(null), 2600);
+  };
+
+  const handleCopySquadSummary = () => {
+    const code = encodeAtlasShareCode(treeName.trim() || 'Atlas Strategy', activeStrategy, allocatedIds);
+    const url = code ? `${window.location.origin}/maps?atlas=${code}` : `${window.location.origin}/maps`;
+    const keyNames = allocatedHighlights.keystones.map((k) => k.name).join(', ');
+    const topStats = totalAtlasStats.slice(0, 6).map((s) => `• ${s}`).join('\n');
+    const summary = [
+      `**Atlas Tree: ${treeName.trim() || 'Atlas Strategy'}** (${allocatedIds.length}/${MAX_ATLAS_POINTS} pts • ${activeStrategy})`,
+      keyNames ? `Keystones: ${keyNames}` : '',
+      topStats ? `Top Modifiers:\n${topStats}` : '',
+      `Inspect / Clone: ${url}`
+    ]
+      .filter(Boolean)
+      .join('\n');
+    navigator.clipboard?.writeText(summary);
+    setSaveNotice('Copied Discord / Root Atlas summary!');
+    setTimeout(() => setSaveNotice(null), 2600);
+  };
+
+  const handleImportCode = () => {
+    const decoded = decodeAtlasShareCode(importInput);
+    if (!decoded) {
+      setSaveNotice('Invalid Atlas share code or link.');
+      setTimeout(() => setSaveNotice(null), 2600);
+      return;
+    }
+    setActiveTreeId('');
+    setTreeName(decoded.name);
+    setAllocatedIds(decoded.nodeIds);
+    saveActiveStrategy({ strategy: decoded.strategy, atlasTreeName: decoded.name });
+    onSelectStrategy?.(decoded.strategy, decoded.name);
+    setShowImportBox(false);
+    setImportInput('');
+    setSaveNotice(`Imported "${decoded.name}" (${decoded.nodeIds.length} pts)!`);
+    setTimeout(() => setSaveNotice(null), 2800);
   };
 
   const handleDeleteTree = (id: string) => {
@@ -1191,6 +1302,34 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           <Plus className="w-3.5 h-3.5" />
           <span>New</span>
         </button>
+        <button
+          type="button"
+          disabled={allocatedIds.length === 0}
+          onClick={handleCopyShareLink}
+          className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-400/50 text-indigo-200 font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-40"
+          title="Copy shareable Atlas Tree URL for squadmates"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span>Share Link</span>
+        </button>
+        <button
+          type="button"
+          disabled={allocatedIds.length === 0}
+          onClick={handleCopySquadSummary}
+          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-200 font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-40"
+          title="Copy formatted Discord / Root summary with Keystones, top stats, and clone link"
+        >
+          <Copy className="w-3.5 h-3.5" />
+          <span>Copy Summary</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowImportBox((v) => !v)}
+          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-sky-200 font-semibold inline-flex items-center gap-1 cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>Import</span>
+        </button>
         {allocatedIds.length > 0 && (
           <button
             type="button"
@@ -1206,6 +1345,25 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           </span>
         )}
       </div>
+
+      {showImportBox && (
+        <div className="p-2.5 rounded-xl border border-sky-500/35 bg-slate-950/90 flex flex-wrap items-center gap-2 text-xs">
+          <input
+            type="text"
+            value={importInput}
+            onChange={(e) => setImportInput(e.target.value)}
+            placeholder="Paste a squadmate's Exile SSF Atlas Tree link or share code..."
+            className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-sky-400"
+          />
+          <button
+            type="button"
+            onClick={handleImportCode}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold cursor-pointer"
+          >
+            Load Tree
+          </button>
+        </div>
+      )}
 
       {/* Main Split: Interactive Atlas Canvas + Saved Trees & Active Notables */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
