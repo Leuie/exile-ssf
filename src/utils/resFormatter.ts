@@ -159,7 +159,9 @@ export function computeSnapshotResistances(snap: CharacterGearSnapshot): Snapsho
   }
 
   const isCI = Boolean(
-    snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name))
+    (snap.passives?.allocatedHashes || []).includes(11455) ||
+      snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name)) ||
+      allModLines.some((m) => /chaos inoculation/i.test(m))
   );
   const v = snap.estimatedVitals;
 

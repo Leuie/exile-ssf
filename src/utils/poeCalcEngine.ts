@@ -383,6 +383,19 @@ export function saveGoalPob(characterName: string, pobInput: string): void {
   } catch {}
 }
 
+// Official GGG Passive Tree node ID for Chaos Inoculation across 3.25 - 3.30 (verified in PoB TreeData)
+export const CHAOS_INOCULATION_NODE_ID = 11455;
+
+export function detectChaosInoculation(snap: CharacterGearSnapshot): boolean {
+  if ((snap.passives?.allocatedHashes || []).includes(CHAOS_INOCULATION_NODE_ID)) return true;
+  if (snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name))) return true;
+  for (const it of snap.equipped || []) {
+    const mods = [...(it.explicitMods || []), ...(it.implicitMods || []), ...(it.enchantMods || [])];
+    if (mods.some((m) => /chaos inoculation/i.test(m))) return true;
+  }
+  return false;
+}
+
 /**
  * Exact PoE 1 calculation engine combining synced gear, jewels, passive tree,
  * active auras, flasks, charges, guard skills, and enemy hit presets.
@@ -402,7 +415,7 @@ export function calculateCharacterStats(
   } = detectSnapshotAurasAndGuard(snap);
 
   const isAuraOn = (name: string) => Boolean(config.enabledAuras[name]);
-  const isCI = Boolean(snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name)));
+  const isCI = detectChaosInoculation(snap);
   const hasGlancingBlows = Boolean(snap.passives?.keystones?.some((k) => /glancing blows/i.test(k.name)));
   const hasIronReflexes = Boolean(snap.passives?.keystones?.some((k) => /iron reflexes/i.test(k.name)));
 

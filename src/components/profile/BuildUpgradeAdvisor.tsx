@@ -137,34 +137,68 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
         });
       }
 
-      // Low flat life on rare armour/jewelry
+      // Life vs Energy Shield audit on rare armour/jewelry (Chaos Inoculation aware!)
       if (LIFE_ARMOUR_SLOTS.has(slot) && isRareOrMagic && !isUnique) {
-        const life = extractFlatLife(item);
         const modCount =
           (item.explicitMods?.length || 0) +
           (item.craftedMods?.length || 0) +
           (item.fracturedMods?.length || 0);
-        if (life < 55 && snapshot.estimatedVitals.flatEs < 800) {
-          list.push({
-            slot,
-            itemName: label,
-            priority: life === 0 ? 'high' : 'low',
-            issue: life === 0 ? 'No flat Life roll on slot' : `Low flat Life roll (+${life})`,
-            fixAction:
-              modCount < 6
-                ? 'Open affix detected — bench craft +Life right away.'
-                : 'Upgrade with Greed Essence or Harvest Reforge Life.',
-            targetTab: 'crafting_bench'
-          });
-        } else if (modCount < 6 && (!item.craftedMods || item.craftedMods.length === 0) && !item.corrupted) {
-          list.push({
-            slot,
-            itemName: label,
-            priority: 'low',
-            issue: `Open crafting bench slot (${modCount}/6 affixes)`,
-            fixAction: 'Add a free Crafting Bench suffix/prefix (Res, Attributes, Damage, or Phys Taken as Ele).',
-            targetTab: 'crafting_bench'
-          });
+
+        if (calc.isCI) {
+          // Chaos Inoculation sets Life to 1 — NEVER suggest Life; audit Energy Shield on armour slots instead
+          const isArmourEsSlot = ['Helm', 'BodyArmour', 'Gloves', 'Boots', 'Offhand'].includes(slot);
+          const itemEsProp = (item.properties || []).find((p) => /energy shield/i.test(p.name));
+          const itemEsVal = itemEsProp ? parseInt(itemEsProp.value.replace(/[^0-9]/g, ''), 10) || 0 : 0;
+          const minTargetEs = slot === 'BodyArmour' ? 400 : 120;
+          if (isArmourEsSlot && itemEsVal < minTargetEs) {
+            list.push({
+              slot,
+              itemName: label,
+              priority: itemEsVal === 0 ? 'high' : 'medium',
+              issue:
+                itemEsVal === 0
+                  ? 'No Energy Shield on slot (Chaos Inoculation)'
+                  : `Low Energy Shield (${itemEsVal} ES on ${slot})`,
+              fixAction:
+                modCount < 6
+                  ? 'Open affix detected — bench craft flat or % increased Energy Shield.'
+                  : 'Upgrade with Dense Fossils, Essence of Woe, or Harvest Reforge Defense on an ES base.',
+              targetTab: 'crafting_bench'
+            });
+          } else if (modCount < 6 && (!item.craftedMods || item.craftedMods.length === 0) && !item.corrupted) {
+            list.push({
+              slot,
+              itemName: label,
+              priority: 'low',
+              issue: `Open crafting bench slot (${modCount}/6 affixes)`,
+              fixAction: 'Add a free Crafting Bench prefix/suffix (Energy Shield, Attributes, Resistances, or Damage).',
+              targetTab: 'crafting_bench'
+            });
+          }
+        } else {
+          const life = extractFlatLife(item);
+          if (life < 55 && calc.energyShield.total < 2500) {
+            list.push({
+              slot,
+              itemName: label,
+              priority: life === 0 ? 'high' : 'low',
+              issue: life === 0 ? 'No flat Life roll on slot' : `Low flat Life roll (+${life})`,
+              fixAction:
+                modCount < 6
+                  ? 'Open affix detected — bench craft +Life right away.'
+                  : 'Upgrade with Greed Essence or Harvest Reforge Life.',
+              targetTab: 'crafting_bench'
+            });
+          } else if (modCount < 6 && (!item.craftedMods || item.craftedMods.length === 0) && !item.corrupted) {
+            list.push({
+              slot,
+              itemName: label,
+              priority: 'low',
+              issue: `Open crafting bench slot (${modCount}/6 affixes)`,
+              fixAction: 'Add a free Crafting Bench suffix/prefix (Res, Attributes, Damage, or Phys Taken as Ele).',
+              targetTab: 'crafting_bench'
+            });
+          }
         }
       }
     }
