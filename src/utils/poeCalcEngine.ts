@@ -28,10 +28,38 @@ export interface PoeCalcConfig {
   enabledAuras: Record<string, boolean>;
 }
 
+export interface DetectedMainSkill {
+  name: string;
+  slot: string;
+  level: number;
+  quality: number;
+  linkCount: number;
+  supports: Array<{ name: string; level: number; quality: number }>;
+  suggestions: string[];
+}
+
 export interface PoeCalcBreakdown {
   isCI: boolean;
   detectedAuras: string[];
   detectedGuard: string | null;
+  detectedCurses: string[];
+  detectedChargeSources: string[];
+  mainSkill: DetectedMainSkill | null;
+  offense: {
+    weaponPdps: number;
+    weaponEdps: number;
+    weaponTotalDps: number;
+    weaponAps: number;
+    weaponBaseCrit: number;
+    accuracy: number;
+    hitChancePct: number;
+    frenzyMoreDmgPct: number;
+    frenzySpeedPct: number;
+    powerIncCritPct: number;
+    precisionCritPct: number;
+    precisionAccuracy: number;
+    totalSpeedBonusPct: number;
+  };
   attributes: {
     strength: number;
     dexterity: number;
@@ -157,9 +185,49 @@ const TRACKABLE_AURAS = [
   'Tempest Shield',
   'Arctic Armour',
   'Flesh and Stone',
+  'Blood and Sand',
   'Defiance Banner',
+  'Dread Banner',
+  'War Banner',
+  'Precision',
+  'Clarity',
+  'Vitality',
   'Haste',
-  'Petrified Blood'
+  'Hatred',
+  'Wrath',
+  'Anger',
+  'Pride',
+  'Zealotry',
+  'Malevolence',
+  'Petrified Blood',
+  'Herald of Ash',
+  'Herald of Ice',
+  'Herald of Thunder',
+  'Herald of Purity',
+  'Herald of Agony',
+  'Summon Skitterbots',
+  'Aspect of the Spider',
+  'Aspect of the Cat',
+  'Aspect of the Crab',
+  'Aspect of the Avian',
+  'Raise Spectre'
+];
+
+const TRACKABLE_CURSES = [
+  "Assassin's Mark",
+  "Sniper's Mark",
+  "Poacher's Mark",
+  "Warlord's Mark",
+  "Alchemist's Mark",
+  'Elemental Weakness',
+  'Flammability',
+  'Frostbite',
+  'Conductivity',
+  'Despair',
+  'Vulnerability',
+  'Punishment',
+  'Enfeeble',
+  'Temporal Chains'
 ];
 
 const GUARD_GEMS = ['Molten Shell', 'Vaal Molten Shell', 'Steelskin', 'Immortal Call', 'Arcane Cloak'];
@@ -167,14 +235,28 @@ const GUARD_GEMS = ['Molten Shell', 'Vaal Molten Shell', 'Steelskin', 'Immortal 
 export function detectSnapshotAurasAndGuard(snap: CharacterGearSnapshot): {
   auras: string[];
   guard: string | null;
+  curses: string[];
+  chargeSources: string[];
+  hasPowerSource: boolean;
+  hasFrenzySource: boolean;
+  hasEnduranceSource: boolean;
 } {
   const auras = new Set<string>();
+  const curses = new Set<string>();
+  const chargeSources = new Set<string>();
   let guard: string | null = null;
+  let hasPowerSource = false;
+  let hasFrenzySource = false;
+  let hasEnduranceSource = false;
+
   for (const it of snap.equipped || []) {
     for (const g of it.socketedGems || []) {
       const gn = (g.name || '').toLowerCase();
       for (const a of TRACKABLE_AURAS) {
         if (gn.includes(a.toLowerCase())) auras.add(a);
+      }
+      for (const c of TRACKABLE_CURSES) {
+        if (gn.includes(c.toLowerCase())) curses.add(c);
       }
       if (!guard) {
         for (const gs of GUARD_GEMS) {
@@ -184,30 +266,66 @@ export function detectSnapshotAurasAndGuard(snap: CharacterGearSnapshot): {
           }
         }
       }
+      // Auto-detect Charge Generators from gems
+      if (gn.includes("assassin's mark") || gn.includes('power charge on critical') || gn.includes('siphoning trap')) {
+        hasPowerSource = true;
+        chargeSources.add(g.name);
+      }
+      if (gn.includes('raise spectre')) {
+        hasFrenzySource = true;
+        chargeSources.add('Raise Spectre (Chieftains)');
+      }
+      if (gn.includes('blood rage') || gn.includes('frenzy') || gn.includes('ice bite') || gn.includes("poacher's mark")) {
+        hasFrenzySource = true;
+        chargeSources.add(g.name);
+      }
+      if (gn.includes('enduring cry') || gn.includes('endurance charge on melee stun')) {
+        hasEnduranceSource = true;
+        chargeSources.add(g.name);
+      }
     }
   }
-  return { auras: Array.from(auras), guard };
+  const clsLow = (snap.character.className || '').toLowerCase();
+  if (clsLow.includes('juggernaut') || clsLow.includes('chieftain') || clsLow.includes('slayer')) {
+    hasEnduranceSource = true;
+    chargeSources.add(`${snap.character.className} Ascendancy`);
+  }
+  if (clsLow.includes('trickster') || clsLow.includes('slayer') || clsLow.includes('raider')) {
+    hasFrenzySource = true;
+  }
+  if (clsLow.includes('assassin') || clsLow.includes('occultist') || clsLow.includes('hierophant')) {
+    hasPowerSource = true;
+  }
+
+  return {
+    auras: Array.from(auras),
+    guard,
+    curses: Array.from(curses),
+    chargeSources: Array.from(chargeSources),
+    hasPowerSource,
+    hasFrenzySource,
+    hasEnduranceSource
+  };
 }
 
 export function buildDefaultCalcConfig(snap: CharacterGearSnapshot): PoeCalcConfig {
   const lvl = snap.character.level || 1;
-  const { auras } = detectSnapshotAurasAndGuard(snap);
+  const { auras, hasEnduranceSource, hasFrenzySource, hasPowerSource } = detectSnapshotAurasAndGuard(snap);
   const enabledAuras: Record<string, boolean> = {};
   for (const a of auras) enabledAuras[a] = true;
 
   const clsLow = (snap.character.className || '').toLowerCase();
-  const autoEnd = clsLow.includes('juggernaut') || clsLow.includes('chieftain') || clsLow.includes('slayer');
   const autoFortify = clsLow.includes('champion');
 
   return {
     resistancePenalty: lvl >= 68 ? -60 : lvl >= 45 ? -30 : 0,
     bandit: 'kill_all',
-    useEnduranceCharges: autoEnd,
-    enduranceCharges: autoEnd ? 3 : 0,
-    useFrenzyCharges: false,
-    frenzyCharges: 0,
-    usePowerCharges: false,
-    powerCharges: 0,
+    useEnduranceCharges: hasEnduranceSource,
+    enduranceCharges: hasEnduranceSource ? 3 : 0,
+    useFrenzyCharges: hasFrenzySource,
+    frenzyCharges: hasFrenzySource ? 3 : 0,
+    usePowerCharges: hasPowerSource,
+    powerCharges: hasPowerSource ? 3 : 0,
     fortified: autoFortify,
     fortifyStacks: 20,
     onslaught: false,
@@ -229,7 +347,12 @@ export function calculateCharacterStats(
   const lvl = Math.max(1, snap.character.level || 1);
   const gs = snap.gearStats;
   const vit = snap.estimatedVitals;
-  const { auras: detectedAuras, guard: detectedGuard } = detectSnapshotAurasAndGuard(snap);
+  const {
+    auras: detectedAuras,
+    guard: detectedGuard,
+    curses: detectedCurses,
+    chargeSources: detectedChargeSources
+  } = detectSnapshotAurasAndGuard(snap);
 
   const isAuraOn = (name: string) => Boolean(config.enabledAuras[name]);
   const isCI = Boolean(snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name)));
@@ -499,10 +622,142 @@ export function calculateCharacterStats(
       flaskMoveSpeed
   );
 
+  // 13. Offense: Main Skill Detection, Weapon DPS, Accuracy/Hit Chance & Charge Multipliers
+  let mainSkill: DetectedMainSkill | null = null;
+  let bestLinkScore = 0;
+  for (const it of snap.equipped || []) {
+    if (!Array.isArray(it.socketedGems) || it.socketedGems.length === 0) continue;
+    const byGroup = new Map<number, typeof it.socketedGems>();
+    for (const g of it.socketedGems) {
+      const grp = typeof g.group === 'number' ? g.group : 0;
+      const arr = byGroup.get(grp) || [];
+      arr.push(g);
+      byGroup.set(grp, arr);
+    }
+    for (const groupGems of byGroup.values()) {
+      const actives = groupGems.filter((g) => !g.support && !TRACKABLE_AURAS.some((a) => g.name.toLowerCase().includes(a.toLowerCase())) && !GUARD_GEMS.some((gs) => g.name.toLowerCase().includes(gs.toLowerCase())));
+      const supports = groupGems.filter((g) => g.support);
+      if (actives.length === 0) continue;
+      const linkCount = groupGems.length;
+      const score = linkCount * 10 + (it.inventoryId === 'BodyArmour' || it.inventoryId === 'Weapon' ? 5 : 0);
+      if (score > bestLinkScore) {
+        bestLinkScore = score;
+        const primaryActive = actives[0];
+        const suggestions: string[] = [];
+        if (linkCount < 6) {
+          suggestions.push(`Upgrade ${it.inventoryId} from ${linkCount}-Link to 6-Link (+30% to +35% more DPS).`);
+        }
+        if (primaryActive.level < 20) {
+          suggestions.push(`Level ${primaryActive.name} from Lv ${primaryActive.level} to Lv 20 (or Vaal for Lv 21).`);
+        } else if (primaryActive.level === 20 && !primaryActive.corrupted) {
+          suggestions.push(`Level spare ${primaryActive.name} gems in weapon swap to Vaal for Lv 21/20.`);
+        }
+        const lowQualSupports = supports.filter((s) => s.quality < 15);
+        if (lowQualSupports.length > 0) {
+          suggestions.push(`Quality up ${lowQualSupports.length} support gem(s) via GCP recipe (${lowQualSupports.slice(0, 2).map((s) => s.name).join(', ')}).`);
+        }
+        if (detectedCurses.length === 0) {
+          suggestions.push('Add an active Curse or Mark (e.g. Assassin\'s Mark, Sniper\'s Mark, or Elemental Weakness) for +25–35% Boss DPS.');
+        }
+        mainSkill = {
+          name: primaryActive.name,
+          slot: it.inventoryId,
+          level: primaryActive.level,
+          quality: primaryActive.quality,
+          linkCount,
+          supports: supports.map((s) => ({ name: s.name, level: s.level, quality: s.quality })),
+          suggestions
+        };
+      }
+    }
+  }
+
+  // Parse Weapon Physical & Elemental DPS from equipped Weapon
+  const mainWeapon = (snap.equipped || []).find((i) => i.inventoryId === 'Weapon');
+  let weaponPdps = 0;
+  let weaponEdps = 0;
+  let weaponAps = 0;
+  let weaponBaseCrit = 5;
+  if (mainWeapon && Array.isArray(mainWeapon.properties)) {
+    const parseRangeAvg = (val: string): number => {
+      let sum = 0;
+      const rx = /(\d+)\s*-\s*(\d+)/g;
+      let m;
+      while ((m = rx.exec(val)) !== null) {
+        sum += (Number(m[1]) + Number(m[2])) / 2;
+      }
+      return sum;
+    };
+    let physAvg = 0;
+    let eleAvg = 0;
+    for (const p of mainWeapon.properties) {
+      const n = p.name.toLowerCase();
+      if (n.includes('attacks per second')) weaponAps = parseFloat(p.value) || 0;
+      else if (n.includes('critical strike chance')) weaponBaseCrit = parseFloat(p.value) || 5;
+      else if (n.includes('physical damage')) physAvg += parseRangeAvg(p.value);
+      else if (n.includes('elemental damage')) eleAvg += parseRangeAvg(p.value);
+    }
+    // Also factor in attribute-stacking flat damage mods on the weapon (e.g. Hand of Thought and Motion / Brutus' Lead Sprinkler)
+    for (const m of [...(mainWeapon.explicitMods || []), ...(mainWeapon.implicitMods || [])]) {
+      const stackM = m.match(/Adds (\d+) to (\d+) (Fire|Cold|Lightning) Damage to Attacks with this Weapon per (\d+) (Strength|Dexterity|Intelligence)/i);
+      if (stackM) {
+        const avgPer = (Number(stackM[1]) + Number(stackM[2])) / 2;
+        const step = Math.max(1, Number(stackM[4]));
+        const attrKey = stackM[5].toLowerCase();
+        const attrVal = attrKey === 'strength' ? strength : attrKey === 'dexterity' ? dexterity : intelligence;
+        eleAvg += avgPer * Math.floor(attrVal / step);
+      }
+    }
+    if (weaponAps > 0) {
+      weaponPdps = Math.round(physAvg * weaponAps);
+      weaponEdps = Math.round(eleAvg * weaponAps);
+    }
+  }
+
+  // Precision Lv 20: +711 Accuracy, +58% Increased Crit Chance (scales by gem level if lower)
+  const precGem = (snap.equipped || [])
+    .flatMap((i) => i.socketedGems || [])
+    .find((g) => g.name.toLowerCase().includes('precision'));
+  const precLvl = precGem?.level || 20;
+  const precisionAccuracy = isAuraOn('Precision') ? Math.round(45 + precLvl * 33.3) : 0;
+  const precisionCritPct = isAuraOn('Precision') ? Math.round(20 + precLvl * 1.9) : 0;
+
+  // Player Accuracy = Dex * 2 + Precision + Level base (~2 * level)
+  const accuracy = dexterity * 2 + lvl * 2 + precisionAccuracy;
+  // Exact PoB Hit Chance formula vs Enemy Lv 84 Evasion (PoB Misc.lua Lv 84 base evasion ~10,143 -> simplified standard 10143)
+  const enemyEvasion = config.enemyPreset === 'uber_85' ? 11000 : 10143;
+  const rawHitChance = (accuracy / (accuracy + Math.pow(enemyEvasion / 5, 0.9))) * 125;
+  const hitChancePct = Math.round(Math.max(5, Math.min(100, rawHitChance)));
+
+  const frenzyCount = config.useFrenzyCharges ? Math.max(0, Math.min(12, config.frenzyCharges)) : 0;
+  const powerCount = config.usePowerCharges ? Math.max(0, Math.min(12, config.powerCharges)) : 0;
+  const frenzyMoreDmgPct = frenzyCount * 4;
+  const frenzySpeedPct = frenzyCount * 4;
+  const powerIncCritPct = powerCount * 50;
+  const totalSpeedBonusPct = frenzySpeedPct + (config.onslaught ? 20 : 0) + (isAuraOn('Haste') ? 24 : 0);
+
   return {
     isCI,
     detectedAuras,
     detectedGuard,
+    detectedCurses,
+    detectedChargeSources,
+    mainSkill,
+    offense: {
+      weaponPdps,
+      weaponEdps,
+      weaponTotalDps: weaponPdps + weaponEdps,
+      weaponAps,
+      weaponBaseCrit,
+      accuracy,
+      hitChancePct,
+      frenzyMoreDmgPct,
+      frenzySpeedPct,
+      powerIncCritPct,
+      precisionCritPct,
+      precisionAccuracy,
+      totalSpeedBonusPct
+    },
     attributes: { strength, dexterity, intelligence },
     life: {
       baseFromLevel,

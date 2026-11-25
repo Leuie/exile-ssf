@@ -75,6 +75,65 @@ export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ 
       {/* VIEW 1: POB SIDEBAR STAT SHEET */}
       {view === 'stats' && (
         <div className="space-y-2 font-mono text-[11px]">
+          {/* Main Skill & Offense Summary */}
+          {calc.mainSkill && (
+            <div className="p-2 rounded-xl bg-indigo-950/35 border border-indigo-500/30 space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-indigo-200 font-bold truncate" title={calc.mainSkill.name}>
+                  {calc.mainSkill.name}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-indigo-500/25 border border-indigo-400/40 text-indigo-100 text-[9px] font-bold shrink-0">
+                  {calc.mainSkill.linkCount}L • Lv {calc.mainSkill.level}/{calc.mainSkill.quality}%
+                </span>
+              </div>
+              {calc.offense.weaponTotalDps > 0 && (
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Weapon DPS (p / e):</span>
+                  <span className="text-amber-200 font-bold">
+                    {calc.offense.weaponTotalDps} ({calc.offense.weaponPdps}/{calc.offense.weaponEdps})
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">Hit Chance / Acc:</span>
+                <span className={`font-bold ${calc.offense.hitChancePct >= 99 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {calc.offense.hitChancePct}% ({calc.offense.accuracy.toLocaleString()})
+                </span>
+              </div>
+              {(calc.offense.frenzyMoreDmgPct > 0 || calc.offense.powerIncCritPct > 0 || calc.offense.precisionCritPct > 0) && (
+                <div className="flex flex-wrap gap-1 pt-0.5 text-[9px]">
+                  {calc.offense.frenzyMoreDmgPct > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-200">
+                      +{calc.offense.frenzyMoreDmgPct}% More Dmg (Frenzy)
+                    </span>
+                  )}
+                  {calc.offense.powerIncCritPct > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/35 text-sky-200">
+                      +{calc.offense.powerIncCritPct}% Crit (Power)
+                    </span>
+                  )}
+                  {calc.offense.precisionCritPct > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-200">
+                      +{calc.offense.precisionCritPct}% Crit (Precision)
+                    </span>
+                  )}
+                </div>
+              )}
+              {calc.detectedCurses.length > 0 && (
+                <div className="text-[10px] text-purple-300 truncate">
+                  Curse/Mark: <strong className="text-purple-200">{calc.detectedCurses.join(', ')}</strong>
+                </div>
+              )}
+              {calc.mainSkill.suggestions.length > 0 && (
+                <div className="pt-1 border-t border-indigo-500/20 space-y-0.5 text-[9.5px] text-amber-200/90">
+                  {calc.mainSkill.suggestions.slice(0, 2).map((s, idx) => (
+                    <div key={idx}>• {s}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Attributes */}
           <div className="space-y-0.5 pb-1.5 border-b border-slate-800/80">
             <div className="flex items-center justify-between">
@@ -230,6 +289,40 @@ export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ 
             </button>
             <button
               type="button"
+              onClick={() =>
+                setConfig((p) => ({
+                  ...p,
+                  useFrenzyCharges: !p.useFrenzyCharges,
+                  frenzyCharges: !p.useFrenzyCharges ? Math.max(3, p.frenzyCharges) : 0
+                }))
+              }
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                config.useFrenzyCharges
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200'
+                  : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Frenzy {config.useFrenzyCharges ? `(${config.frenzyCharges})` : 'Off'}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setConfig((p) => ({
+                  ...p,
+                  usePowerCharges: !p.usePowerCharges,
+                  powerCharges: !p.usePowerCharges ? Math.max(3, p.powerCharges) : 0
+                }))
+              }
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
+                config.usePowerCharges
+                  ? 'bg-sky-500/20 border-sky-500/50 text-sky-200'
+                  : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Power {config.usePowerCharges ? `(${config.powerCharges})` : 'Off'}
+            </button>
+            <button
+              type="button"
               onClick={() => setConfig((p) => ({ ...p, fortified: !p.fortified }))}
               className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer ${
                 config.fortified
@@ -264,6 +357,11 @@ export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ 
               </button>
             )}
           </div>
+          {calc.detectedAuras.length > 0 && (
+            <div className="text-[9.5px] text-slate-400 pt-0.5">
+              Auras/Buffs: <span className="text-indigo-300">{calc.detectedAuras.filter((a) => config.enabledAuras[a]).join(', ') || 'None enabled'}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -344,6 +442,74 @@ export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ 
                 className="w-12 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-right text-white"
               />
             </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-1.5 text-emerald-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.useFrenzyCharges}
+                  onChange={(e) =>
+                    setConfig((p) => ({
+                      ...p,
+                      useFrenzyCharges: e.target.checked,
+                      frenzyCharges: e.target.checked ? Math.max(3, p.frenzyCharges) : 0
+                    }))
+                  }
+                />
+                <span>Frenzy Charges</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={12}
+                value={config.frenzyCharges}
+                onChange={(e) =>
+                  setConfig((p) => ({
+                    ...p,
+                    frenzyCharges: Math.max(0, Math.min(12, Number(e.target.value) || 0)),
+                    useFrenzyCharges: Number(e.target.value) > 0
+                  }))
+                }
+                className="w-12 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-right text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-1.5 text-sky-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.usePowerCharges}
+                  onChange={(e) =>
+                    setConfig((p) => ({
+                      ...p,
+                      usePowerCharges: e.target.checked,
+                      powerCharges: e.target.checked ? Math.max(3, p.powerCharges) : 0
+                    }))
+                  }
+                />
+                <span>Power Charges</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={12}
+                value={config.powerCharges}
+                onChange={(e) =>
+                  setConfig((p) => ({
+                    ...p,
+                    powerCharges: Math.max(0, Math.min(12, Number(e.target.value) || 0)),
+                    usePowerCharges: Number(e.target.value) > 0
+                  }))
+                }
+                className="w-12 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-right text-white"
+              />
+            </div>
+
+            {calc.detectedChargeSources.length > 0 && (
+              <div className="text-[9.5px] text-slate-400">
+                Detected Sources: <span className="text-slate-200">{calc.detectedChargeSources.join(', ')}</span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-2">
               <label className="inline-flex items-center gap-1.5 text-amber-200 cursor-pointer">
