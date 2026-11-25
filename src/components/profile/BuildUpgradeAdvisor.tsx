@@ -179,7 +179,7 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-amber-400" />
           <span className="text-xs sm:text-sm font-bold text-slate-100">
-            One Click Build Upgrade Advisor
+            Build Upgrade Advisor
           </span>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
             {recs.length} Priorities

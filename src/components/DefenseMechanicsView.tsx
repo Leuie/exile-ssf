@@ -23,7 +23,7 @@ import type { UserAccount } from '../types';
 import { fetchActiveCharacterContext, resolvePobUrl, fetchUserToolState } from '../services/cloudSync';
 import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
-import { buildDefaultCalcConfig, calculateCharacterStats } from '../utils/poeCalcEngine';
+import { loadSavedCalcConfig, calculateCharacterStats } from '../utils/poeCalcEngine';
 import {
   DEFENSE_MECHANICS,
   CLASS_DEFENSIVE_BLUEPRINTS,
@@ -245,7 +245,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
         return;
       }
       const lvl = Number(snap.character.level || 85);
-      const calcCfg = buildDefaultCalcConfig(snap);
+      const calcCfg = loadSavedCalcConfig(snap);
       const calc = calculateCharacterStats(snap, calcCfg);
       const pool = Math.max(500, calc.isCI ? calc.energyShield.total : calc.life.total + calc.energyShield.total);
       setHpPool(pool);
@@ -265,6 +265,13 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
       setLoadingD1Armory(false);
     }
   };
+
+  // Auto-load synced Armory character on mount when signed in
+  useEffect(() => {
+    if (userAccount?.displayName) {
+      handleLoadD1ArmoryVitals();
+    }
+  }, [userAccount?.displayName]);
 
   const handleSwitchGame = (next: GameMode) => {
     setGameMode(next);

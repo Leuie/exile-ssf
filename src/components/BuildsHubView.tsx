@@ -327,7 +327,7 @@ export const BuildsHubView: React.FC<BuildsHubViewProps> = ({
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
               <div className="font-mono text-[10px] uppercase font-bold text-sky-400">2. PoB Build Doctor &amp; Roster Sync</div>
               <p className="text-slate-300 leading-relaxed">
-                Paste any <code className="text-sky-300">pobb.in</code>, <code className="text-sky-300">pastebin.com</code>, or raw Path of Building code to inspect your defensive vitals, detect resist or suppression gaps, and sync your build directly to your <strong className="text-white">Private League Roster</strong> (Main or Alt) in one click.
+                Paste any <code className="text-sky-300">pobb.in</code>, <code className="text-sky-300">pastebin.com</code>, or raw Path of Building code to inspect your defensive vitals, detect resist or suppression gaps, and sync your build directly to your <strong className="text-white">Private League Roster</strong> (Main or Alt).
               </p>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">

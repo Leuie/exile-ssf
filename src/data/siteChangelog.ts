@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-25-cohesiveness-loop',
+    version: 'v3.42.0',
+    title: 'Sitewide Cohesiveness: Persistent Armory Config & Goal PoB, Diff-to-Wishlist, Map-to-Asset Session Bridge & Live Mapping HUD',
+    dateEst: 'Nov 25, 2026 • 6:35 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Cohesive Cockpit',
+    summary: 'Closed the loops across Character Armory, PoB Diff, Wishlists, Map Tracker, Asset Tracker, Defenses, and Offenses so your settings, Goal PoB, and live farming session flow seamlessly across every tab without re-entering data.',
+    changes: [
+      { tag: 'Added', text: 'Persistent Armory Config & Saved Goal PoB per character: Charges, Fortify, Flasks, Bandit, Enemy Preset, Aura toggles, and your target PoB link now save automatically and sync across Armory, PoB Diff, Defenses, and Offenses.' },
+      { tag: 'Added', text: 'Direct Add to Wishlist buttons on every Target PoB gear slot inside the Side-by-Side Diff Viewer.' },
+      { tag: 'Added', text: 'Map Tracker to Asset Tracker Live Session Bridge: Asset Tracker Net Profit Calculator automatically reads live Maps Run and Elapsed Time from Map Tracker.' },
+      { tag: 'Added', text: 'Compact Second-Monitor Live Mapping HUD strip at the top of the app while Map Tracker Live Watch is running so you can browse other tabs without losing your pace.' },
+      { tag: 'Improved', text: 'Defenses and Offenses Masterclasses now auto-load your Active Character on open, and simplified tool naming sitewide (e.g. Build Upgrade Advisor).' }
+    ]
+  },
+  {
     id: 'rel-2026-11-25-pob-calc-engine',
     version: 'v3.41.0',
     title: 'Unified PoB-Grade Calculation Engine, Interactive Armory Config & Calcs Breakdown, and Side-by-Side PoB Diff',

@@ -252,7 +252,7 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
       icon: Flame,
       accent: 'text-purple-400',
       gathers: 'Reads your synced Armory character snapshot.',
-      uses: 'Enables 1 click Armory Audits, EHP calculator loading, and Build publishing.'
+      uses: 'Enables Armory Audits, EHP calculator loading, and Build publishing.'
     }
   ];
 

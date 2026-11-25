@@ -499,7 +499,7 @@ export const ClientTxtDeepInsights: React.FC<ClientTxtDeepInsightsProps> = ({
 
           {capturedProofs.length === 0 ? (
             <div className="py-5 text-center text-xs text-slate-500">
-              Level 90/95/100 dings and Pinnacle Boss encounters (Maven, Exarch, Eater, Shaper, Elder, Sirus) will appear here with exact timestamps for one click Hall of Fame claims.
+              Level 90/95/100 dings and Pinnacle Boss encounters (Maven, Exarch, Eater, Shaper, Elder, Sirus) will appear here with exact timestamps for instant Hall of Fame claims.
             </div>
           ) : (
             <div className="space-y-2 max-h-44 overflow-y-auto pr-1">

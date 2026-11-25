@@ -336,6 +336,53 @@ export function buildDefaultCalcConfig(snap: CharacterGearSnapshot): PoeCalcConf
   };
 }
 
+const CALC_CONFIG_PREFIX = 'exile_ssf_pob_calc_cfg_v1_';
+const GOAL_POB_PREFIX = 'exile_ssf_goal_pob_v1_';
+
+export function loadSavedCalcConfig(snap: CharacterGearSnapshot): PoeCalcConfig {
+  const def = buildDefaultCalcConfig(snap);
+  if (typeof window === 'undefined') return def;
+  try {
+    const key = `${CALC_CONFIG_PREFIX}${(snap.character.name || 'default').toLowerCase()}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return def;
+    const parsed = JSON.parse(raw);
+    return {
+      ...def,
+      ...parsed,
+      enabledAuras: { ...def.enabledAuras, ...(parsed?.enabledAuras || {}) }
+    };
+  } catch {
+    return def;
+  }
+}
+
+export function saveCalcConfig(characterName: string, cfg: PoeCalcConfig): void {
+  if (typeof window === 'undefined' || !characterName) return;
+  try {
+    const key = `${CALC_CONFIG_PREFIX}${characterName.toLowerCase()}`;
+    localStorage.setItem(key, JSON.stringify(cfg));
+  } catch {}
+}
+
+export function loadSavedGoalPob(characterName: string): string {
+  if (typeof window === 'undefined' || !characterName) return '';
+  try {
+    return localStorage.getItem(`${GOAL_POB_PREFIX}${characterName.toLowerCase()}`) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveGoalPob(characterName: string, pobInput: string): void {
+  if (typeof window === 'undefined' || !characterName) return;
+  try {
+    const key = `${GOAL_POB_PREFIX}${characterName.toLowerCase()}`;
+    if (pobInput.trim()) localStorage.setItem(key, pobInput.trim());
+    else localStorage.removeItem(key);
+  } catch {}
+}
+
 /**
  * Exact PoE 1 calculation engine combining synced gear, jewels, passive tree,
  * active auras, flasks, charges, guard skills, and enemy hit presets.

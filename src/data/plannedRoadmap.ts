@@ -38,7 +38,7 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     category: 'Armory Cross Site Integrations',
     title: 'Crafting Bench & Regex Studio Personalized Gear Hole Detector',
     description:
-      'Automatically flags uncapped Elemental/Chaos Resistances, partial Spell Suppression, and empty flask slots inside Character Armory with 1 click links to Crafting Bench and Regex Studio.',
+      'Automatically flags uncapped Elemental/Chaos Resistances, partial Spell Suppression, and empty flask slots inside Character Armory with direct links to Crafting Bench and Regex Studio.',
     scope: 'PoE 1 & PoE 2',
     status: 'shipped',
     shippedNote: 'Shipped in v3.36.0'
@@ -68,7 +68,7 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
   {
     id: 'rm-upgrade-advisor',
     category: 'Deeper Character & Build Tools',
-    title: 'One Click Build Upgrade Advisor',
+    title: 'Build Upgrade Advisor',
     description:
       'Cross reference your synced Character gear against poe.ninja SSF ladder trends for your ascendancy to flag weak slots (such as uncapped Chaos Res, missing Eldritch implicits, or low tier life rolls).',
     scope: 'PoE 1 & PoE 2',
@@ -154,7 +154,7 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     category: 'Next Level Client.txt & Farming Analytics',
     title: 'Interactive Atlas Skill Tree Planner & Show Stats Totalizer',
     description:
-      'Official GGG Atlas Skill Tree canvas inside Map Tracker with 150 point cap (132 + 18 Maven), shortest path auto allocation, 1 click branch unallocation, live hover path previews, Show Stats modifier totalizer, and Cloud saved strategy presets.',
+      'Official GGG Atlas Skill Tree canvas inside Map Tracker with 150 point cap (132 + 18 Maven), shortest path auto allocation, instant branch unallocation, live hover path previews, Show Stats modifier totalizer, and Cloud saved strategy presets.',
     scope: 'PoE 1',
     status: 'shipped',
     shippedNote: 'Shipped & Exceeded in v3.35.0'

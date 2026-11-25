@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sliders, Calculator, ShieldCheck } from 'lucide-react';
 import type { CharacterGearSnapshot } from './CharacterPaperdollView';
 import {
-  buildDefaultCalcConfig,
+  loadSavedCalcConfig,
+  saveCalcConfig,
   calculateCharacterStats,
   type BanditChoice,
   type EnemyPresetId,
@@ -15,12 +16,17 @@ interface PobStatsAndConfigPanelProps {
 
 export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ snapshot }) => {
   const [view, setView] = useState<'stats' | 'config' | 'calcs'>('stats');
-  const [config, setConfig] = useState<PoeCalcConfig>(() => buildDefaultCalcConfig(snapshot));
+  const [config, setConfig] = useState<PoeCalcConfig>(() => loadSavedCalcConfig(snapshot));
 
-  // Reset default config when switching to a different character
+  // Load saved character-specific config when switching characters
   useEffect(() => {
-    setConfig(buildDefaultCalcConfig(snapshot));
+    setConfig(loadSavedCalcConfig(snapshot));
   }, [snapshot.character.name, snapshot.syncedAtIso]);
+
+  // Persist config changes per character so Armory, Diff, Defenses, and Offenses stay in sync
+  useEffect(() => {
+    saveCalcConfig(snapshot.character.name, config);
+  }, [snapshot.character.name, config]);
 
   const calc = useMemo(() => calculateCharacterStats(snapshot, config), [snapshot, config]);
 

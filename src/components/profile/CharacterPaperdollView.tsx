@@ -1721,7 +1721,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   ? [
                       {
                         id: 'armory_upgrade_advisor',
-                        title: 'One Click Build Upgrade Advisor',
+                        title: 'Build Upgrade Advisor',
                         icon: <Shield className="w-3.5 h-3.5 text-amber-400" />,
                         defaultSpan: 6 as const,
                         render: () => <BuildUpgradeAdvisor snapshot={activeSnapshot} />

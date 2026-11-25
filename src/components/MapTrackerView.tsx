@@ -47,6 +47,7 @@ import {
   saveActiveStrategy,
   type ActiveCharacterContext
 } from '../utils/activeCharacter';
+import { publishLiveFarmingSession } from '../utils/activeSession';
 import {
   PREFS_STORAGE_KEY,
   STRATEGY_PRESETS,
@@ -721,6 +722,21 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const specialZonesCount = mapRuns.filter((r) => r.kind !== 'Map').length;
   const latestXpHr = xpCheckpoints.length > 0 ? xpCheckpoints[xpCheckpoints.length - 1].xpPerHour : 0;
   const latestChar = characters.find((c) => c.name === selectedCharName) || characters[0] || null;
+
+  // Broadcast live session metrics to Asset Tracker Net Profit Calculator & global Live Mapping HUD
+  useEffect(() => {
+    publishLiveFarmingSession({
+      watchingLive,
+      mapsCompleted: mapRuns.length,
+      elapsedMinutes: Math.round(totalActiveSec / 60),
+      currentZone: runs[0]?.areaName || '',
+      zoneKind: runs[0]?.kind || '',
+      mapsPerHr,
+      xpPerHrM: Number((latestXpHr / 1_000_000).toFixed(2)),
+      strategyTag,
+      updatedAtIso: new Date().toISOString()
+    });
+  }, [watchingLive, mapRuns.length, totalActiveSec, runs[0]?.areaName, runs[0]?.kind, mapsPerHr, latestXpHr, strategyTag]);
 
   const handleSaveSessionToCloud = async () => {
     if (!userAccount?.displayName) {

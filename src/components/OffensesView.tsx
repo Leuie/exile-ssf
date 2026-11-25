@@ -25,7 +25,7 @@ import {
 import type { UserAccount } from '../types';
 import { fetchUserToolState } from '../services/cloudSync';
 import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
-import { buildDefaultCalcConfig, calculateCharacterStats, type PoeCalcBreakdown } from '../utils/poeCalcEngine';
+import { loadSavedCalcConfig, calculateCharacterStats, type PoeCalcBreakdown } from '../utils/poeCalcEngine';
 
 type GameMode = 'poe1' | 'poe2';
 
@@ -159,12 +159,19 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; userAccoun
         list.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime());
         if (list[0]) {
           setArmorySnap(list[0]);
-          setArmoryCalc(calculateCharacterStats(list[0], buildDefaultCalcConfig(list[0])));
+          setArmoryCalc(calculateCharacterStats(list[0], loadSavedCalcConfig(list[0])));
         }
       }
     } catch {}
     setLoadingArmory(false);
   };
+
+  // Auto-load synced Armory character on mount when signed in
+  useEffect(() => {
+    if (userAccount?.displayName) {
+      handleLoadArmoryOffense();
+    }
+  }, [userAccount?.displayName]);
 
   useEffect(() => {
     setGameMode(selectedGame);

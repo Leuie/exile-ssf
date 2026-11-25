@@ -46,7 +46,7 @@ export const PrivacyPolicyView: React.FC = () => {
             Using your personal <code>POESESSID</code> in the Asset Tracker is <strong>100% optional</strong>. If you choose to enter your <code>POESESSID</code> to scan your Path of Exile 1 dump tabs:
           </p>
           <ul className="space-y-1.5 text-slate-200 pl-4 list-disc">
-            <li>By default, your <code>POESESSID</code> stays strictly in active browser memory. If you explicitly check the opt in box to enable automated 15m, 30m, or 60m background syncs across reloads, it is saved only in your own browser's localStorage and can be erased with one click via <strong>Forget Saved POESESSID</strong>.</li>
+            <li>By default, your <code>POESESSID</code> stays strictly in active browser memory. If you explicitly check the opt in box to enable automated 15m, 30m, or 60m background syncs across reloads, it is saved only in your own browser's localStorage and can be erased anytime via <strong>Forget Saved POESESSID</strong>.</li>
             <li>When you acknowledge the POESESSID security disclaimer, a local timestamp is stored in your browser so the disclaimer stays hidden for <strong>30 days</strong> before prompting again (you can review or reset it anytime inside <strong>Setup &amp; Session ID</strong>).</li>
             <li>When you click Sync or Load Tabs, our Cloudflare Worker forwards the cookie directly to <code>pathofexile.com</code> over HTTPS to read your requested stash tab and immediately discards it from memory.</li>
             <li>We <strong>never</strong> store, cache, or log <code>POESESSID</code> in Cloudflare D1, Cloudflare KV, or server logs.</li>

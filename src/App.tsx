@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { readLiveFarmingSession, LIVE_SESSION_EVENT, type LiveFarmingSession } from './utils/activeSession';
 import { Sidebar } from './components/Sidebar';
 import { SiteNoticeBanner } from './components/SiteNoticeBanner';
 import { cloudAuthLogout } from './services/cloudSync';
@@ -211,6 +212,18 @@ export const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isToolSetupOpen, setIsToolSetupOpen] = useState<boolean>(false);
   const [serverSessionExpired, setServerSessionExpired] = useState<boolean>(false);
+  const [liveHudSession, setLiveHudSession] = useState<LiveFarmingSession | null>(() => readLiveFarmingSession());
+  const [hudDismissed, setHudDismissed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const onLiveUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<LiveFarmingSession>).detail;
+      setLiveHudSession(detail || readLiveFarmingSession());
+      if (detail?.watchingLive) setHudDismissed(false);
+    };
+    window.addEventListener(LIVE_SESSION_EVENT, onLiveUpdate);
+    return () => window.removeEventListener(LIVE_SESSION_EVENT, onLiveUpdate);
+  }, []);
   const [showPurgeNotice, setShowPurgeNotice] = useState<boolean>(() => {
     try {
       return localStorage.getItem('exile_ssf_purge_notice_dismissed_2026_11_24') !== '1';
@@ -816,6 +829,53 @@ export const App: React.FC = () => {
                   className="text-[11px] text-amber-300/80 hover:text-white cursor-pointer"
                 >
                   Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Compact Second-Monitor Live Mapping HUD Strip (when Map Tracker Live Watch is active) */}
+        {liveHudSession?.watchingLive && !hudDismissed && activeTab !== 'map_tracker' && (
+          <div className="px-3 sm:px-5 pt-2 max-w-[1700px] w-full mx-auto">
+            <div className="rounded-xl border border-emerald-500/35 bg-gradient-to-r from-emerald-950/60 via-slate-950/90 to-indigo-950/50 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs font-mono shadow-lg">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 text-emerald-300 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>LIVE WATCH</span>
+                </span>
+                {liveHudSession.currentZone && (
+                  <span className="text-white font-semibold truncate max-w-[220px]">
+                    {liveHudSession.currentZone}
+                  </span>
+                )}
+                <span className="text-slate-400">
+                  Maps: <strong className="text-amber-300">{liveHudSession.mapsCompleted}</strong> ({liveHudSession.mapsPerHr}/hr)
+                </span>
+                {liveHudSession.xpPerHrM > 0 && (
+                  <span className="text-slate-400">
+                    XP/hr: <strong className="text-sky-300">{liveHudSession.xpPerHrM.toFixed(1)}M</strong>
+                  </span>
+                )}
+                {liveHudSession.strategyTag && (
+                  <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 text-[10px]">
+                    {liveHudSession.strategyTag}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSelectTab('map_tracker')}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-400/40 text-emerald-200 font-bold text-[11px] cursor-pointer"
+                >
+                  Open Map Tracker
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHudDismissed(true)}
+                  className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Hide
                 </button>
               </div>
             </div>

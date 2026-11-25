@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Coins, TrendingUp, Calculator } from 'lucide-react';
 import { formatValue } from './assetEngine';
+import { readLiveFarmingSession, LIVE_SESSION_EVENT, type LiveFarmingSession } from '../../utils/activeSession';
 
 interface MapCostPreset {
   label: string;
@@ -65,12 +66,30 @@ export const MapCostCalculatorWidget: React.FC<MapCostCalculatorWidgetProps> = (
     } catch {}
   }, [scarabsChaos, mapDeviceChaos, chiselsRollChaos]);
 
+  const [liveSession, setLiveSession] = useState<LiveFarmingSession | null>(() => readLiveFarmingSession());
+
+  useEffect(() => {
+    const onUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<LiveFarmingSession>).detail;
+      setLiveSession(detail || readLiveFarmingSession());
+    };
+    window.addEventListener(LIVE_SESSION_EVENT, onUpdate);
+    return () => window.removeEventListener(LIVE_SESSION_EVENT, onUpdate);
+  }, []);
+
   const costPerMap = Math.max(0, scarabsChaos + mapDeviceChaos + chiselsRollChaos);
-  const effectiveMaps = Math.max(0, mapsRun);
+  const usingMapTrackerSync = mapsRun <= 0 && Boolean(liveSession && liveSession.mapsCompleted > 0);
+  const effectiveMaps = Math.max(0, usingMapTrackerSync ? liveSession!.mapsCompleted : mapsRun);
+  const effectiveMinutes =
+    durationMinutes > 0
+      ? durationMinutes
+      : liveSession && liveSession.elapsedMinutes > 0
+      ? liveSession.elapsedMinutes
+      : 0;
   const totalInvestmentChaos = costPerMap * effectiveMaps;
   const netProfitChaos = totalSessionChaos - totalInvestmentChaos;
-  const hours = Math.max(durationMinutes / 60, 0.05);
-  const netChaosPerHr = durationMinutes > 0 ? netProfitChaos / hours : 0;
+  const hours = Math.max(effectiveMinutes / 60, 0.05);
+  const netChaosPerHr = effectiveMinutes > 0 ? netProfitChaos / hours : 0;
   const roiPct =
     totalInvestmentChaos > 0
       ? Math.round((netProfitChaos / totalInvestmentChaos) * 100)

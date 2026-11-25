@@ -1,12 +1,17 @@
-import React, { useState, useMemo } from 'react';
-import { X, GitCompare, Search, Shield, Sparkles, Loader2, FileCode2, Users } from 'lucide-react';
-import { fetchUserToolState, resolvePobUrl } from '../../services/cloudSync';
+import React, { useState, useMemo, useEffect } from 'react';
+import { X, GitCompare, Search, Shield, Sparkles, Loader2, FileCode2, Users, Plus, Check } from 'lucide-react';
+import { fetchUserToolState, resolvePobUrl, saveCloudWishlistItem } from '../../services/cloudSync';
 import { decodePoBCode, parsePoBXml } from '../../utils/pobDecoder';
 import type { ParsedCharacter } from '../../types/analyzer';
 import type { CharacterGearSnapshot } from './CharacterPaperdollView';
 import { OfficialPassiveTreeCanvas } from './OfficialPassiveTreeCanvas';
 import { formatPobRes } from '../../utils/resFormatter';
-import { buildDefaultCalcConfig, calculateCharacterStats } from '../../utils/poeCalcEngine';
+import {
+  loadSavedCalcConfig,
+  loadSavedGoalPob,
+  saveGoalPob,
+  calculateCharacterStats
+} from '../../utils/poeCalcEngine';
 
 interface CharacterDiffModalProps {
   isOpen: boolean;
@@ -47,10 +52,11 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
 }) => {
   // Primary mode = Path of Building target build; secondary = Squadmate / Alt
   const [compareMode, setCompareMode] = useState<'pob' | 'character'>('pob');
-  const [pobInput, setPobInput] = useState<string>('');
+  const [pobInput, setPobInput] = useState<string>(() => loadSavedGoalPob(primarySnapshot.character.name));
   const [loadingPob, setLoadingPob] = useState<boolean>(false);
   const [pobError, setPobError] = useState<string | null>(null);
   const [targetPob, setTargetPob] = useState<ParsedCharacter | null>(null);
+  const [wishlistedSlots, setWishlistedSlots] = useState<Record<string, boolean>>({});
 
   const [otherHandle, setOtherHandle] = useState<string>('');
   const [loadingOther, setLoadingOther] = useState<boolean>(false);
@@ -89,13 +95,41 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
   }, [selectedCompareKey, combinedCandidates]);
 
   const primaryCalc = useMemo(
-    () => calculateCharacterStats(primarySnapshot, buildDefaultCalcConfig(primarySnapshot)),
+    () => calculateCharacterStats(primarySnapshot, loadSavedCalcConfig(primarySnapshot)),
     [primarySnapshot]
   );
   const compareCalc = useMemo(
-    () => (compareSnapshot ? calculateCharacterStats(compareSnapshot, buildDefaultCalcConfig(compareSnapshot)) : null),
+    () => (compareSnapshot ? calculateCharacterStats(compareSnapshot, loadSavedCalcConfig(compareSnapshot)) : null),
     [compareSnapshot]
   );
+
+  // Auto-load saved Goal PoB when opening the modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const saved = loadSavedGoalPob(primarySnapshot.character.name);
+    if (!saved || targetPob) return;
+    setPobInput(saved);
+    let cancelled = false;
+    (async () => {
+      setLoadingPob(true);
+      try {
+        let rawCode = saved;
+        if (isPobShareUrl(saved)) {
+          const res = await resolvePobUrl(saved);
+          if (res.status !== 'ok' || !res.code) return;
+          rawCode = res.code;
+        }
+        const parsed = parsePoBXml(decodePoBCode(rawCode));
+        if (!cancelled) setTargetPob(parsed);
+      } catch {
+      } finally {
+        if (!cancelled) setLoadingPob(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, primarySnapshot.character.name]);
 
   if (!isOpen) return null;
 
@@ -118,11 +152,31 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
       const xml = decodePoBCode(rawCode);
       const parsed = parsePoBXml(xml);
       setTargetPob(parsed);
+      saveGoalPob(primarySnapshot.character.name, trimmed);
     } catch (err: any) {
       setPobError(err?.message || 'Invalid Path of Building export string or URL.');
     } finally {
       setLoadingPob(false);
     }
+  };
+
+  const handleAddTargetToWishlist = async (slotId: string, itemName: string, rarity?: string) => {
+    if (!itemName) return;
+    const leagueId = /poe2|ancients/i.test(primarySnapshot.character.league || '')
+      ? 'poe2-05-ancients'
+      : 'poe1-330-umbra';
+    await saveCloudWishlistItem(leagueId, {
+      id: `wl-diff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      itemName,
+      category: rarity === 'UNIQUE' ? 'Unique' : 'Gear',
+      requesterName: primarySnapshot.character.name,
+      characterName: primarySnapshot.character.name,
+      priority: 'High',
+      status: 'NEED',
+      notes: `Target upgrade from PoB Diff (${targetName})`,
+      createdAt: new Date().toISOString()
+    } as any);
+    setWishlistedSlots((prev) => ({ ...prev, [slotId]: true }));
   };
 
   const handleLoadSquadmate = async (e: React.FormEvent) => {
@@ -602,8 +656,37 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
                             <td className="py-1.5 px-2 text-slate-200 truncate max-w-[180px]" title={itA ? `${itA.name} ${itA.baseType}` : ''}>
                               {itA ? itA.name || itA.baseType : '—'}
                             </td>
-                            <td className="py-1.5 pl-2 text-purple-200 truncate max-w-[180px]" title={itB ? `${itB.name} ${(itB as any).baseName || (itB as any).baseType || ''}` : ''}>
-                              {itB ? itB.name || (itB as any).baseName || (itB as any).baseType : '—'}
+                            <td className="py-1.5 pl-2 text-purple-200 max-w-[220px]">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span
+                                  className="truncate"
+                                  title={itB ? `${itB.name} ${(itB as any).baseName || (itB as any).baseType || ''}` : ''}
+                                >
+                                  {itB ? itB.name || (itB as any).baseName || (itB as any).baseType : '—'}
+                                </span>
+                                {itB && compareMode === 'pob' && (
+                                  <button
+                                    type="button"
+                                    disabled={Boolean(wishlistedSlots[slot.id])}
+                                    onClick={() =>
+                                      handleAddTargetToWishlist(
+                                        slot.id,
+                                        itB.name || (itB as any).baseName || '',
+                                        (itB as any).rarity
+                                      )
+                                    }
+                                    title="Add target item to Private League Squad Wishlist"
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 inline-flex items-center gap-0.5 cursor-pointer ${
+                                      wishlistedSlots[slot.id]
+                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                        : 'bg-slate-900 hover:bg-indigo-600/30 border-slate-700 hover:border-indigo-400/50 text-slate-300 hover:text-white'
+                                    }`}
+                                  >
+                                    {wishlistedSlots[slot.id] ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5" />}
+                                    <span>{wishlistedSlots[slot.id] ? 'Added' : 'Wish'}</span>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
