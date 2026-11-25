@@ -298,7 +298,20 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         energyShield: 0,
         movementSpeed: 0,
         blockChance: 0,
-        lifeRegen: 0
+        spellBlockChance: 0,
+        lifeRegen: 0,
+        incLifePct: 0,
+        incEsPct: 0,
+        incArmourPct: 0,
+        incEvasionPct: 0,
+        incManaPct: 0,
+        flatMana: 0,
+        flatPdr: 0,
+        physTakenAsEle: 0,
+        maxFireRes: 0,
+        maxColdRes: 0,
+        maxLightningRes: 0,
+        maxChaosRes: 0
       };
 
       const normalizeJewelItem = (j: any, invLabel: string) => ({
@@ -382,6 +395,58 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           if (msM) gearStats.movementSpeed += Number(msM[1]);
           const regenM = mod.match(/Regenerate ([\d.]+) Life per second/i);
           if (regenM) gearStats.lifeRegen += Number(regenM[1]);
+
+          // % Increased Pools & Defenses (Tree, Jewels, Global Mods)
+          const incLifeM = mod.match(/(\d+)% increased maximum Life/i);
+          if (incLifeM) gearStats.incLifePct += Number(incLifeM[1]);
+          const incEsM = mod.match(/(\d+)% increased maximum Energy Shield/i);
+          if (incEsM) gearStats.incEsPct += Number(incEsM[1]);
+          const incArM = mod.match(/(\d+)% increased Armour(?! and Energy Shield| and Evasion)/i);
+          if (incArM) gearStats.incArmourPct += Number(incArM[1]);
+          const incEvM = mod.match(/(\d+)% increased Evasion Rating/i);
+          if (incEvM) gearStats.incEvasionPct += Number(incEvM[1]);
+          const incArEvM = mod.match(/(\d+)% increased Armour and Evasion/i);
+          if (incArEvM) {
+            gearStats.incArmourPct += Number(incArEvM[1]);
+            gearStats.incEvasionPct += Number(incArEvM[1]);
+          }
+          const incArEsM = mod.match(/(\d+)% increased Armour and Energy Shield/i);
+          if (incArEsM) {
+            gearStats.incArmourPct += Number(incArEsM[1]);
+            gearStats.incEsPct += Number(incArEsM[1]);
+          }
+          const incEvEsM = mod.match(/(\d+)% increased Evasion and Energy Shield/i);
+          if (incEvEsM) {
+            gearStats.incEvasionPct += Number(incEvEsM[1]);
+            gearStats.incEsPct += Number(incEvEsM[1]);
+          }
+          const incManaM = mod.match(/(\d+)% increased maximum Mana/i);
+          if (incManaM) gearStats.incManaPct += Number(incManaM[1]);
+          const flatManaM = mod.match(/\+(\d+) to maximum Mana/i);
+          if (flatManaM) gearStats.flatMana += Number(flatManaM[1]);
+          const pdrM = mod.match(/\+(\d+)% additional Physical Damage Reduction/i);
+          if (pdrM) gearStats.flatPdr += Number(pdrM[1]);
+          const blkM = mod.match(/\+(\d+)% Chance to Block Attack Damage/i);
+          if (blkM) gearStats.blockChance += Number(blkM[1]);
+          const sBlkM = mod.match(/\+(\d+)% Chance to Block Spell Damage/i);
+          if (sBlkM) gearStats.spellBlockChance += Number(sBlkM[1]);
+          const physShiftM = mod.match(/(\d+)% of Physical Damage (?:from Hits )?taken as (?:Fire|Cold|Lightning|Chaos|Elemental)/i);
+          if (physShiftM) gearStats.physTakenAsEle += Number(physShiftM[1]);
+          const allMaxResM = mod.match(/\+(\d+)% to all maximum Elemental Resistances/i);
+          if (allMaxResM) {
+            const mv = Number(allMaxResM[1]);
+            gearStats.maxFireRes += mv;
+            gearStats.maxColdRes += mv;
+            gearStats.maxLightningRes += mv;
+          }
+          const fMaxM = mod.match(/\+(\d+)% to maximum Fire Resistance/i);
+          if (fMaxM) gearStats.maxFireRes += Number(fMaxM[1]);
+          const cMaxM = mod.match(/\+(\d+)% to maximum Cold Resistance/i);
+          if (cMaxM) gearStats.maxColdRes += Number(cMaxM[1]);
+          const lMaxM = mod.match(/\+(\d+)% to maximum Lightning Resistance/i);
+          if (lMaxM) gearStats.maxLightningRes += Number(lMaxM[1]);
+          const chMaxM = mod.match(/\+(\d+)% to maximum Chaos Resistance/i);
+          if (chMaxM) gearStats.maxChaosRes += Number(chMaxM[1]);
         }
       };
 

@@ -23,6 +23,7 @@ import type { UserAccount } from '../types';
 import { fetchActiveCharacterContext, resolvePobUrl, fetchUserToolState } from '../services/cloudSync';
 import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
 import { decodePoBCode, parsePoBXml } from '../utils/pobDecoder';
+import { buildDefaultCalcConfig, calculateCharacterStats } from '../utils/poeCalcEngine';
 import {
   DEFENSE_MECHANICS,
   CLASS_DEFENSIVE_BLUEPRINTS,
@@ -244,16 +245,19 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
         return;
       }
       const lvl = Number(snap.character.level || 85);
-      const isCI = Boolean(snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name)));
-      const estBaseLife = 38 + lvl * 12 + Math.floor(Number(snap.gearStats?.strength || 0) / 2);
-      const flatLife = Number(snap.estimatedVitals?.flatLife || 0);
-      const flatEs = Number(snap.gearStats?.energyShield || snap.estimatedVitals?.flatEs || 0);
-      const estPool = Math.max(500, Math.round(isCI ? flatEs : estBaseLife + flatLife + flatEs));
-      setHpPool(estPool);
-      setArmour(Math.round(snap.gearStats?.armour || 0));
-      setSuppressionCapped(Number(snap.estimatedVitals?.suppress || 0) >= 100);
+      const calcCfg = buildDefaultCalcConfig(snap);
+      const calc = calculateCharacterStats(snap, calcCfg);
+      const pool = Math.max(500, calc.isCI ? calc.energyShield.total : calc.life.total + calc.energyShield.total);
+      setHpPool(pool);
+      setArmour(calc.armour.total);
+      const minEle = Math.min(calc.resistances.fire.effective, calc.resistances.cold.effective, calc.resistances.lightning.effective);
+      setMaxEleRes(Math.min(90, Math.max(-60, minEle)));
+      setPhysTakenAsEle(calc.mitigation.physTakenAsEle);
+      setEnduranceCharges(calcCfg.useEnduranceCharges ? calcCfg.enduranceCharges : 0);
+      setHasFortify(calcCfg.fortified);
+      setSuppressionCapped(calc.suppression.chance >= 100);
       setLoadedCharLabel(
-        `Loaded Armory: ${snap.character.name} (Lv ${lvl} ${snap.character.className}, ${estPool.toLocaleString()} base pool — adjust HP Pool for tree % Life/ES)`
+        `Loaded Armory: ${snap.character.name} (Lv ${lvl} ${snap.character.className} • ${pool.toLocaleString()} Pool, ${calc.armour.total.toLocaleString()} Armour, ${calc.effectiveHitPool.toLocaleString()} EHP)`
       );
     } catch {
       setLoadedCharLabel('Could not fetch Armory snapshot.');

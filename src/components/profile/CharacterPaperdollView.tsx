@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
 import { computeSnapshotResistances } from '../../utils/resFormatter';
+import { PobStatsAndConfigPanel } from './PobStatsAndConfigPanel';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
 import {
   readUnifiedPoeSession,
@@ -107,7 +108,20 @@ export interface CharacterGearSnapshot {
     energyShield: number;
     movementSpeed: number;
     blockChance: number;
+    spellBlockChance?: number;
     lifeRegen: number;
+    incLifePct?: number;
+    incEsPct?: number;
+    incArmourPct?: number;
+    incEvasionPct?: number;
+    incManaPct?: number;
+    flatMana?: number;
+    flatPdr?: number;
+    physTakenAsEle?: number;
+    maxFireRes?: number;
+    maxColdRes?: number;
+    maxLightningRes?: number;
+    maxChaosRes?: number;
   };
   passives: {
     allocatedCount: number;
@@ -1429,26 +1443,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
 
                   {/* CHARACTER */}
                   <div className="space-y-1 text-xs">
-                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
-                      Character
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Attributes (Gear + Tree)</span>
-                      <span className="font-mono font-bold">
-                        <span className="text-rose-400">{activeSnapshot.gearStats?.strength ?? 0}</span>
-                        <span className="text-slate-600"> / </span>
-                        <span className="text-emerald-400">{activeSnapshot.gearStats?.dexterity ?? 0}</span>
-                        <span className="text-slate-600"> / </span>
-                        <span className="text-sky-400">{activeSnapshot.gearStats?.intelligence ?? 0}</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Movement Speed</span>
-                      <span className="font-mono font-bold text-slate-100">
-                        {100 + Number(activeSnapshot.gearStats?.movementSpeed || 0)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-800/70">
                       <span className="text-slate-400">Passives / Jewels / Voidstones</span>
                       <span className="font-mono font-bold text-amber-300">
                         {activeSnapshot.passives.allocatedCount} / {activeSnapshot.passives.jewelCount} / {activeSnapshot.passives.voidstoneCount}
@@ -1456,95 +1451,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                     </div>
                   </div>
 
-                  {/* DEFENSIVE */}
-                  <div className="space-y-1 text-xs pt-2 border-t border-slate-800/80">
-                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
-                      Defensive
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Flat Life (Gear + Tree)</span>
-                      <span className="font-mono font-bold text-rose-300">
-                        +{activeSnapshot.estimatedVitals.flatLife.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Energy Shield (Gear Base)</span>
-                      <span className="font-mono font-bold text-sky-300">
-                        {(activeSnapshot.gearStats?.energyShield || activeSnapshot.estimatedVitals.flatEs).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Armour (Gear Base)</span>
-                      <span className="font-mono font-bold text-slate-200">
-                        {(activeSnapshot.gearStats?.armour || 0) > 0
-                          ? activeSnapshot.gearStats!.armour.toLocaleString()
-                          : '0'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Evasion Rating (Gear Base)</span>
-                      <span className="font-mono font-bold text-slate-200">
-                        {(activeSnapshot.gearStats?.evasion || 0) > 0
-                          ? activeSnapshot.gearStats!.evasion.toLocaleString()
-                          : '0'}
-                      </span>
-                    </div>
-                    {(activeSnapshot.gearStats?.blockChance || 0) > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Block Chance (Shield)</span>
-                        <span className="font-mono font-bold text-slate-200">
-                          {activeSnapshot.gearStats!.blockChance}%
-                        </span>
-                      </div>
-                    )}
-                    {(() => {
-                      const res = computeSnapshotResistances(activeSnapshot);
-                      return (
-                        <div className="space-y-1 pt-1 border-t border-slate-800/70">
-                          <div className="flex items-center justify-between">
-                            <span className="text-orange-400/90">Fire Resistance</span>
-                            <span className={`font-mono font-bold ${res.fire.isCapped ? 'text-orange-300' : 'text-rose-400'}`}>
-                              {res.fire.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sky-400/90">Cold Resistance</span>
-                            <span className={`font-mono font-bold ${res.cold.isCapped ? 'text-sky-300' : 'text-rose-400'}`}>
-                              {res.cold.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-amber-300/90">Lightning Resistance</span>
-                            <span className={`font-mono font-bold ${res.lightning.isCapped ? 'text-amber-200' : 'text-rose-400'}`}>
-                              {res.lightning.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-fuchsia-400/90">Chaos Resistance</span>
-                            <span className={`font-mono font-bold ${res.chaos.isImmune || res.chaos.effective >= 40 ? 'text-fuchsia-300' : res.chaos.effective >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
-                              {res.chaos.label}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    {activeSnapshot.estimatedVitals.suppress > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Spell Suppression</span>
-                        <span className="font-mono font-bold text-emerald-300">
-                          {activeSnapshot.estimatedVitals.suppress}%
-                        </span>
-                      </div>
-                    )}
-                    {(activeSnapshot.gearStats?.lifeRegen || 0) > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Life Regen</span>
-                        <span className="font-mono font-bold text-emerald-300">
-                          {Math.round(activeSnapshot.gearStats!.lifeRegen)}/s
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  {/* LIVE POB STATS, CONFIG TOGGLES & CALCS BREAKDOWN */}
+                  <PobStatsAndConfigPanel snapshot={activeSnapshot} />
 
                   {/* LIVE GEAR HOLE DETECTOR (Direct links to Crafting Bench & Regex Studio) */}
                   {(() => {

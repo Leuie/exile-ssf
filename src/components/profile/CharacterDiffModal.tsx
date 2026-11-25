@@ -5,7 +5,8 @@ import { decodePoBCode, parsePoBXml } from '../../utils/pobDecoder';
 import type { ParsedCharacter } from '../../types/analyzer';
 import type { CharacterGearSnapshot } from './CharacterPaperdollView';
 import { OfficialPassiveTreeCanvas } from './OfficialPassiveTreeCanvas';
-import { computeSnapshotResistances, formatPobRes } from '../../utils/resFormatter';
+import { formatPobRes } from '../../utils/resFormatter';
+import { buildDefaultCalcConfig, calculateCharacterStats } from '../../utils/poeCalcEngine';
 
 interface CharacterDiffModalProps {
   isOpen: boolean;
@@ -87,9 +88,12 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
     return firstKey ? combinedCandidates[firstKey].snap : null;
   }, [selectedCompareKey, combinedCandidates]);
 
-  const primaryRes = useMemo(() => computeSnapshotResistances(primarySnapshot), [primarySnapshot]);
-  const compareCharRes = useMemo(
-    () => (compareSnapshot ? computeSnapshotResistances(compareSnapshot) : null),
+  const primaryCalc = useMemo(
+    () => calculateCharacterStats(primarySnapshot, buildDefaultCalcConfig(primarySnapshot)),
+    [primarySnapshot]
+  );
+  const compareCalc = useMemo(
+    () => (compareSnapshot ? calculateCharacterStats(compareSnapshot, buildDefaultCalcConfig(compareSnapshot)) : null),
     [compareSnapshot]
   );
 
@@ -202,14 +206,6 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
     );
   };
 
-  // Base character estimated life (38 + lvl*12 + Str/2 + flatLife)
-  const charALifeBase =
-    38 +
-    (primarySnapshot.character.level || 1) * 12 +
-    Math.floor((primarySnapshot.gearStats?.strength || 0) / 2) +
-    (primarySnapshot.estimatedVitals.flatLife || 0);
-  const charAEs = primarySnapshot.gearStats?.energyShield || primarySnapshot.estimatedVitals.flatEs || 0;
-
   const pobFire = targetPob ? formatPobRes(targetPob.stats.fireRes, targetPob.stats.fireResOverCap, targetPob.stats.maxFireRes) : null;
   const pobCold = targetPob ? formatPobRes(targetPob.stats.coldRes, targetPob.stats.coldResOverCap, targetPob.stats.maxColdRes) : null;
   const pobLight = targetPob ? formatPobRes(targetPob.stats.lightningRes, targetPob.stats.lightningResOverCap, targetPob.stats.maxLightningRes) : null;
@@ -243,54 +239,50 @@ export const CharacterDiffModal: React.FC<CharacterDiffModalProps> = ({
         ...(st.attackRate > 0 ? [{ label: 'Attack / Cast Rate', valA: 'In PoB', valB: `${st.attackRate.toFixed(2)}`, numA: null, numB: null }] : []),
         ...(st.critChance > 0 ? [{ label: 'Crit Chance / Multi', valA: 'In PoB', valB: `${st.critChance}% / ${st.critMulti}%`, numA: null, numB: null }] : []),
         // Attributes (PoB Colors)
-        { section: 'Attributes', label: 'Strength', labelColor: 'text-rose-400', valA: fmtNum(primarySnapshot.gearStats?.strength || 0), valB: fmtNum(st.strength), numA: primarySnapshot.gearStats?.strength || 0, numB: st.strength },
-        { label: 'Dexterity', labelColor: 'text-emerald-400', valA: fmtNum(primarySnapshot.gearStats?.dexterity || 0), valB: fmtNum(st.dexterity), numA: primarySnapshot.gearStats?.dexterity || 0, numB: st.dexterity },
-        { label: 'Intelligence', labelColor: 'text-sky-400', valA: fmtNum(primarySnapshot.gearStats?.intelligence || 0), valB: fmtNum(st.intelligence), numA: primarySnapshot.gearStats?.intelligence || 0, numB: st.intelligence },
-        // EHP & Max Hits
-        { section: 'Effective Hit Pool & Max Hits', label: 'Effective Hit Pool', valA: 'In PoB', valB: st.totalEHP > 0 ? fmtNum(st.totalEHP) : '—', numA: null, numB: null },
-        { label: 'Phys Max Hit', labelColor: 'text-slate-300', valA: 'In PoB', valB: st.physMaxHit > 0 ? fmtNum(st.physMaxHit) : '—', numA: null, numB: null },
-        { label: 'Fire Max Hit', labelColor: 'text-orange-400', valA: 'In PoB', valB: st.fireMaxHit > 0 ? fmtNum(st.fireMaxHit) : '—', numA: null, numB: null },
-        { label: 'Cold Max Hit', labelColor: 'text-sky-300', valA: 'In PoB', valB: st.coldMaxHit > 0 ? fmtNum(st.coldMaxHit) : '—', numA: null, numB: null },
-        { label: 'Lightning Max Hit', labelColor: 'text-amber-300', valA: 'In PoB', valB: st.lightningMaxHit > 0 ? fmtNum(st.lightningMaxHit) : '—', numA: null, numB: null },
-        { label: 'Chaos Max Hit', labelColor: 'text-fuchsia-400', valA: primaryRes.isCI ? 'inf (Immune)' : 'In PoB', valB: isTargetCI ? 'inf (Immune)' : st.chaosMaxHit > 0 ? fmtNum(st.chaosMaxHit) : '—', numA: null, numB: null },
+        { section: 'Attributes', label: 'Strength', labelColor: 'text-rose-400', valA: fmtNum(primaryCalc.attributes.strength), valB: fmtNum(st.strength), numA: primaryCalc.attributes.strength, numB: st.strength },
+        { label: 'Dexterity', labelColor: 'text-emerald-400', valA: fmtNum(primaryCalc.attributes.dexterity), valB: fmtNum(st.dexterity), numA: primaryCalc.attributes.dexterity, numB: st.dexterity },
+        { label: 'Intelligence', labelColor: 'text-sky-400', valA: fmtNum(primaryCalc.attributes.intelligence), valB: fmtNum(st.intelligence), numA: primaryCalc.attributes.intelligence, numB: st.intelligence },
+        // EHP & Max Hits (Live Calculated vs Target PoB!)
+        { section: 'Effective Hit Pool & Max Hits', label: 'Effective Hit Pool', valA: fmtNum(primaryCalc.effectiveHitPool), valB: st.totalEHP > 0 ? fmtNum(st.totalEHP) : '—', numA: primaryCalc.effectiveHitPool, numB: st.totalEHP > 0 ? st.totalEHP : null },
+        { label: 'Phys Max Hit', labelColor: 'text-slate-300', valA: fmtNum(primaryCalc.maxHits.phys), valB: st.physMaxHit > 0 ? fmtNum(st.physMaxHit) : '—', numA: primaryCalc.maxHits.phys, numB: st.physMaxHit > 0 ? st.physMaxHit : null },
+        { label: 'Fire Max Hit', labelColor: 'text-orange-400', valA: fmtNum(primaryCalc.maxHits.fire), valB: st.fireMaxHit > 0 ? fmtNum(st.fireMaxHit) : '—', numA: primaryCalc.maxHits.fire, numB: st.fireMaxHit > 0 ? st.fireMaxHit : null },
+        { label: 'Cold Max Hit', labelColor: 'text-sky-300', valA: fmtNum(primaryCalc.maxHits.cold), valB: st.coldMaxHit > 0 ? fmtNum(st.coldMaxHit) : '—', numA: primaryCalc.maxHits.cold, numB: st.coldMaxHit > 0 ? st.coldMaxHit : null },
+        { label: 'Lightning Max Hit', labelColor: 'text-amber-300', valA: fmtNum(primaryCalc.maxHits.lightning), valB: st.lightningMaxHit > 0 ? fmtNum(st.lightningMaxHit) : '—', numA: primaryCalc.maxHits.lightning, numB: st.lightningMaxHit > 0 ? st.lightningMaxHit : null },
+        { label: 'Chaos Max Hit', labelColor: 'text-fuchsia-400', valA: primaryCalc.isCI ? 'inf (Immune)' : fmtNum(primaryCalc.maxHits.chaos), valB: isTargetCI ? 'inf (Immune)' : st.chaosMaxHit > 0 ? fmtNum(st.chaosMaxHit) : '—', numA: primaryCalc.isCI ? null : primaryCalc.maxHits.chaos, numB: isTargetCI || st.chaosMaxHit <= 0 ? null : st.chaosMaxHit },
         // Pools & Defenses
-        { section: 'Pools & Mitigation', label: 'Total Life', labelColor: 'text-rose-400', valA: primaryRes.isCI ? '1' : `${fmtNum(charALifeBase)} (base)`, valB: fmtNum(st.life), numA: primaryRes.isCI ? 1 : charALifeBase, numB: st.life },
-        { label: 'Energy Shield', labelColor: 'text-cyan-300', valA: `${fmtNum(charAEs)} (gear)`, valB: fmtNum(st.energyShield), numA: charAEs, numB: st.energyShield },
-        { label: 'Evasion Rating', labelColor: 'text-emerald-300', valA: `${fmtNum(primarySnapshot.gearStats?.evasion || 0)} (gear)`, valB: fmtNum(st.evasion), numA: primarySnapshot.gearStats?.evasion || 0, numB: st.evasion },
-        { label: 'Armour', labelColor: 'text-slate-300', valA: `${fmtNum(primarySnapshot.gearStats?.armour || 0)} (gear)`, valB: fmtNum(st.armour), numA: primarySnapshot.gearStats?.armour || 0, numB: st.armour },
-        { label: 'Block / Spell Block', valA: `${primarySnapshot.gearStats?.blockChance || 0}% / —`, valB: `${st.block}% / ${st.spellBlock}%`, numA: primarySnapshot.gearStats?.blockChance || 0, numB: st.block, suffix: '%' },
-        { label: 'Spell Suppression', labelColor: 'text-emerald-300', valA: `${primarySnapshot.estimatedVitals.suppress}%`, valB: `${st.spellSuppression}%`, numA: primarySnapshot.estimatedVitals.suppress, numB: st.spellSuppression, suffix: '%' },
+        { section: 'Pools & Mitigation', label: 'Total Life', labelColor: 'text-rose-400', valA: fmtNum(primaryCalc.life.total), valB: fmtNum(st.life), numA: primaryCalc.life.total, numB: st.life },
+        { label: 'Energy Shield', labelColor: 'text-cyan-300', valA: fmtNum(primaryCalc.energyShield.total), valB: fmtNum(st.energyShield), numA: primaryCalc.energyShield.total, numB: st.energyShield },
+        { label: 'Evasion Rating', labelColor: 'text-emerald-300', valA: `${fmtNum(primaryCalc.evasion.total)} (${primaryCalc.evasion.evadeChancePct}%)`, valB: `${fmtNum(st.evasion)}${st.evadeChance > 0 ? ` (${st.evadeChance}%)` : ''}`, numA: primaryCalc.evasion.total, numB: st.evasion },
+        { label: 'Armour', labelColor: 'text-slate-300', valA: `${fmtNum(primaryCalc.armour.total)} (${primaryCalc.armour.physDmgReductPct}%)`, valB: `${fmtNum(st.armour)}${st.physDamageReduction > 0 ? ` (${st.physDamageReduction}%)` : ''}`, numA: primaryCalc.armour.total, numB: st.armour },
+        { label: 'Block / Spell Block', valA: `${primaryCalc.block.attackBlock}% / ${primaryCalc.block.spellBlock}%`, valB: `${st.block}% / ${st.spellBlock}%`, numA: primaryCalc.block.attackBlock, numB: st.block, suffix: '%' },
+        { label: 'Spell Suppression', labelColor: 'text-emerald-300', valA: `${primaryCalc.suppression.chance}%`, valB: `${st.spellSuppression}%`, numA: primaryCalc.suppression.chance, numB: st.spellSuppression, suffix: '%' },
         // Resistances (In-Game Style: Effective% (+Overcap%))
-        { section: 'Resistances (In-Game Cap + Overcap)', label: 'Fire Resistance', labelColor: 'text-orange-400', valA: primaryRes.fire.label, valB: pobFire?.label || '—', numA: primaryRes.fire.effective, numB: pobFire?.effective ?? null, suffix: '%' },
-        { label: 'Cold Resistance', labelColor: 'text-sky-300', valA: primaryRes.cold.label, valB: pobCold?.label || '—', numA: primaryRes.cold.effective, numB: pobCold?.effective ?? null, suffix: '%' },
-        { label: 'Lightning Resistance', labelColor: 'text-amber-300', valA: primaryRes.lightning.label, valB: pobLight?.label || '—', numA: primaryRes.lightning.effective, numB: pobLight?.effective ?? null, suffix: '%' },
-        { label: 'Chaos Resistance', labelColor: 'text-fuchsia-400', valA: primaryRes.chaos.label, valB: pobChaos?.label || '—', numA: primaryRes.chaos.isImmune ? 100 : primaryRes.chaos.effective, numB: pobChaos?.isImmune ? 100 : pobChaos?.effective ?? null, suffix: '%' },
+        { section: 'Resistances (In-Game Cap + Overcap)', label: 'Fire Resistance', labelColor: 'text-orange-400', valA: primaryCalc.resistances.fire.label, valB: pobFire?.label || '—', numA: primaryCalc.resistances.fire.effective, numB: pobFire?.effective ?? null, suffix: '%' },
+        { label: 'Cold Resistance', labelColor: 'text-sky-300', valA: primaryCalc.resistances.cold.label, valB: pobCold?.label || '—', numA: primaryCalc.resistances.cold.effective, numB: pobCold?.effective ?? null, suffix: '%' },
+        { label: 'Lightning Resistance', labelColor: 'text-amber-300', valA: primaryCalc.resistances.lightning.label, valB: pobLight?.label || '—', numA: primaryCalc.resistances.lightning.effective, numB: pobLight?.effective ?? null, suffix: '%' },
+        { label: 'Chaos Resistance', labelColor: 'text-fuchsia-400', valA: primaryCalc.resistances.chaos.label, valB: pobChaos?.label || '—', numA: primaryCalc.resistances.chaos.isImmune ? 100 : primaryCalc.resistances.chaos.effective, numB: pobChaos?.isImmune ? 100 : pobChaos?.effective ?? null, suffix: '%' },
         // Speed & Passives
-        { section: 'Speed & Tree', label: 'Movement Speed Modifier', valA: `+${primarySnapshot.gearStats?.movementSpeed || 0}% (gear)`, valB: `${st.movementSpeedMod >= 0 ? '+' : ''}${st.movementSpeedMod}%`, numA: primarySnapshot.gearStats?.movementSpeed || 0, numB: st.movementSpeedMod, suffix: '%' },
+        { section: 'Speed & Tree', label: 'Movement Speed Modifier', valA: `+${primaryCalc.movementSpeedMod}%`, valB: `${st.movementSpeedMod >= 0 ? '+' : ''}${st.movementSpeedMod}%`, numA: primaryCalc.movementSpeedMod, numB: st.movementSpeedMod, suffix: '%' },
         { label: 'Allocated Passives', valA: fmtNum(primarySnapshot.passives.allocatedCount), valB: fmtNum(targetHashes.length), numA: primarySnapshot.passives.allocatedCount, numB: targetHashes.length }
       ];
     }
 
-    if (compareMode === 'character' && compareSnapshot && compareCharRes) {
-      const charBLifeBase =
-        38 +
-        (compareSnapshot.character.level || 1) * 12 +
-        Math.floor((compareSnapshot.gearStats?.strength || 0) / 2) +
-        (compareSnapshot.estimatedVitals.flatLife || 0);
-      const charBEs = compareSnapshot.gearStats?.energyShield || compareSnapshot.estimatedVitals.flatEs || 0;
+    if (compareMode === 'character' && compareSnapshot && compareCalc) {
       return [
-        { section: 'Attributes', label: 'Strength', labelColor: 'text-rose-400', valA: fmtNum(primarySnapshot.gearStats?.strength || 0), valB: fmtNum(compareSnapshot.gearStats?.strength || 0), numA: primarySnapshot.gearStats?.strength || 0, numB: compareSnapshot.gearStats?.strength || 0 },
-        { label: 'Dexterity', labelColor: 'text-emerald-400', valA: fmtNum(primarySnapshot.gearStats?.dexterity || 0), valB: fmtNum(compareSnapshot.gearStats?.dexterity || 0), numA: primarySnapshot.gearStats?.dexterity || 0, numB: compareSnapshot.gearStats?.dexterity || 0 },
-        { label: 'Intelligence', labelColor: 'text-sky-400', valA: fmtNum(primarySnapshot.gearStats?.intelligence || 0), valB: fmtNum(compareSnapshot.gearStats?.intelligence || 0), numA: primarySnapshot.gearStats?.intelligence || 0, numB: compareSnapshot.gearStats?.intelligence || 0 },
-        { section: 'Pools & Mitigation (Gear Base)', label: 'Base + Flat Life', labelColor: 'text-rose-400', valA: fmtNum(charALifeBase), valB: fmtNum(charBLifeBase), numA: charALifeBase, numB: charBLifeBase },
-        { label: 'Gear Energy Shield', labelColor: 'text-cyan-300', valA: fmtNum(charAEs), valB: fmtNum(charBEs), numA: charAEs, numB: charBEs },
-        { label: 'Gear Armour', labelColor: 'text-slate-300', valA: fmtNum(primarySnapshot.gearStats?.armour || 0), valB: fmtNum(compareSnapshot.gearStats?.armour || 0), numA: primarySnapshot.gearStats?.armour || 0, numB: compareSnapshot.gearStats?.armour || 0 },
-        { label: 'Gear Evasion', labelColor: 'text-emerald-300', valA: fmtNum(primarySnapshot.gearStats?.evasion || 0), valB: fmtNum(compareSnapshot.gearStats?.evasion || 0), numA: primarySnapshot.gearStats?.evasion || 0, numB: compareSnapshot.gearStats?.evasion || 0 },
-        { label: 'Spell Suppression', labelColor: 'text-emerald-300', valA: `${primarySnapshot.estimatedVitals.suppress}%`, valB: `${compareSnapshot.estimatedVitals.suppress}%`, numA: primarySnapshot.estimatedVitals.suppress, numB: compareSnapshot.estimatedVitals.suppress, suffix: '%' },
-        { section: 'Resistances (In-Game Cap + Overcap)', label: 'Fire Resistance', labelColor: 'text-orange-400', valA: primaryRes.fire.label, valB: compareCharRes.fire.label, numA: primaryRes.fire.effective, numB: compareCharRes.fire.effective, suffix: '%' },
-        { label: 'Cold Resistance', labelColor: 'text-sky-300', valA: primaryRes.cold.label, valB: compareCharRes.cold.label, numA: primaryRes.cold.effective, numB: compareCharRes.cold.effective, suffix: '%' },
-        { label: 'Lightning Resistance', labelColor: 'text-amber-300', valA: primaryRes.lightning.label, valB: compareCharRes.lightning.label, numA: primaryRes.lightning.effective, numB: compareCharRes.lightning.effective, suffix: '%' },
-        { label: 'Chaos Resistance', labelColor: 'text-fuchsia-400', valA: primaryRes.chaos.label, valB: compareCharRes.chaos.label, numA: primaryRes.chaos.effective, numB: compareCharRes.chaos.effective, suffix: '%' },
+        { section: 'Attributes', label: 'Strength', labelColor: 'text-rose-400', valA: fmtNum(primaryCalc.attributes.strength), valB: fmtNum(compareCalc.attributes.strength), numA: primaryCalc.attributes.strength, numB: compareCalc.attributes.strength },
+        { label: 'Dexterity', labelColor: 'text-emerald-400', valA: fmtNum(primaryCalc.attributes.dexterity), valB: fmtNum(compareCalc.attributes.dexterity), numA: primaryCalc.attributes.dexterity, numB: compareCalc.attributes.dexterity },
+        { label: 'Intelligence', labelColor: 'text-sky-400', valA: fmtNum(primaryCalc.attributes.intelligence), valB: fmtNum(compareCalc.attributes.intelligence), numA: primaryCalc.attributes.intelligence, numB: compareCalc.attributes.intelligence },
+        { section: 'Effective Hit Pool & Max Hits', label: 'Effective Hit Pool', valA: fmtNum(primaryCalc.effectiveHitPool), valB: fmtNum(compareCalc.effectiveHitPool), numA: primaryCalc.effectiveHitPool, numB: compareCalc.effectiveHitPool },
+        { label: 'Phys Max Hit', labelColor: 'text-slate-300', valA: fmtNum(primaryCalc.maxHits.phys), valB: fmtNum(compareCalc.maxHits.phys), numA: primaryCalc.maxHits.phys, numB: compareCalc.maxHits.phys },
+        { section: 'Pools & Mitigation', label: 'Total Life', labelColor: 'text-rose-400', valA: fmtNum(primaryCalc.life.total), valB: fmtNum(compareCalc.life.total), numA: primaryCalc.life.total, numB: compareCalc.life.total },
+        { label: 'Energy Shield', labelColor: 'text-cyan-300', valA: fmtNum(primaryCalc.energyShield.total), valB: fmtNum(compareCalc.energyShield.total), numA: primaryCalc.energyShield.total, numB: compareCalc.energyShield.total },
+        { label: 'Armour', labelColor: 'text-slate-300', valA: fmtNum(primaryCalc.armour.total), valB: fmtNum(compareCalc.armour.total), numA: primaryCalc.armour.total, numB: compareCalc.armour.total },
+        { label: 'Evasion', labelColor: 'text-emerald-300', valA: fmtNum(primaryCalc.evasion.total), valB: fmtNum(compareCalc.evasion.total), numA: primaryCalc.evasion.total, numB: compareCalc.evasion.total },
+        { label: 'Spell Suppression', labelColor: 'text-emerald-300', valA: `${primaryCalc.suppression.chance}%`, valB: `${compareCalc.suppression.chance}%`, numA: primaryCalc.suppression.chance, numB: compareCalc.suppression.chance, suffix: '%' },
+        { section: 'Resistances (In-Game Cap + Overcap)', label: 'Fire Resistance', labelColor: 'text-orange-400', valA: primaryCalc.resistances.fire.label, valB: compareCalc.resistances.fire.label, numA: primaryCalc.resistances.fire.effective, numB: compareCalc.resistances.fire.effective, suffix: '%' },
+        { label: 'Cold Resistance', labelColor: 'text-sky-300', valA: primaryCalc.resistances.cold.label, valB: compareCalc.resistances.cold.label, numA: primaryCalc.resistances.cold.effective, numB: compareCalc.resistances.cold.effective, suffix: '%' },
+        { label: 'Lightning Resistance', labelColor: 'text-amber-300', valA: primaryCalc.resistances.lightning.label, valB: compareCalc.resistances.lightning.label, numA: primaryCalc.resistances.lightning.effective, numB: compareCalc.resistances.lightning.effective, suffix: '%' },
+        { label: 'Chaos Resistance', labelColor: 'text-fuchsia-400', valA: primaryCalc.resistances.chaos.label, valB: compareCalc.resistances.chaos.label, numA: primaryCalc.resistances.chaos.effective, numB: compareCalc.resistances.chaos.effective, suffix: '%' },
         { section: 'Tree', label: 'Allocated Passives', valA: fmtNum(primarySnapshot.passives.allocatedCount), valB: fmtNum(compareSnapshot.passives.allocatedCount), numA: primarySnapshot.passives.allocatedCount, numB: compareSnapshot.passives.allocatedCount }
       ];
     }

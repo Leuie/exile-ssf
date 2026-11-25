@@ -19,6 +19,22 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-25-pob-calc-engine',
+    version: 'v3.41.0',
+    title: 'Unified PoB-Grade Calculation Engine, Interactive Armory Config & Calcs Breakdown, and Side-by-Side PoB Diff',
+    dateEst: 'Nov 25, 2026 • 5:30 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'PoB Calcs Engine',
+    summary: 'Built a unified Path of Exile calculation engine (poeCalcEngine) powering Character Armory, Side-by-Side PoB Diff Viewer, and Defenses EHP Calculator — complete with interactive PoB Configuration toggles (Endurance/Frenzy/Power Charges, Fortify, Flasks, Guard Skills, Bandits, Resistance Penalty, Socketed Aura toggles, and Enemy Hit Presets) plus live Base -> % Inc -> % More Calcs breakdowns and In-Game Cap (+Overcap) Resistances.',
+    changes: [
+      { tag: 'Added', text: 'PoB Stats / Config / Calcs interactive cockpit inside Character Armory computing live Attributes, Total Life, Energy Shield, Armour (with PDR%), Evasion (with exact Evade%), Block/Spell Block, Spell Suppression, In-Game Resistances (75% (+overcap%)), Effective Hit Pool (EHP), and all 5 Maximum Hit Taken (Phys/Fire/Cold/Lightning/Chaos).' },
+      { tag: 'Added', text: 'Interactive PoB Config toggles in Character Armory: Act 10/Act 5/None resistance penalty, Bandit quest (Alira/Oak/Kraityn), Enemy Hit Preset (Map/Pinnacle/Uber), Endurance Charges, Fortification stacks, Onslaught, Flasks Active, Guard Skill Active, and auto-detected Socketed Aura toggles.' },
+      { tag: 'Added', text: 'Primary Path of Building compare mode in Side-by-Side Diff Viewer comparing your live calculated character stats, Passive Tree pathing (Gold/Cyan/Purple), Keystones, and gear slots directly against any pobb.in or PoB export code.' },
+      { tag: 'Improved', text: 'Expanded GGG Character Armory worker sync to aggregate % increased Life, ES, Armour, Evasion, Mana, Flat PDR, Spell Block, Phys Taken As Elemental, and +Maximum Resistance across all allocated passive tree nodes, masteries, jewels, and gear.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-25-sitewide-accuracy-audit',
     version: 'v3.40.2',
     title: 'Sitewide Data & Math Accuracy Audit + PoB Build Doctor Overhaul',
