@@ -336,6 +336,17 @@ export const ExileProfilePage: React.FC<ExileProfilePageProps> = ({
             <span>Share Profile Link</span>
           </button>
 
+          <a
+            href={`/api/og/card?type=exile&handle=${encodeURIComponent(profile.handle.toLowerCase())}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Preview the auto generated Open Graph card shown when pasting your profile link into Discord or Root"
+            className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-xs font-mono text-amber-200 flex items-center gap-1.5 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Share Card</span>
+          </a>
+
           {canEdit && (
             <button
               type="button"

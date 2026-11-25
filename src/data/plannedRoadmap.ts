@@ -227,7 +227,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Public Shareable Build & Wealth Cards (Open Graph Images)',
     description:
       'Auto generated preview cards when pasting an Exile Profile or Hall of Fame link into Discord or Root.',
-    scope: 'Platform'
+    scope: 'Platform',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.40.0'
   },
   {
     id: 'rm-pwa-polish',
@@ -235,6 +237,8 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Offline PWA Desktop App Mode',
     description:
       'Installable desktop PWA with offline Service Worker caching for Cheat Sheets, Vendor Recipes, and Regex Studio (Ctrl+K Quick Finder already shipped).',
-    scope: 'Platform'
+    scope: 'Platform',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.40.0'
   }
 ];

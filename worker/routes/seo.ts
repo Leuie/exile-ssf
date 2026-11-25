@@ -3,6 +3,8 @@
 export interface PageMeta {
   title: string;
   description: string;
+  image?: string;
+  twitterCard?: 'summary' | 'summary_large_image';
 }
 
 function escapeHtmlAttr(val: string): string {
@@ -61,7 +63,9 @@ export function resolvePageMeta(url: URL): PageMeta {
     if (subTab === 'hall-of-fame' || subTab === 'halloffame' || subTab === 'firsts' || subTab === 'league-firsts') {
       return {
         title: `Hall of Fame & League Firsts | ${leagueName} | Exile SSF`,
-        description: `Celebrate League Firsts milestones, Pinnacle Boss kills, Level 100 achievements, and Hall of Fame winners across ${leagueName}.`
+        description: `Celebrate League Firsts milestones, Pinnacle Boss kills, Level 100 achievements, and Hall of Fame winners across ${leagueName}.`,
+        image: `https://exilessf.app/api/og/card?type=hof&league=${encodeURIComponent(leagueId)}`,
+        twitterCard: 'summary_large_image'
       };
     }
     if (subTab === 'guides' || subTab === 'build-guides' || subTab === 'buildguides') {
@@ -105,7 +109,9 @@ export function resolvePageMeta(url: URL): PageMeta {
     const cleanHandle = rawHandle.replace(/^@/, '');
     return {
       title: `@${cleanHandle} | Exile Profile | Exile SSF`,
-      description: `View @${cleanHandle}'s Multi League Career Passport, character roster, open wishlists, verified vouches, and achievements on Exile SSF.`
+      description: `View @${cleanHandle}'s Multi League Career Passport, character roster, open wishlists, verified vouches, and achievements on Exile SSF.`,
+      image: `https://exilessf.app/api/og/card?type=exile&handle=${encodeURIComponent(cleanHandle)}`,
+      twitterCard: 'summary_large_image'
     };
   }
 
@@ -116,13 +122,17 @@ export function resolvePageMeta(url: URL): PageMeta {
     if (handle && charName) {
       return {
         title: `${charName} (@${handle}) | Character Armory | Exile SSF`,
-        description: `Inspect ${charName} (@${handle}) in the Exile SSF Character Armory: live Path of Exile gear paperdoll, socketed gems, affix tiers, jewels, and interactive passive skill tree.`
+        description: `Inspect ${charName} (@${handle}) in the Exile SSF Character Armory: live Path of Exile gear paperdoll, socketed gems, affix tiers, jewels, and interactive passive skill tree.`,
+        image: `https://exilessf.app/api/og/card?type=armory&handle=${encodeURIComponent(handle)}&char=${encodeURIComponent(charName)}`,
+        twitterCard: 'summary_large_image'
       };
     }
     if (handle) {
       return {
         title: `@${handle} | Character Armory | Exile SSF`,
-        description: `Inspect @${handle}'s synced Path of Exile characters, equipment paperdoll, jewels, and interactive passive skill tree on Exile SSF.`
+        description: `Inspect @${handle}'s synced Path of Exile characters, equipment paperdoll, jewels, and interactive passive skill tree on Exile SSF.`,
+        image: `https://exilessf.app/api/og/card?type=armory&handle=${encodeURIComponent(handle)}`,
+        twitterCard: 'summary_large_image'
       };
     }
     return {
@@ -195,6 +205,15 @@ export function resolvePageMeta(url: URL): PageMeta {
   }
 
   if (path === '/maps' || path === '/map-tracker') {
+    const atlasShare = url.searchParams.get('atlas');
+    if (atlasShare) {
+      return {
+        title: 'Shared Atlas Skill Tree | Exile SSF',
+        description: 'Open this shared Path of Exile Atlas Skill Tree directly inside Exile SSF Map Tracker with Show Stats modifier totals and 1 click import.',
+        image: 'https://exilessf.app/api/og/card?type=atlas&name=Shared+Atlas+Tree&pts=132',
+        twitterCard: 'summary_large_image'
+      };
+    }
     return {
       title: 'Map Tracker & XP/hr Telemetry (PoE 1 & PoE 2) | Exile SSF',
       description: 'Realtime Client.txt mapping telemetry, per map duration, hideout downtime tracking, live GGG experience XP/hr polling, and Atlas strategy analytics.'
@@ -239,13 +258,24 @@ export function injectMetaIntoHtml(html: string, meta: PageMeta, pageUrl: string
   const safeTitle = escapeHtmlAttr(meta.title);
   const safeDesc = escapeHtmlAttr(meta.description);
   const safeUrl = escapeHtmlAttr(pageUrl);
+  const safeImg = meta.image ? escapeHtmlAttr(meta.image) : '';
+  const cardType = meta.twitterCard || (meta.image ? 'summary_large_image' : 'summary');
 
-  return html
+  let out = html
     .replace(/<title>[^<]*<\/title>/i, `<title>${safeTitle}</title>`)
     .replace(/<meta name="description" content="[^"]*" \/>/i, `<meta name="description" content="${safeDesc}" />`)
     .replace(/<meta property="og:title" content="[^"]*" \/>/i, `<meta property="og:title" content="${safeTitle}" />`)
     .replace(/<meta property="og:description" content="[^"]*" \/>/i, `<meta property="og:description" content="${safeDesc}" />`)
     .replace(/<meta property="og:url" content="[^"]*" \/>/i, `<meta property="og:url" content="${safeUrl}" />`)
+    .replace(/<meta name="twitter:card" content="[^"]*" \/>/i, `<meta name="twitter:card" content="${cardType}" />`)
     .replace(/<meta name="twitter:title" content="[^"]*" \/>/i, `<meta name="twitter:title" content="${safeTitle}" />`)
     .replace(/<meta name="twitter:description" content="[^"]*" \/>/i, `<meta name="twitter:description" content="${safeDesc}" />`);
+
+  if (safeImg) {
+    out = out
+      .replace(/<meta property="og:image" content="[^"]*" \/>/i, `<meta property="og:image" content="${safeImg}" />`)
+      .replace(/<meta name="twitter:image" content="[^"]*" \/>/i, `<meta name="twitter:image" content="${safeImg}" />`);
+  }
+
+  return out;
 }

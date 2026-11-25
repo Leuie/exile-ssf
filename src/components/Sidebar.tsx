@@ -25,7 +25,9 @@ import {
   Home as HomeIcon,
   UserCheck,
   Clock,
-  Sliders
+  Sliders,
+  Download,
+  WifiOff
 } from "lucide-react";
 import { readActiveCharacter, type ActiveCharacterContext } from '../utils/activeCharacter';
 
@@ -246,6 +248,40 @@ interface NavGroup {
       ]
     }
   ];
+
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isOffline, setIsOffline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? !navigator.onLine : false
+  );
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    const onInstalled = () => setDeferredInstallPrompt(null);
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  const handleInstallPwa = async () => {
+    if (!deferredInstallPrompt) return;
+    try {
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+    } catch {}
+    setDeferredInstallPrompt(null);
+  };
 
   const currentNavGroups = selectedGame === 'poe1' ? poe1NavGroups : poe2NavGroups;
 
@@ -778,6 +814,33 @@ interface NavGroup {
                 <UserCheck className="w-4 h-4 text-emerald-400" />
               </button>
             )
+          )}
+
+          {/* Offline Mode Indicator & 1 Click PWA Desktop Install */}
+          {isOffline && (
+            <div
+              className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[11px] font-mono font-bold ${
+                isCollapsed ? 'justify-center px-0' : ''
+              }`}
+              title="Offline Mode: Cheat Sheets, Vendor Recipes, and Regex Studio remain cached locally"
+            >
+              <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              {!isCollapsed && <span className="truncate">Offline Mode Ready</span>}
+            </div>
+          )}
+
+          {deferredInstallPrompt && (
+            <button
+              type="button"
+              onClick={handleInstallPwa}
+              className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-200 text-xs font-bold transition-colors cursor-pointer ${
+                isCollapsed ? 'justify-center px-0' : ''
+              }`}
+              title="Install Exile SSF as a standalone Offline Ready Desktop App"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              {!isCollapsed && <span className="truncate">Install Desktop App</span>}
+            </button>
           )}
 
           {/* Compact Footer Action Row */}

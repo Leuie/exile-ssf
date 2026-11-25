@@ -1,13 +1,40 @@
 {
   "name": "Exile SSF: Path of Exile Compendium & GSF Hub",
   "short_name": "Exile SSF",
-  "description": "Second monitor Path of Exile 1 & 2 Solo Self Found compendium and Group Self Found private league portal.",
+  "description": "Second monitor Path of Exile 1 & 2 Solo Self Found compendium, offline reference tools, and Group Self Found private league portal.",
   "start_url": "/league/poe1-330-umbra",
   "scope": "/",
   "display": "standalone",
   "background_color": "#090c11",
   "theme_color": "#090c11",
   "orientation": "any",
+  "categories": ["games", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Map Tracker & Atlas Tree",
+      "short_name": "Map Tracker",
+      "url": "/maps",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Asset Tracker",
+      "short_name": "Asset Tracker",
+      "url": "/assets",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Regex Studio (Offline Ready)",
+      "short_name": "Regex Studio",
+      "url": "/regex",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Vendor Recipes (Offline Ready)",
+      "short_name": "Vendor Recipes",
+      "url": "/vendor-recipes",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/logo.png",

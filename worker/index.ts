@@ -1,6 +1,7 @@
 import { handleAssetRoutes } from './routes/assets';
 import { handleAdminAndGovernanceRoutes } from './routes/admin';
 import { handleSocialRoutes, runScheduledDailyDigests } from './routes/social';
+import { handleOgCardRoute } from './routes/og';
 import { resolvePageMeta, injectMetaIntoHtml } from './routes/seo';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
@@ -977,6 +978,12 @@ export default {
           isSafeWebhookUrl
         });
         if (govRes) return govRes;
+      }
+
+      // Dynamic Open Graph SVG Preview Cards (Exile Profile, Character Armory, Hall of Fame, Shared Atlas)
+      if (url.pathname === '/api/og/card' && request.method === 'GET') {
+        await ensureD1Schema(db);
+        return handleOgCardRoute({ url, db, corsHeaders: CORS_HEADERS });
       }
 
       // Delegate modular Private League & GSF Social routes (Presence, Loans, Craft Queue, Bingo, Daily Digest)

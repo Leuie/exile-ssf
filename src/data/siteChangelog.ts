@@ -19,6 +19,22 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-25-roadmap-phase-d',
+    version: 'v3.40.0',
+    title: 'Roadmap Phase D (100% Complete): Dynamic Open Graph Share Cards & Offline Ready Desktop PWA Mode',
+    dateEst: 'Nov 25, 2026 • 1:05 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Roadmap 100% Shipped',
+    summary: 'Completed the final 2 items in Roadmap Phase D (Platform Growth & Polish), bringing the entire Planned Roadmap to 100% shipped: dynamic 1200x630 Open Graph preview cards for Discord & Root links, plus an upgraded Offline Ready Desktop PWA Service Worker, desktop jump list shortcuts, and 1 click Install App button.',
+    changes: [
+      { tag: 'Added', text: 'Dynamic Open Graph Share Cards (/api/og/card) auto injected into Exile Profiles, Character Armory links, Private League Hall of Fame pages, and Shared Atlas Trees when pasted into Discord or Root.' },
+      { tag: 'Added', text: '1 click Share Card preview button on Exile Profile pages.' },
+      { tag: 'Improved', text: 'Upgraded PWA Service Worker with Stale While Revalidate static asset caching and offline SPA fallback so Cheat Sheets, Vendor Recipes, and Regex Studio stay usable without an internet connection.' },
+      { tag: 'Added', text: 'Desktop PWA jump list shortcuts in manifest.webmanifest plus a 1 click Install Desktop App button and live Offline Mode indicator in the Sidebar.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-roadmap-phase-c',
     version: 'v3.39.0',
     title: 'Roadmap Phase C: Live Squad Presence Bar, GSF Item Loans, Squad Craft & Fracture Queue, 5x5 League Bingo & Automated Daily Digest',
