@@ -530,7 +530,9 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
         for (let i = 0; i < zoneEvents.length; i++) {
           const cur = zoneEvents[i];
           const next = zoneEvents[i + 1];
-          const rawSec = next ? (next.ts - cur.ts) / 1000 : (Date.now() - cur.ts) / 1000;
+          // For uploaded historical logs (>30m stale), don't inflate the final zone with 45 fake minutes
+          const staleLast = !next && Date.now() - cur.ts > 30 * 60 * 1000;
+          const rawSec = next ? (next.ts - cur.ts) / 1000 : staleLast ? 60 : (Date.now() - cur.ts) / 1000;
           const durationSec = Math.max(1, Math.min(2700, Math.round(rawSec))); // Cap AFK breaks at 45m
           const runDeaths = deaths.filter((d) => d >= cur.ts && (!next || d < next.ts)).length;
           builtRuns.push({

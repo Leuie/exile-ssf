@@ -45,9 +45,11 @@ export interface PaperdollGem {
   icon?: string;
   colour: string;
   socket: number;
+  group?: number;
   level: number;
   quality: number;
   support: boolean;
+  corrupted?: boolean;
   description?: string;
   mods?: string[];
 }

@@ -341,7 +341,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           if (cRes) estimatedVitals.coldRes += Number(cRes[1]);
           const lRes = mod.match(/\+(\d+)% to Lightning Resistance/i);
           if (lRes) estimatedVitals.lightningRes += Number(lRes[1]);
-          const twoRes = mod.match(/\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances/i);
+          const twoRes = mod.match(/\+(\d+)% to (Fire|Cold|Lightning|Chaos) and (Fire|Cold|Lightning|Chaos) Resistances/i);
           if (twoRes) {
             const v = Number(twoRes[1]);
             const r1 = twoRes[2].toLowerCase();
@@ -349,6 +349,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
             if (r1 === 'fire' || r2 === 'fire') estimatedVitals.fireRes += v;
             if (r1 === 'cold' || r2 === 'cold') estimatedVitals.coldRes += v;
             if (r1 === 'lightning' || r2 === 'lightning') estimatedVitals.lightningRes += v;
+            if (r1 === 'chaos' || r2 === 'chaos') estimatedVitals.chaosRes += v;
           }
           const chRes = mod.match(/\+(\d+)% to Chaos Resistance/i);
           if (chRes) estimatedVitals.chaosRes += Number(chRes[1]);
@@ -585,7 +586,7 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
                     x: nx,
                     y: ny,
                     nt: isNot ? 1 : 0,
-                    s: Array.isArray(nd.stats) ? nd.stats.slice(0, 3) : [],
+                    s: Array.isArray(nd.stats) ? nd.stats : [],
                     o: Array.isArray(nd.out) ? nd.out.map(Number).filter(Number.isFinite) : []
                   };
                 }
@@ -631,6 +632,9 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
                   chosenEffectId && meta.me?.[String(chosenEffectId)]
                     ? meta.me[String(chosenEffectId)]
                     : [];
+                if (Array.isArray(effStats) && effStats.length > 0) {
+                  accumulateModStats(effStats);
+                }
                 masteries.push({
                   id: h,
                   name: meta.n,
@@ -1997,7 +2001,8 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         env.EXILE_DB.prepare(`SELECT handle_lower, data FROM user_tool_state WHERE tool_key = 'map_tracker_sessions' LIMIT 100`).all().catch(() => ({ results: [] }))
       ]);
 
-      // Aggregate Map Tracker telemetry per handle from user_tool_state (map_tracker_sessions array)
+      // Aggregate Map Tracker telemetry per handle filtered by target game/league
+      const isPoe2League = /poe2|ancients|dawn/i.test(leagueFilter || '');
       const mapTelemetryByHandle = new Map<string, { totalMaps: number; totalMapSec: number; bestXpPerHr: number; mapSessions: number }>();
       for (const row of mapRowsRes?.results || []) {
         try {
@@ -2006,6 +2011,10 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
           if (!Array.isArray(sessionsArr)) continue;
           const cur = mapTelemetryByHandle.get(h) || { totalMaps: 0, totalMapSec: 0, bestXpPerHr: 0, mapSessions: 0 };
           for (const d of sessionsArr) {
+            if (leagueFilter && d?.game) {
+              const sessIsPoe2 = String(d.game).toLowerCase() === 'poe2';
+              if (sessIsPoe2 !== isPoe2League) continue;
+            }
             const maps = Number(d?.mapsCompleted || d?.totalMaps || 0);
             const avgSec = Number(d?.avgMapSec || d?.avgMapSeconds || 0);
             const xpHr = Number(d?.xpPerHrM || 0) * 1_000_000;

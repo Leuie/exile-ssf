@@ -128,25 +128,42 @@ export function encodeSnapshotToPobCode(snapshot: CharacterGearSnapshot): string
     }
   });
 
-  // Serialize Skill Gem Groups
+  // Serialize Skill Gem Groups (grouped accurately by linked socket group!)
   const skillElements: string[] = [];
+  let bestMainGroupIdx = 1;
+  let bestMainGroupSize = 0;
+
   for (const it of snapshot.equipped) {
     if (!Array.isArray(it.socketedGems) || it.socketedGems.length === 0) continue;
     const slotName = SLOT_TO_POB_NAME[it.inventoryId] || '';
-    const gemTags = it.socketedGems
-      .map(
-        (g) =>
-          `      <Gem nameSpec="${escXml(g.name)}" level="${g.level || 1}" quality="${g.quality || 0}" enabled="true"/>`
-      )
-      .join('\n');
-    skillElements.push(
-      `    <Skill slot="${escXml(slotName)}" enabled="true" includeInFullDPS="true">\n${gemTags}\n    </Skill>`
-    );
+    const byLinkGroup = new Map<number, typeof it.socketedGems>();
+    for (const g of it.socketedGems) {
+      const grp = typeof g.group === 'number' ? g.group : 0;
+      const arr = byLinkGroup.get(grp) || [];
+      arr.push(g);
+      byLinkGroup.set(grp, arr);
+    }
+    for (const gemsInGroup of byLinkGroup.values()) {
+      const gemTags = gemsInGroup
+        .map(
+          (g) =>
+            `      <Gem nameSpec="${escXml(g.name)}" level="${g.level || 1}" quality="${g.quality || 0}" enabled="true"/>`
+        )
+        .join('\n');
+      skillElements.push(
+        `    <Skill slot="${escXml(slotName)}" enabled="true" includeInFullDPS="true">\n${gemTags}\n    </Skill>`
+      );
+      const hasActive = gemsInGroup.some((g) => !g.support);
+      if (hasActive && gemsInGroup.length > bestMainGroupSize) {
+        bestMainGroupSize = gemsInGroup.length;
+        bestMainGroupIdx = skillElements.length;
+      }
+    }
   }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <PathOfBuilding>
-  <Build level="${level}" targetVersion="3_0" className="${escXml(classMeta.baseClass)}" ascendClassName="${escXml(snapshot.character.className || 'None')}" mainSocketGroup="1">
+  <Build level="${level}" targetVersion="3_0" className="${escXml(classMeta.baseClass)}" ascendClassName="${escXml(snapshot.character.className || 'None')}" mainSocketGroup="${bestMainGroupIdx}">
     <PlayerStat stat="Level" value="${level}"/>
   </Build>
   <Tree activeSpec="1">

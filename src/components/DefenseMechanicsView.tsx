@@ -168,12 +168,17 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
       }
       const parsed = parsePoBXml(decodePoBCode(resolved.code));
       const st = parsed.stats;
-      setHpPool(Math.max(500, Math.round(st.life + st.energyShield)));
+      const isCI = parsed.keystones.includes('Chaos Inoculation') || (st.life === 1 && st.energyShield >= 200);
+      const pool = isCI ? st.energyShield : st.life + st.energyShield;
+      setHpPool(Math.max(500, Math.round(pool)));
       setArmour(Math.max(0, Math.round(st.armour)));
       const minEleRes = Math.min(st.fireRes, st.coldRes, st.lightningRes);
-      if (minEleRes > 0) setMaxEleRes(Math.min(90, Math.round(minEleRes)));
+      setMaxEleRes(Math.min(90, Math.max(-60, Math.round(minEleRes))));
+      setPhysTakenAsEle(Math.min(80, Math.max(0, Math.round(st.physTakenAsEle || 0))));
+      setEnduranceCharges(Math.min(10, Math.max(0, Math.round(parsed.config.enduranceCharges || 0))));
+      setHasFortify(Boolean(parsed.config.fortify));
       setSuppressionCapped(st.spellSuppression >= 100);
-      setLoadedCharLabel(`Loaded ${ctx.member?.characterName || parsed.characterName} (${Math.round(st.life + st.energyShield)} Pool, ${Math.round(st.armour).toLocaleString()} Armour)`);
+      setLoadedCharLabel(`Loaded ${ctx.member?.characterName || parsed.characterName} (${Math.round(pool)} Pool, ${Math.round(st.armour).toLocaleString()} Armour, ${parsed.config.enduranceCharges} End)`);
     } catch {
       setLoadedCharLabel('Could not parse stats from your saved League PoB.');
     } finally {
@@ -201,12 +206,15 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
       const vitals = synced?.vitals;
       if (!vitals) return;
       const lvl = Number(synced.level || 85);
-      const estBaseLife = 50 + lvl * 12;
-      const estPool = Math.max(1200, Math.round((estBaseLife + Number(vitals.flatLife || 0)) * 2.1 + Number(vitals.flatEs || 0) * 1.4));
+      const flatLife = Number(vitals.flatLife || 0);
+      const flatEs = Number(vitals.flatEs || 0);
+      const estBaseLife = 38 + lvl * 12;
+      const isLikelyCI = flatLife === 0 && flatEs >= 400;
+      const estPool = Math.max(500, Math.round(isLikelyCI ? flatEs : estBaseLife + flatLife + flatEs));
       setHpPool(estPool);
-      setSuppressionCapped(Number(vitals.suppress || 0) >= 85);
+      setSuppressionCapped(Number(vitals.suppress || 0) >= 100);
       setLoadedCharLabel(
-        `Loaded live GGG gear from ${synced.characterName || 'Character'} (Lv ${lvl} ${synced.className || ''}, ~${estPool.toLocaleString()} est. pool)`
+        `Loaded base gear pool from ${synced.characterName || 'Character'} (Lv ${lvl} ${synced.className || ''}, ${estPool.toLocaleString()} base pool — adjust HP Pool for tree % Life/ES)`
       );
     } catch {}
   }, []);
@@ -236,15 +244,16 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
         return;
       }
       const lvl = Number(snap.character.level || 85);
-      const estBaseLife = 50 + lvl * 12;
+      const isCI = Boolean(snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name)));
+      const estBaseLife = 38 + lvl * 12 + Math.floor(Number(snap.gearStats?.strength || 0) / 2);
       const flatLife = Number(snap.estimatedVitals?.flatLife || 0);
       const flatEs = Number(snap.gearStats?.energyShield || snap.estimatedVitals?.flatEs || 0);
-      const estPool = Math.max(1200, Math.round((estBaseLife + flatLife) * 2.1 + flatEs * 1.4));
+      const estPool = Math.max(500, Math.round(isCI ? flatEs : estBaseLife + flatLife + flatEs));
       setHpPool(estPool);
-      if (snap.gearStats?.armour) setArmour(Math.round(snap.gearStats.armour));
-      setSuppressionCapped(Number(snap.estimatedVitals?.suppress || 0) >= 85);
+      setArmour(Math.round(snap.gearStats?.armour || 0));
+      setSuppressionCapped(Number(snap.estimatedVitals?.suppress || 0) >= 100);
       setLoadedCharLabel(
-        `Loaded Armory: ${snap.character.name} (Lv ${lvl} ${snap.character.className}, ~${estPool.toLocaleString()} est. pool)`
+        `Loaded Armory: ${snap.character.name} (Lv ${lvl} ${snap.character.className}, ${estPool.toLocaleString()} base pool — adjust HP Pool for tree % Life/ES)`
       );
     } catch {
       setLoadedCharLabel('Could not fetch Armory snapshot.');
@@ -282,41 +291,47 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
     const clampedShift = gameMode === 'poe1' ? Math.min(80, Math.max(0, physTakenAsEle)) : 0;
     const clampedEnd = gameMode === 'poe1' ? Math.min(10, Math.max(0, enduranceCharges)) : 0;
 
-    let finalDamage = hitDamage;
-
-    if (hitType === 'phys_attack') {
-      const shiftedEle = hitDamage * (clampedShift / 100);
-      const remainingPhys = hitDamage - shiftedEle;
-
-      // Armour DR: PoE 1 uses 5 * hit, PoE 2 uses 10 * hit
-      const armourFactor = gameMode === 'poe1' ? 5 : 10;
-      const armourDr = remainingPhys > 0 ? armour / (armour + armourFactor * remainingPhys) : 0;
-      const endPdr = clampedEnd * 0.04;
-      const totalPdr = Math.min(0.9, armourDr + endPdr);
-
-      const physTaken = remainingPhys * (1 - totalPdr);
-      const eleDrFromEnd = clampedEnd * 0.04;
-      const eleTaken = shiftedEle * (1 - clampedRes / 100) * (1 - eleDrFromEnd);
-
-      finalDamage = physTaken + eleTaken;
-    } else {
-      // Elemental Spell Hit
-      const eleDrFromEnd = clampedEnd * 0.04;
-      let eleTaken = hitDamage * (1 - clampedRes / 100) * (1 - eleDrFromEnd);
-      if (gameMode === 'poe1' && suppressionCapped) {
-        eleTaken *= 0.5;
+    const computeMitigatedDamage = (incomingHit: number): number => {
+      let dmg = incomingHit;
+      if (hitType === 'phys_attack') {
+        const shiftedEle = incomingHit * (clampedShift / 100);
+        const remainingPhys = incomingHit - shiftedEle;
+        const armourFactor = gameMode === 'poe1' ? 5 : 10;
+        const armourDr = remainingPhys > 0 ? armour / (armour + armourFactor * remainingPhys) : 0;
+        const endPdr = clampedEnd * 0.04;
+        const totalPdr = Math.min(0.9, armourDr + endPdr);
+        const physTaken = remainingPhys * (1 - totalPdr);
+        const eleDrFromEnd = clampedEnd * 0.04;
+        const eleTaken = shiftedEle * (1 - clampedRes / 100) * (1 - eleDrFromEnd);
+        dmg = physTaken + eleTaken;
+      } else {
+        const eleDrFromEnd = clampedEnd * 0.04;
+        let eleTaken = incomingHit * (1 - clampedRes / 100) * (1 - eleDrFromEnd);
+        if (gameMode === 'poe1' && suppressionCapped) {
+          eleTaken *= 0.5;
+        }
+        dmg = eleTaken;
       }
-      finalDamage = eleTaken;
-    }
+      if (gameMode === 'poe1' && hasFortify) {
+        dmg *= 0.8;
+      }
+      return dmg;
+    };
 
-    if (gameMode === 'poe1' && hasFortify) {
-      finalDamage *= 0.8;
-    }
-
+    const finalDamage = computeMitigatedDamage(hitDamage);
     const mitigatedPct = hitDamage > 0 ? Math.max(0, Math.min(99.9, (1 - finalDamage / hitDamage) * 100)) : 0;
     const survives = hpPool > finalDamage;
     const remainingHp = Math.round(hpPool - finalDamage);
-    const ehp = finalDamage > 0 ? Math.round(hpPool * (hitDamage / finalDamage)) : hpPool;
+
+    // Solve exact Maximum Hit Taken (accounts for Armour DR dropping on larger hits!)
+    let lo = 0;
+    let hi = Math.max(hpPool * 20, 500000);
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      if (computeMitigatedDamage(mid) <= hpPool) lo = mid;
+      else hi = mid;
+    }
+    const ehp = Math.round(lo);
 
     return {
       finalDamage: Math.round(finalDamage),

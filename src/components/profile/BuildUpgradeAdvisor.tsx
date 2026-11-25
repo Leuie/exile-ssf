@@ -42,11 +42,22 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
     }
 
     const v = snapshot.estimatedVitals;
-    if (v.fireRes < 75 || v.coldRes < 75 || v.lightningRes < 75) {
+    const charLvl = snapshot.character.level || 1;
+    const kitavaPenalty = charLvl >= 68 ? -60 : charLvl >= 45 ? -30 : 0;
+    const hasPurityOfElements = snapshot.equipped.some((it) =>
+      (it.socketedGems || []).some((g) => /purity of elements/i.test(g.name || ''))
+    );
+    const purityBonus = hasPurityOfElements ? 34 : 0;
+    const effFire = v.fireRes + purityBonus + kitavaPenalty;
+    const effCold = v.coldRes + purityBonus + kitavaPenalty;
+    const effLight = v.lightningRes + purityBonus + kitavaPenalty;
+    const effChaos = v.chaosRes + kitavaPenalty;
+
+    if (effFire < 75 || effCold < 75 || effLight < 75) {
       const missing = [
-        v.fireRes < 75 ? `Fire (${v.fireRes}%)` : '',
-        v.coldRes < 75 ? `Cold (${v.coldRes}%)` : '',
-        v.lightningRes < 75 ? `Lightning (${v.lightningRes}%)` : ''
+        effFire < 75 ? `Fire (${effFire}%)` : '',
+        effCold < 75 ? `Cold (${effCold}%)` : '',
+        effLight < 75 ? `Lightning (${effLight}%)` : ''
       ]
         .filter(Boolean)
         .join(', ');
@@ -54,18 +65,18 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
         slot: 'Defenses',
         itemName: 'Elemental Resistances',
         priority: 'high',
-        issue: `Uncapped Elemental Res: ${missing}`,
+        issue: `Estimated Uncapped Elemental Res (after ${kitavaPenalty}% penalty): ${missing}`,
         fixAction: 'Bench craft dual-res or Harvest swap resistance on Rings/Belt/Boots immediately.',
         targetTab: 'crafting_bench'
       });
     }
 
-    if (v.chaosRes < 0) {
+    if (effChaos < 0 && !snapshot.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name))) {
       list.push({
         slot: 'Defenses',
         itemName: 'Chaos Resistance',
         priority: 'high',
-        issue: `Negative Chaos Res (${v.chaosRes}%)`,
+        issue: `Estimated Negative Chaos Res (${effChaos}% after ${kitavaPenalty}% penalty)`,
         fixAction: 'Reforge Chaos in Harvest on an Amethyst Ring or bench craft Chaos + Elemental Res.',
         targetTab: 'crafting_bench'
       });

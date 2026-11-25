@@ -444,12 +444,19 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
           const nums: number[] = [];
           const plusFlags: boolean[] = [];
           let idx = 0;
-          const template = clean.replace(/([+-]?)(\d+(?:\.\d+)?)/g, (_m, sign, numStr) => {
+          // Preserve fixed threshold qualifiers (e.g. "Tier 14+", "Level 80") so they are never summed
+          const fixedTokens: string[] = [];
+          const protectedLine = clean.replace(/\b(Tier|Level)\s+(\d+\+?)/gi, (match) => {
+            const tok = `__FIXED_${fixedTokens.length}__`;
+            fixedTokens.push(match);
+            return tok;
+          });
+          const template = protectedLine.replace(/([+-]?)(\d+(?:\.\d+)?)/g, (_m, sign, numStr) => {
             const val = parseFloat((sign === '-' ? '-' : '') + numStr);
             nums.push(val);
             plusFlags.push(sign === '+');
             return `{${idx++}}`;
-          });
+          }).replace(/__FIXED_(\d+)__/g, (_m, fIdx) => fixedTokens[Number(fIdx)] || '');
           if (nums.length === 0) {
             plainLines.add(clean);
           } else {

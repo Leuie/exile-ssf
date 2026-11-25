@@ -1248,7 +1248,11 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
       subCategory = cat;
     }
 
-    setIsDemoMode(false);
+    if (isDemoMode) {
+      setIsDemoMode(false);
+      setActiveDrops([]);
+      setCheckpoints([]);
+    }
     addDropToSession({
       shortName: name, baseType: base, category: cat, subCategory, gemLevel, gemQuality,
       isVaal, isTransfigured, isAwakened, corrupted, quantity: 1, ilvl: parsed?.itemLevel || 0,
@@ -1260,7 +1264,11 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
   const handleAddManualDrop = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualName.trim()) return;
-    setIsDemoMode(false);
+    if (isDemoMode) {
+      setIsDemoMode(false);
+      setActiveDrops([]);
+      setCheckpoints([]);
+    }
     addDropToSession({
       shortName: manualName.trim(), baseType: '', category: manualCategory, subCategory: manualCategory,
       quantity: Math.max(1, manualQty), ilvl: 0, frameType: manualCategory === 'Uniques' ? 3 : manualCategory === 'Gems' ? 4 : 5

@@ -19,6 +19,23 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-25-sitewide-accuracy-audit',
+    version: 'v3.40.2',
+    title: 'Sitewide Data & Math Accuracy Audit + PoB Build Doctor Overhaul',
+    dateEst: 'Nov 25, 2026 • 12:40 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Accuracy Audit',
+    summary: 'Completed a comprehensive sitewide audit of every calculator, telemetry engine, and backend query. Overhauled PoB Build Doctor to read real TotalEHP, Max Hits, FullDPS, Active Auras, Guard Skills, and Endurance/Frenzy/Power Charges, and fixed math & data inaccuracies across Defenses EHP, Offenses PoE 2, Character Armory, Asset Tracker, Map Tracker, Atlas Tree Show Stats, and GSF Social/OG backend routes.',
+    changes: [
+      { tag: 'Fixed', text: 'PoB Build Doctor: removed fake fallback defaults (0% res no longer displays as 75%, 0 DPS no longer displays as 500k), added real TotalEHP, Max Hits, FullDPS/MinionStat, Active Auras, Guard Skills, and PoB Config Charges (Endurance/Frenzy/Power/Fortify), and respected activeItemSet/activeSkillSet/activeSpec.' },
+      { tag: 'Fixed', text: 'Defenses EHP Calculator: replaced linear Armour EHP extrapolation with an exact Armour Max Hit solver, removed fabricated *2.1 Life / *1.4 ES Armory multipliers, fixed Chaos Inoculation pool handling, and reset Endurance/Fortify/Phys Shift on PoB import.' },
+      { tag: 'Fixed', text: 'Character Armory & PoB Export: grouped exported PoB gems by linked socket group (no more fake 4-links), added corrupted gem tracking for Gem Audit, accumulated mastery & dual Element+Chaos resistance mods, applied Kitava resistance penalties in Build Upgrade Advisor, and fixed double-counted ES in Character Diff.' },
+      { tag: 'Fixed', text: 'Asset Tracker, Map Tracker & Atlas Tree: prevented Demo Data from leaking into live Cloud saves, protected fixed Tier/Level qualifiers in Atlas Show Stats totalizer, fixed T17 Ziggurat town misclassification, fixed Act 6 Campaign Split matching Act 1, excluded Rogue Harbour AFK time from Heist runs, capped stale historical log final-zone duration, and filtered Wealth Ladder map stats by game.' },
+      { tag: 'Fixed', text: 'Offenses Sandbox: clamped PoE 2 Penetration at 0% enemy resistance floor (matching PoE 2 mechanics), and aligned GSF Social / Daily Digest / Dynamic OG Card SQL queries with live D1 table schemas.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-25-roadmap-phase-d',
     version: 'v3.40.0',
     title: 'Roadmap Phase D (100% Complete): Dynamic Open Graph Share Cards & Offline Ready Desktop PWA Mode',

@@ -149,8 +149,9 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
     const gainFrom50Inc = (((baseIncMult + 0.5) / baseIncMult) - 1) * 100;
     // Upgrade B: 30% More Damage
     const gainFrom30More = 30;
-    // Upgrade C: -30% Enemy Res (Curse / Exposure / Pen)
-    const newResMult = 1 - (enemyRes - 30) / 100;
+    // Upgrade C: -30% Enemy Res (In PoE 2, Penetration floors at 0%; in PoE 1 it can go negative)
+    const effectiveAfterPen = gameMode === 'poe2' ? Math.max(0, enemyRes - 30) : enemyRes - 30;
+    const newResMult = 1 - effectiveAfterPen / 100;
     const gainFrom30Pen = baseResMult > 0 ? ((newResMult / baseResMult) - 1) * 100 : 30;
 
     return {
@@ -158,7 +159,7 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
       gainFrom30More: gainFrom30More.toFixed(1),
       gainFrom30Pen: gainFrom30Pen.toFixed(1)
     };
-  }, [existingIncreased, enemyRes]);
+  }, [existingIncreased, enemyRes, gameMode]);
 
   const toggleMilestone = (id: string) => {
     setExpandedMilestone((prev) => (prev === id ? null : id));
