@@ -61,7 +61,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Side by Side Character & Passive Tree Diff Viewer',
     description:
       'Compare two synced Armory characters side by side to highlight gear upgrades, keystone differences, and passive tree pathing deltas.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.37.0'
   },
   {
     id: 'rm-upgrade-advisor',
@@ -69,7 +71,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'One Click Build Upgrade Advisor',
     description:
       'Cross reference your synced Character gear against poe.ninja SSF ladder trends for your ascendancy to flag weak slots (such as uncapped Chaos Res, missing Eldritch implicits, or low tier life rolls).',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.37.0'
   },
   {
     id: 'rm-gem-audit',
@@ -77,7 +81,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Gem Level & Quality Audit',
     description:
       'Automatically scan all socketed gems on your Character and list which gems are ready for the Gemcutter\'s Prism 20% quality recipe or Vaal corruption.',
-    scope: 'PoE 1'
+    scope: 'PoE 1',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.37.0'
   },
   {
     id: 'rm-pob-export',
@@ -85,7 +91,9 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     title: 'Live PoB XML Export from Character',
     description:
       'Generate a shareable Path of Building import string directly from a synced Character snapshot.',
-    scope: 'PoE 1 & PoE 2'
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.37.0'
   },
 
   // B. Private League & GSF Social Features

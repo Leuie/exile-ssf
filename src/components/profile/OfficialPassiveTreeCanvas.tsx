@@ -103,6 +103,8 @@ function getOrLoadSpriteImage(url: string, onLoaded: () => void): HTMLImageEleme
 
 export interface OfficialPassiveTreeCanvasProps {
   allocatedHashes?: number[];
+  compareHashes?: number[];
+  compareName?: string;
   fallbackPoints?: Array<[number, number, number]>;
   fallbackEdges?: Array<[number, number, number, number]>;
   allocatedCount: number;
@@ -123,6 +125,8 @@ const KIND_LABELS: Record<number, string> = {
 
 export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps> = ({
   allocatedHashes = [],
+  compareHashes = [],
+  compareName = '',
   fallbackPoints = [],
   fallbackEdges = [],
   allocatedCount,
@@ -191,6 +195,8 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
   }, [graph]);
 
   const allocatedSet = useMemo(() => new Set<number>(allocatedHashes), [allocatedHashes]);
+  const compareSet = useMemo(() => new Set<number>(compareHashes), [compareHashes]);
+  const isDiffMode = compareSet.size > 0;
 
   const parsedGraph = useMemo(() => {
     if (!graph) return null;
@@ -678,12 +684,13 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.strokeStyle = '#fbbf24';
+        ctx.strokeStyle = isDiffMode ? '#22d3ee' : '#fbbf24';
         ctx.lineWidth = Math.max(3.2, 4.6 / Math.sqrt(zoom));
         ctx.lineCap = 'round';
         if (hasHashes) {
           for (const e of parsedGraph.edges) {
             if (!e.allocated) continue;
+            if (isDiffMode && compareSet.has(e.a.id) && compareSet.has(e.b.id)) continue;
             traceEdge(e.a, e.b);
           }
         } else {
@@ -693,6 +700,31 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
           }
         }
         ctx.stroke();
+
+        // In Diff Mode: Purple = Compare B only, Gold = Shared by both A & B
+        if (isDiffMode) {
+          ctx.beginPath();
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = Math.max(3.2, 4.6 / Math.sqrt(zoom));
+          ctx.lineCap = 'round';
+          for (const e of parsedGraph.edges) {
+            const inB = compareSet.has(e.a.id) && compareSet.has(e.b.id);
+            if (!inB || e.allocated) continue;
+            traceEdge(e.a, e.b);
+          }
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = Math.max(3.8, 5.2 / Math.sqrt(zoom));
+          ctx.lineCap = 'round';
+          for (const e of parsedGraph.edges) {
+            if (e.allocated && compareSet.has(e.a.id) && compareSet.has(e.b.id)) {
+              traceEdge(e.a, e.b);
+            }
+          }
+          ctx.stroke();
+        }
         ctx.restore();
       }
 
@@ -809,7 +841,9 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       }
       if (hasHashes) {
         for (const nd of parsedGraph.nodes) {
-          if (allocatedSet.has(nd.id)) drawNode(nd, true, matchingIds.has(nd.id));
+          if (allocatedSet.has(nd.id) || (isDiffMode && compareSet.has(nd.id))) {
+            drawNode(nd, true, matchingIds.has(nd.id));
+          }
         }
       } else {
         for (const [x, y, flag] of fallbackPoints) {
@@ -826,7 +860,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     }
 
     ctx.restore();
-  }, [parsedGraph, allocatedSet, fallbackPoints, fallbackEdges, zoom, pan, matchingIds, isMaximized, spriteTick]);
+  }, [parsedGraph, allocatedSet, compareSet, isDiffMode, fallbackPoints, fallbackEdges, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -1050,6 +1084,12 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
             <>
               <span>•</span>
               <span className="text-amber-200">{parsedGraph.activeAscName}</span>
+            </>
+          )}
+          {compareName && (
+            <>
+              <span>•</span>
+              <span className="text-purple-300">vs {compareName}</span>
             </>
           )}
           <span className="hidden sm:inline">•</span>

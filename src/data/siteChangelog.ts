@@ -19,6 +19,22 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-24-roadmap-phase-a',
+    version: 'v3.37.0',
+    title: 'Roadmap Phase A: Live PoB XML Export, Gem Level & Quality Audit, One Click Build Upgrade Advisor & Side by Side Passive Tree Diff Viewer',
+    dateEst: 'Nov 24, 2026 • 8:20 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Phase A Shipped',
+    summary: 'Completed all 4 items in Roadmap Phase A (Deeper Character & Build Tools): 1 click Path of Building import string export directly from any synced Character Armory snapshot, automatic Gem Level & Quality Audit, ranked One Click Build Upgrade Advisor, and a Side by Side Character & Passive Tree Diff Viewer with Gold/Cyan/Purple pathing overlays.',
+    changes: [
+      { tag: 'Added', text: 'Live PoB XML Export (Copy PoB Code) inside Character Armory serializing character class, level, equipped items, sockets, gems, and passive tree hashes into a valid Path of Building import string.' },
+      { tag: 'Added', text: 'Gem Level & Quality Audit widget scanning all socketed gems to flag Lv 20 GCP vendor recipes, 20/20 Vaal/Double Corrupt candidates, and Exceptional/Awakened gem pushes.' },
+      { tag: 'Added', text: 'One Click Build Upgrade Advisor auditing every gear slot for missing Eldritch implicits, un-anointed Amulets, low life rolls, open crafting bench affixes, and uncapped resistances.' },
+      { tag: 'Added', text: 'Side by Side Character & Passive Tree Diff Viewer comparing vitals, Keystones, gear slots, and color coded passive tree pathing against any alt or Private League squadmate.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-24-unified-cockpit',
     version: 'v3.36.0',
     title: 'Unified Farming Cockpit: Linked Strategy Profiles, Shareable Atlas Trees, Active Character Context, Armory Workspace Grid & Gear Hole Detector',

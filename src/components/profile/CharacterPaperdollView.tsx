@@ -24,7 +24,11 @@ import {
   saveUnifiedPoeSession
 } from '../../utils/poeSession';
 import { saveActiveCharacter } from '../../utils/activeCharacter';
+import { encodeSnapshotToPobCode } from '../../utils/pobEncoder';
 import { ToolWidgetGrid, type ToolWidgetDefinition } from '../ui/ToolWidgetGrid';
+import { GemAuditPanel } from './GemAuditPanel';
+import { BuildUpgradeAdvisor } from './BuildUpgradeAdvisor';
+import { CharacterDiffModal } from './CharacterDiffModal';
 import {
   CharacterPassiveTreeAndSkills,
   type ResolvedPassiveNode,
@@ -646,6 +650,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSyncDrawer, setShowSyncDrawer] = useState<boolean>(false);
   const [vitalsPushed, setVitalsPushed] = useState<boolean>(false);
+  const [pobCopied, setPobCopied] = useState<boolean>(false);
+  const [showDiffModal, setShowDiffModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (poeAccountName && !accountInput) {
@@ -1646,6 +1652,32 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                       </>
                     )}
                   </button>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          const code = encodeSnapshotToPobCode(activeSnapshot);
+                          navigator.clipboard?.writeText(code);
+                          setPobCopied(true);
+                          setTimeout(() => setPobCopied(false), 2600);
+                        } catch {}
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-400/45 text-emerald-200 text-[11px] font-mono font-bold cursor-pointer"
+                      title="Export this synced character directly to a Path of Building import string"
+                    >
+                      {pobCopied ? '✓ PoB Code Copied!' : 'Copy PoB Code'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiffModal(true)}
+                      className="py-1.5 px-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-400/45 text-purple-200 text-[11px] font-mono font-bold cursor-pointer"
+                      title="Compare vitals, Keystones, gear, and passive tree against another character"
+                    >
+                      Compare Build
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/50 text-xs text-slate-400 space-y-1.5">
@@ -1742,7 +1774,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   defaultSpan: 12,
                   render: () => inventoryAndStatsBlock
                 },
-                ...(passiveAndSkillsBlock
+                  ...(passiveAndSkillsBlock
                   ? [
                       {
                         id: 'armory_passive_skills',
@@ -1752,15 +1784,53 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                         render: () => passiveAndSkillsBlock
                       }
                     ]
+                  : []),
+                ...(activeSnapshot
+                  ? [
+                      {
+                        id: 'armory_upgrade_advisor',
+                        title: 'One Click Build Upgrade Advisor',
+                        icon: <Shield className="w-3.5 h-3.5 text-amber-400" />,
+                        defaultSpan: 6 as const,
+                        render: () => <BuildUpgradeAdvisor snapshot={activeSnapshot} />
+                      },
+                      {
+                        id: 'armory_gem_audit',
+                        title: 'Gem Level & Quality Audit',
+                        icon: <Sparkles className="w-3.5 h-3.5 text-emerald-400" />,
+                        defaultSpan: 6 as const,
+                        render: () => <GemAuditPanel equipped={activeSnapshot.equipped} />
+                      }
+                    ]
                   : [])
               ];
-              return <ToolWidgetGrid storageKey="character_armory" widgets={armoryWidgets} />;
+              return (
+                <>
+                  <ToolWidgetGrid storageKey="character_armory" widgets={armoryWidgets} />
+                  {activeSnapshot && showDiffModal && (
+                    <CharacterDiffModal
+                      isOpen={showDiffModal}
+                      onClose={() => setShowDiffModal(false)}
+                      primarySnapshot={activeSnapshot}
+                      localSnapshots={snapshots}
+                    />
+                  )}
+                </>
+              );
             }
 
             return (
               <div className="space-y-4">
                 {inventoryAndStatsBlock}
                 {passiveAndSkillsBlock}
+                {activeSnapshot && showDiffModal && (
+                  <CharacterDiffModal
+                    isOpen={showDiffModal}
+                    onClose={() => setShowDiffModal(false)}
+                    primarySnapshot={activeSnapshot}
+                    localSnapshots={snapshots}
+                  />
+                )}
               </div>
             );
           })()}
