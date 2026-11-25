@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Wrench, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import type { CharacterGearSnapshot, PaperdollItem } from './CharacterPaperdollView';
+import { buildDefaultCalcConfig, calculateCharacterStats } from '../../utils/poeCalcEngine';
 
 interface UpgradeRecommendation {
   slot: string;
@@ -41,23 +42,14 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
       if (it.inventoryId !== 'Flask') bySlot.set(it.inventoryId, it);
     }
 
-    const v = snapshot.estimatedVitals;
-    const charLvl = snapshot.character.level || 1;
-    const kitavaPenalty = charLvl >= 68 ? -60 : charLvl >= 45 ? -30 : 0;
-    const hasPurityOfElements = snapshot.equipped.some((it) =>
-      (it.socketedGems || []).some((g) => /purity of elements/i.test(g.name || ''))
-    );
-    const purityBonus = hasPurityOfElements ? 34 : 0;
-    const effFire = v.fireRes + purityBonus + kitavaPenalty;
-    const effCold = v.coldRes + purityBonus + kitavaPenalty;
-    const effLight = v.lightningRes + purityBonus + kitavaPenalty;
-    const effChaos = v.chaosRes + kitavaPenalty;
+    const calc = calculateCharacterStats(snapshot, buildDefaultCalcConfig(snapshot));
+    const res = calc.resistances;
 
-    if (effFire < 75 || effCold < 75 || effLight < 75) {
+    if (!res.fire.isCapped || !res.cold.isCapped || !res.lightning.isCapped) {
       const missing = [
-        effFire < 75 ? `Fire (${effFire}%)` : '',
-        effCold < 75 ? `Cold (${effCold}%)` : '',
-        effLight < 75 ? `Lightning (${effLight}%)` : ''
+        !res.fire.isCapped ? `Fire ${res.fire.label} (<${res.fire.maxRes}%)` : '',
+        !res.cold.isCapped ? `Cold ${res.cold.label} (<${res.cold.maxRes}%)` : '',
+        !res.lightning.isCapped ? `Lightning ${res.lightning.label} (<${res.lightning.maxRes}%)` : ''
       ]
         .filter(Boolean)
         .join(', ');
@@ -65,29 +57,51 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
         slot: 'Defenses',
         itemName: 'Elemental Resistances',
         priority: 'high',
-        issue: `Estimated Uncapped Elemental Res (after ${kitavaPenalty}% penalty): ${missing}`,
+        issue: `Uncapped Elemental Res: ${missing}`,
         fixAction: 'Bench craft dual-res or Harvest swap resistance on Rings/Belt/Boots immediately.',
         targetTab: 'crafting_bench'
       });
     }
 
-    if (effChaos < 0 && !snapshot.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name))) {
+    if (!res.chaos.isImmune && res.chaos.effective < 0) {
       list.push({
         slot: 'Defenses',
         itemName: 'Chaos Resistance',
         priority: 'high',
-        issue: `Estimated Negative Chaos Res (${effChaos}% after ${kitavaPenalty}% penalty)`,
+        issue: `Negative Chaos Res (${res.chaos.label})`,
         fixAction: 'Reforge Chaos in Harvest on an Amethyst Ring or bench craft Chaos + Elemental Res.',
         targetTab: 'crafting_bench'
       });
     }
 
-    if (v.suppress > 0 && v.suppress < 100) {
+    if (calc.mainSkill && calc.mainSkill.linkCount < 6 && (snapshot.character.level || 1) >= 75) {
+      list.push({
+        slot: calc.mainSkill.slot,
+        itemName: `${calc.mainSkill.name} (${calc.mainSkill.linkCount}-Link)`,
+        priority: 'high',
+        issue: `Main Skill is only on a ${calc.mainSkill.linkCount}-Link setup`,
+        fixAction: 'Upgrade to a 6-Link Body Armour or Weapon (+30% to +35% more DPS).',
+        targetTab: 'crafting_bench'
+      });
+    }
+
+    if (calc.detectedCurses.length === 0 && (snapshot.character.level || 1) >= 70) {
+      list.push({
+        slot: 'Offense',
+        itemName: 'Missing Curse / Mark',
+        priority: 'medium',
+        issue: 'No active damage Curse or Mark detected in socketed gems',
+        fixAction: 'Socket Assassin\'s Mark, Sniper\'s Mark, or an elemental Curse (+25% to +35% Boss DPS).',
+        targetTab: 'crafting_bench'
+      });
+    }
+
+    if (calc.suppression.chance > 0 && calc.suppression.chance < 100) {
       list.push({
         slot: 'Defenses',
         itemName: 'Spell Suppression',
         priority: 'medium',
-        issue: `Partial Spell Suppression (${v.suppress}% / 100%)`,
+        issue: `Partial Spell Suppression (${calc.suppression.chance}% / 100%)`,
         fixAction: 'Roll T1-T2 Suppression on Gloves/Boots/Helm or allocate a Suppression Mastery.',
         targetTab: 'regex_studio'
       });

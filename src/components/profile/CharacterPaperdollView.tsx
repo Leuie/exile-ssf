@@ -18,7 +18,7 @@ import {
   MousePointerClick
 } from 'lucide-react';
 import { fetchUserToolState, saveUserToolState } from '../../services/cloudSync';
-import { computeSnapshotResistances } from '../../utils/resFormatter';
+import { buildDefaultCalcConfig, calculateCharacterStats } from '../../utils/poeCalcEngine';
 import { PobStatsAndConfigPanel } from './PobStatsAndConfigPanel';
 import { buildPoeWikiUrl } from '../assets/assetEngine';
 import {
@@ -1454,16 +1454,17 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                   {/* LIVE POB STATS, CONFIG TOGGLES & CALCS BREAKDOWN */}
                   <PobStatsAndConfigPanel snapshot={activeSnapshot} />
 
-                  {/* LIVE GEAR HOLE DETECTOR (Direct links to Crafting Bench & Regex Studio) */}
+                  {/* LIVE GEAR HOLE DETECTOR (Unified with poeCalcEngine) */}
                   {(() => {
                     const holes: Array<{ label: string; severity: 'high' | 'med' }> = [];
-                    const v = activeSnapshot.estimatedVitals;
-                    const res = computeSnapshotResistances(activeSnapshot);
+                    const calc = calculateCharacterStats(activeSnapshot, buildDefaultCalcConfig(activeSnapshot));
+                    const res = calc.resistances;
                     if (!res.fire.isCapped) holes.push({ label: `Fire Res ${res.fire.label} (<${res.fire.maxRes}%)`, severity: 'high' });
                     if (!res.cold.isCapped) holes.push({ label: `Cold Res ${res.cold.label} (<${res.cold.maxRes}%)`, severity: 'high' });
                     if (!res.lightning.isCapped) holes.push({ label: `Light Res ${res.lightning.label} (<${res.lightning.maxRes}%)`, severity: 'high' });
                     if (!res.chaos.isImmune && res.chaos.effective < 0) holes.push({ label: `Chaos Res ${res.chaos.label} (<0%)`, severity: 'med' });
-                    if (v.suppress > 0 && v.suppress < 100) holes.push({ label: `Suppress ${v.suppress}% (<100%)`, severity: 'med' });
+                    if (calc.suppression.chance > 0 && calc.suppression.chance < 100) holes.push({ label: `Suppress ${calc.suppression.chance}% (<100%)`, severity: 'med' });
+                    if (calc.offense.hitChancePct < 98) holes.push({ label: `Hit Chance ${calc.offense.hitChancePct}% (<100%)`, severity: 'med' });
                     const flaskCount = activeSnapshot.equipped.filter((i) => i.inventoryId === 'Flask').length;
                     if (flaskCount < 5) holes.push({ label: `${5 - flaskCount} Empty Flask Slot${5 - flaskCount > 1 ? 's' : ''}`, severity: 'med' });
 

@@ -865,7 +865,7 @@ export const App: React.FC = () => {
         {activeTab === 'vendor_recipes' && <VendorRecipesView selectedGame={selectedGame} />}
         {activeTab === 'atlas' && <AtlasView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'defenses' && <DefenseMechanicsView selectedGame={selectedGame} userAccount={userAccount} />}
-        {activeTab === 'offenses' && <OffensesView selectedGame={selectedGame} />}
+        {activeTab === 'offenses' && <OffensesView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'builds' && (
           <BuildsHubView selectedGame={selectedGame} userAccount={userAccount} initialSubTab="community" />
         )}

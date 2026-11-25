@@ -24,7 +24,8 @@ import {
 import { decodePoBCode, parsePoBXml, detectAurasAndGuards } from '../utils/pobDecoder';
 import { encodeSnapshotToPobCode } from '../utils/pobEncoder';
 import { analyzeBuild } from '../utils/buildAnalyzer';
-import { computeSnapshotResistances, formatPobRes } from '../utils/resFormatter';
+import { formatPobRes } from '../utils/resFormatter';
+import { buildDefaultCalcConfig, calculateCharacterStats } from '../utils/poeCalcEngine';
 import type { ParsedCharacter, AnalysisReport, DiagnosticItem } from '../types/analyzer';
 import type { UserAccount, LeagueRosterMember, LeagueCharacter, ActiveLeagueSession } from '../types';
 import {
@@ -104,8 +105,7 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
   const mainSkillName =
     mainGroup?.gems.find((g) => !g.isSupport)?.name || mainGroup?.label || snap.character.className;
 
-  const { activeAuras, guardSkills } = detectAurasAndGuards(skillGroups);
-  const hasTempestShield = activeAuras.includes('Tempest Shield');
+  const { guardSkills } = detectAurasAndGuards(skillGroups);
 
   let physTakenAsEle = 0;
   let hasLifeOnBlock = false;
@@ -119,92 +119,89 @@ function snapshotToParsedCharacter(snap: CharacterGearSnapshot): ParsedCharacter
     while ((m = rx.exec(t)) !== null) physTakenAsEle += parseInt(m[1], 10);
   }
 
-  const resSummary = computeSnapshotResistances(snap);
-  const vit = snap.estimatedVitals;
-  const stats = snap.gearStats;
-  const strLifeBonus = Math.floor((stats?.strength || 0) / 2);
-  const baseLife = (vit?.flatLife || 0) + strLifeBonus + (snap.character.level || 1) * 12 + 38;
+  const calcCfg = buildDefaultCalcConfig(snap);
+  const calc = calculateCharacterStats(snap, calcCfg);
 
   return {
     characterName: snap.character.name,
     className: snap.character.className,
     ascendClassName: snap.character.className,
     level: snap.character.level || 1,
-    mainSkillName,
+    mainSkillName: calc.mainSkill?.name || mainSkillName,
     selectedSkillGroupId: mainGroup?.id || '',
     dataSource: 'armory_estimate',
-    activeAuras,
-    guardSkills,
+    activeAuras: calc.detectedAuras,
+    guardSkills: calc.detectedGuard ? [calc.detectedGuard] : guardSkills,
     config: {
-      enduranceCharges: 0,
+      enduranceCharges: calcCfg.useEnduranceCharges ? calcCfg.enduranceCharges : 0,
       maxEnduranceCharges: 3,
-      frenzyCharges: 0,
+      frenzyCharges: calcCfg.useFrenzyCharges ? calcCfg.frenzyCharges : 0,
       maxFrenzyCharges: 3,
-      powerCharges: 0,
+      powerCharges: calcCfg.usePowerCharges ? calcCfg.powerCharges : 0,
       maxPowerCharges: 3,
-      useEnduranceCharges: false,
-      useFrenzyCharges: false,
-      usePowerCharges: false,
-      fortify: false,
-      onslaught: false,
-      enemyIsBoss: 'None',
-      flasksActive: false
+      useEnduranceCharges: calcCfg.useEnduranceCharges,
+      useFrenzyCharges: calcCfg.useFrenzyCharges,
+      usePowerCharges: calcCfg.usePowerCharges,
+      fortify: calcCfg.fortified,
+      onslaught: calcCfg.onslaught,
+      enemyIsBoss: 'Pinnacle',
+      flasksActive: calcCfg.flasksActive
     },
     stats: {
-      life: resSummary.isCI ? 1 : Math.max(100, baseLife),
-      energyShield: Math.max(0, stats?.energyShield || vit?.flatEs || 0),
+      life: calc.life.total,
+      energyShield: calc.energyShield.total,
       ward: 0,
       totalMana: 0,
       unreservedMana: 0,
       manaRegen: 0,
-      strength: stats?.strength || 0,
-      dexterity: stats?.dexterity || 0,
-      intelligence: stats?.intelligence || 0,
-      fireRes: resSummary.fire.effective,
-      fireResOverCap: resSummary.fire.overcap,
-      coldRes: resSummary.cold.effective,
-      coldResOverCap: resSummary.cold.overcap,
-      lightningRes: resSummary.lightning.effective,
-      lightningResOverCap: resSummary.lightning.overcap,
-      chaosRes: resSummary.chaos.effective,
-      chaosResOverCap: resSummary.chaos.overcap,
-      maxFireRes: resSummary.fire.maxRes,
-      maxColdRes: resSummary.cold.maxRes,
-      maxLightningRes: resSummary.lightning.maxRes,
-      maxChaosRes: resSummary.chaos.maxRes,
-      armour: stats?.armour || 0,
-      evasion: stats?.evasion || 0,
-      evadeChance: 0,
-      physDamageReduction: 0,
-      spellSuppression: Math.min(100, vit?.suppress || 0),
-      block: stats?.blockChance || 0,
-      spellBlock: hasTempestShield ? 25 : 0,
-      lifeRegen: stats?.lifeRegen || 0,
+      strength: calc.attributes.strength,
+      dexterity: calc.attributes.dexterity,
+      intelligence: calc.attributes.intelligence,
+      fireRes: calc.resistances.fire.effective,
+      fireResOverCap: calc.resistances.fire.overcap,
+      coldRes: calc.resistances.cold.effective,
+      coldResOverCap: calc.resistances.cold.overcap,
+      lightningRes: calc.resistances.lightning.effective,
+      lightningResOverCap: calc.resistances.lightning.overcap,
+      chaosRes: calc.resistances.chaos.effective,
+      chaosResOverCap: calc.resistances.chaos.overcap,
+      maxFireRes: calc.resistances.fire.maxRes,
+      maxColdRes: calc.resistances.cold.maxRes,
+      maxLightningRes: calc.resistances.lightning.maxRes,
+      maxChaosRes: calc.resistances.chaos.maxRes,
+      armour: calc.armour.total,
+      evasion: calc.evasion.total,
+      evadeChance: calc.evasion.evadeChancePct,
+      physDamageReduction: calc.armour.physDmgReductPct,
+      spellSuppression: calc.suppression.chance,
+      block: calc.block.attackBlock,
+      spellBlock: calc.block.spellBlock,
+      lifeRegen: snap.gearStats?.lifeRegen || 0,
       esRegen: 0,
-      totalEHP: 0,
-      physMaxHit: 0,
-      fireMaxHit: 0,
-      coldMaxHit: 0,
-      lightningMaxHit: 0,
-      chaosMaxHit: 0,
+      totalEHP: calc.effectiveHitPool,
+      physMaxHit: calc.maxHits.phys,
+      fireMaxHit: calc.maxHits.fire,
+      coldMaxHit: calc.maxHits.cold,
+      lightningMaxHit: calc.maxHits.lightning,
+      chaosMaxHit: calc.maxHits.chaos === Infinity ? 0 : calc.maxHits.chaos,
       averageDamage: 0,
-      attackRate: 0,
-      hitChance: 100,
+      attackRate: calc.offense.weaponAps,
+      hitChance: calc.offense.hitChancePct,
       hitDPS: 0,
       cullingDPS: 0,
       totalDPS: 0,
       fullDPS: 0,
       dotDPS: 0,
       minionDPS: 0,
-      critChance: 0,
+      critChance: calc.offense.weaponBaseCrit,
       critMulti: 150,
-      movementSpeedMod: stats?.movementSpeed || 0,
+      movementSpeedMod: calc.movementSpeedMod,
       manaUnreservedPercent: 20,
-      mainLinkCount: mainGroup?.effectiveLinks || 0,
-      physTakenAsEle,
+      mainLinkCount: calc.mainSkill?.linkCount || mainGroup?.effectiveLinks || 0,
+      physTakenAsEle: calc.mitigation.physTakenAsEle || physTakenAsEle,
       hasLifeOnBlock,
       hasEsOnBlock,
-      hasGlancingBlows: Boolean(snap.passives?.keystones?.some((k) => k.name.toLowerCase().includes('glancing')))
+      hasGlancingBlows: calc.block.hasGlancingBlows
     },
     skillGroups,
     items,

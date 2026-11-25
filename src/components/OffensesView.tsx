@@ -22,6 +22,10 @@ import {
   OFFENSIVE_MECHANICS,
   OFFENSIVE_ARCHETYPES
 } from '../data/offensesData';
+import type { UserAccount } from '../types';
+import { fetchUserToolState } from '../services/cloudSync';
+import type { CharacterGearSnapshot } from './profile/CharacterPaperdollView';
+import { buildDefaultCalcConfig, calculateCharacterStats, type PoeCalcBreakdown } from '../utils/poeCalcEngine';
 
 type GameMode = 'poe1' | 'poe2';
 
@@ -128,10 +132,39 @@ const POE2_OFFENSE_SYSTEMS = [
   }
 ];
 
-export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ selectedGame = 'poe1' }) => {
+export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; userAccount?: UserAccount | null }> = ({
+  selectedGame = 'poe1',
+  userAccount
+}) => {
   const [gameMode, setGameMode] = useState<GameMode>(selectedGame);
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>('campaign');
   const [selectedAilment, setSelectedAilment] = useState<string>('ignite');
+  const [armorySnap, setArmorySnap] = useState<CharacterGearSnapshot | null>(null);
+  const [armoryCalc, setArmoryCalc] = useState<PoeCalcBreakdown | null>(null);
+  const [loadingArmory, setLoadingArmory] = useState<boolean>(false);
+
+  const handleLoadArmoryOffense = async () => {
+    const handle = userAccount?.displayName?.trim();
+    if (!handle) return;
+    setLoadingArmory(true);
+    try {
+      const raw = await fetchUserToolState<Record<string, any>>(handle, 'character_gear_snapshots');
+      if (raw && typeof raw === 'object') {
+        const list: CharacterGearSnapshot[] = [];
+        for (const [k, v] of Object.entries(raw)) {
+          if (k !== '__lastSelectedChar' && v && typeof v === 'object' && v.character) {
+            list.push(v as CharacterGearSnapshot);
+          }
+        }
+        list.sort((a, b) => new Date(b.syncedAtIso || 0).getTime() - new Date(a.syncedAtIso || 0).getTime());
+        if (list[0]) {
+          setArmorySnap(list[0]);
+          setArmoryCalc(calculateCharacterStats(list[0], buildDefaultCalcConfig(list[0])));
+        }
+      }
+    } catch {}
+    setLoadingArmory(false);
+  };
 
   useEffect(() => {
     setGameMode(selectedGame);
@@ -191,6 +224,74 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2' }> = ({ sel
 
   return (
     <article className="space-y-8 w-full pb-20 font-sans text-slate-200">
+      {/* Live Armory Offense Snapshot Bar (Unified poeCalcEngine) */}
+      {userAccount?.displayName && (
+        <div className="rounded-2xl border border-indigo-500/35 bg-gradient-to-r from-indigo-950/35 via-slate-950/90 to-amber-950/20 p-4 space-y-3 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Live Character Armory Offense Telemetry</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Pull your synced Armory character using the exact same PoB-verified calculation engine as Character Armory &amp; Build Doctor.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={loadingArmory}
+              onClick={handleLoadArmoryOffense}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+            >
+              {loadingArmory ? 'Loading Armory...' : armorySnap ? `Refresh ${armorySnap.character.name}` : 'Load My Synced Armory'}
+            </button>
+          </div>
+
+          {armorySnap && armoryCalc && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs font-mono">
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Main Skill</div>
+                <div className="font-bold text-indigo-200 truncate">
+                  {armoryCalc.mainSkill ? `${armoryCalc.mainSkill.name} (${armoryCalc.mainSkill.linkCount}L)` : '—'}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Weapon DPS</div>
+                <div className="font-bold text-amber-300">
+                  {armoryCalc.offense.weaponTotalDps > 0
+                    ? `${armoryCalc.offense.weaponTotalDps} (${armoryCalc.offense.weaponPdps}/${armoryCalc.offense.weaponEdps})`
+                    : 'Spell / Minion'}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Hit Chance / Acc</div>
+                <div className={`font-bold ${armoryCalc.offense.hitChancePct >= 99 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {armoryCalc.offense.hitChancePct}% ({armoryCalc.offense.accuracy.toLocaleString()})
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Frenzy / Power</div>
+                <div className="font-bold text-emerald-300">
+                  +{armoryCalc.offense.frenzyMoreDmgPct}% More / +{armoryCalc.offense.powerIncCritPct}% Crit
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Curse / Mark</div>
+                <div className="font-bold text-purple-300 truncate">
+                  {armoryCalc.detectedCurses.join(', ') || 'None'}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="text-[9px] uppercase text-slate-500">Active Auras</div>
+                <div className="font-bold text-sky-300 truncate" title={armoryCalc.detectedAuras.join(', ')}>
+                  {armoryCalc.detectedAuras.length} ({armoryCalc.detectedAuras.slice(0, 2).join(', ')})
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 1. Modernized Header Masthead */}
       <header className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-[#0e1320] via-[#111827] to-[#0b0f19] p-5 sm:p-6 shadow-xl space-y-4">
         <div className="absolute -top-16 -right-16 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
