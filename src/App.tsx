@@ -900,6 +900,7 @@ export const App: React.FC = () => {
         )}
         {activeTab === 'wealth_analytics' && (
           <WealthAnalyticsView
+            selectedGame={selectedGame}
             userAccount={userAccount}
             onBackToAssetTracker={() => handleSelectTab('asset_tracker')}
             onOpenProfile={handleOpenProfile}

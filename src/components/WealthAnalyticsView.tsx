@@ -36,6 +36,7 @@ import {
 } from './assets/assetEngine';
 
 interface WealthAnalyticsViewProps {
+  selectedGame?: 'poe1' | 'poe2';
   userAccount?: UserAccount | null;
   onBackToAssetTracker: () => void;
   onOpenProfile?: (handle: string) => void;
@@ -54,6 +55,7 @@ const SLICE_COLORS = [
 ];
 
 export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
+  selectedGame = 'poe1',
   userAccount,
   onBackToAssetTracker,
   onOpenProfile,
@@ -194,8 +196,10 @@ export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
   );
 
   useEffect(() => {
-    loadCloudData();
-  }, [loadCloudData]);
+    if (selectedGame === 'poe1') {
+      loadCloudData();
+    }
+  }, [loadCloudData, selectedGame]);
 
   // Enrich drops with live pricing & SSF utility points
   const enrichedDrops: EnrichedDropItem[] = useMemo(() => {
@@ -386,6 +390,33 @@ export const WealthAnalyticsView: React.FC<WealthAnalyticsViewProps> = ({
   const donutCircumference = 2 * Math.PI * donutRadius;
   const totalDonutVal = categoryBreakdown.reduce((s, c) => s + c.val, 0);
   let donutOffset = 0;
+
+  if (selectedGame === 'poe2') {
+    return (
+      <div className="w-full max-w-5xl mx-auto space-y-5 pb-16 font-sans text-slate-200">
+        <div className="p-6 sm:p-8 rounded-2xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950/30 via-slate-950 to-slate-900/90 space-y-4 shadow-xl">
+          <button
+            type="button"
+            onClick={onBackToAssetTracker}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Asset Tracker</span>
+          </button>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-mono font-bold uppercase block w-fit">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Path of Exile 2 Wealth Analytics • In Development</span>
+          </div>
+          <h1 className="text-2xl font-cinzel font-bold text-white">
+            PoE 2 Wealth &amp; Pace Analytics — Coming Soon
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+            Automated PoE 2 wealth timelines and category breakdowns are currently in development while Grinding Gear Games prepares the public Path of Exile 2 Stash Tab API.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-5 pb-16 font-sans text-slate-200">

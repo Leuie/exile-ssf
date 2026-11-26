@@ -187,10 +187,14 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   const supportsLiveHandles = typeof window !== 'undefined' && typeof (window as any).showOpenFilePicker === 'function';
   const [charLeagueFilter, setCharLeagueFilter] = useState<string>('ALL');
 
-  // Cloud Saved Map Sessions (with localStorage backup so sessions are never lost)
+  const sessionsLocalKey = game === 'poe2' ? 'exile_ssf_poe2_map_sessions_v1' : 'exile_ssf_map_sessions_v1';
+  const sessionsCloudKey = game === 'poe2' ? 'map_tracker_sessions_poe2' : 'map_tracker_sessions';
+
+  // Cloud Saved Map Sessions (strictly separated per game: PoE 1 vs PoE 2)
   const [savedSessions, setSavedSessions] = useState<SavedMapSession[]>(() => {
     try {
-      const raw = localStorage.getItem('exile_ssf_map_sessions_v1');
+      const initKey = selectedGame === 'poe2' ? 'exile_ssf_poe2_map_sessions_v1' : 'exile_ssf_map_sessions_v1';
+      const raw = localStorage.getItem(initKey);
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -257,11 +261,22 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     setGame(selectedGame);
   }, [selectedGame]);
 
+  // Reload per-game local saved sessions when switching PoE 1 <-> PoE 2 so PoE 1 sessions never leak into PoE 2
   useEffect(() => {
     try {
-      localStorage.setItem('exile_ssf_map_sessions_v1', JSON.stringify(savedSessions.slice(0, 40)));
+      const raw = localStorage.getItem(sessionsLocalKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setSavedSessions(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedSessions([]);
+    }
+  }, [sessionsLocalKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(sessionsLocalKey, JSON.stringify(savedSessions.slice(0, 40)));
     } catch {}
-  }, [savedSessions]);
+  }, [savedSessions, sessionsLocalKey]);
 
   useEffect(() => {
     try {
@@ -298,7 +313,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
   useEffect(() => {
     if (!userAccount?.displayName) return;
     let cancelled = false;
-    fetchUserToolState<SavedMapSession[]>(userAccount.displayName, 'map_tracker_sessions').then((data) => {
+    fetchUserToolState<SavedMapSession[]>(userAccount.displayName, sessionsCloudKey).then((data) => {
       if (!cancelled && Array.isArray(data)) {
         setSavedSessions((prev) => {
           const merged = new Map<string, SavedMapSession>();
@@ -314,7 +329,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [userAccount?.displayName]);
+  }, [userAccount?.displayName, sessionsCloudKey]);
 
   // Mapping Toolkit (Map Regex Builder & Session Scratchpad) synced to Exile Profile in D1
   const [toolkitProfile, setToolkitProfile] = useState<ExileProfile | null>(null);
@@ -763,7 +778,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     };
     const next = [entry, ...savedSessions].slice(0, 40);
     setSavedSessions(next);
-    const ok = await saveUserToolState(userAccount.displayName, 'map_tracker_sessions', next);
+    const ok = await saveUserToolState(userAccount.displayName, sessionsCloudKey, next);
     setSavingCloud(false);
     if (ok) {
       setCloudSynced(true);
@@ -777,7 +792,7 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     const next = savedSessions.filter((s) => s.id !== id);
     setSavedSessions(next);
     if (userAccount?.displayName) {
-      await saveUserToolState(userAccount.displayName, 'map_tracker_sessions', next);
+      await saveUserToolState(userAccount.displayName, sessionsCloudKey, next);
     }
   };
 

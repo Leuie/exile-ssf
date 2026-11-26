@@ -149,6 +149,18 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
 
   useEffect(() => {
     setGameMode(selectedGame);
+    if (selectedGame === 'poe2') {
+      setLoadedCharLabel(null);
+      setHitDamage(4500);
+      setHitType('phys_attack');
+      setHpPool(3500);
+      setArmour(12000);
+      setMaxEleRes(75);
+      setPhysTakenAsEle(0);
+      setEnduranceCharges(0);
+      setSuppressionCapped(false);
+      setHasFortify(false);
+    }
   }, [selectedGame]);
 
   const handleLoadLeagueCharacterStats = async () => {
@@ -198,8 +210,9 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
   const [suppressionCapped, setSuppressionCapped] = useState<boolean>(true);
   const [hasFortify, setHasFortify] = useState<boolean>(false);
 
-  // Auto load synced Character Paperdoll vitals if pushed from Exile Profile
+  // Auto load synced Character Paperdoll vitals if pushed from Exile Profile (PoE 1 only)
   useEffect(() => {
+    if (gameMode !== 'poe1') return;
     try {
       const raw = localStorage.getItem('exile_ssf_synced_gear_vitals_v1');
       if (!raw) return;
@@ -218,7 +231,7 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
         `Loaded base gear pool from ${synced.characterName || 'Character'} (Lv ${lvl} ${synced.className || ''}, ${estPool.toLocaleString()} base pool — adjust HP Pool for tree % Life/ES)`
       );
     } catch {}
-  }, []);
+  }, [gameMode]);
 
   const [loadingD1Armory, setLoadingD1Armory] = useState<boolean>(false);
 
@@ -266,12 +279,12 @@ export const DefenseMechanicsView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; us
     }
   };
 
-  // Auto-load synced Armory character on mount when signed in
+  // Auto-load synced Armory character on mount when signed in (PoE 1 only)
   useEffect(() => {
-    if (userAccount?.displayName) {
+    if (gameMode === 'poe1' && userAccount?.displayName) {
       handleLoadD1ArmoryVitals();
     }
-  }, [userAccount?.displayName]);
+  }, [userAccount?.displayName, gameMode]);
 
   const handleSwitchGame = (next: GameMode) => {
     setGameMode(next);

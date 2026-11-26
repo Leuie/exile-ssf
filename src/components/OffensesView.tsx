@@ -166,12 +166,12 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; userAccoun
     setLoadingArmory(false);
   };
 
-  // Auto-load synced Armory character on mount when signed in
+  // Auto-load synced Armory character on mount when signed in (PoE 1 only)
   useEffect(() => {
-    if (userAccount?.displayName) {
+    if (gameMode === 'poe1' && userAccount?.displayName) {
       handleLoadArmoryOffense();
     }
-  }, [userAccount?.displayName]);
+  }, [userAccount?.displayName, gameMode]);
 
   useEffect(() => {
     setGameMode(selectedGame);
@@ -231,8 +231,8 @@ export const OffensesView: React.FC<{ selectedGame?: 'poe1' | 'poe2'; userAccoun
 
   return (
     <article className="space-y-8 w-full pb-20 font-sans text-slate-200">
-      {/* Live Armory Offense Snapshot Bar (Unified poeCalcEngine) */}
-      {userAccount?.displayName && (
+      {/* Live Armory Offense Snapshot Bar (PoE 1 Unified poeCalcEngine) */}
+      {gameMode === 'poe1' && userAccount?.displayName && (
         <div className="rounded-2xl border border-indigo-500/35 bg-gradient-to-r from-indigo-950/35 via-slate-950/90 to-amber-950/20 p-4 space-y-3 shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
