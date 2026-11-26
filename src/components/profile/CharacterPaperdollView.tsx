@@ -957,13 +957,27 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
       if (!res.ok || json?.status !== 'ok') {
         throw new Error(json?.error || `HTTP ${res.status}`);
       }
+      const charKey = json.character?.name || targetName;
+      const existingKey = Object.keys(snapshots).find(
+        (k) => k.toLowerCase() === charKey.toLowerCase()
+      );
+      const prevSnap = existingKey ? snapshots[existingKey] : undefined;
+      const incomingPassives = json.passives || { allocatedCount: 0, jewelCount: 0, voidstoneCount: 0 };
+      const passiveFailed =
+        json.passiveSyncOk === false ||
+        (incomingPassives.allocatedCount === 0 && (json.character?.level || 1) >= 2);
+      const preservedPrevPassives =
+        passiveFailed && prevSnap && (prevSnap.passives?.allocatedCount || 0) > 0;
+
       const nextSnap: CharacterGearSnapshot = {
         syncedAtIso: json.syncedAtIso,
         character: json.character,
         equipped: json.equipped || [],
-        jewels: json.jewels || { cluster: [], base: [], abyss: [] },
+        jewels: preservedPrevPassives
+          ? prevSnap.jewels || json.jewels || { cluster: [], base: [], abyss: [] }
+          : json.jewels || { cluster: [], base: [], abyss: [] },
         gearStats: json.gearStats || undefined,
-        passives: json.passives || { allocatedCount: 0, jewelCount: 0, voidstoneCount: 0 },
+        passives: preservedPrevPassives ? prevSnap.passives : incomingPassives,
         estimatedVitals: json.estimatedVitals || {
           flatLife: 0,
           flatEs: 0,
@@ -974,7 +988,6 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           suppress: 0
         }
       };
-      const charKey = nextSnap.character.name || targetName;
       const updatedMap = { ...snapshots, [charKey]: nextSnap };
       setSnapshots(updatedMap);
       setSelectedChar(charKey);
@@ -992,7 +1005,17 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
           __lastSelectedChar: charKey
         });
       }
-      onNotify?.(`Synced ${charKey} gear & saved to your Exile Profile!`);
+      if (preservedPrevPassives) {
+        onNotify?.(
+          `Synced ${charKey} gear! GGG rate-limited passive tree (HTTP ${json.passiveFetchStatus || '429'}), so your previous ${prevSnap.passives.allocatedCount} passives were preserved. Refresh again in 15s to update passives.`
+        );
+      } else if (passiveFailed) {
+        onNotify?.(
+          `Synced ${charKey} gear, but GGG did not return passives (HTTP ${json.passiveFetchStatus || 'err'}). Wait 15s and click Refresh Gear again.`
+        );
+      } else {
+        onNotify?.(`Synced ${charKey} gear & ${nextSnap.passives.allocatedCount} passives!`);
+      }
     } catch (e: any) {
       setShowSyncDrawer(true);
       setErrorMsg(e?.message || 'Failed to sync character gear.');

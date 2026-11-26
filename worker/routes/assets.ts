@@ -219,13 +219,35 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         );
       }
 
-      // Also fetch passive tree & jewels in parallel (best effort)
+      // Also fetch passive tree & jewels (with retry on 429/5xx and # / - account fallback)
       let passiveData: any = null;
-      try {
-        const pEp = `https://www.pathofexile.com/character-window/get-passive-skills?accountName=${encodeURIComponent(matchedAccount)}&character=${encodeURIComponent(characterName)}&realm=${encodeURIComponent(realm)}`;
-        const pr = await fetch(pEp, { headers: gggHeaders });
-        if (pr.ok) passiveData = await pr.json().catch(() => null);
-      } catch {}
+      let passiveFetchStatus = 0;
+      const passiveAcctOrder = [
+        matchedAccount,
+        ...accountCandidates.filter((a) => a !== matchedAccount)
+      ];
+      for (const acct of passiveAcctOrder) {
+        const pEp = `https://www.pathofexile.com/character-window/get-passive-skills?accountName=${encodeURIComponent(acct)}&character=${encodeURIComponent(characterName)}&realm=${encodeURIComponent(realm)}`;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            if (attempt > 0) {
+              await new Promise((res) => setTimeout(res, 750));
+            }
+            const pr = await fetch(pEp, { headers: gggHeaders });
+            passiveFetchStatus = pr.status;
+            if (pr.ok) {
+              const parsed: any = await pr.json().catch(() => null);
+              if (parsed && !parsed.error && Array.isArray(parsed.hashes)) {
+                passiveData = parsed;
+                break;
+              }
+            }
+            if (pr.status !== 429 && pr.status < 500) break;
+          } catch {}
+        }
+        if (passiveData) break;
+      }
+      const passiveSyncOk = Boolean(passiveData && Array.isArray(passiveData.hashes));
 
       const cleanStr = (s: any) => String(s || '').replace(/<<[^>]+>>/g, '').trim();
       const extractModStrings = (arr: any): string[] => {
@@ -544,9 +566,13 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
         });
       }
 
-      const passiveHashes: number[] = Array.isArray(passiveData?.hashes)
+      const basePassiveHashes: number[] = Array.isArray(passiveData?.hashes)
         ? passiveData.hashes.map(Number).filter(Number.isFinite)
         : [];
+      const clusterPassiveHashes: number[] = Array.isArray(passiveData?.hashes_ex)
+        ? passiveData.hashes_ex.map(Number).filter(Number.isFinite)
+        : [];
+      const passiveHashes: number[] = Array.from(new Set([...basePassiveHashes, ...clusterPassiveHashes]));
       const masteryEffectsMap: Record<string, number> =
         passiveData?.mastery_effects && typeof passiveData.mastery_effects === 'object'
           ? passiveData.mastery_effects
@@ -738,6 +764,8 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       return new Response(
         JSON.stringify({
           status: 'ok',
+          passiveSyncOk,
+          passiveFetchStatus,
           syncedAtIso: now,
           character: {
             name: String(charInfo.name || characterName),
