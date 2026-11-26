@@ -861,8 +861,8 @@ interface NavGroup {
             </div>
           )}
 
-          {/* Active Synced Character Context Pill (Clicks straight to Character Armory) */}
-          {activeChar && !isCollapsed && (
+          {/* Active Synced Character Context Pill (PoE 1 synced character — hidden in PoE 2 mode) */}
+          {selectedGame === 'poe1' && activeChar && !isCollapsed && (
             <button
               type="button"
               onClick={() => setActiveTab('armory')}

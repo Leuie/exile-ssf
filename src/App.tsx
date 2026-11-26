@@ -918,6 +918,8 @@ export const App: React.FC = () => {
             onOpenProfile={handleOpenProfile}
             onOpenAuthModal={handleOpenAuth}
             onSyncArmoryUrl={handleSyncArmoryUrl}
+            onSwitchGame={handleSelectGame}
+            onNavigateTab={handleSelectTab}
           />
         )}
         {activeTab === 'cheat_sheets' && <CheatSheetsTab selectedGame={selectedGame} userAccount={userAccount} />}

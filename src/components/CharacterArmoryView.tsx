@@ -7,7 +7,10 @@ import {
   User,
   Sparkles,
   LogIn,
-  Flame
+  Flame,
+  ExternalLink,
+  ArrowRight,
+  Swords
 } from 'lucide-react';
 import type { UserAccount, CommunityGuide } from '../types';
 import {
@@ -26,6 +29,8 @@ export interface CharacterArmoryViewProps {
   onOpenProfile?: (handle: string) => void;
   onOpenAuthModal?: () => void;
   onSyncArmoryUrl?: (handle: string, charName?: string) => void;
+  onSwitchGame?: (game: 'poe1' | 'poe2') => void;
+  onNavigateTab?: (tabId: string) => void;
 }
 
 export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
@@ -35,7 +40,9 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
   selectedGame = 'poe1',
   onOpenProfile,
   onOpenAuthModal,
-  onSyncArmoryUrl
+  onSyncArmoryUrl,
+  onSwitchGame,
+  onNavigateTab
 }) => {
   const defaultHandle = (initialHandle || userAccount?.displayName || '').replace(/^@/, '').trim();
   const [activeHandle, setActiveHandle] = useState<string>(defaultHandle);
@@ -291,7 +298,7 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
 
             {activeHandle && (
               <>
-                {isOwnAccount && (
+                {selectedGame === 'poe1' && isOwnAccount && (
                   <button
                     type="button"
                     disabled={publishingBuild}
@@ -336,8 +343,119 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
         </div>
       )}
 
-      {/* Main Character Paperdoll & Passive Tree Engine */}
-      {activeHandle ? (
+      {/* Main Character Paperdoll & Passive Tree Engine (PoE 1 vs PoE 2 Isolated) */}
+      {selectedGame === 'poe2' ? (
+        <div className="space-y-4">
+          <div className="p-6 sm:p-8 rounded-2xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950/30 via-slate-950 to-slate-900/90 space-y-5 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-mono font-bold uppercase">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Path of Exile 2 Armory</span>
+                </div>
+                <h2 className="text-xl font-cinzel font-bold text-white">
+                  PoE 1 &amp; PoE 2 Characters Are Separated
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                  Your Path of Exile 1 characters are kept strictly in <strong>PoE 1</strong> mode so they never mix into PoE 2. Live GGG gear &amp; passive tree auto-sync currently serves Path of Exile 1 only—once GGG opens the public PoE 2 character API, PoE 2 paperdoll sync will activate automatically here.
+                </p>
+              </div>
+              {onSwitchGame && (
+                <button
+                  type="button"
+                  onClick={() => onSwitchGame('poe1')}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-bold flex items-center gap-2 shrink-0 cursor-pointer transition-colors"
+                >
+                  <Swords className="w-4 h-4" />
+                  <span>Switch to PoE 1 Armory</span>
+                </button>
+              )}
+            </div>
+
+            {/* PoE 2 Roster Characters (if any) */}
+            {(() => {
+              const poe2Roster = rosterCharacters.filter((c) => c.gameTag === 'PoE 2');
+              if (poe2Roster.length === 0) return null;
+              return (
+                <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                  <div className="text-xs font-mono uppercase tracking-wider text-cyan-300 font-bold">
+                    @{activeHandle} PoE 2 League Roster Characters ({poe2Roster.length})
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {poe2Roster.map((ch) => (
+                      <div
+                        key={ch.characterName}
+                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/80 space-y-1"
+                      >
+                        <div className="font-bold text-sm text-white">{ch.characterName}</div>
+                        <div className="text-xs font-mono text-cyan-300">
+                          Lv {ch.level} {ch.ascendancy}
+                        </div>
+                        {ch.buildName && (
+                          <div className="text-[11px] text-slate-400">{ch.buildName}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Useful PoE 2 Character Tools */}
+            <div className="pt-3 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {onNavigateTab && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('defenses')}
+                    className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/75 hover:border-cyan-500/50 text-left space-y-1 cursor-pointer transition-colors"
+                  >
+                    <div className="text-xs font-bold text-cyan-200 flex items-center justify-between">
+                      <span>PoE 2 Defenses Calc</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-[11px] text-slate-400">10x Armour curve, ES &amp; Waystone checklist</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('offenses')}
+                    className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/75 hover:border-cyan-500/50 text-left space-y-1 cursor-pointer transition-colors"
+                  >
+                    <div className="text-xs font-bold text-rose-200 flex items-center justify-between">
+                      <span>PoE 2 Offenses Calc</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-[11px] text-slate-400">Penetration floor, Ignite/Shock/Freeze math</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('builds')}
+                    className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/75 hover:border-cyan-500/50 text-left space-y-1 cursor-pointer transition-colors"
+                  >
+                    <div className="text-xs font-bold text-emerald-200 flex items-center justify-between">
+                      <span>PoE 2 Builds Hub</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-[11px] text-slate-400">0.5 starter builds &amp; PoB analyzer</p>
+                  </button>
+                </>
+              )}
+              <a
+                href="https://poe2.ninja/builds"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/75 hover:border-cyan-500/50 text-left space-y-1 transition-colors"
+              >
+                <div className="text-xs font-bold text-amber-200 flex items-center justify-between">
+                  <span>PoE 2 Ninja Ladder</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </div>
+                <p className="text-[11px] text-slate-400">Inspect top PoE 2 builds &amp; Ascendancies</p>
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : activeHandle ? (
         <div className="space-y-3">
           {loadingProfile && !profileData && (
             <div className="px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400">
