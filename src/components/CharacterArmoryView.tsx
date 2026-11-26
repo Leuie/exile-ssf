@@ -351,13 +351,13 @@ export const CharacterArmoryView: React.FC<CharacterArmoryViewProps> = ({
               <div className="space-y-1.5">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-mono font-bold uppercase">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Path of Exile 2 Armory</span>
+                  <span>Path of Exile 2 Armory • In Development</span>
                 </div>
                 <h2 className="text-xl font-cinzel font-bold text-white">
-                  PoE 1 &amp; PoE 2 Characters Are Separated
+                  PoE 2 Character Armory — Coming Soon
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                  Your Path of Exile 1 characters are kept strictly in <strong>PoE 1</strong> mode so they never mix into PoE 2. Live GGG gear &amp; passive tree auto-sync currently serves Path of Exile 1 only—once GGG opens the public PoE 2 character API, PoE 2 paperdoll sync will activate automatically here.
+                  Live character sync for Path of Exile 2 is currently in development. Grinding Gear Games has not yet opened the public PoE 2 character and passive tree API, so automatic gear and skill tree imports are unavailable for now. As soon as GGG releases the PoE 2 character API, full Armory support will go live here.
                 </p>
               </div>
               {onSwitchGame && (
