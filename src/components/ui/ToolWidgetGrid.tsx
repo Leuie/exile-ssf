@@ -3,6 +3,8 @@ import {
   GripVertical,
   ChevronDown,
   ChevronUp,
+  ArrowUp,
+  ArrowDown,
   LayoutGrid,
   RotateCcw,
   Maximize2
@@ -171,6 +173,18 @@ export const ToolWidgetGrid: React.FC<ToolWidgetGridProps> = ({
     });
   };
 
+  const moveWidget = (id: string, delta: -1 | 1) => {
+    setLayout((prev) => {
+      const idx = prev.order.indexOf(id);
+      const nextIdx = idx + delta;
+      if (idx === -1 || nextIdx < 0 || nextIdx >= prev.order.length) return prev;
+      const nextOrder = [...prev.order];
+      const [moved] = nextOrder.splice(idx, 1);
+      nextOrder.splice(nextIdx, 0, moved);
+      return { ...prev, order: nextOrder };
+    });
+  };
+
   const handleDropOn = (targetId: string) => {
     if (!draggedId || draggedId === targetId) {
       setDraggedId(null);
@@ -265,7 +279,7 @@ export const ToolWidgetGrid: React.FC<ToolWidgetGridProps> = ({
 
       {/* 12-Column Draggable, Resizable, Collapsible Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {orderedWidgets.map((w) => {
+        {orderedWidgets.map((w, idx) => {
           const span = layout.spans[w.id] || w.defaultSpan;
           const isCollapsed = Boolean(layout.collapsed[w.id]);
           const isOver = dragOverId === w.id && draggedId !== w.id;
@@ -314,22 +328,45 @@ export const ToolWidgetGrid: React.FC<ToolWidgetGridProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex lg:hidden items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => moveWidget(w.id, -1)}
+                      className="p-1.5 rounded-md bg-slate-900 hover:bg-slate-800 disabled:opacity-35 border border-slate-700/80 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
+                      aria-label={`Move ${w.title} up`}
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === orderedWidgets.length - 1}
+                      onClick={() => moveWidget(w.id, 1)}
+                      className="p-1.5 rounded-md bg-slate-900 hover:bg-slate-800 disabled:opacity-35 border border-slate-700/80 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
+                      aria-label={`Move ${w.title} down`}
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => cycleSpan(w.id)}
-                    className="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-mono text-indigo-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                    className="hidden lg:flex px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-mono text-indigo-300 hover:text-white items-center gap-1 cursor-pointer"
                     title="Cycle widget width (1/4, 1/3, 1/2, 2/3, Full)"
+                    aria-label={`Resize ${w.title} widget width`}
                   >
-                    <Maximize2 className="w-2.5 h-2.5" />
+                    <Maximize2 className="w-2.5 h-2.5" aria-hidden="true" />
                     <span>{SPAN_LABEL[span]}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleCollapse(w.id)}
-                    className="p-1 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white cursor-pointer"
+                    className="p-1.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
                     title={isCollapsed ? 'Expand section' : 'Collapse section'}
+                    aria-label={isCollapsed ? `Expand ${w.title}` : `Collapse ${w.title}`}
+                    aria-expanded={!isCollapsed}
                   >
-                    {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                    {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />}
                   </button>
                 </div>
               </div>

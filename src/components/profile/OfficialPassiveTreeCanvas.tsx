@@ -152,13 +152,16 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
   // Camera transform: world (x, y) -> screen (x * zoom + panX, y * zoom + panY)
   const [zoom, setZoom] = useState<number>(0.24);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragRef = useRef<{ active: boolean; startX: number; startY: number; origPanX: number; origPanY: number }>({
+  const dragRef = useRef<{ active: boolean; moved: boolean; startX: number; startY: number; origPanX: number; origPanY: number }>({
     active: false,
+    moved: false,
     startX: 0,
     startY: 0,
     origPanX: 0,
     origPanY: 0
   });
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
   const initializedCameraRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -877,33 +880,15 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
     setZoom(nextZoom);
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    dragRef.current = {
-      active: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      origPanX: pan.x,
-      origPanY: pan.y
-    };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (dragRef.current.active) {
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
-      setPan({ x: dragRef.current.origPanX + dx, y: dragRef.current.origPanY + dy });
-      setHoveredNode(null);
-      return;
-    }
-
-    if (!parsedGraph) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
+  const findNodeAtClientPoint = (clientX: number, clientY: number, isTouch: boolean) => {
+    if (!parsedGraph || !canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
     const wx = (sx - pan.x) / zoom;
     const wy = (sy - pan.y) / zoom;
 
-    const hitRadius = Math.max(12, 16 / zoom);
+    const hitRadius = Math.max(isTouch ? 20 : 12, (isTouch ? 26 : 16) / zoom);
     const hitSq = hitRadius * hitRadius;
     let best: ParsedNode | null = null;
     let bestDist = hitSq;
@@ -917,21 +902,118 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
         best = nd;
       }
     }
+    return best ? { node: best, sx, sy } : null;
+  };
 
-    if (best) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+      const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      pinchRef.current = { dist, zoom, panX: pan.x, panY: pan.y, midX, midY };
+      dragRef.current.active = false;
+      setHoveredNode(null);
+      return;
+    }
+
+    dragRef.current = {
+      active: true,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      origPanX: pan.x,
+      origPanY: pan.y
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const pts = Array.from(pointersRef.current.values());
+      const rect = e.currentTarget.getBoundingClientRect();
+      const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+      const newMidX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const newMidY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      const scale = newDist / pinchRef.current.dist;
+      const nextZoom = Math.min(3.2, Math.max(0.1, pinchRef.current.zoom * scale));
+      const ratio = nextZoom / pinchRef.current.zoom;
+      setPan({
+        x: newMidX - (pinchRef.current.midX - pinchRef.current.panX) * ratio,
+        y: newMidY - (pinchRef.current.midY - pinchRef.current.panY) * ratio
+      });
+      setZoom(nextZoom);
+      setHoveredNode(null);
+      return;
+    }
+
+    if (dragRef.current.active) {
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      const moveThresh = e.pointerType === 'touch' ? 7 : 4;
+      if (Math.abs(dx) > moveThresh || Math.abs(dy) > moveThresh) {
+        dragRef.current.moved = true;
+      }
+      if (dragRef.current.moved) {
+        setPan({ x: dragRef.current.origPanX + dx, y: dragRef.current.origPanY + dy });
+        setHoveredNode(null);
+      }
+      return;
+    }
+
+    if (e.pointerType !== 'mouse') return;
+    const hit = findNodeAtClientPoint(e.clientX, e.clientY, false);
+    if (hit) {
       setHoveredNode({
-        node: best,
-        allocated: allocatedSet.has(best.id),
-        screenX: sx,
-        screenY: sy
+        node: hit.node,
+        allocated: allocatedSet.has(hit.node.id),
+        screenX: hit.sx,
+        screenY: hit.sy
       });
     } else {
       setHoveredNode(null);
     }
   };
 
-  const handleMouseUpOrLeave = () => {
-    dragRef.current.active = false;
+  const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const wasTap = dragRef.current.active && !dragRef.current.moved && pointersRef.current.size === 1;
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
+    if (pointersRef.current.size === 0) {
+      dragRef.current.active = false;
+    }
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (wasTap && e.pointerType !== 'mouse') {
+      const hit = findNodeAtClientPoint(e.clientX, e.clientY, true);
+      if (hit) {
+        setHoveredNode((prev) =>
+          prev?.node.id === hit.node.id
+            ? null
+            : {
+                node: hit.node,
+                allocated: allocatedSet.has(hit.node.id),
+                screenX: hit.sx,
+                screenY: hit.sy
+              }
+        );
+      } else {
+        setHoveredNode(null);
+      }
+    }
   };
 
   const zoomBy = (factor: number) => {
@@ -974,43 +1056,48 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
           <button
             type="button"
             onClick={() => zoomBy(1.3)}
-            className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
             title="Zoom In"
+            aria-label="Zoom in passive tree"
           >
-            <ZoomIn className="w-3.5 h-3.5" />
+            <ZoomIn className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={() => zoomBy(0.76)}
-            className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
             title="Zoom Out"
+            aria-label="Zoom out passive tree"
           >
-            <ZoomOut className="w-3.5 h-3.5" />
+            <ZoomOut className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={focusAllocated}
-            className="p-1 rounded hover:bg-slate-800 text-amber-300 hover:text-amber-200 cursor-pointer"
+            className="p-1.5 rounded hover:bg-slate-800 text-amber-300 hover:text-amber-200 cursor-pointer flex items-center justify-center"
             title="Focus Allocated Passives"
+            aria-label="Focus allocated passives"
           >
-            <Crosshair className="w-3.5 h-3.5" />
+            <Crosshair className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={resetFullTree}
-            className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+            className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer flex items-center justify-center"
             title="Reset Full Tree View"
+            aria-label="Reset full tree view"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           {onToggleMaximize && (
             <button
               type="button"
               onClick={onToggleMaximize}
-              className="p-1 rounded hover:bg-slate-800 text-amber-300 hover:text-amber-200 cursor-pointer border-l border-slate-800 pl-1.5 ml-0.5"
+              className="p-1.5 rounded hover:bg-slate-800 text-amber-300 hover:text-amber-200 cursor-pointer border-l border-slate-800 pl-2 ml-0.5 flex items-center justify-center"
               title={isMaximized ? 'Exit Fullscreen' : 'Maximize Passive Tree'}
+              aria-label={isMaximized ? 'Exit fullscreen passive tree' : 'Maximize passive tree'}
             >
-              {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {isMaximized ? <Minimize2 className="w-3.5 h-3.5" aria-hidden="true" /> : <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />}
             </button>
           )}
         </div>
@@ -1026,14 +1113,16 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
       <canvas
         ref={canvasRef}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={() => {
-          handleMouseUpOrLeave();
-          setHoveredNode(null);
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUpOrCancel}
+        onPointerCancel={handlePointerUpOrCancel}
+        onPointerLeave={(e) => {
+          if (e.pointerType === 'mouse' && pointersRef.current.size === 0) {
+            setHoveredNode(null);
+          }
         }}
-        className="w-full h-full block cursor-grab active:cursor-grabbing"
+        className="w-full h-full block cursor-grab active:cursor-grabbing touch-none"
       />
 
       {hoveredNode && (
@@ -1093,7 +1182,7 @@ export const OfficialPassiveTreeCanvas: React.FC<OfficialPassiveTreeCanvasProps>
             </>
           )}
           <span className="hidden sm:inline">•</span>
-          <span className="hidden sm:inline">Scroll to Zoom • Drag to Pan</span>
+          <span className="hidden sm:inline">Pinch or Scroll to Zoom • Drag to Pan • Tap Node to Inspect</span>
         </div>
       </div>
     </div>

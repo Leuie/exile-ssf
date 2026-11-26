@@ -596,9 +596,10 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
     }
   });
   const [userManuallyPickedChar, setUserManuallyPickedChar] = useState<boolean>(Boolean(initialCharacterName));
-  const [isCompactMobile, setIsCompactMobile] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 768 : false
-  );
+  const [isCompactMobile, setIsCompactMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 1024 || window.matchMedia?.('(pointer: coarse)').matches;
+  });
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1);
 
   useEffect(() => {
@@ -615,7 +616,10 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
   }, [selectedChar, onActiveCharacterChange]);
 
   useEffect(() => {
-    const onResize = () => setIsCompactMobile(window.innerWidth < 768);
+    const onResize = () =>
+      setIsCompactMobile(
+        window.innerWidth < 1024 || Boolean(window.matchMedia?.('(pointer: coarse)').matches)
+      );
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -1163,7 +1167,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                 }).catch(() => {});
               }
             }}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-[220px] max-w-xs"
+            className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-400 min-w-0 sm:min-w-[220px] max-w-full sm:max-w-xs"
           >
             {groupedCharacters.length === 0 ? (
               <option value="">No characters synced yet</option>
@@ -1790,15 +1794,18 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
             );
           })()}
 
-          {/* Mobile / Tablet Bottom Sheet Drawer (Auto Touch Mode on < 768px) */}
+          {/* Mobile / Tablet Bottom Sheet Drawer (Auto Touch Mode on < 1024px or coarse pointer) */}
           {isCompactMobile && inspectMode === 'popup' && lockedItem && (
             <>
               <div
-                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[1px]"
+                className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[1px]"
                 onClick={() => setLockedItem(null)}
               />
               <div
-                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82vh] overflow-y-auto p-4 pb-6 rounded-t-2xl border-t-2 bg-slate-950/98 shadow-[0_-20px_60px_rgba(0,0,0,0.95)] ${getRarityBorderAccent(
+                role="dialog"
+                aria-modal="true"
+                aria-label={lockedItem.name || lockedItem.baseType}
+                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto overscroll-contain p-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] rounded-t-2xl border-t-2 bg-slate-950/98 shadow-[0_-20px_60px_rgba(0,0,0,0.95)] ${getRarityBorderAccent(
                   lockedItem.frameType
                 )}`}
               >

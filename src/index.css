@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --target-size: 24px;
   --color-background: #090d16;
   --color-surface: #0f172a;
   --color-surface-light: #1e293b;
@@ -39,10 +40,78 @@
 }
 
 @layer base {
+  html {
+    scroll-padding-top: calc(3.75rem + env(safe-area-inset-top, 0px));
+    scroll-padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply antialiased overflow-x-hidden;
+    @apply antialiased;
     background-color: var(--color-background);
     color: var(--color-text-primary);
+    overflow-wrap: break-word;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  img,
+  video {
+    max-inline-size: 100%;
+    block-size: auto;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  :where(a, code) {
+    overflow-wrap: anywhere;
+  }
+
+  /* Touch-friendly target sizing (WCAG 2.5.8 / 2.5.5) & zero 300ms tap delay */
+  @media (pointer: coarse) {
+    :root {
+      --target-size: 44px;
+    }
+
+    input:not([type="checkbox"], [type="radio"], [type="range"]),
+    select,
+    textarea {
+      font-size: max(16px, 1em);
+    }
+  }
+
+  :where(
+    button,
+    select,
+    textarea,
+    input:not([type="checkbox"], [type="radio"], [type="range"]),
+    [role="button"],
+    nav a,
+    label:has(input[type="checkbox"], input[type="radio"])
+  ) {
+    touch-action: manipulation;
+  }
+
+  @media (pointer: coarse) {
+    :where(
+      button,
+      select,
+      [role="button"],
+      nav a,
+      label:has(input[type="checkbox"], input[type="radio"])
+    ) {
+      min-block-size: var(--target-size);
+      min-inline-size: var(--target-size);
+    }
   }
 }
 

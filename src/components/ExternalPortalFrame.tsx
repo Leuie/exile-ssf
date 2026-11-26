@@ -108,7 +108,7 @@ export const ExternalPortalFrame: React.FC<ExternalPortalFrameProps> = ({
   };
 
   return (
-    <div className="space-y-3 w-full pb-6 flex flex-col h-[calc(100vh-2rem)] font-sans text-slate-200">
+    <div className="space-y-3 w-full pb-6 flex flex-col h-[calc(100dvh-6.5rem)] lg:h-[calc(100dvh-2rem)] font-sans text-slate-200">
       {/* Control Header */}
       <div className="bg-gradient-to-r from-[#0e1320] via-indigo-950/30 to-[#0e1320] border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3 flex-shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">

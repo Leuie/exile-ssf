@@ -885,7 +885,10 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     ctx.restore();
   }, [parsedGraph, allocatedSet, allocatableSet, hoverPreview, zoom, pan, matchingIds, isMaximized, spriteTick]);
 
-  const findHitNode = (clientX: number, clientY: number) => {
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
+
+  const findHitNode = (clientX: number, clientY: number, isTouch: boolean = false) => {
     if (!parsedGraph || !canvasRef.current) return null;
     const rect = canvasRef.current.getBoundingClientRect();
     const sx = clientX - rect.left;
@@ -893,7 +896,7 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     const wx = (sx - pan.x) / zoom;
     const wy = (sy - pan.y) / zoom;
 
-    const hitRadius = Math.max(13, 18 / zoom);
+    const hitRadius = Math.max(isTouch ? 20 : 13, (isTouch ? 26 : 18) / zoom);
     const hitSq = hitRadius * hitRadius;
     let best: ParsedAtlasNode | null = null;
     let bestDist = hitSq;
@@ -923,7 +926,24 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     setZoom(nextZoom);
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+      const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      pinchRef.current = { dist, zoom, panX: pan.x, panY: pan.y, midX, midY };
+      dragRef.current.active = false;
+      setHoveredNode(null);
+      return;
+    }
+
     dragRef.current = {
       active: true,
       moved: false,
@@ -934,16 +954,42 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (dragRef.current.active) {
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragRef.current.moved = true;
-      setPan({ x: dragRef.current.origPanX + dx, y: dragRef.current.origPanY + dy });
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const pts = Array.from(pointersRef.current.values());
+      const rect = e.currentTarget.getBoundingClientRect();
+      const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+      const newMidX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const newMidY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      const scale = newDist / pinchRef.current.dist;
+      const nextZoom = Math.min(3.2, Math.max(0.08, pinchRef.current.zoom * scale));
+      const ratio = nextZoom / pinchRef.current.zoom;
+      setPan({
+        x: newMidX - (pinchRef.current.midX - pinchRef.current.panX) * ratio,
+        y: newMidY - (pinchRef.current.midY - pinchRef.current.panY) * ratio
+      });
+      setZoom(nextZoom);
       setHoveredNode(null);
       return;
     }
-    const hit = findHitNode(e.clientX, e.clientY);
+
+    if (dragRef.current.active) {
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      const moveThresh = e.pointerType === 'touch' ? 7 : 4;
+      if (Math.abs(dx) > moveThresh || Math.abs(dy) > moveThresh) dragRef.current.moved = true;
+      if (dragRef.current.moved) {
+        setPan({ x: dragRef.current.origPanX + dx, y: dragRef.current.origPanY + dy });
+        setHoveredNode(null);
+      }
+      return;
+    }
+    if (e.pointerType !== 'mouse') return;
+    const hit = findHitNode(e.clientX, e.clientY, false);
     if (hit) {
       setHoveredNode({
         node: hit.node,
@@ -956,22 +1002,27 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const wasClick = dragRef.current.active && !dragRef.current.moved;
-    dragRef.current.active = false;
+  const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const wasClick = dragRef.current.active && !dragRef.current.moved && pointersRef.current.size === 1;
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 0) dragRef.current.active = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
     if (!wasClick || !parsedGraph) return;
-    const hit = findHitNode(e.clientX, e.clientY);
+    const hit = findHitNode(e.clientX, e.clientY, e.pointerType !== 'mouse');
     if (!hit) return;
 
     const targetId = hit.node.id;
     setAllocatedIds((prev) => {
-      // 1-Click Branch Unallocate: refund target node + any orphaned nodes behind it
+      // Branch Unallocate: refund target node + any orphaned nodes behind it
       if (prev.includes(targetId)) {
         const toRemove = new Set(computeBranchRefund(targetId, prev));
         return prev.filter((id) => !toRemove.has(id));
       }
 
-      // 1-Click Shortest-Path Auto-Allocate from Start or nearest allocated node
+      // Shortest-Path Auto-Allocate from Start or nearest allocated node
       const pathIds = computeShortestPath(targetId, prev);
       if (pathIds.length === 0) return prev;
       if (prev.length + pathIds.length > MAX_ATLAS_POINTS) return prev;
@@ -1173,14 +1224,17 @@ export const AtlasSkillTreePlanner: React.FC<AtlasSkillTreePlannerProps> = ({
       <canvas
         ref={canvasRef}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          dragRef.current.active = false;
-          setHoveredNode(null);
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUpOrCancel}
+        onPointerCancel={handlePointerUpOrCancel}
+        onPointerLeave={(e) => {
+          if (e.pointerType === 'mouse' && pointersRef.current.size === 0) {
+            dragRef.current.active = false;
+            setHoveredNode(null);
+          }
         }}
-        className="w-full h-full block cursor-crosshair"
+        className="w-full h-full block cursor-crosshair touch-none"
       />
 
       {/* Authentic PoE-Style Floating "SHOW STATS" Drawer on Right Edge of Canvas */}

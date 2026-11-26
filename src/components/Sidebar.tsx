@@ -306,182 +306,235 @@ interface NavGroup {
     setIsMobileOpen(false);
   };
 
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileOpen(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isMobileOpen]);
+
   return (
     <>
-      {/* Mobile Top Navbar with Hamburger */}
-      <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#0c1017] border-b border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md">
-        <div 
+      {/* Mobile & Tablet Top Navbar with Safe-Area Padding */}
+      <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between gap-2 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] bg-white/95 dark:bg-[#0c1017]/95 border-b border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md">
+        <button
+          type="button"
           onClick={() => setActiveTab('home')}
-          className="flex items-center gap-2.5 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer min-w-0 text-left"
+          aria-label="Go to Exile SSF Home"
         >
-          <img 
-            src="/logo.png" 
-            alt="Exile SSF Logo" 
-            className="w-8 h-8 object-contain rounded-lg shadow-sm border border-indigo-500/40" 
+          <img
+            src="/logo.png"
+            alt="Exile SSF Logo"
+            className="w-8 h-8 object-contain rounded-lg shadow-sm border border-indigo-500/40 shrink-0"
           />
-          <span className="font-poppins font-bold text-base zorbble-wordmark-gradient tracking-wide">
+          <span className="font-poppins font-bold text-sm sm:text-base zorbble-wordmark-gradient tracking-wide truncate">
             EXILE SSF
           </span>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Mobile Current League Badge */}
           <a
             href={currentLeague.url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${currentLeague.mobilePillBg} text-[11px] font-bold shadow-sm transition-colors`}
-            title={`Current League: ${currentLeague.version} ${currentLeague.name} (Click to view season page)`}
+            className={`hidden xs:inline-flex sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${currentLeague.mobilePillBg} text-[11px] font-bold shadow-sm transition-colors`}
+            title={`Current League: ${currentLeague.version} ${currentLeague.name}`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
             <span>{currentLeague.version}</span>
-            <ExternalLink className={`w-3 h-3 ${currentLeague.iconColor}`} />
+            <ExternalLink className={`w-3 h-3 ${currentLeague.iconColor}`} aria-hidden="true" />
           </a>
 
           {/* Mobile Game Switcher */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
             <button
+              type="button"
               onClick={() => handleGameSwitch('poe1')}
-              className={`px-2.5 py-0.5 rounded-lg transition-all ${selectedGame === 'poe1' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400'}`}
+              className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${selectedGame === 'poe1' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400'}`}
             >
               PoE 1
             </button>
             <button
+              type="button"
               onClick={() => handleGameSwitch('poe2')}
-              className={`px-2.5 py-0.5 rounded-lg transition-all ${selectedGame === 'poe2' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400'}`}
+              className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${selectedGame === 'poe2' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400'}`}
             >
               PoE 2
             </button>
           </div>
 
           <button
-            onClick={() => setActiveTab('about')}
-            className={`p-1.5 rounded-xl border transition-colors ${activeTab === 'about' ? 'bg-rose-500/20 border-rose-500/50 text-rose-500' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'}`}
-            title="About Leuie"
-          >
-            <Heart className="w-4 h-4 fill-rose-500/30 text-rose-500" />
-          </button>
-
-          <button
+            type="button"
             onClick={openSearch}
-            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+            aria-label="Open Quick Finder search"
           >
-            <Search className="w-4 h-4 text-indigo-400" />
+            <Search className="w-4 h-4 text-indigo-400" aria-hidden="true" />
           </button>
 
-          
-
           <button
+            type="button"
             onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+            aria-label={isMobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isMobileOpen}
           >
-            {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Mobile Drawer Overlay */}
       {isMobileOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-md"
           onClick={() => setIsMobileOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation Menu"
         >
-          <div 
-            className="w-72 max-w-[80vw] h-full bg-white dark:bg-[#0c1017] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shadow-2xl"
+          <div
+            className="w-80 max-w-[86vw] h-[100dvh] bg-white dark:bg-[#0c1017] border-r border-slate-200 dark:border-slate-800 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] flex flex-col gap-3 shadow-2xl overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <img 
-                    src="/logo.png" 
-                    alt="Exile SSF Logo" 
-                    className="w-8 h-8 object-contain rounded-lg shadow-sm border border-indigo-500/40" 
-                  />
-                  <span className="font-poppins font-bold text-sm zorbble-wordmark-gradient">
-                    EXILE SSF
-                  </span>
-                </div>
-                <button onClick={() => setIsMobileOpen(false)}>
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/logo.png"
+                  alt="Exile SSF Logo"
+                  className="w-8 h-8 object-contain rounded-lg shadow-sm border border-indigo-500/40"
+                />
+                <span className="font-poppins font-bold text-sm zorbble-wordmark-gradient">
+                  EXILE SSF
+                </span>
               </div>
-
-              {/* Mobile Game Switcher */}
-              <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
-                <button
-                  onClick={() => handleGameSwitch('poe1')}
-                  className={`py-1.5 rounded-lg transition-colors ${selectedGame === 'poe1' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}
-                >
-                  Path of Exile 1
-                </button>
-                <button
-                  onClick={() => handleGameSwitch('poe2')}
-                  className={`py-1.5 rounded-lg transition-colors ${selectedGame === 'poe2' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-500'}`}
-                >
-                  Path of Exile 2
-                </button>
-              </div>
-
-              {/* Mobile Drawer Current League Link */}
-              <a
-                href={currentLeague.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center justify-between p-2.5 rounded-2xl ${currentLeague.badgeBg} border ${currentLeague.badgeBorder} text-xs shadow-sm transition-colors`}
-                title={`Current League: ${currentLeague.version} ${currentLeague.name} (Click to open season page)`}
+              <button
+                type="button"
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Close navigation menu"
               >
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <div>
-                    <div className="text-[9px] uppercase font-mono font-bold text-slate-400">Current League</div>
-                    <div className={`font-bold ${currentLeague.textMain}`}>{currentLeague.version} {currentLeague.name}</div>
-                  </div>
-                </div>
-                <ExternalLink className={`w-3.5 h-3.5 ${currentLeague.iconColor}`} />
-              </a>
-
-              <nav className="space-y-2.5 overflow-y-auto max-h-[55vh] pr-1">
-                {currentNavGroups.map((group, gIdx) => (
-                  <div key={gIdx} className="space-y-0.5">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold px-2 pt-1 pb-0.5">
-                      {group.title}
-                    </div>
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => handleNavClick(item.id)}
-                          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            isActive
-                              ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Icon className="w-4 h-4 text-indigo-400" />
-                            <span>{item.label}</span>
-                          </div>
-                          {item.badge && (
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                              item.badge === 'NEW'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {item.badge}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </nav>
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
             </div>
 
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+            {/* Mobile Game Switcher */}
+            <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => handleGameSwitch('poe1')}
+                className={`py-2 rounded-lg transition-colors cursor-pointer ${selectedGame === 'poe1' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}
+              >
+                Path of Exile 1
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGameSwitch('poe2')}
+                className={`py-2 rounded-lg transition-colors cursor-pointer ${selectedGame === 'poe2' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-500'}`}
+              >
+                Path of Exile 2
+              </button>
+            </div>
+
+            {/* Mobile Drawer Current League Link */}
+            <a
+              href={currentLeague.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center justify-between p-2.5 rounded-2xl ${currentLeague.badgeBg} border ${currentLeague.badgeBorder} text-xs shadow-sm transition-colors shrink-0`}
+              title={`Current League: ${currentLeague.version} ${currentLeague.name}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
+                <div>
+                  <div className="text-[9px] uppercase font-mono font-bold text-slate-400">Current League</div>
+                  <div className={`font-bold ${currentLeague.textMain}`}>{currentLeague.version} {currentLeague.name}</div>
+                </div>
+              </div>
+              <ExternalLink className={`w-3.5 h-3.5 ${currentLeague.iconColor}`} aria-hidden="true" />
+            </a>
+
+            <nav className="flex-1 min-h-0 space-y-2.5 overflow-y-auto overscroll-contain pr-1">
+              {currentNavGroups.map((group, gIdx) => (
+                <div key={gIdx} className="space-y-1">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold px-2 pt-1 pb-0.5">
+                    {group.title}
+                  </div>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => handleNavClick(item.id)}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 text-indigo-400 shrink-0" aria-hidden="true" />
+                          <span>{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                            item.badge === 'NEW'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2 shrink-0">
+              {/* Mobile Account / Profile Action */}
+              {userAccount ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenProfile?.(userAccount.displayName);
+                    setIsMobileOpen(false);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-indigo-500/15 border border-indigo-500/35 text-indigo-200 text-xs font-bold flex items-center justify-between cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                    <span className="truncate">@{userAccount.displayName}</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-indigo-300 uppercase">Profile</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenAuthModal?.();
+                    setIsMobileOpen(false);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4" aria-hidden="true" />
+                  <span>Sign In / Register</span>
+                </button>
+              )}
+
               {/* Mobile Dual Timezone Strip: GGG NZT & Local */}
               <div className="grid grid-cols-2 gap-1.5 p-2 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] font-mono">
                 <div className="flex flex-col">
@@ -496,18 +549,19 @@ interface NavGroup {
 
               <div className="flex items-center justify-between gap-2">
                 <button
+                  type="button"
                   onClick={() => handleNavClick('about')}
-                  className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" aria-hidden="true" />
                   <span>About</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleNavClick('privacy')}
-                  className="flex-1 py-2 px-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
                   <span>Privacy Policy</span>
                 </button>
               </div>
@@ -516,9 +570,47 @@ interface NavGroup {
         </div>
       )}
 
+      {/* Mobile & Tablet Thumb-Reachable Bottom Navigation Bar */}
+      <nav
+        aria-label="Primary Mobile Navigation"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0c1017]/95 border-t border-slate-800/90 backdrop-blur-md shadow-[0_-8px_24px_rgba(0,0,0,0.45)] pb-[max(0.4rem,env(safe-area-inset-bottom,0px))] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] pt-1.5"
+      >
+        <div className="grid grid-cols-5 gap-1 max-w-xl mx-auto">
+          {[
+            { id: 'home', label: 'Home', icon: HomeIcon },
+            { id: 'armory', label: 'Armory', icon: Swords },
+            { id: 'asset_tracker', label: 'Assets', icon: Package },
+            { id: 'map_tracker', label: 'Maps', icon: Compass },
+            { id: 'private_league_hub', label: 'League', icon: Users }
+          ].map((navItem) => {
+            const NavIcon = navItem.icon;
+            const isActive =
+              activeTab === navItem.id ||
+              (navItem.id === 'private_league_hub' &&
+                (activeTab === 'single_league' || activeTab === 'private_league'));
+            return (
+              <button
+                key={navItem.id}
+                type="button"
+                onClick={() => handleNavClick(navItem.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/35'
+                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                }`}
+              >
+                <NavIcon className={`w-4 h-4 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} aria-hidden="true" />
+                <span className="truncate leading-none">{navItem.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {/* Desktop Left Collapsible Sidebar */}
       <aside 
-        className={`hidden lg:flex flex-col justify-between sticky top-0 h-screen border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1017] transition-all duration-300 z-40 shadow-xl shrink-0 ${
+        className={`hidden lg:flex flex-col justify-between sticky top-0 h-[100dvh] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1017] transition-all duration-300 z-40 shadow-xl shrink-0 ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >

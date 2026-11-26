@@ -755,7 +755,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col lg:flex-row relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col lg:flex-row relative">
       
       {/* Left Collapsible Navigation Sidebar */}
       <Sidebar
@@ -883,8 +883,8 @@ export const App: React.FC = () => {
         )}
         <main className={`flex-1 min-w-0 transition-all duration-300 ease-in-out w-full ${
           activeTab === 'single_league' || activeTab === 'private_league' 
-            ? 'p-0 max-w-none' 
-            : 'p-3 sm:p-5 lg:p-6 max-w-[1700px] w-full mx-auto'
+            ? 'p-0 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0 max-w-none' 
+            : 'p-3 sm:p-5 lg:p-6 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:pb-6 max-w-[1700px] w-full mx-auto'
         }`}>
         <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
