@@ -96,7 +96,7 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
       });
     }
 
-    if (calc.suppression.chance > 0 && calc.suppression.chance < 100) {
+    if (!calc.traits.isAcrobatics && calc.suppression.chance > 0 && calc.suppression.chance < 100) {
       list.push({
         slot: 'Defenses',
         itemName: 'Spell Suppression',
@@ -144,8 +144,8 @@ export const BuildUpgradeAdvisor: React.FC<BuildUpgradeAdvisorProps> = ({ snapsh
           (item.craftedMods?.length || 0) +
           (item.fracturedMods?.length || 0);
 
-        if (calc.isCI) {
-          // Chaos Inoculation sets Life to 1 — NEVER suggest Life; audit Energy Shield on armour slots instead
+        if (calc.traits.usesEsAsPrimaryPool) {
+          // Chaos Inoculation / Low-Life ES — NEVER suggest Life; audit Energy Shield on armour slots instead
           const isArmourEsSlot = ['Helm', 'BodyArmour', 'Gloves', 'Boots', 'Offhand'].includes(slot);
           const itemEsProp = (item.properties || []).find((p) => /energy shield/i.test(p.name));
           const itemEsVal = itemEsProp ? parseInt(itemEsProp.value.replace(/[^0-9]/g, ''), 10) || 0 : 0;

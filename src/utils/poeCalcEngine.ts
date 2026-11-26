@@ -4,7 +4,7 @@
 // and Effective Hit Pool (EHP) with interactive PoB Configuration toggles.
 
 import type { CharacterGearSnapshot } from '../components/profile/CharacterPaperdollView';
-import { formatInGameRes, type FormattedResistance } from './resFormatter';
+import { formatInGameRes, type FormattedResistance } from './resFormatter.ts';
 
 export type EnemyPresetId = 'map_84' | 'pinnacle_84' | 'uber_85';
 export type BanditChoice = 'kill_all' | 'alira' | 'oak' | 'kraityn';
@@ -38,8 +38,30 @@ export interface DetectedMainSkill {
   suggestions: string[];
 }
 
+export interface BuildTraits {
+  isCI: boolean;
+  isLowLifeEs: boolean;
+  isResoluteTechnique: boolean;
+  isUnwaveringStance: boolean;
+  isIronReflexes: boolean;
+  isEldritchBattery: boolean;
+  isMindOverMatter: boolean;
+  isAcrobatics: boolean;
+  isGlancingBlows: boolean;
+  isBloodMagic: boolean;
+  isDivineFlesh: boolean;
+  isElementalOverload: boolean;
+  hasMageblood: boolean;
+  isSpellOrMinionOrDot: boolean;
+  isPurePhysOrChaos: boolean;
+  usesEsAsPrimaryPool: boolean;
+  esProtectsLife: boolean;
+  activeKeystoneNames: string[];
+}
+
 export interface PoeCalcBreakdown {
   isCI: boolean;
+  traits: BuildTraits;
   detectedAuras: string[];
   detectedGuard: string | null;
   detectedCurses: string[];
@@ -316,6 +338,9 @@ export function buildDefaultCalcConfig(snap: CharacterGearSnapshot): PoeCalcConf
 
   const clsLow = (snap.character.className || '').toLowerCase();
   const autoFortify = clsLow.includes('champion');
+  const hasMageblood = (snap.equipped || []).some((it) =>
+    /mageblood/i.test(`${it.name || ''} ${it.baseType || ''}`)
+  );
 
   return {
     resistancePenalty: lvl >= 68 ? -60 : lvl >= 45 ? -30 : 0,
@@ -329,7 +354,7 @@ export function buildDefaultCalcConfig(snap: CharacterGearSnapshot): PoeCalcConf
     fortified: autoFortify,
     fortifyStacks: 20,
     onslaught: false,
-    flasksActive: false,
+    flasksActive: hasMageblood,
     guardActive: false,
     enemyPreset: 'pinnacle_84',
     enabledAuras
@@ -383,22 +408,120 @@ export function saveGoalPob(characterName: string, pobInput: string): void {
   } catch {}
 }
 
-// Official GGG Passive Tree node ID for Chaos Inoculation across 3.25 - 3.30 (verified in PoB TreeData)
-export const CHAOS_INOCULATION_NODE_ID = 11455;
+// Official GGG Passive Tree Keystone Node IDs (verified directly against PoB Community TreeData 3.25-3.30)
+export const KEYSTONE_NODE_IDS = {
+  CHAOS_INOCULATION: 11455,
+  RESOLUTE_TECHNIQUE: 31961,
+  UNWAVERING_STANCE: 40907,
+  IRON_REFLEXES: 10661,
+  ELDRITCH_BATTERY: 56075,
+  MIND_OVER_MATTER: 34098,
+  ACROBATICS: 54307,
+  GLANCING_BLOWS: 39713,
+  BLOOD_MAGIC: 57279,
+  ELEMENTAL_OVERLOAD: 22088,
+  PAIN_ATTUNEMENT: 31703,
+  ZEALOTS_OATH: 63425,
+  GHOST_DANCE: 35255,
+  MAGEBANE: 56116,
+  ETERNAL_YOUTH: 21650,
+  WICKED_WARD: 23950
+} as const;
+
+export const CHAOS_INOCULATION_NODE_ID = KEYSTONE_NODE_IDS.CHAOS_INOCULATION;
+
+const SPELL_MINION_DOT_RE =
+  /righteous fire|fire trap|essence drain|bane|contagion|blight|vortex|cold snap|creeping frost|arc\b|spark|ball lightning|penance brand|storm brand|armageddon brand|wintertide brand|hexblast|detonate dead|volatile dead|cremation|blade vortex|bladefall|ethereal knives|exsang|reap|seismic trap|explosive trap|ice trap|pyroclast mine|icicle mine|raise zombie|raise spectre|summon raging spirit|summon skeleton|absolution|dominating blow|summon carrion|summon stone|summon flame|animate weapon|forbidden rite|soulrend|death's oath|caustic arrow|toxic rain|scorching ray|incinerate|freezing pulse|ice nova|frostbolt|glacial cascade|shock nova|purifying flame|wave of conviction|eye of winter|blazing salvo|fireball|rolling magma|holy flame totem|shockwave totem/i;
+
+export function detectBuildTraits(snap: CharacterGearSnapshot, mainSkillName = ''): BuildTraits {
+  const hashes = new Set(snap.passives?.allocatedHashes || []);
+  const ksNames = (snap.passives?.keystones || []).map((k) => k.name);
+  const allItemAndJewelText = [
+    ...(snap.equipped || []).flatMap((it) => [
+      it.name || '',
+      it.baseType || '',
+      ...(it.explicitMods || []),
+      ...(it.implicitMods || []),
+      ...(it.enchantMods || [])
+    ]),
+    ...(snap.jewels?.base || []).flatMap((j) => [...(j.explicitMods || []), ...(j.implicitMods || [])]),
+    ...(snap.jewels?.cluster || []).flatMap((j) => [...(j.explicitMods || []), ...(j.implicitMods || [])])
+  ].join('\n');
+
+  const hasKs = (id: number, nameRe: RegExp): boolean =>
+    hashes.has(id) || ksNames.some((n) => nameRe.test(n)) || nameRe.test(allItemAndJewelText);
+
+  const isCI = hasKs(KEYSTONE_NODE_IDS.CHAOS_INOCULATION, /chaos inoculation/i);
+  const isResoluteTechnique = hasKs(KEYSTONE_NODE_IDS.RESOLUTE_TECHNIQUE, /resolute technique/i);
+  const isUnwaveringStance = hasKs(KEYSTONE_NODE_IDS.UNWAVERING_STANCE, /unwavering stance/i);
+  const isIronReflexes = hasKs(KEYSTONE_NODE_IDS.IRON_REFLEXES, /iron reflexes/i);
+  const isEldritchBattery = hasKs(KEYSTONE_NODE_IDS.ELDRITCH_BATTERY, /eldritch battery/i);
+  const isMindOverMatter = hasKs(KEYSTONE_NODE_IDS.MIND_OVER_MATTER, /mind over matter/i);
+  const isAcrobatics = hasKs(KEYSTONE_NODE_IDS.ACROBATICS, /\bacrobatics\b/i);
+  const isGlancingBlows = hasKs(KEYSTONE_NODE_IDS.GLANCING_BLOWS, /glancing blows/i);
+  const isBloodMagic = hasKs(KEYSTONE_NODE_IDS.BLOOD_MAGIC, /blood magic/i);
+  const isElementalOverload = hasKs(KEYSTONE_NODE_IDS.ELEMENTAL_OVERLOAD, /elemental overload/i);
+  const isDivineFlesh = /divine flesh/i.test(allItemAndJewelText) || ksNames.some((n) => /divine flesh/i.test(n));
+
+  const isLowLifeEs =
+    !isCI &&
+    /shavronne's wrappings|the ivory tower|coruscating elixir/i.test(allItemAndJewelText);
+  const hasMageblood = /mageblood/i.test(allItemAndJewelText);
+
+  const allGemNames = (snap.equipped || [])
+    .flatMap((it) => it.socketedGems || [])
+    .map((g) => g.name || '')
+    .join(' ');
+  const isSpellOrMinionOrDot =
+    SPELL_MINION_DOT_RE.test(mainSkillName) ||
+    (!mainSkillName && SPELL_MINION_DOT_RE.test(allGemNames));
+  const isPurePhysOrChaos =
+    /brutality support|despair|essence drain|soulrend|bane|toxic rain|caustic arrow|poisonous concoction|viper strike/i.test(
+      `${mainSkillName} ${allGemNames}`
+    );
+
+  const activeKeystoneNames: string[] = [];
+  if (isCI) activeKeystoneNames.push('Chaos Inoculation');
+  if (isResoluteTechnique) activeKeystoneNames.push('Resolute Technique');
+  if (isUnwaveringStance) activeKeystoneNames.push('Unwavering Stance');
+  if (isIronReflexes) activeKeystoneNames.push('Iron Reflexes');
+  if (isEldritchBattery) activeKeystoneNames.push('Eldritch Battery');
+  if (isMindOverMatter) activeKeystoneNames.push('Mind Over Matter');
+  if (isAcrobatics) activeKeystoneNames.push('Acrobatics');
+  if (isGlancingBlows) activeKeystoneNames.push('Glancing Blows');
+  if (isBloodMagic) activeKeystoneNames.push('Blood Magic');
+  if (isDivineFlesh) activeKeystoneNames.push('Divine Flesh');
+  if (isElementalOverload) activeKeystoneNames.push('Elemental Overload');
+
+  return {
+    isCI,
+    isLowLifeEs,
+    isResoluteTechnique,
+    isUnwaveringStance,
+    isIronReflexes,
+    isEldritchBattery,
+    isMindOverMatter,
+    isAcrobatics,
+    isGlancingBlows,
+    isBloodMagic,
+    isDivineFlesh,
+    isElementalOverload,
+    hasMageblood,
+    isSpellOrMinionOrDot,
+    isPurePhysOrChaos,
+    usesEsAsPrimaryPool: isCI || isLowLifeEs,
+    esProtectsLife: !isEldritchBattery && !isDivineFlesh,
+    activeKeystoneNames
+  };
+}
 
 export function detectChaosInoculation(snap: CharacterGearSnapshot): boolean {
-  if ((snap.passives?.allocatedHashes || []).includes(CHAOS_INOCULATION_NODE_ID)) return true;
-  if (snap.passives?.keystones?.some((k) => /chaos inoculation/i.test(k.name))) return true;
-  for (const it of snap.equipped || []) {
-    const mods = [...(it.explicitMods || []), ...(it.implicitMods || []), ...(it.enchantMods || [])];
-    if (mods.some((m) => /chaos inoculation/i.test(m))) return true;
-  }
-  return false;
+  return detectBuildTraits(snap).isCI;
 }
 
 /**
  * Exact PoE 1 calculation engine combining synced gear, jewels, passive tree,
- * active auras, flasks, charges, guard skills, and enemy hit presets.
+ * active auras, flasks, charges, guard skills, Keystone rules, and enemy hit presets.
  */
 export function calculateCharacterStats(
   snap: CharacterGearSnapshot,
@@ -415,9 +538,10 @@ export function calculateCharacterStats(
   } = detectSnapshotAurasAndGuard(snap);
 
   const isAuraOn = (name: string) => Boolean(config.enabledAuras[name]);
-  const isCI = detectChaosInoculation(snap);
-  const hasGlancingBlows = Boolean(snap.passives?.keystones?.some((k) => /glancing blows/i.test(k.name)));
-  const hasIronReflexes = Boolean(snap.passives?.keystones?.some((k) => /iron reflexes/i.test(k.name)));
+  const baseTraits = detectBuildTraits(snap);
+  const isCI = baseTraits.isCI;
+  const hasGlancingBlows = baseTraits.isGlancingBlows;
+  const hasIronReflexes = baseTraits.isIronReflexes;
 
   // 1. Attributes (Base Class + Tree/Gear/Jewels)
   const clsKey = (snap.character.className || 'scion').toLowerCase().trim();
@@ -527,15 +651,17 @@ export function calculateCharacterStats(
       convertedEvToAr
   );
 
-  // 6. Evade Chance (Exact PoE 1 formula against Enemy Preset Accuracy)
+  // 6. Evade Chance (Exact PoE 1 formula against Enemy Preset Accuracy; Unwavering Stance = 0%)
   const enemy = getEnemyPresetInfo(config.enemyPreset);
   const rawEvadeChance =
-    totalEvasion > 0
+    !baseTraits.isUnwaveringStance && totalEvasion > 0
       ? 1 - (1.25 * enemy.accuracy) / (enemy.accuracy + Math.pow(totalEvasion / 5, 0.9))
       : 0;
-  const evadeChancePct = Math.round(Math.max(0, Math.min(95, rawEvadeChance * 100)));
+  const evadeChancePct = baseTraits.isUnwaveringStance
+    ? 0
+    : Math.round(Math.max(0, Math.min(95, rawEvadeChance * 100)));
 
-  // 7. Resistances (In-Game Cap + Overcap, respecting +Max Res, Purity Auras, Alira, Flasks, CI)
+  // 7. Resistances (In-Game Cap + Overcap, respecting +Max Res, Divine Flesh +5% Chaos Max, Purity Auras, Alira, Flasks, CI)
   const aliraRes = config.bandit === 'alira' ? 15 : 0;
   const purityEleRes = isAuraOn('Purity of Elements') ? 34 : 0;
   const purityFireRes = isAuraOn('Purity of Fire') ? 41 : 0;
@@ -545,7 +671,7 @@ export function calculateCharacterStats(
   const maxFire = Math.min(90, 75 + (gs?.maxFireRes || 0) + (isAuraOn('Purity of Fire') ? 4 : 0) + flaskMaxFire);
   const maxCold = Math.min(90, 75 + (gs?.maxColdRes || 0) + (isAuraOn('Purity of Ice') ? 4 : 0) + flaskMaxCold);
   const maxLight = Math.min(90, 75 + (gs?.maxLightningRes || 0) + (isAuraOn('Purity of Lightning') ? 4 : 0) + flaskMaxLight);
-  const maxChaos = Math.min(90, 75 + (gs?.maxChaosRes || 0));
+  const maxChaos = Math.min(90, 75 + (gs?.maxChaosRes || 0) + (baseTraits.isDivineFlesh ? 5 : 0));
 
   const fire = formatInGameRes(
     (vit.fireRes || 0) + aliraRes + purityEleRes + purityFireRes + flaskFireRes + config.resistancePenalty,
@@ -609,8 +735,17 @@ export function calculateCharacterStats(
     Math.min(90, armourDrAtPreset * 100 + endurancePdr + flatPdr)
   );
 
-  // 10. Exact 5-Type Maximum Hit Taken (Binary Search for Armour + All Multipliers)
-  const hitPool = (isCI ? totalEs : totalLife + totalEs) + guardAbsorb;
+  // 10. Exact 5-Type Maximum Hit Taken (Keystone-aware: CI, EB, MoM, Divine Flesh, Acrobatics)
+  let baseHitPool = totalLife;
+  if (isCI) {
+    baseHitPool = totalEs;
+  } else if (baseTraits.isEldritchBattery && baseTraits.isMindOverMatter) {
+    // EB + MoM: ES protects Mana, which absorbs 40% of damage before Life
+    baseHitPool = totalLife + Math.min(totalEs, Math.round(totalLife * 0.66));
+  } else if (baseTraits.esProtectsLife) {
+    baseHitPool = totalLife + totalEs;
+  }
+  const hitPool = baseHitPool + guardAbsorb;
   const avgEleRes = (fire.effective + cold.effective + lightning.effective) / 3;
 
   const computeHitTaken = (rawHit: number, type: 'phys' | 'fire' | 'cold' | 'lightning' | 'chaos'): number => {
@@ -629,8 +764,15 @@ export function calculateCharacterStats(
     } else {
       const resPct = type === 'fire' ? fire.effective : type === 'cold' ? cold.effective : lightning.effective;
       const fireExtra = type === 'fire' ? 1 - arcticFireDr / 100 : 1;
-      dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
-      if (suppressionChance >= 100) {
+      if (baseTraits.isDivineFlesh) {
+        // Divine Flesh: 50% of Elemental Damage taken as Chaos
+        const eleHalf = rawHit * 0.5 * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
+        const chaosHalf = rawHit * 0.5 * (1 - chaos.effective / 100);
+        dmg = eleHalf + chaosHalf;
+      } else {
+        dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
+      }
+      if (!baseTraits.isAcrobatics && suppressionChance >= 100) {
         dmg *= 1 - suppressionEffect / 100;
       }
     }
@@ -784,20 +926,24 @@ export function calculateCharacterStats(
 
   // Player Accuracy = Dex * 2 + Precision + Level base (~2 * level)
   const accuracy = dexterity * 2 + lvl * 2 + precisionAccuracy;
-  // Exact PoB Hit Chance formula vs Enemy Lv 84 Evasion (PoB Misc.lua Lv 84 base evasion ~10,143 -> simplified standard 10143)
   const enemyEvasion = config.enemyPreset === 'uber_85' ? 11000 : 10143;
   const rawHitChance = (accuracy / (accuracy + Math.pow(enemyEvasion / 5, 0.9))) * 125;
-  const hitChancePct = Math.round(Math.max(5, Math.min(100, rawHitChance)));
+  const traits = detectBuildTraits(snap, mainSkill?.name || '');
+  // Resolute Technique guarantees 100% Hit Chance (Hits can't be Evaded)
+  const hitChancePct = traits.isResoluteTechnique
+    ? 100
+    : Math.round(Math.max(5, Math.min(100, rawHitChance)));
 
   const frenzyCount = config.useFrenzyCharges ? Math.max(0, Math.min(12, config.frenzyCharges)) : 0;
   const powerCount = config.usePowerCharges ? Math.max(0, Math.min(12, config.powerCharges)) : 0;
   const frenzyMoreDmgPct = frenzyCount * 4;
   const frenzySpeedPct = frenzyCount * 4;
-  const powerIncCritPct = powerCount * 50;
+  const powerIncCritPct = traits.isResoluteTechnique ? 0 : powerCount * 50;
   const totalSpeedBonusPct = frenzySpeedPct + (config.onslaught ? 20 : 0) + (isAuraOn('Haste') ? 24 : 0);
 
   return {
     isCI,
+    traits,
     detectedAuras,
     detectedGuard,
     detectedCurses,

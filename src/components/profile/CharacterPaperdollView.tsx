@@ -1463,8 +1463,8 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                     if (!res.cold.isCapped) holes.push({ label: `Cold Res ${res.cold.label} (<${res.cold.maxRes}%)`, severity: 'high' });
                     if (!res.lightning.isCapped) holes.push({ label: `Light Res ${res.lightning.label} (<${res.lightning.maxRes}%)`, severity: 'high' });
                     if (!res.chaos.isImmune && res.chaos.effective < 0) holes.push({ label: `Chaos Res ${res.chaos.label} (<0%)`, severity: 'med' });
-                    if (calc.suppression.chance > 0 && calc.suppression.chance < 100) holes.push({ label: `Suppress ${calc.suppression.chance}% (<100%)`, severity: 'med' });
-                    if (calc.offense.hitChancePct < 98) holes.push({ label: `Hit Chance ${calc.offense.hitChancePct}% (<100%)`, severity: 'med' });
+                    if (!calc.traits.isAcrobatics && calc.suppression.chance > 0 && calc.suppression.chance < 100) holes.push({ label: `Suppress ${calc.suppression.chance}% (<100%)`, severity: 'med' });
+                    if (!calc.traits.isResoluteTechnique && !calc.traits.isSpellOrMinionOrDot && calc.offense.hitChancePct < 98) holes.push({ label: `Hit Chance ${calc.offense.hitChancePct}% (<100%)`, severity: 'med' });
                     const flaskCount = activeSnapshot.equipped.filter((i) => i.inventoryId === 'Flask').length;
                     if (flaskCount < 5) holes.push({ label: `${5 - flaskCount} Empty Flask Slot${5 - flaskCount > 1 ? 's' : ''}`, severity: 'med' });
 
