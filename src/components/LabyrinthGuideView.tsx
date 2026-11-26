@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Crown, ExternalLink, Flame, Sparkles, ShieldAlert, Heart, Zap, Gem, RotateCcw, CheckCircle2, Circle, BookOpen } from 'lucide-react';
 import type { UserAccount } from '../types';
 import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
+import { Poe2TrialsGuideView } from './poe2/Poe2TrialsGuideView';
 
 interface LabyrinthGuideViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -25,7 +26,10 @@ const LAB_TRIALS: LabTrial[] = [
   { id: 'trial-act10-ossuary', name: 'Trial of Stinging Doubt', act: 'Act 10', zone: 'The Ossuary', tier: 'Merciless' }
 ];
 
-export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAccount }) => {
+export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({
+  selectedGame = 'poe1',
+  userAccount
+}) => {
   const [completedTrials, setCompletedTrials] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('poe_ssf_lab_trials');
@@ -67,6 +71,10 @@ export const LabyrinthGuideView: React.FC<LabyrinthGuideViewProps> = ({ userAcco
     if (window.confirm('Reset all completed Labyrinth Trial checkboxes?')) persistTrials({});
   };
   void cloudSynced;
+
+  if (selectedGame === 'poe2') {
+    return <Poe2TrialsGuideView userAccount={userAccount} />;
+  }
 
   const labVariations = [
     {

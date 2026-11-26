@@ -1,19 +1,104 @@
 import React from 'react';
-import { 
-  Sparkles, 
-  Compass, 
-  ExternalLink, 
-  ShieldCheck, 
-  Flame, 
-  Zap, 
-  Gem, 
-  Layers, 
-  AlertCircle,
+import {
+  Sparkles,
+  Compass,
+  ExternalLink,
+  ShieldCheck,
+  Flame,
+  Zap,
+  Gem,
+  Layers,
   BookOpen,
-  Database
+  Database,
+  Crown,
+  Swords,
+  Filter,
+  Scroll,
+  Package,
+  ArrowRight,
+  Users
 } from 'lucide-react';
 
-export const PoE2HubView: React.FC = () => {
+interface PoE2HubViewProps {
+  onNavigate?: (tabId: string) => void;
+}
+
+export const PoE2HubView: React.FC<PoE2HubViewProps> = ({ onNavigate }) => {
+  const poe2Modules = [
+    {
+      id: 'atlas',
+      title: 'Endgame Atlas & Waystones',
+      description: 'Track Waystone tiers (T1–T15+), 40/40 Atlas points, Citadel bosses, and Pinnacle progression.',
+      icon: Compass,
+      badge: 'Cloud Synced',
+      accent: 'text-cyan-300 bg-cyan-500/15 border-cyan-500/35'
+    },
+    {
+      id: 'campaign',
+      title: 'Campaign Walkthrough (Acts 1–3)',
+      description: 'Checklist for every permanent Spirit boss, +10% Resistance boss, Weapon Set skill book, and Bench unlock.',
+      icon: Scroll,
+      badge: 'Acts + Cruel',
+      accent: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/35'
+    },
+    {
+      id: 'labyrinth',
+      title: 'Trials of Ascendancy',
+      description: 'Track all 8 Ascendancy points across Trial of the Sekhemas (Honour Res) and Trial of Chaos (Ultimatum).',
+      icon: Crown,
+      badge: '0/8 Points',
+      accent: 'text-amber-300 bg-amber-500/15 border-amber-500/35'
+    },
+    {
+      id: 'defenses',
+      title: 'Defenses Masterclass',
+      description: 'PoE 2 10x Armour curve calculator, Evasion/Acrobatics, Grim Feast ES, Charm belts, and Waystone checklist.',
+      icon: ShieldCheck,
+      badge: 'Calculator',
+      accent: 'text-sky-300 bg-sky-500/15 border-sky-500/35'
+    },
+    {
+      id: 'offenses',
+      title: 'Offenses Masterclass',
+      description: 'PoE 2 Penetration 0% floor, Ignite/Poison/Bleed rules, Shock 20% baseline, and Freeze/Electrocute buildup.',
+      icon: Swords,
+      badge: 'Mechanics',
+      accent: 'text-rose-300 bg-rose-500/15 border-rose-500/35'
+    },
+    {
+      id: 'regex_studio',
+      title: 'PoE 2 Regex Studio',
+      description: 'Build safe Waystone, Salvage Bench, and vendor search regex strings tailored for PoE 2.',
+      icon: Filter,
+      badge: 'poe2.re',
+      accent: 'text-purple-300 bg-purple-500/15 border-purple-500/35'
+    },
+    {
+      id: 'vendor_recipes',
+      title: 'Salvage & Reforging Formulas',
+      description: 'Artificer Shards, Quality salvage, Regal disenchanting, and 3-to-1 Reforging Bench recipes.',
+      icon: Gem,
+      badge: 'Salvage',
+      accent: 'text-amber-300 bg-amber-500/15 border-amber-500/35'
+    },
+    {
+      id: 'builds',
+      title: 'Builds Hub & Private Leagues',
+      description: 'Browse PoE 2 SSF starter builds, community guides, and GSF private league rosters.',
+      icon: Users,
+      badge: '0.5 Meta',
+      accent: 'text-indigo-300 bg-indigo-500/15 border-indigo-500/35'
+    },
+    {
+      id: 'asset_tracker',
+      title: 'Asset & Map Trackers',
+      description: 'Track PoE 2 farming sessions, Waystone runs, and currency valuation across your league.',
+      icon: Package,
+      badge: 'Tracking',
+      accent: 'text-teal-300 bg-teal-500/15 border-teal-500/35'
+    }
+  ];
+
   const poe2Resources = [
     {
       title: 'Current League: 0.5 Return of the Ancients',
@@ -24,114 +109,154 @@ export const PoE2HubView: React.FC = () => {
     },
     {
       title: 'PoE 2 Wiki',
-      description: 'The official community wiki tracking confirmed PoE 2 mechanics, skills, and areas.',
+      description: 'Community wiki tracking confirmed PoE 2 mechanics, skills, bosses, and permanent quest bonuses.',
       url: 'https://www.poe2wiki.net/',
       icon: BookOpen,
       tag: 'Wiki'
     },
     {
       title: 'PoE 2 DB',
-      description: 'Datamined base items, skill gems, attribute scaling, and monster modifiers for PoE 2.',
+      description: 'Datamined base items, skill gems, Waystone modifiers, and monster stats for PoE 2.',
       url: 'https://poe2db.tw/us/',
       icon: Database,
       tag: 'Database'
     },
     {
-      title: 'Official Path of Exile 2 Portal',
-      description: 'Grinding Gear Games official trailers, class reveals, and announcements.',
-      url: 'https://pathofexile2.com',
-      icon: Sparkles,
-      tag: 'Official'
+      title: 'PoE 2 Ninja',
+      description: 'Live PoE 2 build snapshots, Ascendancy breakdown, and economy pricing trends.',
+      url: 'https://poe2.ninja/',
+      icon: Flame,
+      tag: 'Meta'
     }
   ];
 
-  const upcomingMechanics = [
+  const coreMechanics = [
     {
-      title: 'Uncut Skill Gems & Built In Sockets',
-      description: 'Skill gems now hold their own 5 to 6 support sockets! You will no longer need to spend thousands of Fusings on body armours in SSF.',
+      title: 'Uncut Skill Gems & Built-In Sockets',
+      description: 'Skill gems hold their own 5–6 support sockets via Lesser/Greater/Perfect Jeweller Orbs—no more Fusings on body armours.',
       icon: Gem,
-      color: 'text-amber-500 bg-amber-500/10 border-amber-500/30'
+      color: 'text-amber-400 bg-amber-500/10 border-amber-500/30'
     },
     {
-      title: 'Dual Spec Weapon Passive Trees',
-      description: 'Allocate dedicated passive skill points that automatically switch when you cast spells with a staff vs attack with daggers.',
+      title: 'Dual-Spec Weapon Set Passive Trees',
+      description: 'Allocate up to 24 Weapon Set Skill Points that automatically swap between your two equipped weapon sets.',
       icon: Layers,
-      color: 'text-sky-500 bg-sky-500/10 border-sky-500/30'
+      color: 'text-sky-400 bg-sky-500/10 border-sky-500/30'
     },
     {
       title: 'Spirit Reservation System',
-      description: 'Auras, heralds, and permanent minions now reserve "Spirit" (100 base) rather than choking your mana pool.',
+      description: 'Persistent buffs, heralds, and minions reserve Spirit (100 from Campaign bosses + Sceptre/Body/Amulet rolls) instead of Mana.',
       icon: Zap,
-      color: 'text-purple-500 bg-purple-500/10 border-purple-500/30'
+      color: 'text-purple-400 bg-purple-500/10 border-purple-500/30'
     },
     {
-      title: 'Gold Respecs & Vendor Economics',
-      description: 'Gold dropped by monsters can be used for instant, affordable passive tree respecs in town without needing Orbs of Regret.',
+      title: 'Gold Respecs & Gambler Vendors',
+      description: 'Spend Gold in town for instant passive respecs at The Hooded One or gamble targeted bases in SSF.',
       icon: ShieldCheck,
-      color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30'
+      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
     },
     {
-      title: 'WASD & Responsive Dodge Rolling',
-      description: 'Every class has a built in dodge roll with invulnerability frames, opening up skill based evasion for pinnacle bosses.',
+      title: 'WASD & Dodge Roll Discipline',
+      description: 'Built-in Dodge Roll avoids hits and projectiles; pair with Charm Belts (Freeze/Stun/Bleed) for boss survivability.',
       icon: Flame,
-      color: 'text-rose-500 bg-rose-500/10 border-rose-500/30'
+      color: 'text-rose-400 bg-rose-500/10 border-rose-500/30'
     },
     {
-      title: '36 New Ascendancy Classes',
-      description: '12 base classes with 3 brand new Ascendancies each (e.g. Invoker, Stormweaver, Chronomancer, Titan, Warbringer).',
+      title: 'Socketed Runes & Soul Cores',
+      description: 'Patch Elemental & Chaos resistance holes freely using Artificer Orbs + Iron/Elemental Runes and Ultimatum Soul Cores.',
       icon: Compass,
-      color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/30'
+      color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30'
     }
   ];
 
   return (
-    <div className="space-y-10 max-w-5xl mx-auto pb-16">
-      
+    <div className="space-y-8 max-w-6xl mx-auto pb-16">
       {/* Header Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-100 to-white dark:from-cyan-950/20 dark:via-[#131622] dark:to-poe-darkest p-8 sm:p-12 shadow-2xl">
+      <div className="relative rounded-3xl overflow-hidden border border-cyan-500/30 bg-gradient-to-br from-cyan-950/35 via-[#101625] to-slate-950 p-6 sm:p-10 shadow-2xl">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 space-y-5">
+        <div className="relative z-10 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 text-xs font-semibold uppercase tracking-wider">
-              <AlertCircle className="w-3.5 h-3.5" />
-              PoE 2 Hub • Work in Progress
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-xs font-semibold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>PoE 2 SSF Command Center</span>
             </div>
             <a
               href="https://pathofexile2.com/ancients"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-800 dark:text-cyan-300 text-xs font-bold hover:bg-cyan-500/30 transition-colors shadow-sm"
-              title="Current League: 0.5 Return of the Ancients (Click to open official season page)"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/25 transition-colors"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Current League: 0.5 Ancients</span>
-              <ExternalLink className="w-3 h-3 text-cyan-500" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Current League: 0.5 Return of the Ancients</span>
+              <ExternalLink className="w-3 h-3" />
             </a>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-cinzel font-black text-slate-900 dark:text-slate-100 tracking-wide leading-tight">
-            Path of Exile 2 <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 via-sky-500 to-purple-600 dark:from-cyan-400 dark:via-sky-300 dark:to-purple-400">
-              Solo Self Found Roadmap
+          <h1 className="text-3xl sm:text-5xl font-cinzel font-black text-slate-100 tracking-wide leading-tight">
+            Path of Exile 2{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-purple-400">
+              SSF Compendium
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-700 dark:text-slate-300 max-w-3xl leading-relaxed">
-            We are preparing a dedicated standalone knowledge base, vendor math tools, campaign walkthroughs, and build guides tailored specifically for <strong>Path of Exile 2</strong>.
+          <p className="text-sm sm:text-base text-slate-300 max-w-3xl leading-relaxed">
+            Full feature parity for <strong>Path of Exile 2</strong>: Cloud-synced Campaign &amp; Permanent Bonus checklist, Trials of Ascendancy tracker, Endgame Atlas &amp; Waystones progression, PoE 2 Defense/Offense math, Salvage formulas, and Regex Studio.
           </p>
         </div>
       </div>
 
-      {/* Early PoE 2 Resource Portals */}
+      {/* Interactive PoE 2 Modules Grid */}
       <div className="space-y-4">
-        <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-          PoE 2 Resource Portals
+        <h2 className="text-xl font-cinzel font-bold text-slate-100 flex items-center gap-2">
+          <Compass className="w-5 h-5 text-cyan-400" />
+          <span>PoE 2 Tools &amp; Progression Suite</span>
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {poe2Modules.map((mod) => {
+            const Icon = mod.icon;
+            return (
+              <button
+                key={mod.id}
+                type="button"
+                onClick={() => onNavigate?.(mod.id)}
+                className="text-left p-5 rounded-2xl border border-slate-800 bg-slate-900/80 hover:bg-slate-800/70 hover:border-cyan-500/50 transition-all group flex flex-col justify-between gap-3 shadow-sm cursor-pointer"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className={`p-2 rounded-xl border ${mod.accent}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-slate-950 text-cyan-300 border border-slate-700 font-bold">
+                      {mod.badge}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-slate-100 group-hover:text-cyan-300 transition-colors text-base">
+                    {mod.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">{mod.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/70 flex items-center justify-between text-xs text-slate-400 group-hover:text-cyan-300">
+                  <span className="font-mono text-[11px]">Open Tool</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* External PoE 2 Resource Portals */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-cinzel font-bold text-slate-100 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-cyan-400" />
+          <span>PoE 2 External Portals</span>
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {poe2Resources.map((res, idx) => {
             const Icon = res.icon;
             return (
@@ -140,30 +265,25 @@ export const PoE2HubView: React.FC = () => {
                 href={res.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-cyan-500/50 transition-all group flex flex-col justify-between space-y-3 shadow-sm"
+                className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 hover:bg-slate-800/60 hover:border-cyan-500/50 transition-all group flex flex-col justify-between gap-3 shadow-sm"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-[#0f172a] border border-slate-800 text-cyan-600 dark:text-cyan-400">
-                      <Icon className="w-5 h-5" />
+                    <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-cyan-400">
+                      <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 font-bold">
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-bold">
                       {res.tag}
                     </span>
                   </div>
-
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors text-base">
+                  <h3 className="font-bold text-slate-100 group-hover:text-cyan-300 transition-colors text-sm">
                     {res.title}
                   </h3>
-
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    {res.description}
-                  </p>
+                  <p className="text-xs text-slate-400 leading-relaxed">{res.description}</p>
                 </div>
-
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between text-xs text-slate-500 group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
+                <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between text-xs text-slate-500 group-hover:text-cyan-300">
                   <span className="text-[11px] font-mono">Open Resource</span>
-                  <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </div>
               </a>
             );
@@ -173,44 +293,29 @@ export const PoE2HubView: React.FC = () => {
 
       {/* Core PoE 2 SSF Systems Breakdown */}
       <div className="space-y-4">
-        <h2 className="text-xl font-cinzel font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Compass className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-          Confirmed PoE 2 Mechanics & SSF Impact
+        <h2 className="text-xl font-cinzel font-bold text-slate-100 flex items-center gap-2">
+          <Gem className="w-5 h-5 text-amber-400" />
+          <span>Core PoE 2 SSF Mechanics</span>
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {upcomingMechanics.map((mech, idx) => {
+          {coreMechanics.map((mech, idx) => {
             const Icon = mech.icon;
             return (
               <div
                 key={idx}
-                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80/60 space-y-2.5 shadow-sm"
+                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/75 space-y-2.5 shadow-sm"
               >
                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${mech.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  {mech.title}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  {mech.description}
-                </p>
+                <h3 className="font-bold text-slate-100 text-sm">{mech.title}</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">{mech.description}</p>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Beta Notice Banner */}
-      <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/40 text-center space-y-2">
-        <div className="text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-widest">
-          Stay Tuned for Full Launch
-        </div>
-        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 max-w-2xl mx-auto">
-          As soon as Path of Exile 2 launches in Early Access, we will deploy full Acts walkthroughs, vendor recipes, and vetted starter build guides right here!
-        </p>
-      </div>
-
     </div>
   );
 };

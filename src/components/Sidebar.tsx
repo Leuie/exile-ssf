@@ -229,6 +229,14 @@ interface NavGroup {
       ]
     },
     {
+      title: 'Progression & Maps',
+      items: [
+        { id: 'atlas', label: 'Atlas & Waystones', icon: Compass, badge: 'Endgame' },
+        { id: 'campaign', label: 'Campaign (Acts 1–3)', icon: Compass, badge: 'Bonuses' },
+        { id: 'labyrinth', label: 'Trials of Ascendancy', icon: Crown, badge: 'Ascend' }
+      ]
+    },
+    {
       title: 'Mechanics & Formulas',
       items: [
         { id: 'crafting_bench', label: 'Crafting Bench & Stash', icon: Compass, badge: 'Guide' },
@@ -244,6 +252,7 @@ interface NavGroup {
       items: [
         { id: 'poe2_wiki', label: 'PoE 2 Wiki', icon: BookOpen, badge: 'Wiki' },
         { id: 'poe2_db', label: 'PoE 2 DB', icon: Database, badge: 'DB' },
+        { id: 'poe_ninja', label: 'PoE 2 Ninja', icon: TrendingUp, badge: 'Meta' },
         { id: 'tools_directory', label: 'Tools Directory', icon: Link, badge: 'Library' }
       ]
     }

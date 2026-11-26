@@ -15,13 +15,17 @@ import { CAMPAIGN_ACTS } from '../data/campaignWalkthrough';
 import { fireConfetti } from '../utils/confetti';
 import type { UserAccount } from '../types';
 import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
+import { Poe2CampaignWalkthroughView } from './poe2/Poe2CampaignWalkthroughView';
 
 interface CampaignWalkthroughViewProps {
   selectedGame?: 'poe1' | 'poe2';
   userAccount?: UserAccount | null;
 }
 
-export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = ({ userAccount }) => {
+export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = ({
+  selectedGame = 'poe1',
+  userAccount
+}) => {
   const [selectedAct, setSelectedAct] = useState<number>(1);
   const [cloudSynced, setCloudSynced] = useState<boolean>(false);
   const [completedZones, setCompletedZones] = useState<Record<string, boolean>>(() => {
@@ -83,6 +87,10 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
   const completedInAct = actZones.filter((z) => completedZones[`act${selectedAct}_${z.zoneName}`]).length;
   const totalInAct = actZones.length;
   const actProgressPercent = Math.round((completedInAct / totalInAct) * 100);
+
+  if (selectedGame === 'poe2') {
+    return <Poe2CampaignWalkthroughView userAccount={userAccount} />;
+  }
 
   return (
     <div className="w-full space-y-6 pb-20 font-sans text-slate-200">

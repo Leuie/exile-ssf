@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
+import { Poe2EndgameAtlasView } from './poe2/Poe2EndgameAtlasView';
 
 interface AtlasViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -74,7 +75,10 @@ export const AtlasView: React.FC<AtlasViewProps> = ({ selectedGame = 'poe1', use
   };
 
   const voidstoneCount = Object.values(progress.voidstones).filter(Boolean).length;
-  void selectedGame;
+
+  if (selectedGame === 'poe2') {
+    return <Poe2EndgameAtlasView userAccount={userAccount} />;
+  }
 
   const handleAutoSyncVoidstones = async () => {
     setSyncingVoidstones(true);

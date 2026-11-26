@@ -943,7 +943,7 @@ export const App: React.FC = () => {
         {activeTab === 'poedb' && <PoEDBWrapperView initialUrl="https://poedb.tw/us/" title="PoEDB Portal" isPoE2={false} userAccount={userAccount} />}
         {activeTab === 'poe_ninja' && <PoENinjaWrapperView selectedGame={selectedGame} userAccount={userAccount} />}
         {activeTab === 'sabrewulf' && <SabrewulfWrapperView userAccount={userAccount} />}
-        {activeTab === 'poe2_hub' && <PoE2HubView />}
+        {activeTab === 'poe2_hub' && <PoE2HubView onNavigate={handleSelectTab} />}
         {activeTab === 'poe2_wiki' && <PoEWikiWrapperView initialUrl="https://www.poe2wiki.net/" title="PoE 2 Wiki Portal" isPoE2={true} userAccount={userAccount} />}
         {activeTab === 'poe2_db' && <PoEDBWrapperView initialUrl="https://poe2db.tw/us/" title="PoE 2 DB Portal" isPoE2={true} userAccount={userAccount} />}
         {activeTab === 'about' && <AboutView />}
