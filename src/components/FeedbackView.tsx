@@ -575,22 +575,30 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
         </div>
       )}
 
-      {/* Submit Feedback Modal */}
-      {/* MODE 3: PLANNED ROADMAP & FEATURE BACKLOG (17 IDEAS) */}
-      {mode === 'roadmap' && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-purple-500/30 bg-[#0d111a] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+      {/* MODE 3: UPCOMING ROADMAP & COMPLETED MILESTONES */}
+      {mode === 'roadmap' && (() => {
+        const plannedItems = PLANNED_ROADMAP_ITEMS.filter((i) => i.status !== 'shipped');
+        const shippedItems = PLANNED_ROADMAP_ITEMS.filter((i) => i.status === 'shipped');
+        const categoryShortLabels: Record<string, string> = {
+          'Armory Cross Site Integrations': 'Armory & Sync',
+          'Deeper Character & Build Tools': 'Builds & Gear',
+          'Private League & GSF Social Features': 'Private League',
+          'Next Level Client.txt & Farming Analytics': 'Mapping & Logs',
+          'Platform Growth & Polish': 'Platform'
+        };
+
+        return (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-indigo-500/30 bg-[#0d111a] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
             <div>
-              <div className="text-sm font-bold text-purple-200 flex items-center gap-2">
-                <Compass className="w-4 h-4 text-purple-400" />
+              <div className="text-sm font-bold text-indigo-200 flex items-center gap-2">
+                <Compass className="w-4 h-4 text-indigo-400" />
                 <span>
-                  Feature Roadmap &amp; Completed Milestones (
-                  {PLANNED_ROADMAP_ITEMS.filter((i) => i.status === 'shipped').length} Shipped •{' '}
-                  {PLANNED_ROADMAP_ITEMS.filter((i) => i.status !== 'shipped').length} Planned)
+                  Site Roadmap ({plannedItems.length} Planned • {shippedItems.length} Shipped)
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Completed milestones with release dates alongside the few upcoming features still queued for future updates.
+                Upcoming features are listed first, followed by completed milestones already live on Exile SSF.
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
@@ -599,7 +607,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                 onClick={() => setRoadmapCategory('ALL')}
                 className={`px-2.5 py-1 rounded-lg border cursor-pointer ${
                   roadmapCategory === 'ALL'
-                    ? 'bg-purple-600/30 border-purple-400 text-white font-bold'
+                    ? 'bg-indigo-600/30 border-indigo-400 text-white font-bold'
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
@@ -612,44 +620,107 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                   onClick={() => setRoadmapCategory(cat)}
                   className={`px-2.5 py-1 rounded-lg border cursor-pointer ${
                     roadmapCategory === cat
-                      ? 'bg-purple-600/30 border-purple-400 text-white font-bold'
+                      ? 'bg-indigo-600/30 border-indigo-400 text-white font-bold'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
-                  {cat.split(' ').slice(0, 2).join(' ')}
+                  {categoryShortLabels[cat] || cat}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* UPCOMING / PLANNED NEXT — ALWAYS AT THE TOP */}
+          {roadmapCategory === 'ALL' && plannedItems.length > 0 && (
+            <section className="rounded-2xl border border-indigo-500/40 bg-indigo-950/15 p-4 sm:p-5 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between border-b border-indigo-500/25 pb-2">
+                <h2 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-indigo-200">
+                  Upcoming — Planned Next ({plannedItems.length})
+                </h2>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-200">
+                  In Planning
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {plannedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-indigo-500/30 bg-slate-950/85 hover:border-indigo-400/60 transition-colors flex flex-col justify-between gap-2.5"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-bold text-xs sm:text-sm leading-snug text-white">
+                          {item.title}
+                        </div>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300 shrink-0">
+                          {item.scope}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/70">
+                      <span className="text-[10px] font-mono text-amber-300">Status: Planned</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewTitle(item.title);
+                          setNewDesc(item.description);
+                          setNewCategory('feature_request');
+                          handleOpenSubmit();
+                        }}
+                        className="text-[10px] font-mono px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 cursor-pointer"
+                      >
+                        + Request / Upvote
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* COMPLETED & SHIPPED MILESTONES */}
           <div className="space-y-5">
             {PLANNED_ROADMAP_CATEGORIES.filter(
               (cat) => roadmapCategory === 'ALL' || roadmapCategory === cat
             ).map((cat) => {
-              const items = PLANNED_ROADMAP_ITEMS.filter((i) => i.category === cat);
+              const allCatItems = PLANNED_ROADMAP_ITEMS.filter((i) => i.category === cat);
+              const visibleItems =
+                roadmapCategory === 'ALL'
+                  ? allCatItems.filter((i) => i.status === 'shipped')
+                  : allCatItems;
+              if (visibleItems.length === 0) return null;
+              const shippedCount = visibleItems.filter((i) => i.status === 'shipped').length;
+              const plannedCount = visibleItems.length - shippedCount;
               return (
                 <section
                   key={cat}
                   className="rounded-2xl border border-slate-800 bg-[#0d111a] p-4 sm:p-5 space-y-3 shadow-lg"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <h2 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-amber-300">
-                      {cat} ({items.length})
+                    <h2 className="text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-emerald-300">
+                      {cat} ({visibleItems.length})
                     </h2>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300">
-                      Queued for Future Build
-                    </span>
+                    {plannedCount === 0 ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                        ✓ All Shipped ({shippedCount}/{visibleItems.length})
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300">
+                        {shippedCount} Shipped • {plannedCount} Planned
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {items.map((item) => {
+                    {visibleItems.map((item) => {
                       const isShipped = item.status === 'shipped';
                       return (
                       <div
                         key={item.id}
                         className={`p-3.5 rounded-xl border transition-colors flex flex-col justify-between gap-2.5 ${
                           isShipped
-                            ? 'border-emerald-500/40 bg-emerald-950/15'
-                            : 'border-slate-800 bg-slate-950/80 hover:border-purple-500/40'
+                            ? 'border-emerald-500/35 bg-emerald-950/15'
+                            : 'border-indigo-500/35 bg-slate-950/80 hover:border-indigo-400/50'
                         }`}
                       >
                         <div className="space-y-1">
@@ -681,7 +752,7 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
                                 }}
                                 className="text-[10px] font-mono px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-200 cursor-pointer"
                               >
-                                + Promote to Feedback Board
+                                + Request / Upvote
                               </button>
                             </>
                           )}
@@ -695,7 +766,8 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showSubmitModal && (
         <dialog
