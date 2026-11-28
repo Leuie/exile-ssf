@@ -248,7 +248,10 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
               }`}
             >
               <Compass className={`w-3.5 h-3.5 ${mode === 'roadmap' ? 'text-purple-300' : 'text-slate-500'}`} />
-              <span>Planned Roadmap ({PLANNED_ROADMAP_ITEMS.length})</span>
+              <span>
+                Roadmap ({PLANNED_ROADMAP_ITEMS.filter((i) => i.status === 'shipped').length} Shipped •{' '}
+                {PLANNED_ROADMAP_ITEMS.filter((i) => i.status !== 'shipped').length} Planned)
+              </span>
             </button>
           </div>
 
@@ -580,10 +583,14 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({
             <div>
               <div className="text-sm font-bold text-purple-200 flex items-center gap-2">
                 <Compass className="w-4 h-4 text-purple-400" />
-                <span>Planned Feature Roadmap &amp; Build Backlog ({PLANNED_ROADMAP_ITEMS.length} Ideas)</span>
+                <span>
+                  Feature Roadmap &amp; Completed Milestones (
+                  {PLANNED_ROADMAP_ITEMS.filter((i) => i.status === 'shipped').length} Shipped •{' '}
+                  {PLANNED_ROADMAP_ITEMS.filter((i) => i.status !== 'shipped').length} Planned)
+                </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Upcoming tools, GSF social upgrades, Client.txt analytics, and platform polish queued for future releases.
+                Completed milestones with release dates alongside the few upcoming features still queued for future updates.
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">

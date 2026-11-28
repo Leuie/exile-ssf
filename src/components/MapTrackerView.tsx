@@ -64,6 +64,13 @@ import {
   type GsfTradeTelemetry,
   type CapturedLeagueFirstProof
 } from './maps/ClientTxtDeepInsights';
+import { DailyMappingCalendar } from './maps/DailyMappingCalendar';
+import { ClientTelemetrySuite } from './maps/ClientTelemetrySuite';
+import {
+  parseClientTxtTelemetry,
+  publishCampaignZonesVisited,
+  type ClientTxtTelemetry
+} from '../utils/clientTxtTelemetry';
 
 interface MapTrackerViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -173,6 +180,18 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
     afkHideoutSec: 0
   });
   const [capturedProofs, setCapturedProofs] = useState<CapturedLeagueFirstProof[]>([]);
+  const [clientTelemetry, setClientTelemetry] = useState<ClientTxtTelemetry>({
+    mechanics: [],
+    namelessSeerCount: 0,
+    lastNamelessSeerAt: '',
+    deaths: [],
+    trades: [],
+    passivesAudit: null,
+    disconnects: 0,
+    instanceFailures: 0,
+    campaignZonesVisited: []
+  });
+  const lastSeerCountRef = useRef<number>(0);
   const [watchingLive, setWatchingLive] = useState<boolean>(false);
   const [shareSquadPresence, setShareSquadPresence] = useState<boolean>(() => {
     try {
@@ -588,6 +607,18 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
           afkHideoutSec
         });
         setCapturedProofs(Array.from(proofsMap.values()).reverse());
+        const tel = parseClientTxtTelemetry(text, cutoffMs);
+        setClientTelemetry(tel);
+        if (tel.campaignZonesVisited.length > 0) {
+          publishCampaignZonesVisited(tel.campaignZonesVisited);
+        }
+        if (tel.namelessSeerCount > lastSeerCountRef.current && lastSeerCountRef.current > 0) {
+          setNotice({
+            type: 'ok',
+            text: `Nameless Seer detected in your map (${tel.lastNamelessSeerAt})! Talk to him before leaving!`
+          });
+        }
+        lastSeerCountRef.current = tel.namelessSeerCount;
         setLastFileReadAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         if (!silent) {
           const mapCount = builtRuns.filter((r) => r.kind !== 'Hideout / Town').length;
@@ -1359,6 +1390,36 @@ export const MapTrackerView: React.FC<MapTrackerViewProps> = ({
                   </table>
                 </div>
               )
+          },
+          {
+            id: 'daily_mapping_calendar',
+            title: 'Daily Mapping Calendar',
+            icon: <Calendar className="w-3.5 h-3.5 text-cyan-400" />,
+            defaultSpan: 12,
+            render: () => (
+              <DailyMappingCalendar
+                runs={runs.map((r) => ({
+                  areaName: r.areaName,
+                  kind: r.kind,
+                  startedAtMs: r.enteredAtMs,
+                  durationSec: r.durationSec,
+                  areaLevel: r.areaLevel
+                }))}
+                savedSessions={savedSessions}
+              />
+            )
+          },
+          {
+            id: 'client_telemetry_suite',
+            title: 'Mechanic Spawns, Death Forensics, Trades & /passives Audit',
+            icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
+            defaultSpan: 12,
+            render: () => (
+              <ClientTelemetrySuite
+                telemetry={clientTelemetry}
+                totalMaps={mapRuns.length}
+              />
+            )
           },
           {
             id: 'deep_insights',

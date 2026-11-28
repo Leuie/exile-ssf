@@ -16,6 +16,7 @@ import { fireConfetti } from '../utils/confetti';
 import type { UserAccount } from '../types';
 import { fetchUserToolState, saveUserToolState } from '../services/cloudSync';
 import { Poe2CampaignWalkthroughView } from './poe2/Poe2CampaignWalkthroughView';
+import { CAMPAIGN_SYNC_EVENT, readCampaignZonesVisited } from '../utils/clientTxtTelemetry';
 
 interface CampaignWalkthroughViewProps {
   selectedGame?: 'poe1' | 'poe2';
@@ -50,6 +51,42 @@ export const CampaignWalkthroughView: React.FC<CampaignWalkthroughViewProps> = (
       cancelled = true;
     };
   }, [userAccount?.displayName]);
+
+  // Auto-check visited campaign zones from live Client.txt telemetry
+  useEffect(() => {
+    const syncVisitedZones = (visited: string[]) => {
+      if (!Array.isArray(visited) || visited.length === 0) return;
+      const lowerSet = new Set(visited.map((z) => z.trim().toLowerCase()));
+      setCompletedZones((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const act of CAMPAIGN_ACTS) {
+          for (const z of act.zones) {
+            const key = `act${act.actNumber}_${z.zoneName}`;
+            if (!next[key] && lowerSet.has(z.zoneName.trim().toLowerCase())) {
+              next[key] = true;
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          try {
+            localStorage.setItem('poe_ssf_completed_zones', JSON.stringify(next));
+          } catch {}
+          return next;
+        }
+        return prev;
+      });
+    };
+
+    syncVisitedZones(readCampaignZonesVisited());
+    const onZones = (e: Event) => {
+      const detail = (e as CustomEvent<string[]>).detail;
+      syncVisitedZones(detail || readCampaignZonesVisited());
+    };
+    window.addEventListener(CAMPAIGN_SYNC_EVENT, onZones);
+    return () => window.removeEventListener(CAMPAIGN_SYNC_EVENT, onZones);
+  }, []);
 
   const persistZones = (next: Record<string, boolean>) => {
     setCompletedZones(next);

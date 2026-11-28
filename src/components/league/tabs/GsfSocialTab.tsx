@@ -101,14 +101,17 @@ interface GsfSocialTabProps {
   leagueId: string;
   userAccount?: UserAccount | null;
   onOpenAuthModal?: () => void;
+  lockedView?: 'loans' | 'crafts' | 'bingo';
 }
 
 export const GsfSocialTab: React.FC<GsfSocialTabProps> = ({
   leagueId,
   userAccount,
-  onOpenAuthModal
+  onOpenAuthModal,
+  lockedView
 }) => {
-  const [subView, setSubView] = useState<'loans' | 'crafts' | 'bingo'>('loans');
+  const [subView, setSubView] = useState<'loans' | 'crafts' | 'bingo'>(lockedView || 'loans');
+  const activeView = lockedView || subView;
   const [data, setData] = useState<LeagueSocialPayload>({ loans: [], crafts: [], bingoClaims: {} });
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -264,7 +267,8 @@ export const GsfSocialTab: React.FC<GsfSocialTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Sub-navigation bar */}
+      {/* Sub-navigation bar (hidden when embedded via lockedView) */}
+      {!lockedView && (
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-2xl border border-slate-800 bg-[#0d111a]">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -306,9 +310,10 @@ export const GsfSocialTab: React.FC<GsfSocialTabProps> = ({
         </div>
         {saving && <span className="text-[10px] font-mono text-emerald-300">Syncing to Cloud...</span>}
       </div>
+      )}
 
       {/* 1. GSF ITEM LOANS */}
-      {subView === 'loans' && (
+      {activeView === 'loans' && (
         <div className="space-y-4">
           <form onSubmit={handleAddLoan} className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a] grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
             <input
@@ -400,7 +405,7 @@ export const GsfSocialTab: React.FC<GsfSocialTabProps> = ({
       )}
 
       {/* 2. SQUAD CRAFT & FRACTURE QUEUE */}
-      {subView === 'crafts' && (
+      {activeView === 'crafts' && (
         <div className="space-y-4">
           <form onSubmit={handleAddCraft} className="p-4 rounded-2xl border border-slate-800 bg-[#0d111a] space-y-2.5 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
@@ -510,7 +515,7 @@ export const GsfSocialTab: React.FC<GsfSocialTabProps> = ({
       )}
 
       {/* 3. 5x5 LEAGUE BINGO BOARD */}
-      {subView === 'bingo' && (
+      {activeView === 'bingo' && (
         <div className="space-y-3">
           <div className="p-3.5 rounded-2xl border border-purple-500/35 bg-purple-950/15 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">

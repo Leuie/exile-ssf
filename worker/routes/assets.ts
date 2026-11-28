@@ -22,6 +22,113 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
     return match ? parseInt(match[0], 10) : 0;
   };
 
+  // POST /api/farming/guild-stash (Stateless GGG Guild Stash fetcher for GSF Private Leagues; never stores POESESSID)
+  if (url.pathname === '/api/farming/guild-stash' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const league = String(body.league || '').trim();
+      const tabIndex = Number(body.tabIndex ?? 0);
+      const poesessid = String(body.poesessid || '').trim();
+      const realm = String(body.realm || 'pc').trim().toLowerCase();
+
+      if (!league || !poesessid) {
+        return new Response(JSON.stringify({ error: 'League and POESESSID are required to inspect Guild Stash.' }), {
+          status: 400,
+          headers: corsHeaders
+        });
+      }
+
+      const ep = `https://www.pathofexile.com/character-window/get-guild-stash-items?league=${encodeURIComponent(league)}&realm=${encodeURIComponent(realm)}&tabs=1&tabIndex=${tabIndex}`;
+      const gggRes = await fetch(ep, {
+        headers: {
+          Cookie: `POESESSID=${poesessid}`,
+          'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+          Accept: 'application/json'
+        }
+      });
+
+      if (!gggRes.ok) {
+        return new Response(
+          JSON.stringify({
+            error:
+              gggRes.status === 429
+                ? 'GGG rate limit reached (429). Wait 20 seconds and retry.'
+                : `Could not read Guild Stash (HTTP ${gggRes.status}). Confirm you belong to a guild in "${league}" and have tab view permission.`
+          }),
+          { status: gggRes.status, headers: corsHeaders }
+        );
+      }
+
+      const data: any = await gggRes.json().catch(() => null);
+      const tabs = Array.isArray(data?.tabs)
+        ? data.tabs.map((t: any, idx: number) => ({
+            index: Number(t?.i ?? idx),
+            name: String(t?.n || `Guild Tab ${idx + 1}`),
+            type: String(t?.type || 'NormalStash')
+          }))
+        : [];
+      const items = Array.isArray(data?.items)
+        ? data.items.map((it: any) => ({
+            id: String(it?.id || ''),
+            name: String(it?.name || '').replace(/<<[^>]+>>/g, '').trim(),
+            baseType: String(it?.baseType || it?.typeLine || '').replace(/<<[^>]+>>/g, '').trim(),
+            stackSize: Number(it?.stackSize || 1),
+            frameType: Number(it?.frameType ?? 0),
+            ilvl: Number(it?.ilvl ?? 0),
+            icon: typeof it?.icon === 'string' ? it.icon : ''
+          }))
+        : [];
+
+      return new Response(
+        JSON.stringify({ status: 'ok', league, tabIndex, tabs, items, syncedAtIso: now }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Failed to read Guild Stash.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
+  // POST /api/farming/challenges (Stateless GGG 40/40 League Challenges reader; never stores POESESSID)
+  if (url.pathname === '/api/farming/challenges' && request.method === 'POST') {
+    try {
+      const body: any = await request.json();
+      const rawAccount = String(body.accountName || '').trim();
+      const poesessid = String(body.poesessid || '').trim();
+      if (!rawAccount) {
+        return new Response(JSON.stringify({ error: 'Account Name is required.' }), { status: 400, headers: corsHeaders });
+      }
+      const slug = rawAccount.replace('#', '-');
+      const ep = `https://www.pathofexile.com/account/view-profile/${encodeURIComponent(slug)}/challenges`;
+      const headers: Record<string, string> = {
+        'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
+        Accept: 'text/html'
+      };
+      if (poesessid) headers.Cookie = `POESESSID=${poesessid}`;
+      const res = await fetch(ep, { headers });
+      if (!res.ok) {
+        return new Response(JSON.stringify({ error: `GGG challenges page returned HTTP ${res.status}.` }), {
+          status: res.status,
+          headers: corsHeaders
+        });
+      }
+      const html = await res.text();
+      const completedMatch = html.match(/(\d+)\s*\/\s*40\s*Challenges?/i) || html.match(/completed">(\d+)\s*\/\s*40/i);
+      const completedCount = completedMatch ? Number(completedMatch[1]) : 0;
+      return new Response(
+        JSON.stringify({ status: 'ok', accountName: rawAccount, completed: completedCount, total: 40, syncedAtIso: now }),
+        { headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Failed to read GGG challenges.' }), {
+        status: 500,
+        headers: corsHeaders
+      });
+    }
+  }
+
   // POST /api/farming/detect-leagues (Stateless GGG character league detector; never stores POESESSID)
   if (url.pathname === '/api/farming/detect-leagues' && request.method === 'POST') {
     try {
@@ -760,6 +867,47 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
       }
 
       const charInfo = itemsData.character || {};
+      const backpackItems = rawItems
+        .filter((it: any) => String(it?.inventoryId || '') === 'MainInventory')
+        .slice(0, 60)
+        .map((it: any) => ({
+          id: String(it?.id || `bp-${it?.x ?? 0}-${it?.y ?? 0}`),
+          name: cleanStr(it?.name),
+          baseType: cleanStr(it?.baseType || it?.typeLine),
+          typeLine: cleanStr(it?.typeLine),
+          stackSize: Number(it?.stackSize || 1),
+          frameType: Number(it?.frameType ?? 0),
+          ilvl: Number(it?.ilvl ?? 0),
+          icon: typeof it?.icon === 'string' ? it.icon : ''
+        }));
+
+      // Extract Cluster Jewel subgraph node stats + Timeless Jewel seeds from passiveData.jewel_data
+      const timelessJewels: Array<{ name: string; seed?: number; conqueror?: string }> = [];
+      if (passiveData?.jewel_data && typeof passiveData.jewel_data === 'object') {
+        const allocClusterSet = new Set(clusterPassiveHashes);
+        for (const jData of Object.values<any>(passiveData.jewel_data)) {
+          if (jData?.subgraph?.nodes && typeof jData.subgraph.nodes === 'object') {
+            for (const [nId, nVal] of Object.entries<any>(jData.subgraph.nodes)) {
+              if (allocClusterSet.has(Number(nId)) && Array.isArray(nVal?.stats)) {
+                accumulateModStats(nVal.stats);
+              }
+            }
+          }
+        }
+      }
+      for (const j of baseJewels) {
+        const mods = [...(j.explicitMods || []), ...(j.implicitMods || [])];
+        for (const m of mods) {
+          const tlM = m.match(/(?:Bathed in the blood of|Commissioned|Commanded|Remembrancing|Dedicated to)\s+(\d+)[^.]*in the name of\s+([A-Za-z]+)/i);
+          if (tlM) {
+            timelessJewels.push({
+              name: j.name || j.baseType || 'Timeless Jewel',
+              seed: Number(tlM[1]),
+              conqueror: tlM[2]
+            });
+          }
+        }
+      }
 
       return new Response(
         JSON.stringify({
@@ -775,10 +923,12 @@ export async function handleAssetRoutes(ctx: AssetRouteContext): Promise<Respons
             experience: Number(charInfo.experience || 0)
           },
           equipped,
+          backpackItems,
           jewels: {
             cluster: clusterJewels,
             base: baseJewels,
-            abyss: abyssJewels
+            abyss: abyssJewels,
+            timeless: timelessJewels
           },
           gearStats,
           passives: {

@@ -941,6 +941,7 @@ export default {
           '/api/farming/character-gear',
           '/api/farming/equipped-assets',
           '/api/farming/guild-stash',
+          '/api/farming/challenges',
           '/api/farming/stash-tabs',
           '/api/farming/stash-snapshot'
         ]);

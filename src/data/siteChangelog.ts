@@ -19,6 +19,58 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-28-daily-calendar-telemetry-hub',
+    version: 'v3.47.0',
+    title: 'Daily Mapping Calendar, Live Client.txt Insights, Guild Stash API & Cleaner League Navigation',
+    dateEst: 'Nov 28, 2026 • 11:15 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Latest Release',
+    summary: 'Added a daily calendar to Map Tracker so you can see how many maps you ran each day at a glance, unlocked deeper automatic tracking from Client.txt (mechanic spawns, Nameless Seer alerts, death log, trade history, and /passives checks), and organized Private League pages so everything is easier to find.',
+    changes: [
+      { tag: 'Added', text: 'Daily Mapping Calendar in Map Tracker: view how many maps you ran each day on a monthly calendar, and click any day to see which maps you ran, average map time, deaths, and saved sessions.' },
+      { tag: 'Added', text: 'Automatic Client.txt insights: counts league mechanic spawns (Harvest, Expedition, Betrayal, Blight, Ultimatum), alerts you when The Nameless Seer appears, logs where and why you died, records completed trades, and checks /passives for missing quest skill points.' },
+      { tag: 'Added', text: 'Campaign Walkthrough Auto-Checklist: when you watch Client.txt, zones you enter in-game automatically check themselves off in your Campaign Walkthrough.' },
+      { tag: 'Added', text: 'Backend support for Guild Stash sync, 40/40 League Challenges lookup, character Backpack items, and Cluster/Timeless Jewel tree data.' },
+      { tag: 'Improved', text: 'Hall of Fame page: placed Hall of Fame at the top and Wealth Ladder below it with simpler, clearer titles.' },
+      { tag: 'Improved', text: 'Simpler Private League tabs: removed the extra GSF Social tab—Item Loans and League Bingo now sit neatly next to Builds, Cheat Sheets, Crafting Bench (which now includes the Craft & Fracture Queue), and Alumni.' }
+    ]
+  },
+  {
+    id: 'rel-2026-11-28-flask-pantheon-hardening',
+    version: 'v3.46.0',
+    title: 'Real Flask & Pantheon Math, Cluster Jewel Notables, Squad Wishlist Alerts & Site Stability',
+    dateEst: 'Nov 28, 2026 • 10:35 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Armory & Stability',
+    summary: 'Made Character Armory calculations much more accurate by reading your real equipped flasks, Pantheons, and Cluster Jewels, fixed squad wishlist match alerts in Asset Tracker, and hardened the site with automatic error recovery and 24 automated tests.',
+    changes: [
+      { tag: 'Added', text: 'Real Flask & Pantheon math in Character Armory: reads your actual equipped flasks (including increased flask effect and Progenesis) and lets you pick Major and Minor Pantheons.' },
+      { tag: 'Added', text: 'Cluster Jewel Notables section in Character Armory so you can see every notable granted by your equipped cluster jewels with PoE Wiki links.' },
+      { tag: 'Added', text: 'Clear Local UI Cache button in Tool Setup to fix display glitches safely without deleting your cloud saves or PoE session.' },
+      { tag: 'Added', text: 'Automatic crash protection (Error Boundaries) around every page so a single bad save can never break the whole website.' },
+      { tag: 'Fixed', text: 'Fixed squad wishlist matching in Asset Tracker so you get notified right away when you loot an item a teammate needs.' }
+    ]
+  },
+  {
+    id: 'rel-2026-11-25-poe2-parity-mobile-touch',
+    version: 'v3.44.0',
+    title: 'Path of Exile 2 Guides & Trackers, Clean PoE 1 / PoE 2 Separation & Full Mobile/Touch Support',
+    dateEst: 'Nov 25, 2026 • 10:25 PM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'PoE 2 + Mobile',
+    summary: 'Expanded Path of Exile 2 with its own Endgame Atlas, Campaign Walkthrough, and Trials of Ascendancy trackers, kept PoE 1 character and stash data cleanly separated from PoE 2, and upgraded the entire site for phones, tablets, and touchscreens.',
+    changes: [
+      { tag: 'Added', text: 'Path of Exile 2 progression tools: Endgame Atlas & Waystones tracker, Acts 1–3 + Cruel permanent bonus walkthrough, Trials of Ascendancy 0/8 tracker, and an updated PoE 2 Hub.' },
+      { tag: 'Added', text: 'Mobile & Tablet upgrades: bottom navigation bar for phones, larger touch-friendly buttons, safe-area padding for notched phones, and two-finger pinch-to-zoom on both Passive and Atlas Skill Trees.' },
+      { tag: 'Added', text: 'Automatic Keystone rules in Character Armory (Chaos Inoculation, Resolute Technique, Unwavering Stance, Iron Reflexes, Eldritch Battery, Mind Over Matter, Divine Flesh, Acrobatics) so gear advice matches your real build.' },
+      { tag: 'Fixed', text: 'Kept PoE 1 characters, stash items, and mapping sessions strictly in PoE 1 mode so they never mix into PoE 2 pages.' },
+      { tag: 'Fixed', text: 'Protected Character Armory passive trees from being wiped if GGG temporarily rate-limits passive tree syncing.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-25-cohesiveness-loop',
     version: 'v3.42.0',
     title: 'Sitewide Cohesiveness: Persistent Armory Config & Goal PoB, Diff-to-Wishlist, Map-to-Asset Session Bridge & Live Mapping HUD',

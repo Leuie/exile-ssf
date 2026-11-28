@@ -109,7 +109,7 @@ export const LeagueFirstsWall: React.FC<LeagueFirstsWallProps> = ({
         <div>
           <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" />
-            League Firsts & Hall of Fame Wall
+            Hall of Fame
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             Immortalize the squad's biggest seasonal milestones. Synced directly with your active Roster characters.

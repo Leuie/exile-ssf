@@ -239,6 +239,73 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
       'Installable desktop PWA with offline Service Worker caching for Cheat Sheets, Vendor Recipes, and Regex Studio (Ctrl+K Quick Finder already shipped).',
     scope: 'Platform',
     status: 'shipped',
-    shippedNote: 'Shipped in v3.40.0'
+    shippedNote: 'Shipped in v3.40.0 (Nov 25, 2026)'
+  },
+  {
+    id: 'rm-mobile-touch-overhaul',
+    category: 'Platform Growth & Polish',
+    title: 'Full Mobile, Tablet & Touch Support',
+    description:
+      'Works smoothly on phones, tablets, and laptops with touch-friendly buttons, mobile bottom navigation, and pinch-to-zoom on both Passive and Atlas Skill Trees.',
+    scope: 'Platform',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.43.0 (Nov 25, 2026)'
+  },
+  {
+    id: 'rm-poe2-parity',
+    category: 'Platform Growth & Polish',
+    title: 'Path of Exile 2 Guides, Endgame Trackers & Clean Separation',
+    description:
+      'Added PoE 2 Endgame Atlas & Waystones tracker, Acts 1–3 + Cruel permanent bonus walkthrough, and Trials of Ascendancy guide, while keeping PoE 1 character and stash data strictly separated.',
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.44.0 (Nov 25, 2026)'
+  },
+  {
+    id: 'rm-daily-calendar-telemetry',
+    category: 'Next Level Client.txt & Farming Analytics',
+    title: 'Daily Mapping Calendar, Mechanic Spawn Counter, Death Log & /passives Audit',
+    description:
+      'See how many maps you ran each day on a clickable calendar, track league mechanic spawns and Nameless Seer alerts, inspect death causes, log trades, and auto-check Campaign zones from Client.txt.',
+    scope: 'PoE 1 & PoE 2',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.47.0 (Nov 28, 2026)'
+  },
+  {
+    id: 'rm-flask-pantheon-cluster',
+    category: 'Deeper Character & Build Tools',
+    title: 'Equipped Flask Effect, Pantheon & Cluster Jewel Armory Support',
+    description:
+      'Character Armory now calculates real equipped flask bonuses (including increased flask effect and Progenesis), Major & Minor Pantheons, and Cluster Jewel notables.',
+    scope: 'PoE 1',
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.46.0 (Nov 28, 2026)'
+  },
+  {
+    id: 'rm-light-messaging',
+    category: 'Private League & GSF Social Features',
+    title: 'Site Notifications & Light Squad Messaging',
+    description:
+      'In-app notification bell and quick squad messages for item loan reminders, wishlist matches, alumni nudges, and private league invites.',
+    scope: 'Platform',
+    status: 'planned'
+  },
+  {
+    id: 'rm-poe2-live-api',
+    category: 'Deeper Character & Build Tools',
+    title: 'PoE 2 Live Character Armory & Stash Sync',
+    description:
+      'Automatic PoE 2 character gear, passive tree, and stash syncing once Grinding Gear Games opens the public PoE 2 character and stash API.',
+    scope: 'PoE 1 & PoE 2',
+    status: 'planned'
+  },
+  {
+    id: 'rm-root-app',
+    category: 'Platform Growth & Polish',
+    title: 'Native Root App Integration',
+    description:
+      'Dedicated Root community app integration for live league alerts, squad roster lookups, and wishlist notifications inside Root servers.',
+    scope: 'Platform',
+    status: 'planned'
   }
 ];

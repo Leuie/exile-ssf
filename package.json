@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test tests/calcEngine.test.ts tests/pobCodec.test.ts tests/parsersAndFormatters.test.ts",
+    "test": "node --test tests/calcEngine.test.ts tests/pobCodec.test.ts tests/parsersAndFormatters.test.ts tests/clientTxtTelemetry.test.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

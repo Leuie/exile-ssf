@@ -132,14 +132,13 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   onOpenArmory
 }) => {
   // Horizontal Nav Tabs
-  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'social' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'alumni';
+  type HubTab = 'overview' | 'feed' | 'looking_for' | 'bounties' | 'roster' | 'mechanics' | 'hall_of_fame' | 'manage' | 'guides' | 'cheatsheets' | 'new_player' | 'loans' | 'bingo' | 'alumni';
 
   const TAB_SLUG_MAP: Record<HubTab, string> = {
     overview: 'command-center',
     feed: 'feed',
     looking_for: 'wishlists',
     bounties: 'bounties',
-    social: 'social',
     roster: 'roster',
     mechanics: 'mechanics',
     hall_of_fame: 'hall-of-fame',
@@ -147,6 +146,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     guides: 'guides',
     cheatsheets: 'cheatsheets',
     new_player: 'bench',
+    loans: 'loans',
+    bingo: 'bingo',
     alumni: 'alumni'
   };
 
@@ -157,7 +158,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     if (clean === 'feed' || clean === 'activity' || clean === 'wall') return 'feed';
     if (clean === 'wishlists' || clean === 'wishlist' || clean === 'needs' || clean === 'wishlists-needs' || clean === 'looking_for' || clean === 'looking-for') return 'looking_for';
     if (clean === 'bounties' || clean === 'bounty' || clean === 'honors' || clean === 'achievements' || clean === 'rewards') return 'bounties';
-    if (clean === 'social' || clean === 'gsf-social' || clean === 'loans' || clean === 'crafts' || clean === 'bingo') return 'social';
+    if (clean === 'social' || clean === 'gsf-social' || clean === 'loans') return 'loans';
+    if (clean === 'bingo' || clean === 'league-bingo') return 'bingo';
+    if (clean === 'crafts' || clean === 'craft-queue') return 'new_player';
     if (clean === 'roster' || clean === 'roster-directory' || clean === 'directory') return 'roster';
     if (clean === 'mechanics' || clean === 'atlas-mechanics' || clean === 'niche' || clean === 'lanes') return 'mechanics';
     if (clean === 'hall-of-fame' || clean === 'halloffame' || clean === 'hall_of_fame' || clean === 'firsts' || clean === 'league-firsts') return 'hall_of_fame';
@@ -224,7 +227,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       feed: 'Feed',
       looking_for: 'Wishlists',
       bounties: 'Bounties',
-      social: 'GSF Social',
       roster: 'Roster',
       mechanics: 'Mechanics',
       hall_of_fame: 'Hall of Fame',
@@ -232,6 +234,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
       guides: 'Builds',
       cheatsheets: 'Cheat Sheets',
       new_player: 'Crafting Bench',
+      loans: 'Item Loans',
+      bingo: 'League Bingo',
       alumni: 'Alumni'
     };
     document.title = `${titles[activeTab]} | Exile SSF`;
@@ -1697,7 +1701,6 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 badge: `${lookingForItems.filter((it) => it.status !== 'HAVE' && it.bountyOffer && it.bountyOffer.trim()).length}`,
                 slug: 'bounties'
               },
-              { id: 'social' as HubTab, label: 'GSF Social', icon: Handshake, badge: 'New', slug: 'social' },
               { id: 'roster' as HubTab, label: 'Roster', icon: Users, badge: `${roster.length}`, slug: 'roster' },
               { id: 'mechanics' as HubTab, label: 'Mechanics', icon: Compass, badge: '25', slug: 'mechanics' },
               { id: 'hall_of_fame' as HubTab, label: 'Hall of Fame', icon: Crown, badge: `${leagueFirsts.length}`, slug: 'hall-of-fame' },
@@ -1745,6 +1748,8 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
               { id: 'guides' as HubTab, label: 'Builds', icon: BookOpen, badge: `${guides.length}`, slug: 'guides' },
               { id: 'cheatsheets' as HubTab, label: 'Cheat Sheets', icon: Scroll, badge: null, slug: 'cheatsheets' },
               { id: 'new_player' as HubTab, label: 'Crafting Bench', icon: Compass, badge: null, slug: 'bench' },
+              { id: 'loans' as HubTab, label: 'Item Loans', icon: Handshake, badge: null, slug: 'loans' },
+              { id: 'bingo' as HubTab, label: 'League Bingo', icon: Sparkles, badge: null, slug: 'bingo' },
               { id: 'alumni' as HubTab, label: 'Alumni', icon: History, badge: `${alumniList.length}`, slug: 'alumni' }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1845,12 +1850,23 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           </div>
         )}
 
-        {/* TAB: GSF SOCIAL (ITEM LOANS, CRAFT QUEUE & 5x5 LEAGUE BINGO) */}
-        {activeTab === 'social' && (
+        {/* SUB-PAGE: ITEM LOANS */}
+        {activeTab === 'loans' && (
           <GsfSocialTab
             leagueId={activeSessionId}
             userAccount={userAccount}
             onOpenAuthModal={onOpenAuthModal}
+            lockedView="loans"
+          />
+        )}
+
+        {/* SUB-PAGE: 5x5 LEAGUE BINGO */}
+        {activeTab === 'bingo' && (
+          <GsfSocialTab
+            leagueId={activeSessionId}
+            userAccount={userAccount}
+            onOpenAuthModal={onOpenAuthModal}
+            lockedView="bingo"
           />
         )}
 
@@ -1885,17 +1901,9 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
           />
         )}
 
-        {/* TAB: HALL OF FAME, OPT IN WEALTH LADDER & LEAGUE FIRSTS WALL */}
+        {/* TAB: HALL OF FAME (FIRST) & WEALTH LADDER (SECOND) */}
         {activeTab === 'hall_of_fame' && (
           <div className="space-y-6">
-            <WealthLadderBoard
-              leagueId={activeSessionId}
-              leagueName={activeLeagueInfo.name}
-              roster={roster}
-              currentUser={userAccount || null}
-              onOpenProfile={onOpenProfile}
-              onOpenArmory={onOpenArmory}
-            />
             <LeagueFirstsWall
               leagueId={activeSessionId}
               firsts={leagueFirsts}
@@ -1910,6 +1918,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
                 setCopyNotice(`League First recorded: ${m.title} by @${m.winnerDisplayName}!`);
                 setTimeout(() => setCopyNotice(null), 3500);
               }}
+            />
+            <WealthLadderBoard
+              leagueId={activeSessionId}
+              leagueName={activeLeagueInfo.name}
+              roster={roster}
+              currentUser={userAccount || null}
+              onOpenProfile={onOpenProfile}
+              onOpenArmory={onOpenArmory}
             />
           </div>
         )}
@@ -2071,9 +2087,17 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
 
         {/* ============================================================================ */}
         {/* TAB 8: BENCH & TIPS */}
-        {/* TAB 8: BENCH AND STASH TIPS */}
+        {/* TAB 8: CRAFTING BENCH + CONDENSED CRAFT & FRACTURE QUEUE */}
         {activeTab === 'new_player' && (
-          <BenchGuideTab />
+          <div className="space-y-6">
+            <BenchGuideTab selectedGame={selectedGame} userAccount={userAccount} />
+            <GsfSocialTab
+              leagueId={activeSessionId}
+              userAccount={userAccount}
+              onOpenAuthModal={onOpenAuthModal}
+              lockedView="crafts"
+            />
+          </div>
         )}
 
         {/* TAB 9: ALUMNI DIRECTORY */}

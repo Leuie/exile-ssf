@@ -238,7 +238,7 @@ export const WealthLadderBoard: React.FC<WealthLadderBoardProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg sm:text-xl font-black font-cinzel text-white flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-400" />
-              <span>Opt In Wealth &amp; Pace Ladder</span>
+              <span>Wealth Ladder</span>
             </h2>
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" />

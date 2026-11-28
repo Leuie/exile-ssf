@@ -11,7 +11,7 @@
   ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝    ╚══════╝╚══════╝╚═╝     
 ```
 
-**Live Domain:** [exilessf.app](https://exilessf.app) • **Version:** `v3.40.0` • **Platforms:** Path of Exile 1 (3.30 Covens of Umbra) & Path of Exile 2 (0.5 Return of the Ancients)
+**Live Domain:** [exilessf.app](https://exilessf.app) • **Version:** `v3.47.0` • **Platforms:** Path of Exile 1 (3.30 Covens of Umbra) & Path of Exile 2 (0.5 Return of the Ancients)
 
 [![Domain](https://img.shields.io/badge/Domain-exilessf.app-0ea5e9?style=for-the-badge&logo=cloudflare&logoColor=white)](https://exilessf.app)
 [![Cloudflare D1](https://img.shields.io/badge/Cloudflare_D1-SQLite_Edge_DB-F38020?style=for-the-badge&logo=cloudflareworkers&logoColor=white)](https://developers.cloudflare.com/d1/)
@@ -33,32 +33,24 @@ Built as a cohesive second monitor farming cockpit, **EXILE SSF** unites a singl
 ## Core Capabilities and Feature Modules
 
 ### 1. Character Armory (`/armory`) & Build Intelligence
-Full width character inspector (`CharacterArmoryView.tsx`, `src/components/armory/*`, `src/utils/pobEncoder.ts`):
-* **Equipment Paperdoll & Socketed Gems**: Live GGG gear sync with full item tooltips, Prefix/Suffix affix tiers, Cluster/Abyss jewels, flasks, and a draggable/resizable `<ToolWidgetGrid />`.
-* **Official GGG Passive Skill Tree Canvas**: Interactive pan/zoom canvas rendered with official `web.poecdn.com` sprite sheets, curved orbit arcs, Class Ascendancies in home quadrants, and Bloodline Ascendancies.
-* **Live PoB XML Export (`Copy PoB Code`)**: 1 click Path of Building import string generator (`pako` compressed XML) exporting character class, level, equipped items, sockets, gems, and passive tree hashes.
-* **Gem Level & Quality Audit**: Automatically flags Lv 20 GCP vendor recipes, 20/20 Vaal/Double Corrupt candidates, and Exceptional/Awakened gem pushes.
-* **Build Upgrade Advisor & Gear Hole Detector**: Ranked slot by slot audit catching missing Eldritch implicits, un-anointed Amulets, open crafting bench affixes, low life rolls, and uncapped resistances.
-* **Side by Side Character & Passive Tree Diff Viewer**: Compare vitals, Keystones, gear slots, and color coded passive tree pathing (Gold shared / Cyan yours / Purple theirs) against any alt or Private League squadmate.
+Full width character inspector (`CharacterArmoryView.tsx`, `src/components/profile/*`, `src/utils/poeCalcEngine.ts`, `src/utils/pobEncoder.ts`):
+* **Unified PoB-Grade Calculation Engine (`poeCalcEngine.ts`)**: Computes live Attributes, Life, Energy Shield, Armour (with PDR%), Evasion (with exact Evade%), Block/Spell Block, Spell Suppression, In-Game `Cap% (+Overcap%)` Resistances, 5-Type Maximum Hit Taken, Effective Hit Pool (EHP), and Weapon/Main-Skill Offense — with interactive PoB Config toggles (Charges, Fortify, real equipped Flask Effect & Progenesis, Major/Minor Pantheons, Guard Skills, Bandits, Auras, and Enemy Presets) and declarative Keystone rules (CI, RT, Unwavering Stance, Iron Reflexes, EB/MoM, Divine Flesh, Acrobatics).
+* **Equipment Paperdoll, Cluster Jewel Notables & Official Passive Tree**: Live GGG gear sync with full item tooltips, Prefix/Suffix affix tiers, Cluster Jewel notable badges, Timeless Jewel seeds, backpack extraction, and a touch/pinch-zoom Official GGG Passive Skill Tree canvas.
+* **PoB XML Export (`Copy PoB Code`), Gem Audit, Build Upgrade Advisor & Side-by-Side PoB Diff**: Export valid zlib-compressed PoB codes, audit Lv 20 GCP / Vaal corruption gems, flag build-aware gear upgrades, and compare your character side-by-side against any `pobb.in` or squadmate.
 
 ### 2. Asset Tracker (`/assets`), Wealth Analytics (`/assets/analytics`) & Map Tracker (`/maps`)
-Unified second monitor farming workspaces (`AssetTrackerView.tsx`, `WealthAnalyticsView.tsx`, `MapTrackerView.tsx`, `src/components/assets/*`, `src/components/maps/*`, `worker/routes/assets.ts`):
-* **Asset Tracker (`/assets`)**: Standardized **18 Slot Canonical Tab Mapper** (12 specialty tabs + Levelling Items Quad + Dump 1 to 5), draggable `<ToolWidgetGrid />`, **Map Cost vs Profit Net Calculator** (subtracts Scarab, Map Device, and Chisel costs to compute **True Net Div/hr** and ROI %), **3 pure SVG charts** (Interactive Wealth Timeline, Category Share Donut, Top Yielding Tabs), live **`poe.ninja`** pricing with **`SSF Utility`** toggle + customizable **Weights** drawer, clickable **PoE Wiki** links, wall clock background safe `15m / 30m / 60m` auto sync, per league cloud persistence, opt in Hall of Fame Wealth Ladder publishing, and `.xlsx` export.
-* **Full Page Wealth & Pace Analytics (`/assets/analytics`)**: Executive dashboard with per league switcher, 5 KPI cards, interactive Wealth Timeline, Category Breakdown Donut + Table, Top Yielding Tabs Leaderboard, and Top 12 Most Valuable Assets.
-* **Map Tracker (`/maps`) & Interactive Atlas Skill Tree Planner**:
-  * **Official GGG Atlas Skill Tree Planner**: Powered by `grindinggear/atlastree-export` with official sprites, curved orbits, Exarch/Eater backgrounds, Gateways, **150 point cap** (`132 + 18 Maven`), **BFS shortest path auto allocation**, **1 click branch refunds** with gold/red hover previews, PoE style **`Show Stats` modifier totalizer**, Linked Strategy Profiles, and 1 click **Shareable Atlas Tree links**.
-  * **Realtime `Client.txt` Telemetry & Delve XP**: Per map duration, hideout downtime %, death tracking, first class **Delve (`Azurite Mine`)** classification + `Delve (Azurite Mine XP)` strategy preset, live GGG character experience **XP/hr polling** (`/api/farming/character-xp`), and opt in **`Share Live Zone`** heartbeat for the Squad Presence Bar.
-  * **Specialized Telemetry Suite**: **Live Boss Rush & Invitation Tracker** (Guardians, Conquerors, Maven, Eater/Exarch, T17s), **LiveSplit Campaign Speedrun Split Comparator** (Act 1 to 10 PBs with green/red deltas), and **Delve XP / Peak Monster Lv, Sanctum & Heist** deep sub trackers.
+Unified farming workspaces (`AssetTrackerView.tsx`, `WealthAnalyticsView.tsx`, `MapTrackerView.tsx`, `src/components/assets/*`, `src/components/maps/*`, `worker/routes/assets.ts`):
+* **Asset Tracker (`/assets`)**: Standardized **18 Slot Canonical Tab Mapper**, draggable/touch-reorderable `<ToolWidgetGrid />`, **Map Cost vs Profit Net Calculator**, live **`poe.ninja`** pricing with **`SSF Utility`** toggle, **Squad Wishlist Auto-Alerts**, Guild Stash API (`/api/farming/guild-stash`), per-league cloud persistence, opt-in Wealth Ladder publishing, and `.xlsx` export.
+* **Map Tracker (`/maps`), Daily Mapping Calendar & Client.txt Telemetry**:
+  * **Daily Mapping Calendar (`DailyMappingCalendar.tsx`)**: Monthly at-a-glance calendar showing maps run per day with click-to-inspect daily breakdowns (top maps, avg duration, deaths, strategies, and saved sessions).
+  * **Deep Client.txt Telemetry (`clientTxtTelemetry.ts`)**: Live NPC Mechanic Spawn Counter (Harvest, Expedition, Betrayal, Blight, Ultimatum), **Nameless Seer alerts**, Death Forensics Log, GSF Trade Ledger, `/passives` & `/played` auto-auditor, Instance Crash/DC monitor, and **Campaign Walkthrough Auto-Checklist** sync.
+  * **Official GGG Atlas Skill Tree Planner**: Touch/pinch-zoom official Atlas canvas (`150` point cap: `132 + 18 Maven`), shortest-path auto-allocation, branch refunds, and `Show Stats` modifier totalizer.
 
-### 3. Private League & GSF Social Hub (`/privateleaguehub` & `/league/:id`)
-Cooperative Group Self Found hub for hosting and running any Path of Exile 1 or Path of Exile 2 private league:
-* **Live Squad Presence Bar (`Mapping Now`)**: Real time status strip showing which squadmates are currently in T16s, Delve, Bosses, Heist, or Hideout.
-* **GSF Social Tab (`/social`)**:
-  * **GSF Item Loan & Return Tracker**: Log borrowed chase uniques (Mageblood, Headhunter, Defiance of Destiny) with owner, borrower, notes, and 1 click Mark Returned history.
-  * **Squad Craft & Fracture Queue**: Request Veiled Orbs, Betrayal benches, Harvest augments, or Fracturing Orb attempts with material readiness flags and crafter claiming.
-  * **5x5 Private League Bingo & Race Challenges**: 25 tile interactive bingo board with automatic row/column/diagonal Bingo scoring and a live squad leaderboard.
-* **Wishlists, Free Stash & Loot Filter / Regex Sync**: Official item icons (`poe.ninja` CDN), **3,541 item live autocomplete**, `Ctrl+C` tooltip parser, PoB wishlist importer, reverse Free Stash Feed, and 1 click **Neversink / FilterBlade `.filter` + `<=250` char Stash Regex generator** from open Squad Wishlists.
-* **Command Center, Live Feed, Bounties, Roster, 25 Mechanic Matrix, Hall of Fame & Staff Governance**: Embedded league reveal videos, automated 12 hour ladder sync, Bounties & Boss Rotas, persistent cross season Achievements & Honor Points, per league Host & Moderator console (`/manage`), and **Automated 8 PM Discord / Root Daily League Digests** (scheduled Cron Worker + manual **`Send Daily Digest Now`** button).
+### 3. Private League & GSF Hub (`/privateleaguehub` & `/league/:id`) & Path of Exile 2 Parity
+Cooperative Group Self Found hub for Path of Exile 1 and Path of Exile 2:
+* **Organized League Tabs**: Command Center, Live Feed, Wishlists (with Loot Filter & Stash Regex generator), Bounties, Roster, 25 Mechanic Matrix, **Hall of Fame** & **Wealth Ladder**, Builds, Cheat Sheets, **Crafting Bench** (with integrated **Craft & Fracture Queue**), **Item Loans**, **5×5 League Bingo**, and Alumni.
+* **Path of Exile 2 Compendium**: Dedicated **Endgame Atlas & Waystones** tracker, **Acts 1–3 + Cruel** permanent bonus walkthrough, **Trials of Ascendancy (0/8)** tracker, PoE 2 10x Armour & Penetration math, Salvage formulas, and strict PoE 1 vs PoE 2 data isolation.
+* **Mobile, Tablet & Automated Quality Gate**: Edge-to-edge safe-area support, 44px touch targets, mobile bottom navigation bar, Route Error Boundaries, `tsconfig.worker.json` worker typechecking, 0 `oxlint` errors, and GitHub Actions Node 24 CI running `npm test && npm run lint -- --quiet && npm run build`.
 
 ### 4. Compendium, Exile Profiles (`/exile/:handle`), Dynamic OG Cards & Offline PWA
 * **Dynamic Open Graph Share Cards (`/api/og/card`)**: Auto generated 1200×630 dark fantasy preview cards injected into `/exile/:handle`, `/armory/:handle`, `/league/:id/hall-of-fame`, and shared Atlas links when pasted into Discord or Root, plus a 1 click **Share Card** button on Exile Profiles.
