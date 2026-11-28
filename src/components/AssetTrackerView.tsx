@@ -569,10 +569,11 @@ export const AssetTrackerView: React.FC<AssetTrackerViewProps> = ({
     let cancelled = false;
     const loadContext = async () => {
       try {
-        const dataRes = await fetch(`/api/data?leagueId=${encodeURIComponent(linkedLeagueId)}`, { credentials: 'include' });
+        const dataRes = await fetch(`/api/data?league=${encodeURIComponent(linkedLeagueId)}`, { credentials: 'include' });
         if (dataRes.ok && !cancelled) {
           const data: any = await dataRes.json();
-          if (Array.isArray(data?.lookingForItems)) setWishlistItems(data.lookingForItems);
+          const wList = Array.isArray(data?.wishlist) ? data.wishlist : data?.lookingForItems;
+          if (Array.isArray(wList)) setWishlistItems(wList);
           if (Array.isArray(data?.customLeagues) && data.customLeagues.length > 0) {
             const customOpts: LeagueOption[] = data.customLeagues
               .filter((c: any) => c?.id && c?.name)

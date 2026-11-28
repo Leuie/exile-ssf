@@ -8,10 +8,14 @@ import { formatInGameRes, type FormattedResistance } from './resFormatter.ts';
 
 export type EnemyPresetId = 'map_84' | 'pinnacle_84' | 'uber_85';
 export type BanditChoice = 'kill_all' | 'alira' | 'oak' | 'kraityn';
+export type MajorPantheon = 'none' | 'brine_king' | 'lunaris' | 'solaris' | 'arakaali';
+export type MinorPantheon = 'none' | 'gruthkul' | 'shakari' | 'tukohama' | 'yugul' | 'abberath' | 'ralakesh';
 
 export interface PoeCalcConfig {
   resistancePenalty: 0 | -30 | -60;
   bandit: BanditChoice;
+  majorPantheon?: MajorPantheon;
+  minorPantheon?: MinorPantheon;
   useEnduranceCharges: boolean;
   enduranceCharges: number;
   useFrenzyCharges: boolean;
@@ -550,7 +554,7 @@ export function calculateCharacterStats(
   const dexterity = baseDex + Math.round(gs?.dexterity || 0);
   const intelligence = baseInt + Math.round(gs?.intelligence || 0);
 
-  // 2. Parse Flask Bonuses if Flasks Active
+  // 2. Parse Real Equipped Flask Bonuses (with Enkindling / Alchemist's Increased Effect scaling)
   let flaskFlatArmour = 0;
   let flaskFlatEvasion = 0;
   let flaskIncArmour = 0;
@@ -562,45 +566,69 @@ export function calculateCharacterStats(
   let flaskMaxFire = 0;
   let flaskMaxCold = 0;
   let flaskMaxLight = 0;
+  let flaskSuppress = 0;
   let flaskMoveSpeed = 0;
+  let hasProgenesis = false;
+  let progenesisEffMult = 1;
 
   if (config.flasksActive) {
     for (const f of snap.equipped.filter((i) => i.inventoryId === 'Flask')) {
       const fName = `${f.name} ${f.baseType} ${f.typeLine}`.toLowerCase();
-      if (fName.includes('granite flask')) flaskFlatArmour += 1500;
-      if (fName.includes('jade flask')) flaskFlatEvasion += 1500;
-      if (fName.includes('basalt flask')) flaskIncArmour += 20;
-      if (fName.includes('stibnite flask')) flaskIncEvasion += 20;
+      const fMods = [
+        ...(f.enchantMods || []),
+        ...(f.implicitMods || []),
+        ...(f.explicitMods || []),
+        ...(f.craftedMods || [])
+      ];
+
+      // Parse per-flask "% increased effect" (e.g. 70% Enkindling Orb + 25% Alchemist's prefix = 1.95x)
+      let flaskIncEffectPct = 0;
+      for (const m of fMods) {
+        const effM = m.match(/(\d+)% increased effect/i);
+        if (effM) flaskIncEffectPct += Number(effM[1]);
+      }
+      const effMult = 1 + flaskIncEffectPct / 100;
+
+      if (fName.includes('granite flask')) flaskFlatArmour += Math.floor(1500 * effMult);
+      if (fName.includes('jade flask')) flaskFlatEvasion += Math.floor(1500 * effMult);
+      if (fName.includes('basalt flask')) flaskIncArmour += Math.floor(20 * effMult);
+      if (fName.includes('stibnite flask')) flaskIncEvasion += Math.floor(20 * effMult);
+      if (fName.includes('quartz flask')) flaskSuppress += Math.floor(10 * effMult);
       if (fName.includes('ruby flask')) {
-        flaskFireRes += 50;
-        flaskMaxFire += 5;
+        flaskFireRes += Math.floor(50 * effMult);
+        flaskMaxFire += Math.floor(5 * effMult);
       }
       if (fName.includes('sapphire flask')) {
-        flaskColdRes += 50;
-        flaskMaxCold += 5;
+        flaskColdRes += Math.floor(50 * effMult);
+        flaskMaxCold += Math.floor(5 * effMult);
       }
       if (fName.includes('topaz flask')) {
-        flaskLightRes += 50;
-        flaskMaxLight += 5;
+        flaskLightRes += Math.floor(50 * effMult);
+        flaskMaxLight += Math.floor(5 * effMult);
       }
-      if (fName.includes('amethyst flask')) flaskChaosRes += 35;
+      if (fName.includes('amethyst flask')) flaskChaosRes += Math.floor(35 * effMult);
       if (fName.includes('bismuth flask')) {
-        flaskFireRes += 35;
-        flaskColdRes += 35;
-        flaskLightRes += 35;
+        const biRes = Math.floor(35 * effMult);
+        flaskFireRes += biRes;
+        flaskColdRes += biRes;
+        flaskLightRes += biRes;
       }
-      if (fName.includes('quicksilver flask')) flaskMoveSpeed += 40;
-      const fMods = [...(f.explicitMods || []), ...(f.implicitMods || [])];
+      if (fName.includes('quicksilver flask')) flaskMoveSpeed += Math.floor(40 * effMult);
+      if (fName.includes('progenesis')) {
+        hasProgenesis = true;
+        progenesisEffMult = effMult;
+      }
+
       for (const m of fMods) {
         const arM = m.match(/(\d+)% increased Armour during Effect/i);
-        if (arM) flaskIncArmour += Number(arM[1]);
+        if (arM) flaskIncArmour += Math.floor(Number(arM[1]) * effMult);
         const evM = m.match(/(\d+)% increased Evasion Rating during Effect/i);
-        if (evM) flaskIncEvasion += Number(evM[1]);
+        if (evM) flaskIncEvasion += Math.floor(Number(evM[1]) * effMult);
         const msM = m.match(/(\d+)% increased Movement Speed during Effect/i);
-        if (msM) flaskMoveSpeed += Number(msM[1]);
+        if (msM) flaskMoveSpeed += Math.floor(Number(msM[1]) * effMult);
         const allResM = m.match(/\+(\d+)% to all Elemental Resistances during Effect/i);
         if (allResM) {
-          const rv = Number(allResM[1]);
+          const rv = Math.floor(Number(allResM[1]) * effMult);
           flaskFireRes += rv;
           flaskColdRes += rv;
           flaskLightRes += rv;
@@ -696,14 +724,24 @@ export function calculateCharacterStats(
   const rawSpellBlock = Math.round((gs?.spellBlockChance || 0) + (isAuraOn('Tempest Shield') ? 25 : 0));
   const attackBlock = Math.min(75, hasGlancingBlows ? rawAttackBlock * 2 : rawAttackBlock);
   const spellBlock = Math.min(75, hasGlancingBlows ? rawSpellBlock * 2 : rawSpellBlock);
-  const suppressionChance = Math.min(100, Math.max(0, Math.round(vit.suppress || 0)));
+  const suppressionChance = Math.min(100, Math.max(0, Math.round((vit.suppress || 0) + flaskSuppress)));
   const suppressionEffect = 50;
 
-  // 9. Physical & Elemental Mitigation Layers
+  // 9. Physical & Elemental Mitigation Layers (including Major/Minor Pantheon)
+  const majorP = config.majorPantheon || 'none';
+  const minorP = config.minorPantheon || 'none';
+  const pantheonPdr =
+    (majorP === 'solaris' && config.enemyPreset !== 'map_84' ? 6 : 0) +
+    (majorP === 'lunaris' && config.enemyPreset === 'map_84' ? 4 : 0) +
+    (minorP === 'gruthkul' ? 5 : 0) +
+    (minorP === 'tukohama' ? 3 : 0);
+  const pantheonColdDr = minorP === 'yugul' ? 5 : 0;
+  const pantheonChaosDr = minorP === 'shakari' ? 5 : 0;
+
   const endCharges = config.useEnduranceCharges ? Math.max(0, Math.min(12, config.enduranceCharges)) : 0;
   const endurancePdr = endCharges * 4; // 4% PDR per charge (PoE 3.25+)
   const enduranceEleDr = endCharges * 4; // 4% Ele DR per charge (PoE 3.25+)
-  const flatPdr = Math.round(gs?.flatPdr || 0);
+  const flatPdr = Math.round((gs?.flatPdr || 0) + pantheonPdr);
   const physTakenAsEle = Math.min(90, Math.round(gs?.physTakenAsEle || 0));
   const fortifyDr = config.fortified ? Math.min(30, Math.max(0, config.fortifyStacks)) : 0;
   const arcticPhysDr = isAuraOn('Arctic Armour') ? 21 : 0; // PoB 2.69.0 act_dex.lua Lv 20: -21% Phys, -20% Fire
@@ -745,7 +783,8 @@ export function calculateCharacterStats(
   } else if (baseTraits.esProtectsLife) {
     baseHitPool = totalLife + totalEs;
   }
-  const hitPool = baseHitPool + guardAbsorb;
+  const progenesisMult = !isCI && hasProgenesis ? 1 / Math.max(0.55, 1 - 0.25 * progenesisEffMult) : 1;
+  const hitPool = Math.round(baseHitPool * progenesisMult) + guardAbsorb;
   const avgEleRes = (fire.effective + cold.effective + lightning.effective) / 3;
 
   const computeHitTaken = (rawHit: number, type: 'phys' | 'fire' | 'cold' | 'lightning' | 'chaos'): number => {
@@ -760,17 +799,18 @@ export function calculateCharacterStats(
       dmg = physPart + elePart;
     } else if (type === 'chaos') {
       if (isCI) return 0;
-      dmg = rawHit * (1 - chaos.effective / 100);
+      dmg = rawHit * (1 - chaos.effective / 100) * (1 - pantheonChaosDr / 100);
     } else {
       const resPct = type === 'fire' ? fire.effective : type === 'cold' ? cold.effective : lightning.effective;
       const fireExtra = type === 'fire' ? 1 - arcticFireDr / 100 : 1;
+      const coldExtra = type === 'cold' ? 1 - pantheonColdDr / 100 : 1;
       if (baseTraits.isDivineFlesh) {
         // Divine Flesh: 50% of Elemental Damage taken as Chaos
-        const eleHalf = rawHit * 0.5 * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
-        const chaosHalf = rawHit * 0.5 * (1 - chaos.effective / 100);
+        const eleHalf = rawHit * 0.5 * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra * coldExtra;
+        const chaosHalf = rawHit * 0.5 * (1 - chaos.effective / 100) * (1 - pantheonChaosDr / 100);
         dmg = eleHalf + chaosHalf;
       } else {
-        dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra;
+        dmg = rawHit * (1 - resPct / 100) * (1 - enduranceEleDr / 100) * (1 - guardLessEle / 100) * fireExtra * coldExtra;
       }
       if (!baseTraits.isAcrobatics && suppressionChance >= 100) {
         dmg *= 1 - suppressionEffect / 100;

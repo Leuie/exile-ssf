@@ -7,6 +7,8 @@ import {
   calculateCharacterStats,
   type BanditChoice,
   type EnemyPresetId,
+  type MajorPantheon,
+  type MinorPantheon,
   type PoeCalcConfig
 } from '../../utils/poeCalcEngine';
 
@@ -413,6 +415,39 @@ export const PobStatsAndConfigPanel: React.FC<PobStatsAndConfigPanelProps> = ({ 
               <option value="pinnacle_84">Guardian / Pinnacle Boss (Lv 84 • 4,800 Hit)</option>
               <option value="uber_85">Uber Pinnacle Boss (Lv 85 • 8,500 Hit)</option>
             </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="block text-[9px] uppercase text-slate-500 mb-0.5">Major Pantheon</label>
+              <select
+                value={config.majorPantheon || 'none'}
+                onChange={(e) => setConfig((p) => ({ ...p, majorPantheon: e.target.value as MajorPantheon }))}
+                className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-[11px]"
+              >
+                <option value="none">None</option>
+                <option value="brine_king">Brine King (Freeze Immune)</option>
+                <option value="solaris">Solaris (+6% Boss PDR)</option>
+                <option value="lunaris">Lunaris (+4% Map PDR)</option>
+                <option value="arakaali">Arakaali (-10% DoT)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase text-slate-500 mb-0.5">Minor Pantheon</label>
+              <select
+                value={config.minorPantheon || 'none'}
+                onChange={(e) => setConfig((p) => ({ ...p, minorPantheon: e.target.value as MinorPantheon }))}
+                className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-[11px]"
+              >
+                <option value="none">None</option>
+                <option value="gruthkul">Gruthkul (+5% PDR)</option>
+                <option value="tukohama">Tukohama (+3% PDR)</option>
+                <option value="shakari">Shakari (-5% Chaos Dmg)</option>
+                <option value="yugul">Yugul (-5% Cold Dmg)</option>
+                <option value="abberath">Abberath (Burning Ground)</option>
+                <option value="ralakesh">Ralakesh (CB / Bleed)</option>
+              </select>
+            </div>
           </div>
 
           {/* Charges & Combat Buffs */}

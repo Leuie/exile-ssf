@@ -97,6 +97,27 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [hardlinkPlatform, setHardlinkPlatform] = useState<'steam' | 'standalone'>('steam');
   const [copiedCmd, setCopiedCmd] = useState<boolean>(false);
+  const [cacheClearedMsg, setCacheClearedMsg] = useState<boolean>(false);
+
+  const handleClearLocalUiCache = () => {
+    try {
+      const keysToClear: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (
+          k.startsWith('exile_ssf_tool_grid_') ||
+          k.startsWith('exile_ssf_last_char_') ||
+          k === 'exile_ssf_synced_gear_vitals_v1'
+        ) {
+          keysToClear.push(k);
+        }
+      }
+      keysToClear.forEach((k) => localStorage.removeItem(k));
+      setCacheClearedMsg(true);
+      setTimeout(() => setCacheClearedMsg(false), 3000);
+    } catch {}
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -598,13 +619,23 @@ export const ToolSetupModal: React.FC<ToolSetupModalProps> = ({
         <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
           {step === 1 ? (
             <>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearLocalUiCache}
+                  className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 text-xs font-semibold cursor-pointer"
+                  title="Clears stale local UI/layout caches without touching Cloud data or POESESSID"
+                >
+                  {cacheClearedMsg ? '✓ Local Cache Cleared' : 'Clear Local UI Cache'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setStep(2)}

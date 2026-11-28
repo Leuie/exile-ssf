@@ -269,4 +269,85 @@ describe('PoE Calc Engine — 10-Archetype Keystone & Mechanics Regression Suite
     assert.equal(calc.armour.fromFlasks, 1500);
     assert.equal(calc.evasion.fromGrace, 1545);
   });
+
+  it('11. Enkindling (70%) + Alchemist (25%) Flask Effect scales Ruby Max Res, Quartz Suppress & Progenesis', () => {
+    const snap = makeSnap({
+      estimatedVitals: { flatLife: 500, flatEs: 0, fireRes: 140, coldRes: 140, lightningRes: 140, chaosRes: 60, suppress: 80 },
+      equipped: [
+        {
+          id: 'belt-mb',
+          inventoryId: 'Belt',
+          name: 'Mageblood',
+          baseType: 'Heavy Belt',
+          typeLine: 'Heavy Belt',
+          frameType: 3,
+          ilvl: 85
+        },
+        {
+          id: 'f-ruby',
+          inventoryId: 'Flask',
+          name: '',
+          baseType: 'Ruby Flask',
+          typeLine: "Alchemist's Ruby Flask",
+          frameType: 1,
+          ilvl: 84,
+          enchantMods: ['70% increased effect'],
+          explicitMods: ['25% increased effect']
+        },
+        {
+          id: 'f-quartz',
+          inventoryId: 'Flask',
+          name: '',
+          baseType: 'Quartz Flask',
+          typeLine: 'Quartz Flask',
+          frameType: 1,
+          ilvl: 84,
+          enchantMods: ['70% increased effect']
+        },
+        {
+          id: 'f-prog',
+          inventoryId: 'Flask',
+          name: 'Progenesis',
+          baseType: 'Amethyst Flask',
+          typeLine: 'Amethyst Flask',
+          frameType: 3,
+          ilvl: 85
+        }
+      ]
+    });
+    const cfgOff = { ...buildDefaultCalcConfig(snap), flasksActive: false };
+    const cfgOn = { ...buildDefaultCalcConfig(snap), flasksActive: true };
+    const off = calculateCharacterStats(snap, cfgOff);
+    const on = calculateCharacterStats(snap, cfgOn);
+
+    // 5% base Ruby Max Fire Res * 1.95 = 9% -> 75 + 9 = 84% Max Fire Res
+    assert.equal(on.resistances.fire.maxRes, 84);
+    // 80% base Suppress + floor(10 * 1.7) = 97%
+    assert.equal(on.suppression.chance, 97);
+    // Progenesis expands effective non-CI Life hit pool significantly
+    assert.ok(on.maxHits.phys > off.maxHits.phys * 1.25, 'Progenesis should raise effective Phys Max Hit');
+  });
+
+  it('12. Major & Minor Pantheons (Solaris + Gruthkul + Shakari) increase Boss PDR and Chaos Max Hit', () => {
+    const snap = makeSnap({
+      estimatedVitals: { flatLife: 600, flatEs: 0, fireRes: 135, coldRes: 135, lightningRes: 135, chaosRes: 60, suppress: 0 }
+    });
+    const baseCfg = {
+      ...buildDefaultCalcConfig(snap),
+      enemyPreset: 'pinnacle_84' as const,
+      majorPantheon: 'none' as const,
+      minorPantheon: 'none' as const
+    };
+    const pantheonCfg = {
+      ...baseCfg,
+      majorPantheon: 'solaris' as const,
+      minorPantheon: 'shakari' as const
+    };
+    const base = calculateCharacterStats(snap, baseCfg);
+    const withPantheon = calculateCharacterStats(snap, pantheonCfg);
+
+    assert.equal(withPantheon.mitigation.flatPdr, base.mitigation.flatPdr + 6);
+    assert.ok(withPantheon.maxHits.phys > base.maxHits.phys, 'Solaris should raise Pinnacle Phys Max Hit');
+    assert.ok(withPantheon.maxHits.chaos > base.maxHits.chaos, 'Shakari (-5% Chaos Dmg) should raise Chaos Max Hit');
+  });
 });

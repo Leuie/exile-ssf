@@ -37,6 +37,7 @@ export interface CharacterPassiveTreeAndSkillsProps {
   treePoints?: Array<[number, number, number]>;
   treeEdges?: Array<[number, number, number, number]>;
   equipped: PaperdollItem[];
+  clusterJewels?: PaperdollItem[];
   onInspectItem?: (item: PaperdollItem, el: HTMLElement, pin?: boolean) => void;
   onClearHover?: () => void;
 }
@@ -132,12 +133,33 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
   treePoints = [],
   treeEdges = [],
   equipped,
+  clusterJewels = [],
   onInspectItem,
   onClearHover
 }) => {
   const [showTree, setShowTree] = useState<boolean>(true);
   const [enlargeTree, setEnlargeTree] = useState<boolean>(false);
   const [showSkills, setShowSkills] = useState<boolean>(true);
+
+  const clusterNotables = useMemo(() => {
+    const out: Array<{ name: string; jewelName: string }> = [];
+    const seen = new Set<string>();
+    for (const cj of clusterJewels || []) {
+      const mods = [...(cj.explicitMods || []), ...(cj.implicitMods || []), ...(cj.fracturedMods || [])];
+      for (const m of mods) {
+        const match = m.match(/1 Added Passive Skill is (.+)/i);
+        if (match) {
+          const notable = match[1].trim();
+          const key = notable.toLowerCase();
+          if (notable && !seen.has(key)) {
+            seen.add(key);
+            out.push({ name: notable, jewelName: cj.name || cj.baseType || 'Cluster Jewel' });
+          }
+        }
+      }
+    }
+    return out;
+  }, [clusterJewels]);
 
   const skillRows = useMemo(() => {
     const itemsWithGems = equipped
@@ -347,6 +369,30 @@ export const CharacterPassiveTreeAndSkills: React.FC<CharacterPassiveTreeAndSkil
                   </div>
                 )}
               </div>
+
+              {/* Cluster Jewel Notables */}
+              {clusterNotables.length > 0 && (
+                <div className="rounded-xl border border-indigo-500/30 bg-slate-950/80 p-3.5 space-y-2">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center justify-between">
+                    <span>Cluster Jewel Notables</span>
+                    <span className="text-slate-500">{clusterNotables.length}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {clusterNotables.map((cn) => (
+                      <a
+                        key={cn.name}
+                        href={buildPoeWikiUrl(cn.name, 'poe1')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`From ${cn.jewelName}`}
+                        className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/35 text-[11px] font-semibold text-indigo-200 transition-colors"
+                      >
+                        {cn.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1704,6 +1704,7 @@ export const CharacterPaperdollView: React.FC<CharacterPaperdollViewProps> = ({
                 treePoints={activeSnapshot.passives.treePoints}
                 treeEdges={activeSnapshot.passives.treeEdges}
                 equipped={activeSnapshot.equipped}
+                clusterJewels={activeSnapshot.jewels?.cluster || []}
                 onInspectItem={(item, el, pin) => {
                   if (pin) {
                     setLockedItem(item);
