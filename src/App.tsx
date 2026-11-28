@@ -2,6 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { readLiveFarmingSession, LIVE_SESSION_EVENT, type LiveFarmingSession } from './utils/activeSession';
 import { Sidebar } from './components/Sidebar';
 import { SiteNoticeBanner } from './components/SiteNoticeBanner';
+import { RouteErrorBoundary } from './components/ui/RouteErrorBoundary';
 import { cloudAuthLogout } from './services/cloudSync';
 
 // Resilient lazy loader that auto refreshes once if a newly deployed Cloudflare build invalidates an older chunk hash
@@ -214,6 +215,23 @@ export const App: React.FC = () => {
   const [serverSessionExpired, setServerSessionExpired] = useState<boolean>(false);
   const [liveHudSession, setLiveHudSession] = useState<LiveFarmingSession | null>(() => readLiveFarmingSession());
   const [hudDismissed, setHudDismissed] = useState<boolean>(false);
+  const [communityGuides, setCommunityGuides] = useState<CommunityGuide[]>(() => {
+    try {
+      const saved = localStorage.getItem('poe_umbraleague_guides');
+      if (saved) {
+        const parsed: CommunityGuide[] = JSON.parse(saved);
+        for (const g of INITIAL_COMMUNITY_GUIDES) {
+          if (!parsed.some((p) => p.id === g.id)) {
+            parsed.push(g);
+          }
+        }
+        return parsed;
+      }
+      return INITIAL_COMMUNITY_GUIDES;
+    } catch {
+      return INITIAL_COMMUNITY_GUIDES;
+    }
+  });
 
   useEffect(() => {
     const onLiveUpdate = (e: Event) => {
@@ -691,24 +709,6 @@ export const App: React.FC = () => {
     );
   }
 
-  const [communityGuides, setCommunityGuides] = useState<CommunityGuide[]>(() => {
-    try {
-      const saved = localStorage.getItem('poe_umbraleague_guides');
-      if (saved) {
-        const parsed: CommunityGuide[] = JSON.parse(saved);
-        for (const g of INITIAL_COMMUNITY_GUIDES) {
-          if (!parsed.some((p) => p.id === g.id)) {
-            parsed.push(g);
-          }
-        }
-        return parsed;
-      }
-      return INITIAL_COMMUNITY_GUIDES;
-    } catch {
-      return INITIAL_COMMUNITY_GUIDES;
-    }
-  });
-
   const activeFullGuide = currentGuideSlug
     ? communityGuides.find(
         (g) => (g.slug && g.slug.toLowerCase() === currentGuideSlug) || g.id === currentGuideSlug
@@ -886,6 +886,7 @@ export const App: React.FC = () => {
             ? 'p-0 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0 max-w-none' 
             : 'p-3 sm:p-5 lg:p-6 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:pb-6 max-w-[1700px] w-full mx-auto'
         }`}>
+        <RouteErrorBoundary routeKey={`${selectedGame}:${activeTab}:${armoryHandle}:${armoryCharName}`}>
         <Suspense fallback={PageLoader}>
         {(activeTab === 'home' || activeTab === 'manifesto') && <HomeView onNavigate={handleSelectTab} />}
         {activeTab === 'patch_notes' && <PatchNotesView initialGame={selectedGame} />}
@@ -1012,6 +1013,7 @@ export const App: React.FC = () => {
           />
         )}
         </Suspense>
+        </RouteErrorBoundary>
       </main>
       </div>
 

@@ -2,7 +2,10 @@ import { handleAssetRoutes } from './routes/assets';
 import { handleAdminAndGovernanceRoutes } from './routes/admin';
 import { handleSocialRoutes, runScheduledDailyDigests } from './routes/social';
 import { handleOgCardRoute } from './routes/og';
-import { resolvePageMeta, injectMetaIntoHtml } from './routes/seo';
+import { resolvePageMeta, injectMetaIntoHtml, resolveLeagueDisplayName } from './routes/seo';
+import { handleAuthRoutes } from './routes/auth';
+import { handlePobResolveRoute } from './routes/pob';
+import { handleToolStateRoutes } from './routes/toolState';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
 
@@ -1460,156 +1463,21 @@ export default {
         }
       }
 
-      // GET /api/pob/resolve?url=<pobb.in or pastebin url> (Stateless PoB raw export code fetcher)
-      if (url.pathname === '/api/pob/resolve' && request.method === 'GET') {
-        try {
-          const rawInput = String(url.searchParams.get('url') || '').trim();
-          if (!rawInput) {
-            return new Response(JSON.stringify({ error: 'Missing PoB URL parameter.' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
-          }
+      // GET /api/pob/resolve (Extracted to worker/routes/pob.ts)
+      const pobResolveRes = await handlePobResolveRoute(request, url, CORS_HEADERS);
+      if (pobResolveRes) return pobResolveRes;
 
-          let normalized = rawInput;
-          if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
-
-          let fetchTarget = '';
-          let canonicalUrl = normalized;
-
-          const pobbinMatch = normalized.match(/^https?:\/\/(?:www\.)?pobb\.in\/([a-zA-Z0-9_-]{4,64})(?:\/raw)?\/?$/i);
-          const pastebinMatch = normalized.match(/^https?:\/\/(?:www\.)?pastebin\.com\/(?:raw\/)?([a-zA-Z0-9]{4,32})\/?$/i);
-
-          if (pobbinMatch) {
-            fetchTarget = `https://pobb.in/${pobbinMatch[1]}/raw`;
-            canonicalUrl = `https://pobb.in/${pobbinMatch[1]}`;
-          } else if (pastebinMatch) {
-            fetchTarget = `https://pastebin.com/raw/${pastebinMatch[1]}`;
-            canonicalUrl = `https://pastebin.com/${pastebinMatch[1]}`;
-          } else {
-            return new Response(
-              JSON.stringify({ error: 'Unsupported PoB URL. Paste a pobb.in link (e.g. https://pobb.in/abc123), pastebin.com link, or raw PoB export code.' }),
-              { status: 400, headers: CORS_HEADERS }
-            );
-          }
-
-          const res = await fetch(fetchTarget, {
-            headers: {
-              'User-Agent': 'OAuth exile-ssf/1.0 (contact: exilessf.app)',
-              Accept: 'text/plain, */*'
-            }
-          });
-
-          if (!res.ok) {
-            return new Response(
-              JSON.stringify({ error: `Could not fetch PoB code from ${canonicalUrl} (HTTP ${res.status}). Check that the link is public and valid.` }),
-              { status: res.status === 404 ? 404 : 502, headers: CORS_HEADERS }
-            );
-          }
-
-          const code = (await res.text()).trim();
-          if (!code || code.length < 20 || code.startsWith('<!DOCTYPE') || code.startsWith('<html')) {
-            return new Response(
-              JSON.stringify({ error: `The link ${canonicalUrl} did not return a valid Path of Building export code.` }),
-              { status: 422, headers: CORS_HEADERS }
-            );
-          }
-
-          return new Response(
-            JSON.stringify({ status: 'ok', sourceUrl: canonicalUrl, code }),
-            { headers: CORS_HEADERS }
-          );
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message || 'Failed to resolve PoB URL.' }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
-        }
-      }
-
-      // GET /api/tool-state?handle=<handle>&key=<toolKey> (Cloud synced per user tool state: regex presets, bench unlocks, campaign/lab/atlas progress)
-      if (url.pathname === '/api/tool-state' && request.method === 'GET') {
-        try {
-          const handle = String(url.searchParams.get('handle') || '').trim().toLowerCase();
-          const toolKey = String(url.searchParams.get('key') || '').trim();
-          if (!handle) {
-            return new Response(JSON.stringify({ error: 'Missing handle parameter.' }), { status: 400, headers: CORS_HEADERS });
-          }
-          if (toolKey) {
-            const row = await db
-              .prepare('SELECT data, updated_at FROM user_tool_state WHERE handle_lower = ? AND tool_key = ?')
-              .bind(handle, toolKey)
-              .first();
-            return new Response(
-              JSON.stringify({
-                status: 'ok',
-                handle,
-                toolKey,
-                data: row?.data ? JSON.parse(String(row.data)) : null,
-                updatedAt: row?.updated_at || null
-              }),
-              { headers: CORS_HEADERS }
-            );
-          }
-          const rows = await db
-            .prepare('SELECT tool_key, data, updated_at FROM user_tool_state WHERE handle_lower = ?')
-            .bind(handle)
-            .all();
-          const map: Record<string, any> = {};
-          for (const r of (rows.results || []) as any[]) {
-            try {
-              map[String(r.tool_key)] = JSON.parse(String(r.data));
-            } catch {}
-          }
-          return new Response(JSON.stringify({ status: 'ok', handle, states: map }), { headers: CORS_HEADERS });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message || 'Failed to read tool state.' }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
-        }
-      }
-
-      // POST /api/tool-state (Owner or Admin verified cloud save for user tool state)
-      if (url.pathname === '/api/tool-state' && request.method === 'POST') {
-        try {
-          const body: any = await request.json();
-          const handle = String(body.handle || '').trim().toLowerCase();
-          const toolKey = String(body.toolKey || '').trim();
-          if (!handle || !toolKey || body.data === undefined) {
-            return new Response(JSON.stringify({ error: 'handle, toolKey, and data are required.' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
-          }
-          const toolSession = await readVerifiedSession(request, env);
-          if (!toolSession || (toolSession.handle.trim().toLowerCase() !== handle && !toolSession.isAdmin)) {
-            return new Response(JSON.stringify({ error: 'You may only save tool state for your own signed in account.' }), {
-              status: 403,
-              headers: CORS_HEADERS
-            });
-          }
-          const serialized = JSON.stringify(body.data);
-          if (serialized.length > 150000) {
-            return new Response(JSON.stringify({ error: 'Tool state payload exceeds size limit.' }), {
-              status: 413,
-              headers: CORS_HEADERS
-            });
-          }
-          await db
-            .prepare(
-              'INSERT INTO user_tool_state (handle_lower, tool_key, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(handle_lower, tool_key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
-            )
-            .bind(handle, toolKey, serialized, now)
-            .run();
-          return new Response(JSON.stringify({ status: 'ok', handle, toolKey, updatedAt: now }), { headers: CORS_HEADERS });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message || 'Failed to save tool state.' }), {
-            status: 500,
-            headers: CORS_HEADERS
-          });
-        }
-      }
+      // GET & POST /api/tool-state (Extracted to worker/routes/toolState.ts)
+      const toolStateRes = await handleToolStateRoutes({
+        request,
+        url,
+        env,
+        db,
+        now,
+        corsHeaders: CORS_HEADERS,
+        readVerifiedSession
+      });
+      if (toolStateRes) return toolStateRes;
 
       // GET /api/data (Single atomic round trip from D1 with automatic KV migration)
       if (url.pathname === '/api/data' && request.method === 'GET') {
@@ -2368,178 +2236,24 @@ export default {
         }
       }
 
-      // POST /api/auth/register (Cloudflare D1 PBKDF2 Registration)
-      if (url.pathname === '/api/auth/register' && request.method === 'POST') {
-        try {
-          const body = (await request.json()) as any;
-          const username = String(body.username || '').trim();
-          const email = body.email ? String(body.email).trim() : '';
-          const password = String(body.password || '');
-          const userAccount = body.userAccount;
-          const rosterEntry = body.rosterEntry;
-
-          if (!username || !userAccount) {
-            return new Response(JSON.stringify({ error: 'Missing username or account profile' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
-          }
-
-          const userLower = username.toLowerCase();
-          const emailLower = email ? email.toLowerCase() : null;
-          const existingAcc = await db
-            .prepare('SELECT username_lower FROM accounts WHERE username_lower = ?')
-            .bind(userLower)
-            .first();
-          if (existingAcc && (!session || (!session.isAdmin && session.handle.toLowerCase() !== userLower))) {
-            return new Response(JSON.stringify({ error: 'Username is already registered. Please sign in instead.' }), {
-              status: 409,
-              headers: CORS_HEADERS
-            });
-          }
-
-          const passwordHash = password ? await hashPasswordPBKDF2(password) : '';
-          const safeUserObj = { ...sanitizeUserAccountForClient(userAccount), isAdmin: false };
-          const record = {
-            username,
-            email: email || undefined,
-            passwordHash,
-            userAccount: { ...safeUserObj, passwordHash },
-            rosterEntry
-          };
-
-          await db
-            .prepare('INSERT OR REPLACE INTO accounts (username_lower, email_lower, data, updated_at) VALUES (?, ?, ?, ?)')
-            .bind(userLower, emailLower, JSON.stringify(record), now)
-            .run();
-
-          const cookie = await buildSessionCookieHeader(username, false, env);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              userAccount: safeUserObj,
-              rosterEntry: record.rosterEntry
-            }),
-            { headers: { ...CORS_HEADERS, 'Set-Cookie': cookie } }
-          );
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
-        }
-      }
-
-      // POST /api/auth/login (Cloudflare D1 PBKDF2 Verification)
-      if (url.pathname === '/api/auth/login' && request.method === 'POST') {
-        try {
-          const body = (await request.json()) as any;
-          const identifier = String(body.identifier || body.username || '').trim().toLowerCase();
-          const password = String(body.password || '');
-
-          if (!identifier || !password) {
-            return new Response(JSON.stringify({ error: 'Please provide username and password.' }), {
-              status: 400,
-              headers: CORS_HEADERS
-            });
-          }
-
-          const row = await db
-            .prepare('SELECT username_lower, email_lower, data FROM accounts WHERE username_lower = ? OR email_lower = ?')
-            .bind(identifier, identifier)
-            .first();
-
-          if (!row?.data) {
-            return new Response(JSON.stringify({ error: 'Account not found. Check your username or register.' }), {
-              status: 401,
-              headers: CORS_HEADERS
-            });
-          }
-
-          const record = JSON.parse(row.data);
-          const storedHash = record.passwordHash || record.userAccount?.passwordHash || '';
-          const isAdminUser = Boolean(record.userAccount?.isAdmin);
-          const isPasswordlessGoogle =
-            Boolean(body.googleEmailSignIn) &&
-            !isAdminUser &&
-            !storedHash &&
-            row.email_lower &&
-            row.email_lower === identifier;
-
-          if (!isPasswordlessGoogle) {
-            const check = await verifyPassword(password, storedHash);
-            if (!check.valid) {
-              return new Response(JSON.stringify({ error: 'Incorrect password. Please try again.' }), {
-                status: 401,
-                headers: CORS_HEADERS
-              });
-            }
-
-            // Transparently upgrade legacy SHA-256 hashes to PBKDF2 in D1
-            if (check.needsUpgrade) {
-              const upgradedHash = await hashPasswordPBKDF2(password);
-              record.passwordHash = upgradedHash;
-              if (record.userAccount) record.userAccount.passwordHash = upgradedHash;
-              await db
-                .prepare('UPDATE accounts SET data = ?, updated_at = ? WHERE username_lower = ?')
-                .bind(JSON.stringify(record), now, row.username_lower)
-                .run();
-            }
-          }
-
-          const cookie = await buildSessionCookieHeader(record.username || row.username_lower, isAdminUser, env);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              userAccount: sanitizeUserAccountForClient(record.userAccount),
-              rosterEntry: record.rosterEntry
-            }),
-            { headers: { ...CORS_HEADERS, 'Set-Cookie': cookie } }
-          );
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
-        }
-      }
-
-
-
-      // POST /api/auth/admin-login (Server side admin password verification -> HttpOnly signed admin cookie)
-      if (url.pathname === '/api/auth/admin-login' && request.method === 'POST') {
-        try {
-          const body = (await request.json()) as any;
-          const password = String(body.password || '').trim();
-          if (!password) {
-            return new Response(JSON.stringify({ error: 'Admin password required.' }), { status: 400, headers: CORS_HEADERS });
-          }
-          const expectedHash = (env.ADMIN_PASSWORD_HASH || SERVER_ADMIN_SHA256).trim().toLowerCase();
-          const suppliedHash = (await computeSha256Hex(password)).toLowerCase();
-          if (suppliedHash !== expectedHash) {
-            return new Response(JSON.stringify({ error: 'Invalid Admin Password. Access denied.' }), { status: 401, headers: CORS_HEADERS });
-          }
-          const cookie = await buildSessionCookieHeader('Leuie', true, env);
-          return new Response(JSON.stringify({ success: true, handle: 'Leuie', isAdmin: true }), {
-            headers: { ...CORS_HEADERS, 'Set-Cookie': cookie }
-          });
-        } catch (err: any) {
-          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: CORS_HEADERS });
-        }
-      }
-
-      // POST /api/auth/logout (Clears HttpOnly session cookie)
-      if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { ...CORS_HEADERS, 'Set-Cookie': buildClearSessionCookieHeader() }
-        });
-      }
-
-      // GET /api/auth/session (Verify active HttpOnly session)
-      if (url.pathname === '/api/auth/session' && request.method === 'GET') {
-        return new Response(
-          JSON.stringify({
-            authenticated: Boolean(session),
-            handle: session?.handle || null,
-            isAdmin: Boolean(session?.isAdmin)
-          }),
-          { headers: CORS_HEADERS }
-        );
-      }
+      // Auth routes (/api/auth/* extracted to worker/routes/auth.ts)
+      const authRes = await handleAuthRoutes({
+        request,
+        url,
+        env,
+        db,
+        now,
+        session,
+        corsHeaders: CORS_HEADERS,
+        serverAdminSha256: SERVER_ADMIN_SHA256,
+        hashPasswordPBKDF2,
+        verifyPassword,
+        computeSha256Hex,
+        sanitizeUserAccountForClient,
+        buildSessionCookieHeader,
+        buildClearSessionCookieHeader
+      });
+      if (authRes) return authRes;
 
       // POST /api/stash-drops
       if (url.pathname === '/api/stash-drops' && request.method === 'POST') {

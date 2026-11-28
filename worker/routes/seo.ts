@@ -15,7 +15,7 @@ function escapeHtmlAttr(val: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function resolveLeagueDisplayName(leagueId: string): string {
+export function resolveLeagueDisplayName(leagueId: string): string {
   const clean = leagueId.toLowerCase().trim();
   if (clean === 'poe1-330-umbra') return 'Ravenwatch Covens of Umbra GSF (PL87651)';
   if (clean === 'poe1-329-mirage') return 'Ravenwatch Mirage GSF (3.29)';
