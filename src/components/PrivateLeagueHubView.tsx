@@ -31,6 +31,7 @@ import {
   X,
   Handshake
 } from 'lucide-react';
+import { sendSiteNotification } from '../services/inboxService';
 import {
   ACTIVE_LEAGUE_SESSIONS,
   getAllActiveLeagueSessions,
@@ -972,10 +973,14 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
   };
 
   const handleToggleNudge = (alumnusId: string) => {
+    let nudgedTarget: LeagueParticipantAlumnus | null = null;
     const nextAlumni = alumniList.map((a: LeagueParticipantAlumnus) => {
       if (a.id === alumnusId) {
         const nextVal = !a.nudgedForCurrentLeague;
-        if (nextVal) fireConfetti();
+        if (nextVal) {
+          fireConfetti();
+          nudgedTarget = a;
+        }
         return {
           ...a,
           nudgedForCurrentLeague: nextVal,
@@ -986,6 +991,19 @@ export const PrivateLeagueHubView: React.FC<PrivateLeagueHubViewProps> = ({
     });
     setAlumniList(nextAlumni);
     saveCloudAlumniList(nextAlumni);
+
+    if (nudgedTarget && userAccount?.displayName) {
+      const targetHandle = ((nudgedTarget as LeagueParticipantAlumnus).displayName || (nudgedTarget as LeagueParticipantAlumnus).poeAccountName || '').replace(/^@/, '').trim();
+      if (targetHandle) {
+        void sendSiteNotification({
+          toHandle: targetHandle,
+          kind: 'alumni_nudge',
+          title: `@${userAccount.displayName} nudged you for ${activeLeagueInfo.name}!`,
+          body: 'Come join the squad for the current Private League season on Exile SSF.',
+          linkPath: `/league/${activeSessionId}`
+        }).catch(() => {});
+      }
+    }
   };
 
   // Synchronize userAccount if logged in

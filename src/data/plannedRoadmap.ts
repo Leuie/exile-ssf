@@ -288,7 +288,8 @@ export const PLANNED_ROADMAP_ITEMS: PlannedRoadmapItem[] = [
     description:
       'In-app notification bell and quick squad messages for item loan reminders, wishlist matches, alumni nudges, and private league invites.',
     scope: 'Platform',
-    status: 'planned'
+    status: 'shipped',
+    shippedNote: 'Shipped in v3.48.0 (Nov 28, 2026)'
   },
   {
     id: 'rm-poe2-live-api',

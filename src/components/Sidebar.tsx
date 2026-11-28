@@ -30,6 +30,7 @@ import {
   WifiOff
 } from "lucide-react";
 import { readActiveCharacter, type ActiveCharacterContext } from '../utils/activeCharacter';
+import { InboxBellDrawer } from './ui/InboxBellDrawer';
 
 interface SidebarProps {
   activeTab: string;
@@ -380,6 +381,8 @@ interface NavGroup {
               PoE 2
             </button>
           </div>
+
+          <InboxBellDrawer userAccount={userAccount ?? null} compact />
 
           <button
             type="button"
@@ -883,6 +886,9 @@ interface NavGroup {
               <Swords className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             </button>
           )}
+
+          {/* In-App Notification Bell & Light Squad Messaging */}
+          {userAccount && <InboxBellDrawer userAccount={userAccount} compact={isCollapsed} />}
 
           {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}
           {(onOpenAuthModal || onOpenProfile) && (

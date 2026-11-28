@@ -6,6 +6,7 @@ import { resolvePageMeta, injectMetaIntoHtml, resolveLeagueDisplayName } from '.
 import { handleAuthRoutes } from './routes/auth';
 import { handlePobResolveRoute } from './routes/pob';
 import { handleToolStateRoutes } from './routes/toolState';
+import { handleInboxRoutes } from './routes/messages';
 // Cloudflare Worker for Exile SSF
 // Primary atomic storage via Cloudflare D1 (EXILE_DB) with automatic KV migration and edge OpenGraph metadata
 
@@ -1479,6 +1480,20 @@ export default {
         readVerifiedSession
       });
       if (toolStateRes) return toolStateRes;
+
+      // GET & POST /api/inbox/* (In-App Notification Bell & Light Messaging)
+      if (url.pathname.startsWith('/api/inbox')) {
+        const inboxSession = await readVerifiedSession(request, env);
+        const inboxRes = await handleInboxRoutes({
+          request,
+          url,
+          db,
+          now,
+          session: inboxSession,
+          corsHeaders: CORS_HEADERS
+        });
+        if (inboxRes) return inboxRes;
+      }
 
       // GET /api/data (Single atomic round trip from D1 with automatic KV migration)
       if (url.pathname === '/api/data' && request.method === 'GET') {

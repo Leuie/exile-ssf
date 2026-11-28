@@ -19,13 +19,29 @@ export interface SiteChangelogRelease {
 
 export const SITE_CHANGELOG: SiteChangelogRelease[] = [
   {
+    id: 'rel-2026-11-28-inbox-notifications-messaging',
+    version: 'v3.48.0',
+    title: 'In-App Notification Bell, Light Squad Messaging, League Invites & Alumni Nudges',
+    dateEst: 'Nov 28, 2026 • 11:30 AM EST',
+    isMajor: true,
+    tier: 'major',
+    badge: 'Latest Release',
+    summary: 'Added a live Notification Bell and slide-over Inbox right in the sidebar and mobile header so signed-in players can receive alerts, reply to quick squad messages, send Private League invites, and receive real Alumni Nudge alerts without leaving the site.',
+    changes: [
+      { tag: 'Added', text: 'In-App Notification Bell in the desktop sidebar and mobile top bar with a live unread counter badge.' },
+      { tag: 'Added', text: 'Light Squad Messaging inside the Inbox drawer: send short direct messages to any Exile handle, read conversation threads, and reply quickly.' },
+      { tag: 'Added', text: 'Private League Invites & Alumni Nudge alerts: send an invite or nudge a past teammate from the Alumni Directory and they will get an alert right in their Notification Bell.' },
+      { tag: 'Improved', text: 'Unread alerts can be marked read individually or all at once, and clicking an alert link jumps straight to the matching league or page.' }
+    ]
+  },
+  {
     id: 'rel-2026-11-28-daily-calendar-telemetry-hub',
     version: 'v3.47.0',
     title: 'Daily Mapping Calendar, Live Client.txt Insights, Guild Stash API & Cleaner League Navigation',
     dateEst: 'Nov 28, 2026 • 11:15 AM EST',
     isMajor: true,
     tier: 'major',
-    badge: 'Latest Release',
+    badge: 'Map Tracker & Hub',
     summary: 'Added a daily calendar to Map Tracker so you can see how many maps you ran each day at a glance, unlocked deeper automatic tracking from Client.txt (mechanic spawns, Nameless Seer alerts, death log, trade history, and /passives checks), and organized Private League pages so everything is easier to find.',
     changes: [
       { tag: 'Added', text: 'Daily Mapping Calendar in Map Tracker: view how many maps you ran each day on a monthly calendar, and click any day to see which maps you ran, average map time, deaths, and saved sessions.' },
