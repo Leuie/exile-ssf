@@ -887,9 +887,6 @@ interface NavGroup {
             </button>
           )}
 
-          {/* In-App Notification Bell & Light Squad Messaging */}
-          {userAccount && <InboxBellDrawer userAccount={userAccount} compact={isCollapsed} />}
-
           {/* User Account Profile & Dynamic Tag Card (Opens /exile/:handle directly when signed in) */}
           {(onOpenAuthModal || onOpenProfile) && (
             !isCollapsed ? (
@@ -951,7 +948,7 @@ interface NavGroup {
           )}
 
           {/* Compact Footer Action Row */}
-          <div className="flex items-center gap-1.5">
+          <div className={isCollapsed ? 'flex flex-col items-center gap-1.5' : 'flex items-center gap-1.5'}>
             {/* Heart Icon Button */}
             <button
               onClick={() => setActiveTab('about')}
@@ -964,6 +961,17 @@ interface NavGroup {
             >
               <Heart className={`w-3.5 h-3.5 ${activeTab === 'about' ? 'fill-white text-white' : 'fill-rose-500/40 text-rose-500'}`} />
             </button>
+
+            {/* Compact Notification Bell Button next to Heart */}
+            {userAccount && (
+              <InboxBellDrawer
+                userAccount={userAccount}
+                compact
+                buttonClassName={`p-2 bg-slate-900 border-slate-800 text-slate-400 hover:text-indigo-300 hover:border-indigo-500/40 ${
+                  isCollapsed ? 'w-full' : 'w-10 flex-shrink-0'
+                }`}
+              />
+            )}
 
             {!isCollapsed && (
               <button

@@ -21,6 +21,7 @@ import {
 interface InboxBellDrawerProps {
   userAccount?: UserAccount | null;
   compact?: boolean;
+  buttonClassName?: string;
 }
 
 function formatShortTime(iso: string): string {
@@ -36,7 +37,8 @@ function formatShortTime(iso: string): string {
 
 export const InboxBellDrawer: React.FC<InboxBellDrawerProps> = ({
   userAccount,
-  compact = false
+  compact = false,
+  buttonClassName
 }) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'notifications' | 'messages' | 'compose'>('notifications');
@@ -156,16 +158,18 @@ export const InboxBellDrawer: React.FC<InboxBellDrawerProps> = ({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`relative inline-flex items-center justify-center gap-1.5 rounded-xl border transition-colors cursor-pointer ${
-          compact
-            ? 'p-2 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
-            : 'w-full px-3 py-2 bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-200 text-xs font-semibold justify-between'
+        className={`relative inline-flex items-center justify-center gap-1.5 rounded-xl border transition-all cursor-pointer ${
+          buttonClassName
+            ? buttonClassName
+            : compact
+              ? 'p-2 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+              : 'w-full px-3 py-2 bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-200 text-xs font-semibold justify-between'
         }`}
         aria-label={`Open notifications and messages (${totalUnread} unread)`}
         title="Notifications & Squad Messages"
       >
         <span className="inline-flex items-center gap-2">
-          <Bell className={`w-4 h-4 ${totalUnread > 0 ? 'text-amber-400' : 'text-indigo-400'}`} aria-hidden="true" />
+          <Bell className={`${buttonClassName ? 'w-3.5 h-3.5' : 'w-4 h-4'} ${totalUnread > 0 ? 'text-amber-400' : 'text-indigo-400'}`} aria-hidden="true" />
           {!compact && <span>Inbox &amp; Alerts</span>}
         </span>
         {totalUnread > 0 && (
